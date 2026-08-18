@@ -70,6 +70,25 @@ import { BOSS_DEFINITION_OWNED_PARAMS } from '../../../msx2BossParams';
 
 export const BITMAP_BOSS_TABLE_STRIDE = 27;
 
+/** Side of a body cell. Matches the engine's OP_COPY_16 composition primitive. */
+export const BOSS_CELL_SIZE = 16;
+
+/** Bytes per cell record: SX word, SY word, X offset, Y offset. */
+export const BOSS_CELL_RECORD_BYTES = 6;
+
+/** A boss body split back into the 16x16 cells it was authored with. */
+export interface BossBodyCellGrid {
+  /** Cells of the whole strip, row-major: index = row * columns + column. */
+  cells: number[][][];
+  columns: number;
+  rows: number;
+}
+
+/** Atlas key of one body cell. Stable, so the placements can be looked up back. */
+export function bossBodyCellKey(stampId: string, index: number): string {
+  return `${stampId}#c${index}`;
+}
+
 /**
  * Damage-zone record: x, y, w, h, kind, damageMultiplier, hitSoundIndex.
  * The table builder and the Z80 scanner both stride by this, so they cannot
@@ -195,6 +214,18 @@ export interface BitmapBossRoomData {
    * A zero assetCount keeps the legacy immediate defeat.
    */
   deathFxTables: number[][];
+  /**
+   * Per-room boss body cell blob (FASE 3): [frameCount, cellsPerFrame,
+   * strideLo, strideHi, (sxLo,sxHi,syLo,syHi,dx,dy) * frameCount*cellsPerFrame].
+   * `[0, 0]` means the body is a single atlas rectangle and the monolithic blit
+   * still applies.
+   */
+  cellTables: number[][];
+  /**
+   * Per-room CHANGED-cell lists (FASE 3b): [count, records...] per frame, in
+   * frame order, each frame diffed against the one the animation came from.
+   */
+  cellDeltaTables: number[][];
   /**
    * Death SFX selector per room: zero = no boss, -1 = built-in MSX2 explosion,
    * positive = one-based custom stream index.
@@ -629,6 +660,13 @@ export function buildBitmapRoomBossData(
    * only it owns the atlas packer; here they are rectangles to point at.
    */
   bodyStampPlacements: Map<string, { sx: number; sy: number; w: number; h: number }> = new Map(),
+  /**
+   * Body stamps that the caller split into 16x16 cells (FASE 3, study §5).
+   * Keyed by stamp asset id; each cell's atlas rectangle is looked up in
+   * `bodyStampPlacements` under `bossBodyCellKey(id, index)`. A body that is not
+   * here keeps the old single-rectangle path.
+   */
+  bodyGrids: Map<string, BossBodyCellGrid> = new Map(),
 ): BitmapBossRoomData {
   let enabled = false;
   const flagNames: string[] = [];
@@ -715,6 +753,8 @@ export function buildBitmapRoomBossData(
       pathSel: [] as number[],
       deathFx: [0, 0, 0, 0],
       deathSoundIndex: 0,
+      cells: [0, 0],
+      cellsDelta: [0],
     };
     if (bosses.length > 1) {
       console.warn(`MSX2 bitmap room "${room.name}": only 1 boss per room is supported; extra ones were skipped.`);
@@ -730,7 +770,22 @@ export function buildBitmapRoomBossData(
     // caller. `bossAtlasEntryId` is the pre-stamp way of saying the same thing
     // and is only consulted when no stamp is named, so old projects keep working.
     const stampId = String(params.bossStampAssetId || '').trim();
-    const bodySource = stampId
+    // FASE 3: a split body has no single rectangle in the atlas any more -- its
+    // cells are scattered wherever the packer deduped them. The strip geometry
+    // comes from the authored grid instead, and the cells are addressed one by
+    // one through bodyStampPlacements under their per-cell keys.
+    const bodyGrid = stampId ? bodyGrids.get(stampId) : undefined;
+    const bodySource = bodyGrid
+      ? {
+        label: `body stamp "${stampId}"`,
+        rect: {
+          sx: 0,
+          sy: 0,
+          w: bodyGrid.columns * BOSS_CELL_SIZE,
+          h: bodyGrid.rows * BOSS_CELL_SIZE,
+        },
+      }
+      : stampId
       ? { label: `body stamp "${stampId}"`, rect: bodyStampPlacements.get(stampId) }
       : (() => {
         const entryId = String(params.bossAtlasEntryId || '').trim();
@@ -754,6 +809,8 @@ export function buildBitmapRoomBossData(
         pathSel: [] as number[],
         deathFx: [0, 0, 0, 0],
         deathSoundIndex: 0,
+        cells: [0, 0],
+        cellsDelta: [0],
       };
     }
     const frames = clampInt(params.bossFrames, 1, 4, 1);
@@ -761,6 +818,65 @@ export function buildBitmapRoomBossData(
     const stripH = Math.max(1, Math.floor(Number(bodySource.rect.h) || 0));
     const width = even(clampInt(Math.floor(stripW / frames), 16, 128, 16));
     const height = clampInt(stripH, 16, 96, 16);
+    // FASE 3: one cell record per 16x16 of the frame, for every frame, in one
+    // flat uniform blob: [frameCount, cellsPerFrame, records...]. Uniform because
+    // every frame of a strip has the same cell count, which spares the runtime a
+    // per-frame pointer table -- the frame offset is plain multiplication.
+    const cellBlob: number[] = [];
+    const cellDeltaBlob: number[] = [];
+    if (bodyGrid) {
+      const cellsX = Math.floor(width / BOSS_CELL_SIZE);
+      const cellsY = Math.floor(height / BOSS_CELL_SIZE);
+      const perFrame = cellsX * cellsY;
+      const stride = perFrame * BOSS_CELL_RECORD_BYTES;
+      let missing = 0;
+      const record = (frame: number, cx: number, cy: number) => {
+        const gridIndex = cy * bodyGrid.columns + frame * cellsX + cx;
+        const placed = bodyStampPlacements.get(bossBodyCellKey(stampId, gridIndex));
+        if (!placed) { missing += 1; }
+        return {
+          sx: placed ? placed.sx : 0,
+          // Placements are atlas-relative; the atlas itself lives at VRAM rows
+          // 512+, exactly like the single-rectangle path a few lines above.
+          sy: 512 + (placed ? placed.sy : 0),
+          dx: cx * BOSS_CELL_SIZE,
+          dy: cy * BOSS_CELL_SIZE,
+        };
+      };
+      const frameCells: Array<Array<ReturnType<typeof record>>> = [];
+      for (let frame = 0; frame < frames; frame++) {
+        const cells: Array<ReturnType<typeof record>> = [];
+        for (let cy = 0; cy < cellsY; cy++) {
+          for (let cx = 0; cx < cellsX; cx++) cells.push(record(frame, cx, cy));
+        }
+        frameCells.push(cells);
+      }
+      const emit = (target: number[], cell: ReturnType<typeof record>) => target.push(
+        cell.sx & 0xff, (cell.sx >> 8) & 0xff,
+        cell.sy & 0xff, (cell.sy >> 8) & 0xff,
+        cell.dx & 0xff, cell.dy & 0xff,
+      );
+      // The stride is baked so the runtime reaches frame N by adding it N times
+      // instead of multiplying: frames are capped at 4, so it is a short loop.
+      cellBlob.push(frames & 0xff, perFrame & 0xff, stride & 0xff, (stride >> 8) & 0xff);
+      for (const cells of frameCells) for (const cell of cells) emit(cellBlob, cell);
+      // Per-frame CHANGED cells, against the frame the animation came from --
+      // frame 0 follows the last one, because the cycle wraps. This is where the
+      // blitter saving lives: repainting a whole frame by cells costs ~12 % MORE
+      // than the single blit it replaced (study §5.4), so only skipping the
+      // cells that did not change turns the metatile model into a win.
+      for (let frame = 0; frame < frames; frame++) {
+        const previous = frameCells[(frame + frames - 1) % frames];
+        const changed = frameCells[frame].filter((cell, index) => (
+          cell.sx !== previous[index].sx || cell.sy !== previous[index].sy
+        ));
+        cellDeltaBlob.push(changed.length & 0xff);
+        for (const cell of changed) emit(cellDeltaBlob, cell);
+      }
+      if (missing) {
+        console.warn(`MSX2 bitmap room "${room.name}": boss ${bodySource.label} is missing ${missing} atlas cell placement(s); those cells render as atlas row 0.`);
+      }
+    }
     if (Math.floor(stripW / frames) < 16 || stripH < 16 || Math.floor(stripW / frames) > 128 || stripH > 96) {
       console.warn(`MSX2 bitmap room "${room.name}": boss ${bodySource.label} is ${stripW}x${stripH} for ${frames} frame(s); per-frame size must be 16..128 x 16..96. Boss disabled in this room.`);
       return {
@@ -775,6 +891,8 @@ export function buildBitmapRoomBossData(
         pathSel: [] as number[],
         deathFx: [0, 0, 0, 0],
         deathSoundIndex: 0,
+        cells: [0, 0],
+        cellsDelta: [0],
       };
     }
     const animDelay = clampInt(params.bossAnimDelay, 1, 255, 12);
@@ -935,6 +1053,8 @@ export function buildBitmapRoomBossData(
       pathSel,
       deathFx,
       deathSoundIndex,
+      cells: cellBlob.length ? cellBlob : [0, 0],
+      cellsDelta: cellDeltaBlob.length ? cellDeltaBlob : [0],
     };
   });
   return {
@@ -954,6 +1074,8 @@ export function buildBitmapRoomBossData(
     shootRecords,
     deathFxTables: stripDeathFxAnimHeader(perRoom.map(entry => entry.deathFx)),
     deathSoundIndexes: perRoom.map(entry => entry.deathSoundIndex),
+    cellTables: perRoom.map(entry => entry.cells),
+    cellDeltaTables: perRoom.map(entry => entry.cellsDelta),
     deathSoundStreams,
   };
 }
@@ -1560,6 +1682,8 @@ export function buildBitmapBossSystemAsm(
   const hasIntroClose = introHas(INTRO_OP_CLOSE_BARRIER);
   const hasIntroDialogue = introHas(INTRO_OP_DIALOGUE);
   const hasDeathFx = (data.deathFxTables || []).some(table => table && table[0] > 0);
+  // FASE 3: at least one room composes its boss from 16x16 atlas cells.
+  const hasBossCells = (data.cellTables || []).some(table => table && table[0] > 0);
   const hasDefaultDeathSound = (data.deathSoundIndexes || []).some(index => index < 0);
   const hasCustomDeathSound = (data.deathSoundIndexes || []).some(index => index > 0)
     && (data.deathSoundStreams || []).length > 0;
@@ -1662,11 +1786,16 @@ export function buildBitmapBossSystemAsm(
   const HIT_BLAST_RAM_BYTES = 4; // countdown, authored length, and the hit zone's centre
   const hitBlastRamBase = deathSfxRamBase + (hasPooledSfx ? DEATH_SFX_RAM_BYTES : 0);
   // MegaROM: the room record is staged out of its data bank into RAM.
+  // FASE 3b: which frame is currently ON SCREEN, so a redraw can repaint only
+  // the cells that differ. #FF = nothing drawn yet, so the next draw is full.
+  const CELLS_RAM_BYTES = 1;
+  const cellsRamBase = hitBlastRamBase + (hasHitBlast ? HIT_BLAST_RAM_BYTES : 0);
   const bankedTables = opts.bankedTables === true;
   const totalRamBytes = baseRamBytes + (hasIntro ? INTRO_RAM_BYTES : 0)
     + (hasDeathFx ? DEATH_RAM_BYTES : 0)
     + (hasPooledSfx ? DEATH_SFX_RAM_BYTES : 0)
     + (hasHitBlast ? HIT_BLAST_RAM_BYTES : 0)
+    + (hasBossCells ? CELLS_RAM_BYTES : 0)
     + (bankedTables ? BITMAP_BOSS_TABLE_STRIDE : 0);
   const bossTableBufAddr = opts.ramBase + totalRamBytes - BITMAP_BOSS_TABLE_STRIDE;
   // Pre-rendered so the data template stays readable: one ring slot per row,
@@ -1747,7 +1876,8 @@ boss_anim_frame EQU ${asmWord(ram + 9)}
 boss_int_tick   EQU ${asmWord(ram + 10)}
 boss_sx         EQU ${asmWord(ram + 11)}  ; word: current frame atlas SX
 boss_cmd_buf    EQU ${asmWord(ram + 13)}  ; 15-byte V9938 command block
-boss_defeated   EQU ${asmWord(ram + 28)}  ; ${roomPoolCount} active-world bytes, 1 = killed
+${!hasBossCells ? '' : `boss_cells_shown EQU ${asmWord(cellsRamBase)}  ; frame currently on screen, #FF = none
+`}boss_defeated   EQU ${asmWord(ram + 28)}  ; ${roomPoolCount} active-world bytes, 1 = killed
 ${hasDefeatActions ? `boss_flags      EQU ${asmWord(flagsBase)}  ; ${flagCount} bytes, onDefeated setFlag targets (persistent)\n` : ''}${hasBarrier ? `boss_barrier_draw EQU ${asmWord(barrierRamBase)}  ; 0 = clear, 1 = seal, 2 = repaint sealed cells
 boss_barrier_sx EQU ${asmWord(barrierRamBase + 1)}  ; word: chain tile atlas SX
 boss_barrier_sy EQU ${asmWord(barrierRamBase + 3)}  ; word: chain tile atlas SY (512-based)
@@ -1924,7 +2054,10 @@ ${hasIntro ? `    ld (boss_intro_state), a
     ld (boss_death_tick), a
 ` : ''}${hasBarrier ? `    ld (boss_barrier_draw), a
     ld (boss_barrier_pending), a
-` : ''}    ${roomPoolIndexLoad}
+` : ''}${!hasBossCells ? '' : `    ld a, #FF
+    ld (boss_cells_shown), a   ; nothing of this boss is on screen yet: draw it whole
+    xor a
+`}    ${roomPoolIndexLoad}
     ld e, a
     ld d, 0
     ld hl, boss_defeated
@@ -2349,7 +2482,14 @@ ${visiblePageH}
 ; DESTROYS: AF, BC, DE, HL.
 ; ------------------------------------------------------------
 bitmap_boss_draw:
-    ld hl, (boss_sx)
+${!hasBossCells ? '' : `    ; FASE 3: a body split into 16x16 cells has no single rectangle to copy.
+    ; Its cells live wherever the packer deduped them, so the frame is composed
+    ; cell by cell. A room whose blob starts with 0 frames keeps the old path.
+    call bitmap_boss_cells_config
+    ld a, (hl)
+    or a
+    jp nz, bitmap_boss_pick_cell_list
+`}    ld hl, (boss_sx)
     ld (boss_cmd_buf + 0), hl  ; SX
     ld l, (ix+11)
     ld h, (ix+12)
@@ -2392,6 +2532,203 @@ bitmap_boss_launch_cmd:
     ld a, #0F
     ld e, #00
     jp vdp_write_register
+${!hasBossCells ? '' : `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_cells_config
+; ------------------------------------------------------------
+; PURPOSE: Resolve the current room's boss body cell blob.
+; INPUT: current_screen_index.
+; OUTPUT: HL -> [frames, cellsPerFrame, strideLo, strideHi, records...].
+; DESTROYS: AF, DE, HL. PRESERVES: BC, IX.
+; ------------------------------------------------------------
+bitmap_boss_cells_config:
+    ld a, (current_screen_index)
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_boss_cells_ptr_table
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_pick_cell_list
+; ------------------------------------------------------------
+; PURPOSE: Decide whether this redraw has to repaint the whole body or only the
+;   cells the animation changed.
+;
+;   Repainting a frame cell by cell costs ~12 % MORE than the single blit it
+;   replaced -- the area copied is identical and each command has its own cost
+;   (study §5.4). The saving only appears when cells are SKIPPED, and cells can
+;   only be skipped when everything else on screen stayed put:
+;     - the boss moved  -> every pixel shifted, nothing on screen is reusable
+;     - nothing drawn yet (#FF) or the frame did not change -> full repaint
+;   The strip restore has already run when we get here, so a move has also just
+;   scrubbed part of the body: only a full repaint is correct.
+; INPUT: HL -> the room's cell blob. DESTROYS: AF, BC, DE, HL. PRESERVES: IX.
+; ------------------------------------------------------------
+bitmap_boss_pick_cell_list:
+    ld a, (boss_x)
+    ld b, a
+    ld a, (boss_old_x)
+    cp b
+    jp nz, .cells_full
+    ld a, (boss_y)
+    ld b, a
+    ld a, (boss_old_y)
+    cp b
+    jp nz, .cells_full
+    ld a, (boss_cells_shown)
+    cp #FF
+    jp z, .cells_full
+    ld b, a
+    ld a, (boss_anim_frame)
+    cp b
+    ret z                      ; same frame, same place: nothing to repaint
+    call bitmap_boss_cells_delta   ; HL -> [count, records...] of this frame
+    ld a, (boss_anim_frame)
+    ld (boss_cells_shown), a
+    ld c, (hl)
+    inc hl
+    ld a, c
+    or a
+    ret z
+    jp bitmap_boss_draw_cell_list
+.cells_full:
+    ld a, (boss_anim_frame)
+    ld (boss_cells_shown), a
+    jp bitmap_boss_draw_cells
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_cells_delta
+; ------------------------------------------------------------
+; PURPOSE: Point HL at the changed-cell list of the CURRENT animation frame.
+;   The lists are variable length, so they are walked from frame 0: each one is
+;   a count byte followed by count records. Frames are capped at 4.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX.
+; ------------------------------------------------------------
+bitmap_boss_cells_delta:
+    ld a, (current_screen_index)
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_boss_cells_delta_ptr_table
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    ld a, (boss_anim_frame)
+    or a
+    ret z
+    ld b, a
+.delta_skip:
+    ld a, (hl)                 ; cells in this frame's list
+    inc hl
+    or a
+    jp z, .delta_next
+    ld c, a
+    ld de, ${BOSS_CELL_RECORD_BYTES}
+.delta_skip_record:
+    add hl, de
+    dec c
+    jp nz, .delta_skip_record
+.delta_next:
+    djnz .delta_skip
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_draw_cells
+; ------------------------------------------------------------
+; PURPOSE: Compose the current animation frame from its 16x16 cells, one opaque
+;   HMMM each, at (boss_x + dx, boss_y + HUD offset + dy) on the visible page.
+;   Splitting does NOT reduce the bytes copied -- the area is the same -- so this
+;   costs about 12 % more than the single blit it replaces. What it buys is that
+;   the cells are deduplicated in the atlas (study §5.4, corrected).
+; INPUT: HL -> the room's cell blob, already resolved.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX.
+; ------------------------------------------------------------
+bitmap_boss_draw_cells:
+    inc hl
+    ld c, (hl)                 ; C = cells per frame
+    inc hl
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                 ; DE = bytes per frame
+    inc hl                     ; HL -> first record of frame 0
+    ld a, (boss_anim_frame)
+    or a
+    jp z, .cells_ready
+    ld b, a
+.cells_skip_frame:
+    add hl, de
+    djnz .cells_skip_frame
+.cells_ready:
+    ld a, c
+    or a
+    ret z
+; fall through
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_draw_cell_list
+; ------------------------------------------------------------
+; PURPOSE: Blit C cells from the record list at HL. Shared by the full-frame
+;   path and the changed-cells path, so both compose pixels the same way.
+; INPUT: HL -> (sxLo,sxHi,syLo,syHi,dx,dy)*, C = how many.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX.
+; ------------------------------------------------------------
+bitmap_boss_draw_cell_list:
+.cells_next:
+    push bc
+    push hl
+    ld a, (hl)
+    ld (boss_cmd_buf + 0), a   ; SX low
+    inc hl
+    ld a, (hl)
+    ld (boss_cmd_buf + 1), a   ; SX high
+    inc hl
+    ld a, (hl)
+    ld (boss_cmd_buf + 2), a   ; SY low
+    inc hl
+    ld a, (hl)
+    ld (boss_cmd_buf + 3), a   ; SY high
+    inc hl
+    ld a, (hl)                 ; cell X offset inside the body
+    inc hl
+    ld b, a
+    ld a, (boss_x)
+    and #FE
+    add a, b
+    ld (boss_cmd_buf + 4), a   ; DX
+    xor a
+    ld (boss_cmd_buf + 5), a
+    ld a, (hl)                 ; cell Y offset; HL is free after this read
+    ld b, a
+    ld a, (boss_y)
+    add a, ${asmByte(gameY)}
+    add a, b
+    ld l, a
+${visiblePageH}
+    ld (boss_cmd_buf + 6), hl  ; DY = visible page
+    ld hl, ${BOSS_CELL_SIZE}
+    ld (boss_cmd_buf + 8), hl  ; NX
+    ld (boss_cmd_buf + 10), hl ; NY
+    xor a
+    ld (boss_cmd_buf + 12), a  ; CLR unused
+    ld (boss_cmd_buf + 13), a  ; ARG = 0
+    ld a, #D0
+    ld (boss_cmd_buf + 14), a  ; HMMM
+    call bitmap_boss_launch_cmd
+    pop hl
+    ld de, ${BOSS_CELL_RECORD_BYTES}
+    add hl, de
+    pop bc
+    dec c
+    jp nz, .cells_next
+    ret
+`}
 
 ${hasHitBlast ? `; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_hit_blast_draw
@@ -5794,7 +6131,20 @@ ${introStreams.map((stream, index) => `    dw ${introStreamIsEmpty(stream) ? 'bi
 ; generator converts it to the render origin the runtime compares against.
 bitmap_boss_intro_entry_x_table:
     db ${(introTargetXPerRoom.length ? introTargetXPerRoom : [introAutoMoveTargetX]).map(value => asmByte(value)).join(', ')}
-` : ''}${hasDeathFx ? `
+` : ''}${!hasBossCells ? '' : `
+; ---- boss body cells per room (FASE 3) ----
+; frames, cellsPerFrame, stride(word), then (sxLo,sxHi,syLo,syHi,dx,dy)*.
+; A room with no split body emits 0, 0 and keeps the single-rectangle blit.
+${(data.cellTables || []).map((table, index) => `bitmap_boss_cells_room_${index}:
+    db ${(table && table.length ? table : [0, 0]).map(value => asmByte(value)).join(', ')}`).join('\n')}
+bitmap_boss_cells_ptr_table:
+${(data.cellTables || []).map((_, index) => `    dw bitmap_boss_cells_room_${index}`).join('\n')}
+; Changed cells per frame: a count byte then that many records, in frame order.
+; Frame 0 is diffed against the LAST frame, because the animation cycle wraps.
+${(data.cellDeltaTables || []).map((table, index) => `bitmap_boss_cells_delta_room_${index}:\n    db ${(table && table.length ? table : [0]).map(value => asmByte(value)).join(', ')}`).join('\n')}
+bitmap_boss_cells_delta_ptr_table:
+${(data.cellDeltaTables || []).map((_, index) => `    dw bitmap_boss_cells_delta_room_${index}`).join('\n')}
+`}${hasDeathFx ? `
 ; ---- boss death bitmap FX per room ----
 ; assetCount (bit 7 = compact ordered frames), blastCount, interval, hold,
 ; then (sxLo,sxHi,syLo,syHi,w,h)*.

@@ -8,7 +8,10 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
-const read = (...parts) => readFileSync(join(root, ...parts), 'utf8');
+// core.autocrlf checks these files out with CRLF, while the multi-line literals
+// below are written with \n. Without normalising, those checks go red on a
+// clean tree and the contract silently stops guarding anything.
+const read = (...parts) => readFileSync(join(root, ...parts), 'utf8').replace(/\r\n/g, '\n');
 
 const types = read('types.ts');
 const editor = read('components', 'editors', 'Msx2BossEditor.tsx');
@@ -35,10 +38,13 @@ const checks = [
     editor.includes('Colour 0 is') &&
     editor.includes('Defeat actions') &&
     editor.includes('barrier removal run only after')],
+  // The body now enters the atlas as 16x16 cells (FASE 3) while the explosion
+  // frames stay whole rectangles, because they are drawn with LMMM + TIMP.
   ['Body and explosion stamps are injected into the shared atlas',
     roomGen.includes('function collectBossBitmapStamps') &&
     roomGen.includes('params.bossDeathExplosionStampIds') &&
-    roomGen.includes('const bossBitmapStamps = collectBossBitmapStamps')],
+    roomGen.includes('const bossStampCollection = collectBossBitmapStamps') &&
+    roomGen.includes('const bossBitmapStamps = bossStampCollection.items')],
   ['Generator emits a compact per-room death-FX table',
     bossGen.includes('deathFxTables: number[][]') &&
     bossGen.includes('function buildDeathFxTable') &&

@@ -42,10 +42,14 @@ import { Msx2BitmapTileEditor } from './Msx2BitmapTileEditor';
 import { ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 import { importTilesIntoAtlas } from '../../utils/msx2BitmapAtlasImport';
 import {
+  buildCopyCommandsFromGrid,
+  buildTileGrid,
+  removeAtlasEntriesFromRoom,
+} from '../../utils/msx2BitmapAtlasRemoval';
+import {
   applyTerrainToGrid,
   describeAutotileMask,
   findTerrainForGridValue,
-  pruneTerrainsForEntries,
 } from '../../utils/msx2Autotile';
 import { Msx2TileLibraryModal } from '../modals/Msx2TileLibraryModal';
 import { Msx2AutotileImportModal } from '../modals/Msx2AutotileImportModal';
@@ -422,35 +426,6 @@ const renderComposition = (room: Msx2Screen5BitmapRoom, atlasPixels: number[][])
     }
   });
   return pixels;
-};
-
-/**
- * Builds the 16 x rows tile-map grid (atlas-entry index + 1 per cell; 0 = empty) for the visible
- * page. Prefers the persisted `room.tileGrid`; otherwise reconstructs it from the `copy` commands
- * (later commands overwrite the same cell, matching the render's "last wins").
- */
-const buildTileGrid = (room: Msx2Screen5BitmapRoom, cols: number, rows: number): number[][] => {
-  const entries = room.atlas?.entries || [];
-  const grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => 0));
-  if (Array.isArray(room.tileGrid)) {
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
-        const v = room.tileGrid[y]?.[x] ?? 0;
-        grid[y][x] = v > 0 && v - 1 < entries.length ? v : 0;
-      }
-    }
-    return grid;
-  }
-  const idToIndex = new Map(entries.map((entry, index) => [entry.id, index]));
-  for (const command of room.composition?.commands || []) {
-    if (command.op !== 'copy') continue;
-    const index = idToIndex.get(command.atlasEntryId);
-    if (index === undefined) continue;
-    const cx = Math.floor(command.dx / GRID);
-    const cy = Math.floor(command.dy / GRID);
-    if (cx >= 0 && cx < cols && cy >= 0 && cy < rows) grid[cy][cx] = index + 1;
-  }
-  return grid;
 };
 
 interface Msx2BitmapScreenEditorProps {
@@ -1374,6 +1349,15 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     () => (Array.isArray(room.entities) ? room.entities : []),
     [room.entities],
   );
+  // A dark room hands slots 8..15 to the dimmed twins of 0..7, so the art may
+  // only paint with 0..7 and slot 0 is the backdrop: 7 usable colours instead
+  // of 15. That is a hard ceiling on how good a boss can look, and it is worth
+  // warning about because darkness is a per-room flag — one click undoes it.
+  // See docs/msx/MSX2_VRAM_BUDGET_BOSS_STUDY.md §6.
+  const darkRoomHasBoss = useMemo(
+    () => isDarkRoom && placedEntities.some(entity => entity?.kind === 'boss'),
+    [isDarkRoom, placedEntities],
+  );
   const keyItems = useMemo<Msx2KeyItemDefinition[]>(
     () => (Array.isArray(room.keyItems) ? room.keyItems : []),
     [room.keyItems],
@@ -1981,23 +1965,6 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   // so painting over a cell overwrites (last wins) instead of stacking copy commands.
   const tileGrid = useMemo(() => buildTileGrid(room, gridWidth, gridHeight), [room, gridWidth, gridHeight]);
 
-  const buildCopyCommandsFromGrid = (
-    nextGrid: number[][],
-    entries: Msx2BitmapRoomAtlasEntry[],
-  ): Msx2BitmapRoomCommand[] => {
-    const tileCmds: Msx2BitmapRoomCommand[] = [];
-    for (let y = 0; y < nextGrid.length; y++) {
-      for (let x = 0; x < nextGrid[y].length; x++) {
-        const v = nextGrid[y][x];
-        if (!v) continue;
-        const entry = entries[v - 1];
-        if (!entry) continue;
-        tileCmds.push({ id: `tile_${x}_${y}`, op: 'copy', atlasEntryId: entry.id, dx: x * GRID, dy: y * GRID, w: entry.w || GRID, h: entry.h || GRID });
-      }
-    }
-    return tileCmds;
-  };
-
   // Persist a tile-grid change: keep the color/HUD fills+lines (non-'copy') and rebuild one
   // 'copy' per occupied cell, and store the grid itself (compact tilemap for MSX2 export).
   const applyTileGrid = (
@@ -2037,72 +2004,26 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
 
   const confirmDeleteAtlasEntries = () => {
     const deleteIds = new Set(pendingDeleteAtlasEntryIds);
-    const deleteEntries = atlasEntries.filter(entry => deleteIds.has(entry.id));
-    if (deleteEntries.length === 0) {
+    // Cell re-indexing, atlas pixel wipe and dangling-reference cleanup are shared with the
+    // "delete a bitmap stamp" sweep, so both paths leave the room in the same shape.
+    const removal = removeAtlasEntriesFromRoom(room, pendingDeleteAtlasEntries.map(entry => entry.id));
+    if (!removal) {
       setPendingDeleteAtlasEntryIds([]);
       return;
     }
 
     const firstDeleteIndex = atlasEntries.findIndex(item => deleteIds.has(item.id));
-    const nextEntries = atlasEntries.filter(item => !deleteIds.has(item.id));
-    const nextValueByEntryId = new Map(nextEntries.map((entry, index) => [entry.id, index + 1]));
-    let clearedCells = 0;
-    let nextCollision = room.collision;
-    let nextBehavior = room.behavior;
-    const nextGrid = tileGrid.map((row, y) => row.map((value, x) => {
-      const oldEntry = value > 0 ? atlasEntries[value - 1] : null;
-      if (!oldEntry) return 0;
-      if (deleteIds.has(oldEntry.id)) {
-        clearedCells += 1;
-        nextCollision = writeCell(nextCollision, x, y, 0, collisionCols, collisionRows);
-        nextBehavior = writeCell(nextBehavior, x, y, 0, collisionCols, collisionRows);
-        return 0;
-      }
-      return nextValueByEntryId.get(oldEntry.id) || 0;
-    }));
-    const nextPixels = atlasPixels.map(row => [...row]);
-    for (const entry of deleteEntries) {
-      const sx = Math.max(0, Math.trunc(entry.sx || 0));
-      const sy = Math.max(0, Math.trunc(entry.sy || 0));
-      const w = Math.max(1, Math.trunc(entry.w || GRID));
-      const h = Math.max(1, Math.trunc(entry.h || GRID));
-      for (let y = sy; y < Math.min(nextPixels.length, sy + h); y++) {
-        for (let x = sx; x < Math.min(atlasWidth, sx + w); x++) {
-          nextPixels[y][x] = 0;
-        }
-      }
-    }
-
-    const nonCopy = (room.composition?.commands || []).filter(command => command.op !== 'copy');
-    const tileCmds = buildCopyCommandsFromGrid(nextGrid, nextEntries);
+    const nextEntries = removal.patch.atlas?.entries || [];
     const fallbackSelection = nextEntries[firstDeleteIndex]?.id || nextEntries[firstDeleteIndex - 1]?.id || '';
-    // Autotile mappings pointing at the deleted entry are dropped (empty terrains removed).
-    const nextTerrains = pruneTerrainsForEntries(room.autoTerrains, nextEntries);
-    onUpdate({
-      ...(nextTerrains !== room.autoTerrains ? { autoTerrains: nextTerrains || [] } : {}),
-      atlas: {
-        width: atlasWidth,
-        height: atlasHeight,
-        offscreenBaseY: room.atlas?.offscreenBaseY || 320,
-        pixels: nextPixels,
-        entries: nextEntries,
-      },
-      tileGrid: nextGrid,
-      collision: nextCollision,
-      behavior: nextBehavior,
-      composition: {
-        source: room.composition?.source || 'authored',
-        commands: [...nonCopy, ...tileCmds],
-      },
-    });
+    onUpdate(removal.patch);
     setPendingDeleteAtlasEntryIds([]);
     if (selectedAtlasEntryId && deleteIds.has(selectedAtlasEntryId)) {
       setSelectedAtlasEntryId(fallbackSelection);
     }
     setMultiTileSelection(current => current.filter(item => !deleteIds.has(item.entryId)));
-    setStatusBarMessage?.(deleteEntries.length === 1
-      ? `SCREEN 5: tile "${deleteEntries[0].name}" eliminado del atlas (${clearedCells} celdas limpiadas).`
-      : `SCREEN 5: ${deleteEntries.length} tiles eliminados del atlas (${clearedCells} celdas limpiadas).`);
+    setStatusBarMessage?.(removal.removedEntries.length === 1
+      ? `SCREEN 5: tile "${removal.removedEntries[0].name}" eliminado del atlas (${removal.clearedCells} celdas limpiadas).`
+      : `SCREEN 5: ${removal.removedEntries.length} tiles eliminados del atlas (${removal.clearedCells} celdas limpiadas).`);
   };
 
   // Wipe ALL screen content (tiles, color fills/lines, collision/effects/behavior layers,
@@ -2520,6 +2441,8 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       sy,
       w: Math.min(stampWidth, width - sx),
       h: stampHeight,
+      // Provenance: deleting the stamp asset offers to take this door metatile with it.
+      sourceStampId: stampEntry.id,
     };
     const entries = reusableIndex >= 0
       ? existingEntries.map((item, index) => index === reusableIndex ? entry : item)
@@ -2682,6 +2605,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         entries: atlasEntries,
       },
       stampToAtlasTiles(entry),
+      { sourceStampId: entry.id },
     );
     onUpdate({
       atlas,
@@ -2712,6 +2636,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         entries: atlasEntries,
       },
       stampToAtlasTiles(adapted),
+      { sourceStampId: entry.id },
     );
     onUpdate({ atlas }); // No palette change: colours already remapped to the current palette.
     setSelectedStampId(entry.id);
@@ -7067,6 +6992,24 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
               los slots 8..15 deben ser la versión oscura de los slots 0..7, y el arte de fondo no
               debe usar 8..15.
             </div>
+            {darkRoomHasBoss && (
+              <div className="mt-2 rounded border border-msx-warning bg-msx-bgcolor p-2 text-[0.65rem] text-msx-textsecondary leading-tight">
+                <div className="text-msx-warning font-semibold mb-1">
+                  Esta sala tiene un Boss y está a oscuras
+                </div>
+                La paleta emparejada deja <span className="text-msx-textprimary">7 colores pintables</span>{' '}
+                en vez de 15: el slot 0 es el fondo y los slots 8..15 están reservados como gemelos
+                oscuros. Un boss dibujado con 7 colores se ve pobre, y además su cuerpo paga copia
+                doble en el atlas.
+                <div className="mt-1">
+                  Los bosses clásicos usan justo lo contrario: la guarida iluminada al final del
+                  mundo oscuro. Si la pasas a iluminada, el boss recupera los 15 colores.
+                </div>
+                <Button onClick={handleToggleDarkRoom} className="mt-2 !text-[0.65rem] !py-1">
+                  Pasar esta sala a iluminada
+                </Button>
+              </div>
+            )}
             {isDarkRoom && (
               <div className="mt-2 rounded border border-msx-border bg-msx-bgcolor p-2 text-[0.65rem] text-msx-textsecondary leading-tight">
                 Con la skill <span className="text-msx-textprimary">Glowing tail</span> activa en el

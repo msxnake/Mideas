@@ -8,7 +8,7 @@ import {
   buildScreen5PaletteBytes,
 } from './screen5PresentationData';
 import { SCREEN5_TRANSITION_EFFECTS } from './screen5TransitionEffects';
-import { bitmapStampToPixelGrid } from '../../../msx2Screen5BitmapTileLibrary';
+import { bitmapStampToPixelGrid, bitmapTileScreen5ToAtlasTile } from '../../../msx2Screen5BitmapTileLibrary';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
 import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity, getMsx2PowerStompConfigFromPlayerEntity, getMsx2ShootConfigFromPlayerEntity, getMsx2TeleportABConfigFromPlayerEntity, getMsx2SlashConfigFromPlayerEntity, getMsx2GrabConfigFromPlayerEntity, getMsx2HighJumpConfigFromPlayerEntity, getMsx2WallBreakConfigFromPlayerEntity, getMsx2SpinAttackConfigFromPlayerEntity, getMsx2IceSlideConfigFromPlayerEntity, getMsx2CrouchConfigFromPlayerEntity, getMsx2DestroyTileConfigFromPlayerEntity, getMsx2CollectorGemsConfigFromPlayerEntity, getMsx2PerceptionConfigFromPlayerEntity, getMsx2TorchConfigFromPlayerEntity, getMsx2CarryAndThrowConfigFromPlayerEntity, resolveMsx2BitmapKeyboardBinding } from '../../../msx2PlatformPhysics';
@@ -221,6 +221,9 @@ import {
 } from './msx2BitmapShaftGenerator';
 import {
   BITMAP_BOSS_DEFAULT_DEATH_FRAME_IDS,
+  BossBodyCellGrid,
+  BossDefinitionAsset,
+  bossBodyCellKey,
   buildBitmapRoomBossData,
   buildBitmapBossSystemAsm,
   resolveBossParams,
@@ -1736,16 +1739,82 @@ function buildDefaultBossDeathExplosionFrames(): Array<{ id: string; pixels: num
   }));
 }
 
+export interface BossBitmapStampCollection {
+  /** What the caller must inject into the shared atlas, keyed by `id`. */
+  items: Array<{ id: string; pixels: number[][] }>;
+  /** Body stamps that were split into cells, keyed by stamp asset id. */
+  bodyGrids: Map<string, BossBodyCellGrid>;
+}
+
 /**
- * Every `msx2bitmapstamp` a boss definition names as its body or death
- * explosion, composed into one pixel rectangle. Deduped by asset id.
+ * FASE 3 KILL SWITCH -- OFF until the banking bug below is fixed.
+ *
+ * The metatile path is complete and its tables verified byte by byte, but on
+ * real hardware (OpenMSX, Konami SCC MegaROM) the body does not render at all:
+ * the room paints correctly and `boss_active` is 1, yet nothing appears. Forcing
+ * the full-frame repaint changes nothing, so the fault is NOT in the
+ * changed-cell logic but in reaching or reading the cell tables.
+ *
+ * Prime suspect, and a failure this project has already had once: the tables are
+ * read in the MAIN LOOP while P2 points at a data bank, so `ld a, (hl)` yields
+ * garbage, the frame count reads 0, and control falls through to the monolithic
+ * blit -- which for a split body has sx = sy = 0 and therefore copies VRAM row 0
+ * (the visible page) onto itself. Invisible boss, exactly what we see.
+ *
+ * Until that is resolved, bodies stay whole: previous behaviour, byte for byte.
  */
-function collectBossBitmapStamps(analysis: ProjectAnalysis): Array<{ id: string; pixels: number[][] }> {
+const BOSS_METATILE_ENABLED = false;
+
+/**
+ * Split a stamp into its authored 16x16 cells. Returns undefined when the stamp
+ * is not a clean grid of 16x16 tiles -- an odd stamp keeps the old whole-body
+ * path rather than being sliced into something the runtime cannot address.
+ */
+function bossBodyCellGrid(stamp: any): BossBodyCellGrid | undefined {
+  if (!BOSS_METATILE_ENABLED) return undefined;
+  const columns = Math.max(1, Math.trunc(Number(stamp?.columns) || 0));
+  const rows = Math.max(1, Math.trunc(Number(stamp?.rows) || 0));
+  const tileWidth = Math.trunc(Number(stamp?.tileWidth) || 0);
+  const tileHeight = Math.trunc(Number(stamp?.tileHeight) || 0);
+  if (tileWidth !== TILE_GRID_SIZE || tileHeight !== TILE_GRID_SIZE) return undefined;
+  if (!Array.isArray(stamp?.tiles) || stamp.tiles.length < columns * rows) return undefined;
+  const cells: number[][][] = [];
+  for (let index = 0; index < columns * rows; index++) {
+    const tile = stamp.tiles[index];
+    if (!tile) return undefined;
+    const pixels = bitmapTileScreen5ToAtlasTile(tile).pixels;
+    if (pixels.length !== TILE_GRID_SIZE || (pixels[0]?.length || 0) !== TILE_GRID_SIZE) return undefined;
+    cells.push(pixels);
+  }
+  return { cells, columns, rows };
+}
+
+/**
+ * Every `msx2bitmapstamp` a PLACED boss names as its body or death explosion,
+ * composed into one pixel rectangle. Deduped by asset id.
+ *
+ * Only bosses actually placed on a room are collected. Sweeping every `msx2boss`
+ * asset instead meant a definition left over in the library — and with the
+ * global entity library that is the normal state of a project — kept its body
+ * and its eight death frames in the shared atlas forever, which is resident
+ * VRAM nothing ever draws (see MSX2_VRAM_BUDGET_BOSS_STUDY.md §3.3).
+ *
+ * The params are resolved through `resolveBossParams`, the same merge the boss
+ * compiler uses, so the atlas holds exactly the stamps the runtime will ask
+ * for. That matters beyond the leak: the body and the death frames are
+ * definition-owned (BOSS_DEFINITION_OWNED_PARAMS), so when an encounter carries
+ * a stale `bossStampAssetId` snapshot the runtime draws the DEFINITION's stamp.
+ * Reading the encounter's copy here would put the wrong picture in the atlas.
+ */
+export function collectBossBitmapStamps(analysis: ProjectAnalysis): BossBitmapStampCollection {
   const wanted = new Set<string>();
+  // Body stamps are the ones that become metatile cells; death frames stay whole
+  // rectangles because they are drawn with LMMM + TIMP in one go.
+  const bodyIds = new Set<string>();
   let needsDefaultDeathExplosion = false;
   const addParams = (params: Record<string, unknown>) => {
     const stampId = String(params.bossStampAssetId || '').trim();
-    if (stampId) wanted.add(stampId);
+    if (stampId) { wanted.add(stampId); bodyIds.add(stampId); }
     const deathIds = (Array.isArray(params.bossDeathExplosionStampIds)
       ? params.bossDeathExplosionStampIds
       : [])
@@ -1758,39 +1827,35 @@ function collectBossBitmapStamps(analysis: ProjectAnalysis): Array<{ id: string;
       wanted.add(id);
     }
   };
+  // Both spellings, exactly like the boss compiler builds its own map further
+  // down; a `bossdefinition` asset is as referenceable as an `msx2boss` one.
+  const bossDefinitions = new Map<string, BossDefinitionAsset>();
   for (const asset of ((analysis as any)?.assets || []) as any[]) {
-    if (String(asset?.type || '').toLowerCase() !== 'msx2boss') continue;
-    const params = (asset?.data?.params || asset?.data?.boss?.params || asset?.data || {}) as Record<string, unknown>;
-    addParams(params);
+    const type = String(asset?.type || '').toLowerCase();
+    if (type !== 'msx2boss' && type !== 'bossdefinition') continue;
+    const id = String(asset?.id || '').trim();
+    if (!id) continue;
+    bossDefinitions.set(id, {
+      id,
+      name: asset?.name,
+      params: (asset?.data?.params || asset?.data?.boss?.params || asset?.data || {}) as Record<string, unknown>,
+    });
   }
-  // A placed boss may override the body per encounter, exactly like HP.
-  // Also collect stamps from boss definitions referenced by placed entities.
-  const bossDefinitionAssets = new Map<string, any>();
   for (const asset of ((analysis as any)?.assets || []) as any[]) {
-    if (String(asset?.type || '').toLowerCase() === 'msx2boss') {
-      bossDefinitionAssets.set(String(asset?.id || ''), asset);
-    }
-  }
-  for (const asset of ((analysis as any)?.assets || []) as any[]) {
-    for (const entity of ((asset?.data?.entities || asset?.data?.layers?.entities || []) as any[])) {
+    // Concatenated, not `a || b`: an empty `data.entities` array is truthy and
+    // would hide the entities that actually live under `data.layers.entities`.
+    const placed = [
+      ...((asset?.data?.entities || []) as any[]),
+      ...((asset?.data?.layers?.entities || []) as any[]),
+    ];
+    for (const entity of placed) {
       if (entity?.kind !== 'boss') continue;
-      const ownParams = (entity?.params || {}) as Record<string, unknown>;
-      addParams(ownParams);
-      const stampId = String(ownParams.bossStampAssetId || '').trim();
-      if (stampId) wanted.add(stampId);
-      // If entity has no stamp but references a definition, resolve from definition
-      if (!stampId) {
-        const defId = String(entity?.params?.bossDefinitionId || entity?.params?.bossId || '').trim();
-        const defAsset = bossDefinitionAssets.get(defId);
-        if (defAsset) {
-          const defParams = (defAsset?.data?.params || defAsset?.data?.boss?.params || defAsset?.data || {}) as Record<string, unknown>;
-          addParams(defParams);
-        }
-      }
+      addParams(resolveBossParams(entity, bossDefinitions) as Record<string, unknown>);
     }
   }
-  if (wanted.size === 0 && !needsDefaultDeathExplosion) return [];
+  if (wanted.size === 0 && !needsDefaultDeathExplosion) return { items: [], bodyGrids: new Map() };
   const out: Array<{ id: string; pixels: number[][] }> = [];
+  const bodyGrids = new Map<string, BossBodyCellGrid>();
   for (const asset of ((analysis as any)?.assets || []) as any[]) {
     if (String(asset?.type || '').toLowerCase() !== 'msx2bitmapstamp') continue;
     const id = String(asset?.id || '').trim();
@@ -1800,8 +1865,18 @@ function collectBossBitmapStamps(analysis: ProjectAnalysis): Array<{ id: string;
       console.warn(`MSX2 bitmap boss: stamp asset "${id}" has no stamp data; its boss visual was skipped.`);
       continue;
     }
-    out.push({ id, pixels: bitmapStampToPixelGrid(stamp) });
     wanted.delete(id);
+    // FASE 3 (study §5): a body stamp goes into the atlas as its authored 16x16
+    // cells, not as one flattened rectangle. The packer dedupes by pixel
+    // fingerprint, so flat fill, repeated background and cells shared between
+    // animation frames collapse for free -- and collapse against room tiles too.
+    const grid = bodyIds.has(id) ? bossBodyCellGrid(stamp) : undefined;
+    if (grid) {
+      bodyGrids.set(id, grid);
+      grid.cells.forEach((pixels, index) => out.push({ id: bossBodyCellKey(id, index), pixels }));
+      continue;
+    }
+    out.push({ id, pixels: bitmapStampToPixelGrid(stamp) });
   }
   for (const missing of wanted) {
     console.warn(`MSX2 bitmap boss: referenced bitmap stamp "${missing}" was not found in the project.`);
@@ -1809,7 +1884,7 @@ function collectBossBitmapStamps(analysis: ProjectAnalysis): Array<{ id: string;
   if (needsDefaultDeathExplosion) {
     out.push(...buildDefaultBossDeathExplosionFrames());
   }
-  return out;
+  return { items: out, bodyGrids };
 }
 
 /**
@@ -1833,36 +1908,66 @@ export interface SharedAtlasPlacement {
 function buildSharedWorldAtlasRooms(
   rooms: Msx2Screen5BitmapRoom[],
   extraItems: SharedAtlasExtraItem[] = [],
+  groupDarkFirst = false,
 ): {
   rooms: Msx2Screen5BitmapRoom[];
   atlasRoom: Msx2Screen5BitmapRoom;
   extraPlacements: Map<string, SharedAtlasPlacement>;
+  darkRows: number;
 } {
   const sharedWidth = SCREEN_WIDTH;
-  const uniqueItems: Array<{ fingerprint: string; pixels: number[][]; w: number; h: number }> = [];
+  const roomItems: Array<{ fingerprint: string; pixels: number[][]; w: number; h: number; dark: boolean }> = [];
   const seenFingerprints = new Set<string>();
+  const byFingerprint = new Map<string, { dark: boolean }>();
   for (const room of rooms) {
+    const roomIsDark = isBitmapLightingRoom(room);
     for (const entry of room.atlas?.entries || []) {
       const pixels = extractAtlasEntryPixels(room, entry);
       const fingerprint = atlasEntryFingerprint(pixels);
-      if (seenFingerprints.has(fingerprint)) continue;
+      const known = byFingerprint.get(fingerprint);
+      if (known) {
+        // A tile shared by a lit and a dark room still has to be inside the
+        // dimmed prefix, or the dark room would read an undimmed twin row.
+        if (roomIsDark) known.dark = true;
+        continue;
+      }
       seenFingerprints.add(fingerprint);
-      uniqueItems.push({ fingerprint, pixels, w: Math.max(1, pixels[0]?.length || TILE_GRID_SIZE), h: Math.max(1, pixels.length) });
+      const item = {
+        fingerprint,
+        pixels,
+        w: Math.max(1, pixels[0]?.length || TILE_GRID_SIZE),
+        h: Math.max(1, pixels.length),
+        dark: roomIsDark,
+      };
+      roomItems.push(item);
+      byFingerprint.set(fingerprint, item);
     }
   }
-  // Extras are measured LAST so this pass walks the same order as the placing
-  // pass below; the shelf packer is order-dependent and the two must agree.
+  // Extras (boss bodies, death frames) are measured LAST so this pass walks the
+  // same order as the placing pass below; the shelf packer is order-dependent
+  // and the two must agree. They are never part of the dimmed prefix: a boss
+  // arena is authored lit (MSX2_VRAM_BUDGET_BOSS_STUDY.md §6.3).
+  const extraUniqueItems: Array<{ fingerprint: string; pixels: number[][]; w: number; h: number; dark: boolean }> = [];
   for (const item of extraItems) {
     const fingerprint = atlasEntryFingerprint(item.pixels);
     if (seenFingerprints.has(fingerprint)) continue;
     seenFingerprints.add(fingerprint);
-    uniqueItems.push({
+    extraUniqueItems.push({
       fingerprint,
       pixels: item.pixels,
       w: Math.max(1, item.pixels[0]?.length || TILE_GRID_SIZE),
       h: Math.max(1, item.pixels.length),
+      dark: false,
     });
   }
+  // FASE 1 of the VRAM study: with dark rooms in the project, put every tile a
+  // dark room paints at the FRONT of the atlas. The dimmed twin then only has
+  // to copy that prefix instead of the whole atlas, which both frees rows and
+  // makes the twin fit at all in projects where it silently did not (§6.4).
+  // Off by default so a project without dark rooms keeps its exact layout.
+  const uniqueItems = groupDarkFirst
+    ? [...roomItems.filter(item => item.dark), ...roomItems.filter(item => !item.dark), ...extraUniqueItems]
+    : [...roomItems, ...extraUniqueItems];
   let measureX = 0;
   let measureY = 0;
   let measureShelfHeight = TILE_GRID_SIZE;
@@ -1922,6 +2027,20 @@ function buildSharedWorldAtlasRooms(
     return placed;
   };
 
+  // Place in the SAME order the measuring pass walked. Without dark grouping
+  // this is exactly the order the room walk below would have produced anyway
+  // (placePixels dedupes by fingerprint), so the layout is unchanged; with it,
+  // this is what puts the dark tiles in the prefix.
+  // darkRows is only meaningful when the dark tiles were actually grouped into a
+  // prefix. Without grouping they are scattered, and reporting a maximum here
+  // would let the caller shrink the dimmed twin to a range that does not contain
+  // them -- which is exactly the bug that turned a dark cavern solid red.
+  let darkRows = 0;
+  for (const item of uniqueItems) {
+    const placed = placePixels(item.pixels);
+    if (groupDarkFirst && item.dark) darkRows = Math.max(darkRows, placed.sy + placed.h);
+  }
+
   const remappedRooms = rooms.map(room => {
     const entries = (room.atlas?.entries || []).map(entry => {
       const placed = placePixels(extractAtlasEntryPixels(room, entry));
@@ -1945,6 +2064,7 @@ function buildSharedWorldAtlasRooms(
 
   return {
     extraPlacements,
+    darkRows,
     rooms: remappedRooms,
     atlasRoom: {
       ...remappedRooms[0],
@@ -10291,6 +10411,8 @@ interface BitmapDialoguePortraitBuild {
   closedPixels: number[][];
   openPixels: number[][];
   blobRow: number;
+  /** X of the closed frame inside the blob row; the open frame follows at +width. */
+  blobCol: number;
 }
 
 interface BitmapDialogueLineBuild {
@@ -10533,6 +10655,7 @@ function collectBitmapDialogueData(
         closedPixels: normalizeFrame(portrait.closedPixels),
         openPixels: normalizeFrame(portrait.openPixels),
         blobRow: 0,
+        blobCol: 0,
       });
       porMaxW = Math.max(porMaxW, width);
       porMaxH = Math.max(porMaxH, height);
@@ -10660,13 +10783,31 @@ function collectBitmapDialogueData(
     strip.blobRow = blobRow;
     blobRow += Math.ceil(strip.chars.length / 32) * 8;
   }
+  // FASE 2a of the VRAM study (§3.4): shelf-pack the portraits instead of giving
+  // each one a full band of VRAM rows to itself. A 48x48 portrait pair is 96 px
+  // wide, so two of them share a 48-row shelf; three portraits drop from 144
+  // rows to 96 (6,0 KB). The rows freed here matter more than their size: the
+  // dimmed atlas twin gives up silently as soon as the blob grows past what is
+  // left under it, so a fatter portrait blob is what costs a dark project its
+  // pre-dimmed atlas.
+  let shelfCursorX = 0;
+  let shelfHeight = 0;
   for (const portrait of portraits) {
-    if (portrait.width * 2 > SCREEN_WIDTH) {
+    const pairWidth = portrait.width * 2;
+    if (pairWidth > SCREEN_WIDTH) {
       throw new Error(`MSX2 dialogue portrait too wide: both mouth frames must fit one 256px VRAM row (width <= 128px).`);
     }
+    if (shelfCursorX + pairWidth > SCREEN_WIDTH) {
+      shelfCursorX = 0;
+      blobRow += shelfHeight;
+      shelfHeight = 0;
+    }
     portrait.blobRow = blobRow;
-    blobRow += portrait.height;
+    portrait.blobCol = shelfCursorX;
+    shelfCursorX += pairWidth;
+    shelfHeight = Math.max(shelfHeight, portrait.height);
   }
+  blobRow += shelfHeight; // close the last shelf
   return { npcs, strips, portraits, lines, configs, blobRows: Math.ceil(blobRow / 8) * 8, dialogueIndexById };
 }
 
@@ -10686,8 +10827,8 @@ function buildBitmapDialogueBlobPixels(data: BitmapDialogueBuildData): number[][
   for (const portrait of data.portraits) {
     for (let y = 0; y < portrait.height; y++) {
       for (let x = 0; x < portrait.width; x++) {
-        rows[portrait.blobRow + y][x] = portrait.closedPixels[y][x] & 0x0f;
-        rows[portrait.blobRow + y][portrait.width + x] = portrait.openPixels[y][x] & 0x0f;
+        rows[portrait.blobRow + y][portrait.blobCol + x] = portrait.closedPixels[y][x] & 0x0f;
+        rows[portrait.blobRow + y][portrait.blobCol + portrait.width + x] = portrait.openPixels[y][x] & 0x0f;
       }
     }
   }
@@ -11326,7 +11467,9 @@ bitmap_dlg_sfx_close_data:
 ; ------------------------------------------------------------
 ; PURPOSE:
 ;   HMMM the current portrait's frame (bitmap_dlg_mouth_state: 0 = closed at
-;   SX=0, 1 = open at SX=width) to the box's portrait slot on the displayed page.
+;   SX, 1 = open at SX+width) to the box's portrait slot on the displayed page.
+;   Portraits are shelf-packed, so SX comes from the record: two 48px pairs
+;   share one row band and the second one starts at x=96, not at 0.
 ; DESTROYS: AF, BC, DE, HL
 ; ------------------------------------------------------------
 bitmap_dlg_draw_portrait_frame:
@@ -11336,23 +11479,27 @@ bitmap_dlg_draw_portrait_frame:
     ld l, a
     ld h, 0
     add hl, hl
-    add hl, hl
+    add hl, hl                    ; HL = index*4
+    ld e, a
+    ld d, 0
+    add hl, de                    ; HL = index*5 (record is 5 bytes)
     ld de, bitmap_dlg_portrait_records
     add hl, de
     ld e, (hl)
     inc hl
     ld d, (hl)
     inc hl
+    ld a, (hl)                    ; A = SX of the closed frame
+    inc hl
     ld c, (hl)                    ; C = width
     inc hl
     ld b, (hl)                    ; B = height
+    ld l, a                       ; stash SX; the record pointer is done with
     ld a, (bitmap_dlg_mouth_state)
     or a
-    jp z, .dlg_por_closed
-    ld a, c                       ; open frame lives at SX = width
-    jp .dlg_por_have_sx
-.dlg_por_closed:
-    xor a
+    ld a, l                       ; A = SX again; ld does not touch the flags
+    jp z, .dlg_por_have_sx
+    add a, c                      ; open frame lives one width to the right
 .dlg_por_have_sx:
     ld (bitmap_dlg_cmd_block + 0), a
     xor a
@@ -11560,9 +11707,10 @@ bitmap_dlg_line_records:\n${data.lines.map((line, index) =>
     ? formatBytes('bitmap_dlg_portrait_records', data.portraits.flatMap(portrait => [
         (vramBaseRow + portrait.blobRow) & 0xff,
         ((vramBaseRow + portrait.blobRow) >> 8) & 0xff,
+        portrait.blobCol,
         portrait.width,
         portrait.height,
-      ]), 'Portrait records: frameSY(word), width, height (closed at SX=0, open at SX=width)')
+      ]), 'Portrait records: frameSY(word), SX, width, height (closed at SX, open at SX+width)')
     : 'bitmap_dlg_portrait_records:\n';
   const dataAsm = `${npcDataAsm}bitmap_dlg_npc_ptr_table:
 ${npcTables.map((_items, roomIndex) => `    DW bitmap_dlg_npcs_room_${roomIndex}`).join('\n')}
@@ -14614,10 +14762,38 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   // Boss bodies and death explosions are `msx2bitmapstamp` assets, so no room
   // necessarily paints them. Compose every referenced stamp and inject it into
   // the shared atlas alongside the room tiles.
-  const bossBitmapStamps = collectBossBitmapStamps(analysis);
+  const bossStampCollection = collectBossBitmapStamps(analysis);
+  const bossBitmapStamps = bossStampCollection.items;
+  // Group the tiles dark rooms paint at the front of the atlas, so the dimmed
+  // twin only has to mirror that prefix (FASE 1, study §6.4). Only when the
+  // project actually has a dark room: otherwise the order — and the whole ROM —
+  // must stay exactly as it was.
+  // FASE 1 KILL SWITCH -- OFF, but NOT because it was proven guilty.
+  //
+  // It was suspected of turning a dark cavern solid red in a real project
+  // (test532). Three measurements cleared it:
+  //   1. Every dark room there reads at most atlas row 32 -- exactly the prefix
+  //      the optimisation computes, so nothing is read outside the twin.
+  //   2. The composition is the ONLY consumer of the twin (`dimRoomRenderRecords`
+  //      is the single place applying dimShift) and its four atlas sources -- tile
+  //      grid, NPC visual, Exit World visual, glow mushroom -- all resolve through
+  //      `room.atlas.entries`, which is what the dark flag walks. The runtime
+  //      repainters (keys/doors, gems, heal, jumpers) draw bright and dim with a
+  //      command, so they never touch the twin.
+  //   3. The same cavern renders EXACTLY as red with this switch off, on a build
+  //      whose only difference from the good one is two bytes of the twin's NY.
+  // So the red predates this work; the palette is byte-identical either way.
+  //
+  // Left off only because no correctly-rendering dark room was available to
+  // compare against, so the optimisation has never been seen working on screen.
+  // Turn it on once there is one -- the arithmetic and the coverage both check out.
+  const DARK_ATLAS_PREFIX_ENABLED = false;
+  const projectHasDarkRoom = DARK_ATLAS_PREFIX_ENABLED
+    && sourceRooms.some(roomData => isBitmapLightingRoom(roomData));
   const sharedAtlas = buildSharedWorldAtlasRooms(
     sourceRooms,
     bossBitmapStamps.map(stamp => ({ key: stamp.id, pixels: stamp.pixels })),
+    projectHasDarkRoom,
   );
   // SLOT 8 RESERVE, part 1 of 2 (see the atlas promotion further down).
   //
@@ -14720,18 +14896,36 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   // blob the ROM silently keeps the old runtime fill: slower, still correct.
   const anyDarkRoom = rooms.some(roomData => isBitmapLightingRoom(roomData));
   const darkAtlasBaseY = BITMAP_ROOM_ATLAS_BASE_Y + atlasRows16;
+  // FASE 1: the twin only mirrors the prefix the dark rooms actually paint, not
+  // the whole atlas. buildSharedWorldAtlasRooms grouped those tiles at the
+  // front precisely so this is one contiguous run and stays a single HMMM.
+  // Falls back to the full atlas if the grouping produced nothing to dim.
+  const darkTwinRows = Math.min(
+    atlasRows16,
+    sharedAtlas.darkRows > 0 ? Math.ceil(sharedAtlas.darkRows / 16) * 16 : atlasRows16,
+  );
   const darkAtlasEnabled = anyDarkRoom
     && atlasRows16 > 0
-    && darkAtlasBaseY + atlasRows16 <= dialogueVramBaseRow;
+    && darkAtlasBaseY + darkTwinRows <= dialogueVramBaseRow;
+  // The emitted HMMM must cover every row the dark rooms read through dimShift.
+  // Rounding or clamping darkTwinRows below the packer's prefix would leave the
+  // tail of the dark tiles reading undimmed rows: a lit patch in a dark room,
+  // and the kind of bug that only shows up in one corner of one screen.
+  if (darkAtlasEnabled && darkTwinRows < sharedAtlas.darkRows) {
+    throw new Error(
+      `MSX2 SCREEN 5 dimmed atlas: the twin covers ${darkTwinRows} rows but dark rooms paint up to `
+      + `row ${sharedAtlas.darkRows} of the atlas. Those tiles would render undimmed.`,
+    );
+  }
   if (anyDarkRoom && !darkAtlasEnabled && atlasRows16 > 0) {
     console.warn(
-      `MSX2 SCREEN 5: no room for a pre-dimmed atlas copy (needs ${atlasRows16} VRAM rows after row `
+      `MSX2 SCREEN 5: no room for a pre-dimmed atlas copy (needs ${darkTwinRows} VRAM rows after row `
       + `${darkAtlasBaseY}, free until ${dialogueVramBaseRow}). Dark rooms keep the slower runtime `
       + 'dim fill on every room entry. Shrink the atlas or the dialogue blob to enable it.',
     );
   }
   // Everything else that lives after the atlas starts after the dimmed twin.
-  const postAtlasBaseY = darkAtlasEnabled ? darkAtlasBaseY + atlasRows16 : darkAtlasBaseY;
+  const postAtlasBaseY = darkAtlasEnabled ? darkAtlasBaseY + darkTwinRows : darkAtlasBaseY;
   const linkedHudSlotYs: number[] = [212, 228, 468];
   for (let slotY = postAtlasBaseY; slotY + 16 <= dialogueVramBaseRow; slotY += 16) {
     linkedHudSlotYs.push(slotY);
@@ -15268,6 +15462,7 @@ ${airAnimBodyAsm}`;
     bossShoots,
     bossDeathSounds,
     sharedAtlas.extraPlacements,
+    bossStampCollection.bodyGrids,
   );
   // Bitmap carryables use one 16x16 VRAM scratch rectangle per simultaneous
   // bitmap visual. Place those rectangles after the atlas and any linked-HUD
@@ -16382,7 +16577,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     subCellShapes,
     shaftOverride: shaftEnabled,
     multiWorld,
-    darkAtlas: darkAtlasEnabled ? { baseY: darkAtlasBaseY, rows: atlasRows16 } : undefined,
+    darkAtlas: darkAtlasEnabled ? { baseY: darkAtlasBaseY, rows: darkTwinRows } : undefined,
   }, playerPhysics, playerHitbox, {
     // Boss auto-walk must override the physical keyboard before any player
     // skill reads C. The main-loop boss gate calls this same movement routine
