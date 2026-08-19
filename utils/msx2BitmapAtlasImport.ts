@@ -36,6 +36,14 @@ export interface ImportTilesResult {
   addedEntries: Msx2BitmapRoomAtlasEntry[];
 }
 
+export interface ImportTilesOptions {
+  /**
+   * Bitmap stamp (`msx2bitmapstamp` asset) these tiles come from. Recorded on every entry
+   * created here so deleting the stamp can find and remove its copies again.
+   */
+  sourceStampId?: string;
+}
+
 /** Builds a rectangular height×width matrix of palette slots (0-15), zero-filled and clamped. */
 const normalizePixels = (pixels: number[][] | undefined, width: number, height: number): number[][] => {
   const out: number[][] = [];
@@ -55,6 +63,7 @@ const normalizePixels = (pixels: number[][] | undefined, width: number, height: 
 export function importTilesIntoAtlas(
   atlas: Partial<BitmapAtlasData> | undefined,
   tiles: ReadonlyArray<Msx2Screen4Tile>,
+  options?: ImportTilesOptions,
 ): ImportTilesResult {
   const width = Math.max(CELL, Math.trunc(Number(atlas?.width) || 256));
   const baseHeight = Math.max(0, Math.trunc(Number(atlas?.height) || 0));
@@ -100,6 +109,7 @@ export function importTilesIntoAtlas(
     existingIds.add(id);
     const collisionFlags = Math.max(0, Math.min(255, Math.trunc(Number(tile.collisionFlags) || 0)));
     const behaviorCode = Math.max(0, Math.min(255, Math.trunc(Number(tile.behaviorCode) || 0)));
+    const sourceStampId = String(options?.sourceStampId || '').trim();
     const entry: Msx2BitmapRoomAtlasEntry = {
       id,
       name: tile.name || `Tile ${index + 1}`,
@@ -109,6 +119,7 @@ export function importTilesIntoAtlas(
       h: tileHeight,
       ...(collisionFlags ? { collisionFlags } : {}),
       ...(behaviorCode ? { behaviorCode } : {}),
+      ...(sourceStampId ? { sourceStampId, sourceStampTileIndex: index } : {}),
     };
     entries.push(entry);
     addedEntries.push(entry);

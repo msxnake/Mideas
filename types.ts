@@ -431,6 +431,15 @@ export interface Msx2BitmapRoomAtlasEntry {
   swayRightAtlasEntryId?: string;
   /** Frames the bend is held after the player stops touching the cell (2..60, default 8). */
   swayHoldFrames?: number;
+  /**
+   * Bitmap stamp this atlas tile was imported from (`msx2bitmapstamp` asset). Editor-only
+   * provenance: deleting the stamp asset offers to delete the tiles it left in every room
+   * atlas. Absent on hand-drawn tiles and on rooms authored before this was recorded — those
+   * fall back to matching the stamp's tile names.
+   */
+  sourceStampId?: string;
+  /** Index of the source stamp's tile this entry was copied from (row-major, 0-based). */
+  sourceStampTileIndex?: number;
 }
 
 /**
