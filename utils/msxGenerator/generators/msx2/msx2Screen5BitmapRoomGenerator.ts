@@ -3018,20 +3018,36 @@ function buildRleChunksForVram(bytes: number[], vramBaseOffset: number, labelPre
   return chunks;
 }
 
-function buildRleUploadAsm(rleChunks: RleChunk[], banked: boolean): string {
+/**
+ * @param windowSafe emit a version that survives being placed INSIDE the
+ *   #8000-#9FFF window. The straight-line version maps the data bank with its
+ *   own `call bitmap_room_select_data_bank_a` and then keeps executing, which
+ *   only works while the routine itself lives below #8000 -- mapping the bank
+ *   swaps out #8000-#9FFF, so a routine living there unmaps its own next
+ *   instruction. Routines emitted near the end of the runtime cannot promise
+ *   anything about where they land, so they pass the bank through RAM and let a
+ *   helper below #8000 own the swap.
+ */
+function buildRleUploadAsm(rleChunks: RleChunk[], banked: boolean, windowSafe = false): string {
   const lines: string[] = [];
   for (const chunk of rleChunks) {
     if (banked) {
       lines.push(`    ld a, ${chunk.label}_DATA_BANK`);
-      lines.push(`    call bitmap_room_select_data_bank_a`);
+      lines.push(windowSafe
+        ? `    ld (bitmap_banked_rle_bank), a`
+        : `    call bitmap_room_select_data_bank_a`);
     }
     lines.push(`    ld hl, ${chunk.label}`);
     lines.push(`    ld a, ${Math.floor(chunk.vramOffset / VRAM_BANK_BYTES)}`);
     lines.push(`    ld de, ${hexWord(chunk.vramOffset % VRAM_BANK_BYTES)}`);
     lines.push(`    ld bc, ${chunk.label}_end - ${chunk.label}`);
-    lines.push(`    call decompress_bitmap_rle_to_vram`);
+    lines.push(banked && windowSafe
+      ? `    call bitmap_decompress_banked_rle_to_vram`
+      : `    call decompress_bitmap_rle_to_vram`);
   }
-  if (banked) {
+  // The window-safe helper restores the resident banks itself, per chunk, so the
+  // caller's own next instruction is always fetched from resident ROM.
+  if (banked && !windowSafe) {
     lines.push(`    call bitmap_room_restore_resident_banks`);
   }
   lines.push(`    ret`);
@@ -3323,6 +3339,8 @@ function buildRuntimeAsm(
     multiWorld?: boolean;
     /** Pre-dimmed twin of the atlas: VRAM rows [baseY, baseY + rows). */
     darkAtlas?: { baseY: number; rows: number };
+    /** A boss transient window exists, so the window-safe RLE helper is needed. */
+    bossWindow?: boolean;
   },
   playerPhysics: BitmapPlayerPhysics,
   playerHitbox: BitmapPlayerHitbox,
@@ -4077,7 +4095,46 @@ bitmap_copy_banked_to_ram:
     call bitmap_room_select_data_bank_a
     ldir
     jp bitmap_room_restore_resident_banks
-
+${!options.bossWindow ? '' : `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_decompress_banked_rle_to_vram
+; ------------------------------------------------------------
+; PURPOSE:
+;   decompress_bitmap_rle_to_vram for a source in a MegaROM data bank, usable by
+;   callers that themselves sit INSIDE the #8000-#9FFF window. Same reasoning as
+;   bitmap_copy_banked_to_vram: the bank swap stays in a helper that lives below
+;   #8000, so the caller is unmapped only while the PC is in here.
+;
+;   This exists because the boss transient window loader (FASE 4) is emitted
+;   near the end of the runtime and, in a big enough project, lands at #8Bxx --
+;   inside the very window it was switching. Its second instruction unmapped its
+;   own third one, so the boss body was never uploaded and the boss was
+;   invisible. It depended on where the routine happened to land, which is why
+;   the small fixtures never showed it.
+;
+; INPUT:
+;   (bitmap_banked_rle_bank) = data bank, HL = source inside that bank,
+;   A = VRAM 16KB bank, DE = VRAM offset in it, BC = RLE byte count.
+;
+; DESTROYS:
+;   AF, BC, DE, HL.
+;
+; PRESERVES:
+;   IX, IY.
+;
+; NOTES:
+;   The data bank arrives through RAM because A, DE, BC and HL are all already
+;   carrying arguments for the decompressor. Restores the resident banks before
+;   returning, so the caller's next instruction is fetched from resident ROM.
+; ------------------------------------------------------------
+bitmap_decompress_banked_rle_to_vram:
+    push af                    ; A holds the VRAM bank, not the data bank
+    ld a, (bitmap_banked_rle_bank)
+    call bitmap_room_select_data_bank_a   ; preserves BC/DE/HL
+    pop af
+    call decompress_bitmap_rle_to_vram
+    jp bitmap_room_restore_resident_banks
+`}
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_room_restore_resident_banks
 ; ------------------------------------------------------------
@@ -15653,8 +15710,10 @@ ${airAnimBodyAsm}`;
   });
   const bossWindowUploadAsm = !bossWindowActive ? '' : `
 ${bossWindowBlobData.map(blob => `; ---- upload boss body #${blob.index} into the transient window ----
+; window-safe: this block is emitted near the end of the runtime and lands
+; inside #8000-#9FFF in projects big enough, so it must not map its own bank.
 bitmap_boss_window_upload_${blob.index}:
-${buildRleUploadAsm(blob.rleChunks, isKonamiMegaRom)}`).join('\n')}
+${buildRleUploadAsm(blob.rleChunks, isKonamiMegaRom, true)}`).join('\n')}
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_window_load
@@ -17000,6 +17059,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     shaftOverride: shaftEnabled,
     multiWorld,
     darkAtlas: darkAtlasEnabled ? { baseY: darkAtlasBaseY, rows: darkTwinRows } : undefined,
+    bossWindow: bossWindowActive && isKonamiMegaRom,
   }, playerPhysics, playerHitbox, {
     // Boss auto-walk must override the physical keyboard before any player
     // skill reads C. The main-loop boss gate calls this same movement routine
@@ -17498,7 +17558,13 @@ ${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equa
 ; Mideas channel-C convention: gameplay SFX own PSG channel C. Every
 ; fire-and-forget SFX stores its R7 bits for C here (bit2 tone, bit5 noise);
 ; the music mixer merges them so its per-frame R7 heal never cuts a blip.
-psg_sfx_r7_c_bits EQU #C3FE
+${!(bossWindowActive && isKonamiMegaRom) ? '' : `; Data bank for bitmap_decompress_banked_rle_to_vram. It travels through RAM
+; because A, DE, BC and HL all already carry decompressor arguments, and the
+; caller may live inside #8000-#9FFF, where mapping a bank would unmap the
+; caller itself. Sits just under the SFX/music state; the rest of #C300..#C3FD
+; is unused by this backend.
+bitmap_banked_rle_bank EQU #C3FD
+`}psg_sfx_r7_c_bits EQU #C3FE
 ${bitmapFlowTextEquatesAsm}${sccMusicEquates}    org #4000
 
     db "AB"

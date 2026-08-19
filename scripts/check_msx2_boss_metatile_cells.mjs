@@ -14,7 +14,8 @@
  * Drives the real generator and reads the emitted cell blob, which is where the
  * bugs live: an atlas-relative SY here renders the boss from the wrong VRAM row.
  */
-import { readFileSync, mkdtempSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -283,6 +284,72 @@ checks.push(['The runtime chooses between full and changed-cell repaint',
     realLog(`      bad-frames blob emitted anyway: ${blob.frames} frames x ${blob.perFrame} cells `
       + `(the authored strip is 16 cells wide, so ${blob.frames} x ${blob.perFrame} should equal 16)`);
   }
+}
+
+// --- The bank-swap hazard that made the boss invisible in a real project -----
+// Mapping a MegaROM data bank swaps out #8000-#9FFF. A routine that LIVES there
+// and maps its own bank unmaps its own next instruction. The boss window loader
+// is emitted near the end of the runtime, so in a big enough project it lands at
+// #8Bxx and did exactly that: the body was never uploaded and the boss was
+// invisible. Whether it broke depended on where the routine happened to land,
+// which is why every small fixture passed.
+//
+// The fix is the pattern the codebase already documents for this: keep the swap
+// inside a helper that lives BELOW #8000. So there are two things to check, and
+// the second one needs a real assembly to know where anything ended up.
+{
+  const animRaw = JSON.parse(readFileSync(join(repoRoot, 'test', 'msx2-boss', 'fixture_boss_anim_cells.json'), 'utf8'));
+  console.log = () => {};
+  console.warn = () => {};
+  let asmText;
+  try {
+    const files = generator.generateModularASM('metatile-banksafe', animRaw.assets, {
+      generateUnified: true,
+      romMode: 'megarom',
+      targetFormat: 'konami',
+      screenMode: animRaw.currentScreenMode || 'SCREEN 4 (Graphics II)',
+    });
+    asmText = (files['unitedFiles.asm'] || files['main.asm']).replace(/\r\n/g, '\n');
+  } finally {
+    console.log = realLog;
+    console.warn = realWarn;
+  }
+
+  const bodyStart = asmText.indexOf('\nbitmap_boss_window_upload_0:\n');
+  const body = bodyStart < 0 ? '' : asmText.slice(bodyStart, asmText.indexOf('\n    ret\n', bodyStart));
+  checks.push(['The boss window uploader is emitted', bodyStart >= 0]);
+  checks.push(['It does NOT map its own data bank (that would unmap itself)',
+    bodyStart >= 0 && !/call bitmap_room_select_data_bank_a/.test(body)]);
+  checks.push(['It hands the bank to a helper through RAM instead',
+    /ld \(bitmap_banked_rle_bank\), a/.test(body)
+    && /call bitmap_decompress_banked_rle_to_vram/.test(body)]);
+
+  // Assemble for real: the whole point is WHERE the helper lands.
+  const workDir = mkdtempSync(join(tmpdir(), 'mideas-banksafe-'));
+  const asmPath = join(workDir, 'banksafe.asm');
+  const romPath = join(workDir, 'banksafe.rom');
+  const symPath = join(workDir, 'banksafe.sym');
+  writeFileSync(asmPath, asmText);
+  let symbols = '';
+  try {
+    execFileSync('java', ['-jar', join(repoRoot, 'server', 'glass.jar'), '-I', join(repoRoot, 'server'),
+      asmPath, romPath, symPath], { cwd: repoRoot, stdio: 'pipe' });
+    symbols = readFileSync(symPath, 'utf8');
+  } catch (error) {
+    realLog(`      glass.jar failed: ${String(error.message).slice(0, 120)}`);
+  }
+  const addressOf = name => {
+    const match = new RegExp(`^${name}: equ ([0-9A-F]+)H`, 'mi').exec(symbols);
+    return match ? parseInt(match[1], 16) : -1;
+  };
+  const helper = addressOf('bitmap_decompress_banked_rle_to_vram');
+  const uploader = addressOf('bitmap_boss_window_upload_0');
+  realLog(`      helper at #${helper.toString(16).toUpperCase()}, uploader at #${uploader.toString(16).toUpperCase()}`
+    + ` (the #8000-#9FFF window is what a bank swap replaces)`);
+  checks.push(['The ROM assembles and both symbols exist', helper > 0 && uploader > 0]);
+  checks.push(['The bank-swapping helper lives BELOW #8000, where a swap cannot unmap it',
+    helper > 0 && helper < 0x8000]);
+  rmSync(workDir, { recursive: true, force: true });
 }
 
 let failed = 0;
