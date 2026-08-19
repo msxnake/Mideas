@@ -158,6 +158,7 @@ import {
 } from './msx2BitmapCrouchGenerator';
 import {
   bitmapDestroyTileEnabled,
+  bitmapDestroyTileRamBytes,
   buildBitmapDestroyTileApplyPendingCallAsm,
   buildBitmapDestroyTileApplyVisibleCallAsm,
   buildBitmapDestroyTileDataAsm,
@@ -16365,6 +16366,20 @@ ${bossWindowRoomBlobIndex.map((blobIndex, roomIndex) => (blobIndex < 0
   };
   const destroyDebrisSprite = resolveBitmapDebrisSprite(analysis, resolveBitmapRoomPlayer(analysis, room));
   const destroyTileEquates = buildBitmapDestroyTileEquates(destroyTileConfig, destroyTileOptions);
+  // bitmap_banked_rle_bank sits at #C3FD, just under the SFX/music state, and
+  // destroy_tile's block grows upwards from #C2D0 with its destroyed-tile limit.
+  // Today the worst case ends at #C3EA, 18 bytes short -- close enough that
+  // raising the limit would silently overwrite the data-bank byte and, right
+  // after it, the PSG mixer shadow and the resident bank shadow. Say so at build
+  // time instead of shipping a ROM whose music and banking rot at random.
+  const destroyTileRamEnd = 0xC2D0 + bitmapDestroyTileRamBytes(destroyTileConfig) - 1;
+  if (destroyTileRamEnd >= 0xC3FD) {
+    throw new Error(
+      `SCREEN 5 bitmap RAM overlap: destroy_tile occupies #C2D0..#${destroyTileRamEnd.toString(16).toUpperCase()}, `
+      + 'which reaches bitmap_banked_rle_bank (#C3FD) and the SFX/music state above it. '
+      + 'Lower the destroyed-tile limit or move that block.',
+    );
+  }
   const destroyTileInitClear = buildBitmapDestroyTileInitClearAsm(destroyTileConfig);
   const destroyTileGate = buildBitmapDestroyTileGateAsm(destroyTileConfig);
   const destroyTileSatCall = buildBitmapDestroyTileSatCallAsm(destroyTileConfig);
@@ -17616,8 +17631,10 @@ ${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equa
 ${!(bossWindowActive && isKonamiMegaRom) ? '' : `; Data bank for bitmap_decompress_banked_rle_to_vram. It travels through RAM
 ; because A, DE, BC and HL all already carry decompressor arguments, and the
 ; caller may live inside #8000-#9FFF, where mapping a bank would unmap the
-; caller itself. Sits just under the SFX/music state; the rest of #C300..#C3FD
-; is unused by this backend.
+; caller itself.
+; NOT a free region: destroy_tile's block starts at #C2D0 and grows with its
+; destroyed-tile limit, reaching #C3EA at the maximum. This byte sits in the
+; gap between that and the SFX/music state, and the generator asserts it.
 bitmap_banked_rle_bank EQU #C3FD
 `}psg_sfx_r7_c_bits EQU #C3FE
 ${bitmapFlowTextEquatesAsm}${sccMusicEquates}    org #4000

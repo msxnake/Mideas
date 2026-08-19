@@ -343,12 +343,36 @@ checks.push(['The runtime chooses between full and changed-cell repaint',
     return match ? parseInt(match[1], 16) : -1;
   };
   const helper = addressOf('bitmap_decompress_banked_rle_to_vram');
-  const uploader = addressOf('bitmap_boss_window_upload_0');
-  realLog(`      helper at #${helper.toString(16).toUpperCase()}, uploader at #${uploader.toString(16).toUpperCase()}`
-    + ` (the #8000-#9FFF window is what a bank swap replaces)`);
-  checks.push(['The ROM assembles and both symbols exist', helper > 0 && uploader > 0]);
-  checks.push(['The bank-swapping helper lives BELOW #8000, where a swap cannot unmap it',
-    helper > 0 && helper < 0x8000]);
+  checks.push(['The ROM assembles and the helper has a symbol', symbols.length > 0 && helper > 0]);
+
+  // Checking only "the helper is below #8000" proves nothing on a fixture this
+  // small, where EVERY symbol is low -- it stayed green with the fix reverted.
+  // The invariant that matters is about the whole class: ANY routine that maps a
+  // data bank must live below #8000, because mapping one replaces #8000-#9FFF
+  // and a routine living there would unmap its own next instruction. So find
+  // every label whose body contains the swap and check them all.
+  const swappers = [];
+  let currentLabel = '';
+  for (const line of asmText.split('\n')) {
+    const label = /^([A-Za-z_][A-Za-z0-9_]*):/.exec(line);
+    if (label) currentLabel = label[1];
+    else if (/^\s+call bitmap_room_select_data_bank_a\b/.test(line) && currentLabel) {
+      if (!swappers.includes(currentLabel)) swappers.push(currentLabel);
+    }
+  }
+  const placed = swappers.map(name => ({ name, at: addressOf(name) })).filter(entry => entry.at > 0);
+  const unsafe = placed.filter(entry => entry.at >= 0x8000);
+  realLog(`      helper at #${helper.toString(16).toUpperCase()}; `
+    + `${placed.length} routine(s) map a data bank, ${unsafe.length} of them above #8000`);
+  for (const entry of unsafe) realLog(`        UNSAFE #${entry.at.toString(16).toUpperCase()} ${entry.name}`);
+  checks.push(['Some routine actually maps a data bank (or this proves nothing)', placed.length > 0]);
+  // HONEST LIMIT: this fixture is small enough that every symbol lands below
+  // #8000, so this check CANNOT go red here -- reverting the fix leaves it
+  // green. The two structural checks above are the ones that catch the bug on
+  // this fixture; this one is a net for the whole class, and it only earns its
+  // keep on a project big enough to push a bank-mapper past #8000 (the real
+  // case was test550.json, where the boss window loader landed at #8BC1).
+  checks.push(['EVERY routine that maps a data bank lives below #8000', unsafe.length === 0]);
   rmSync(workDir, { recursive: true, force: true });
 }
 
