@@ -15662,8 +15662,12 @@ ${bossWindowRoomBlobIndex.map((blobIndex, roomIndex) => (blobIndex < 0
   const carryBitmapScratchBaseY = postAtlasBaseY
     + Math.max(0, tileBasedHudSources.length - 3) * 16;
   const carryBitmapScratchEndY = carryBitmapScratchBaseY + carryBitmapScratchSlots * 16;
-  if (carryBitmapScratchSlots > 0 && carryBitmapScratchEndY > dialogueVramBaseRow) {
-    throw new Error(`SCREEN 5 bitmap carryables need ${carryBitmapScratchSlots} scratch tile(s) after the atlas, but the dialogue blob starts at VRAM row ${dialogueVramBaseRow}. Reduce the atlas/dialogue size or use hardware-sprite carryables.`);
+  // The boss window sits between these tenants and the dialogue blob, so the
+  // ceiling is the window when it exists -- comparing against the dialogue row
+  // let the scratch rectangles land INSIDE the boss body, silently.
+  const postAtlasCeilingY = bossWindowActive ? bossWindowBaseY : dialogueVramBaseRow;
+  if (carryBitmapScratchSlots > 0 && carryBitmapScratchEndY > postAtlasCeilingY) {
+    throw new Error(`SCREEN 5 bitmap carryables need ${carryBitmapScratchSlots} scratch tile(s) after the atlas, but the space after the atlas ends at VRAM row ${postAtlasCeilingY}. Reduce the atlas/dialogue size, shrink the boss bodies, or use hardware-sprite carryables.`);
   }
   // Boss bitmap projectiles need one 16x16 VRAM scratch rectangle to save the
   // pixels underneath them. Restoring from page 1 is NOT enough: the boss body,
@@ -15671,8 +15675,8 @@ ${bossWindowRoomBlobIndex.map((blobIndex, roomIndex) => (blobIndex < 0
   // page-1 restore would erase them as the projectile flies over.
   const bossProjScratchBaseY = carryBitmapScratchEndY;
   const bossProjScratchSlots = bossData.projectileTables.some(t => t && t[0] === 1) ? 1 : 0;
-  if (bossProjScratchSlots > 0 && bossProjScratchBaseY + 16 > dialogueVramBaseRow) {
-    throw new Error(`SCREEN 5 boss projectiles need a 16x16 VRAM scratch tile after the atlas, but the dialogue blob starts at VRAM row ${dialogueVramBaseRow}. Reduce the atlas/dialogue size or disable boss projectiles.`);
+  if (bossProjScratchSlots > 0 && bossProjScratchBaseY + 16 > postAtlasCeilingY) {
+    throw new Error(`SCREEN 5 boss projectiles need a 16x16 VRAM scratch tile after the atlas, but the space after the atlas ends at VRAM row ${postAtlasCeilingY}. Reduce the atlas/dialogue size, shrink the boss bodies, or disable boss projectiles.`);
   }
   const enemyPatternGroupBase = foregroundPatternGroupBase + foregroundCount;
   const enemyVariantsPerFrame = bitmapEnemyVariantsPerFrame(enemyData);

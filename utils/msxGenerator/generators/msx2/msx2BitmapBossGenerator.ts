@@ -2336,7 +2336,7 @@ ${hasPaths ? `    ; ---- authored path (Fase G) wins over the patrol ----
 
     ; ---- VDP phase: uncovered-edge strips from page 1, then body HMMM ----
     call bitmap_boss_restore_strips
-    call bitmap_boss_draw
+    call bitmap_boss_draw_animated
 ${hasHitBlast ? `    call bitmap_boss_hit_blast_draw   ; over the body just painted; next redraw erases it
 ` : ''}    jp bitmap_boss_touch
 
@@ -2481,15 +2481,36 @@ ${visiblePageH}
 ;   visible page at (boss_x, boss_y + HUD offset) with one opaque HMMM.
 ; DESTROYS: AF, BC, DE, HL.
 ; ------------------------------------------------------------
-bitmap_boss_draw:
-${!hasBossCells ? '' : `    ; FASE 3: a body split into 16x16 cells has no single rectangle to copy.
-    ; Its cells live wherever the packer deduped them, so the frame is composed
-    ; cell by cell. A room whose blob starts with 0 frames keeps the old path.
+${!hasBossCells ? '' : `; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_draw_animated
+; ------------------------------------------------------------
+; PURPOSE: The cadence path's draw. Only THIS entry may repaint just the cells
+;   the animation changed, because only here is the body known to be intact:
+;   nothing else has touched those pixels since the last redraw.
+;
+;   Everyone else must call bitmap_boss_draw, which repaints unconditionally.
+;   Those callers exist precisely BECAUSE something erased the body -- the
+;   dialogue close replaying the clean room, or a death blast being wiped -- and
+;   a "nothing changed, skip it" would leave the boss missing or half-drawn.
+; ------------------------------------------------------------
+bitmap_boss_draw_animated:
     call bitmap_boss_cells_config
     ld a, (hl)
     or a
     jp nz, bitmap_boss_pick_cell_list
-`}    ld hl, (boss_sx)
+    jp bitmap_boss_draw_mono
+
+`}bitmap_boss_draw:
+${!hasBossCells ? '' : `    ; FASE 3: a body split into 16x16 cells has no single rectangle to copy.
+    ; Its cells live wherever the packer deduped them, so the frame is composed
+    ; cell by cell. A room whose blob starts with 0 frames keeps the old path.
+    ; Unconditional on purpose: see bitmap_boss_draw_animated above.
+    call bitmap_boss_cells_config
+    ld a, (hl)
+    or a
+    jp nz, bitmap_boss_cells_full
+`}bitmap_boss_draw_mono:
+    ld hl, (boss_sx)
     ld (boss_cmd_buf + 0), hl  ; SX
     ld l, (ix+11)
     ld h, (ix+12)
@@ -2575,15 +2596,15 @@ bitmap_boss_pick_cell_list:
     ld b, a
     ld a, (boss_old_x)
     cp b
-    jp nz, .cells_full
+    jp nz, bitmap_boss_cells_full
     ld a, (boss_y)
     ld b, a
     ld a, (boss_old_y)
     cp b
-    jp nz, .cells_full
+    jp nz, bitmap_boss_cells_full
     ld a, (boss_cells_shown)
     cp #FF
-    jp z, .cells_full
+    jp z, bitmap_boss_cells_full
     ld b, a
     ld a, (boss_anim_frame)
     cp b
@@ -2597,7 +2618,7 @@ bitmap_boss_pick_cell_list:
     or a
     ret z
     jp bitmap_boss_draw_cell_list
-.cells_full:
+bitmap_boss_cells_full:
     ld a, (boss_anim_frame)
     ld (boss_cells_shown), a
     jp bitmap_boss_draw_cells

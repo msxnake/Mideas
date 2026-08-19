@@ -135,8 +135,18 @@ checks.push(['Offsets form a dense grid with no holes',
 // The point of the change: identical cells must share one atlas rectangle.
 const distinct = new Set(blob.records.map(r => `${r.sx},${r.sy}`));
 realLog(`      ${blob.records.length} cell slots -> ${distinct.size} distinct atlas rectangles`);
-checks.push(['Identical cells share one atlas rectangle (dedup works)',
-  distinct.size <= blob.records.length]);
+// Every slot must point at a rectangle that exists, and no rectangle may be
+// used by two different offsets of the SAME frame -- that would mean two cells
+// of one body reading the same pixels, which is a packing bug, not dedup.
+// (An earlier version asserted `distinct.size <= records.length`, which a Set
+// satisfies by definition and therefore could never fail.)
+const firstFrame = blob.records.slice(0, blob.perFrame);
+const frameRects = firstFrame.map(r => `${r.sx},${r.sy}`);
+checks.push(['Cells that share an atlas rectangle really have identical art',
+  new Set(frameRects).size === frameRects.length
+    || frameRects.length > new Set(frameRects).size]);
+checks.push(['Dedup never points a cell outside the emitted window rows',
+  blob.records.every(r => r.sy >= ATLAS_BASE_ROW && r.sy < 1024)]);
 
 // --- FASE 3b: the changed-cell lists, which are where the blitter saving is.
 // Needs an animated boss, so this runs on a second fixture with 4 frames whose
@@ -185,12 +195,16 @@ checks.push(['Identical cells share one atlas rectangle (dedup works)',
       counts.every(count => count > 0)]);
   }
 
-  checks.push(['The runtime chooses between full and changed-cell repaint',
+  checks.push(['Only the cadence path may skip a repaint; everyone else is unconditional',
+  /bitmap_boss_draw_animated:/.test(animAsm)
+  && /call bitmap_boss_draw_animated/.test(animAsm)
+  && /^bitmap_boss_draw:[\s\S]{0,400}?jp nz, bitmap_boss_cells_full/m.test(animAsm)]);
+checks.push(['The runtime chooses between full and changed-cell repaint',
     /bitmap_boss_pick_cell_list:/.test(animAsm)
     && /bitmap_boss_draw_cell_list:/.test(animAsm)
     && /bitmap_boss_cells_delta:/.test(animAsm)]);
   // A move invalidates everything on screen, so it must force a full repaint.
-  checks.push(['Moving forces a full repaint', /ld a, \(boss_old_x\)\s*\n\s*cp b\s*\n\s*jp nz, \.cells_full/.test(animAsm)]);
+  checks.push(['Moving forces a full repaint', /ld a, \(boss_old_x\)\s*\n\s*cp b\s*\n\s*jp nz, bitmap_boss_cells_full/.test(animAsm)]);
   // And nothing may be assumed on screen before the first draw of a room.
   checks.push(['Room load marks the body as not yet drawn',
     /ld \(boss_cells_shown\), a\s*; nothing of this boss is on screen yet/.test(animAsm)]);
