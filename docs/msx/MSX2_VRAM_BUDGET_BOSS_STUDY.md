@@ -1007,10 +1007,14 @@ residente. Es riesgo **medio**, no bajo. Por eso va tarde en el plan.
 
 Ordenada por **beneficio / riesgo**, que no es "lo más ambicioso primero".
 
-### Fase 0 — Hoy, sin tocar código. Riesgo cero.
+### Fase 0 — **HECHA (2026-08-17).** Sin tocar el generador.
 **Declarar `runtime.lighting = 'off'` en las salas de boss.**
 Gana: **15 índices de paleta pintables en vez de 7** (§6.1, §6.3). Ya funciona y está
 verificado. Es cambiar un dato del proyecto.
+
+Como es un dato y no código, lo que se implementó es el aviso que lo hace visible: el editor de
+salas bitmap detecta "sala oscura con boss colocado" y ofrece un botón para pasarla a iluminada.
+Check: `check_msx2_boss_dark_room_warning_playwright.cjs`.
 
 ### Fase 1 — Riesgo bajo, muchos KB.
 **HECHA Y VERIFICADA EN HARDWARE (2026-08-18).** `DARK_ATLAS_PREFIX_ENABLED = true`.
@@ -1030,11 +1034,18 @@ copie sólo el prefijo, con el mismo único HMMM.
 Gana: **8–13 KB** y, sobre todo, **hace que el gemelo quepa** → **292 ms → ~25 ms (12,5×)** por
 entrada a sala oscura. Condicionar a `anyDarkRoom`.
 
-### Fase 2 — Riesgo bajo, aislado.
+### Fase 2 — **HECHA (2026-08-17/18).**
 **(a) Empaquetar retratos en estantes** (`:10663-10669`): 144 → 96 filas, **6,0 KB**; hasta
-**62,5 %** del área de retratos en general.
+**62,5 %** del área de retratos en general. Check: `check_msx2_dialogue_portrait_shelves.mjs`.
 **(b) Arreglar `collectBossBitmapStamps`** (`:1761-1765`): no meter en el atlas stamps de
 bosses que no están colocados. Ganancia proporcional a las definiciones huérfanas.
+Check: `check_msx2_boss_orphan_stamps.mjs`.
+
+Al arreglar (b) apareció un **segundo** fallo escondido detrás: quitar el barrido incondicional
+a secas habría roto los bosses colocados, porque el colector leía el `bossStampAssetId` de la
+entidad (una foto vieja) mientras el runtime usa el de la definición. Se resolvió resolviendo
+los params por `resolveBossParams`, la misma fusión que usa el compilador de bosses. Cada uno de
+los dos fallos se probó en rojo por separado.
 
 ### Fase 3 — **HECHA Y VERIFICADA EN HARDWARE (2026-08-18).**
 `BOSS_METATILE_ENABLED = true`. Boss como metatile (§5): no aplanar `stamp.tiles[]`, emitir
