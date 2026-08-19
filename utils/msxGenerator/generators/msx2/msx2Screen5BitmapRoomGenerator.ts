@@ -1804,6 +1804,40 @@ function bossBodyCellGrid(stamp: any, frameCounts: Set<number>, stampId = ''): B
   const tileHeight = Math.trunc(Number(stamp?.tileHeight) || 0);
   if (tileWidth !== TILE_GRID_SIZE || tileHeight !== TILE_GRID_SIZE) return undefined;
   if (!Array.isArray(stamp?.tiles) || stamp.tiles.length < columns * rows) return undefined;
+
+  const blankCell = () => Array.from({ length: TILE_GRID_SIZE }, () => Array.from({ length: TILE_GRID_SIZE }, () => 0));
+  const cellPixels = (tile: any): number[][] => {
+    if (!tile) return blankCell();
+    const pixels = bitmapTileScreen5ToAtlasTile(tile).pixels;
+    if (pixels.length !== TILE_GRID_SIZE || (pixels[0]?.length || 0) !== TILE_GRID_SIZE) return blankCell();
+    return pixels;
+  };
+
+  // New authoring path: the Stamp keeps one base grid and sparse per-frame
+  // patches. A variant can add/replace a tile or set it to null to remove it;
+  // the atlas still sees individual 16x16 pixels and deduplicates them.
+  if (Array.isArray(stamp?.frameVariants) && stamp.frameVariants.length > 0) {
+    const baseCells = Array.from({ length: columns * rows }, (_unused, index) => cellPixels(stamp.tiles[index]));
+    const cellsByFrame: number[][][][] = [baseCells];
+    for (const rawVariant of stamp.frameVariants.slice(0, 3)) {
+      const cells = baseCells.map(cell => cell.map(row => row.slice()));
+      for (const patch of Array.isArray(rawVariant?.cells) ? rawVariant.cells : []) {
+        const index = Math.trunc(Number(patch?.index));
+        if (!Number.isInteger(index) || index < 0 || index >= cells.length) continue;
+        cells[index] = cellPixels(patch?.tile);
+      }
+      cellsByFrame.push(cells);
+    }
+    return {
+      cellsByFrame,
+      cells: cellsByFrame[0],
+      columns,
+      rows,
+      frameCount: cellsByFrame.length,
+      variantFrames: true,
+    };
+  }
+
   // The cell blob addresses a frame's cells as `cy * columns + frame * cellsX + cx`,
   // with cellsX derived from the PIXEL width (floor(stripW / frames) / 16). That
   // only tiles the grid when the column count divides by the frame count. A
@@ -1824,11 +1858,11 @@ function bossBodyCellGrid(stamp: any, frameCounts: Set<number>, stampId = ''): B
   for (let index = 0; index < columns * rows; index++) {
     const tile = stamp.tiles[index];
     if (!tile) return undefined;
-    const pixels = bitmapTileScreen5ToAtlasTile(tile).pixels;
+    const pixels = cellPixels(tile);
     if (pixels.length !== TILE_GRID_SIZE || (pixels[0]?.length || 0) !== TILE_GRID_SIZE) return undefined;
     cells.push(pixels);
   }
-  return { cells, columns, rows };
+  return { cellsByFrame: [cells], cells, columns, rows, frameCount: 1, variantFrames: false };
 }
 
 /**
@@ -1928,7 +1962,12 @@ export function collectBossBitmapStamps(analysis: ProjectAnalysis): BossBitmapSt
       : undefined;
     if (grid) {
       bodyGrids.set(id, grid);
-      grid.cells.forEach((pixels, index) => out.push({ id: bossBodyCellKey(id, index), pixels }));
+      grid.cellsByFrame.forEach((frameCells, frameIndex) => {
+        frameCells.forEach((pixels, cellIndex) => {
+          const index = frameIndex * frameCells.length + cellIndex;
+          out.push({ id: bossBodyCellKey(id, index), pixels });
+        });
+      });
       continue;
     }
     out.push({ id, pixels: bitmapStampToPixelGrid(stamp) });
@@ -3067,15 +3106,22 @@ function buildRleUploadAsm(rleChunks: RleChunk[], banked: boolean, windowSafe = 
  * Keeps the documented contract of upload_tileset_atlas: destroys AF/BC/DE/HL,
  * preserves IX/IY, returns with a plain RET from the per-world body.
  */
-function buildWorldAtlasUploadAsm(worldRleChunks: RleChunk[][], banked: boolean): string {
+function buildWorldBlobUploadAsm(
+  worldRleChunks: RleChunk[][],
+  banked: boolean,
+  tableLabel: string,
+  bodyPrefix: string,
+  what: string,
+  windowSafe = false,
+): string {
   const lines: string[] = [
-    '    ; Per-world atlas (study §9): every world loads at the same offscreen rows,',
-    '    ; so VRAM holds the biggest world instead of the sum of all of them.',
+    `    ; Per-world upload (study §9): every world loads ${what} at the same`,
+    '    ; offscreen rows, so VRAM holds the biggest world instead of the sum.',
     '    ld a, (bitmap_world_index)',
     '    add a, a                  ; 2 bytes per DW entry',
     '    ld e, a',
     '    ld d, 0',
-    '    ld hl, bitmap_world_atlas_upload_table',
+    `    ld hl, ${tableLabel}`,
     '    add hl, de',
     '    ld a, (hl)',
     '    inc hl',
@@ -3083,15 +3129,25 @@ function buildWorldAtlasUploadAsm(worldRleChunks: RleChunk[][], banked: boolean)
     '    ld l, a',
     '    jp (hl)                   ; tail jump; each body ends in its own RET',
     '',
-    'bitmap_world_atlas_upload_table:',
-    `    DW ${worldRleChunks.map((_chunks, index) => `bitmap_upload_tileset_atlas_w${index}`).join(', ')}`,
+    `${tableLabel}:`,
+    `    DW ${worldRleChunks.map((_chunks, index) => `${bodyPrefix}_w${index}`).join(', ')}`,
   ];
   worldRleChunks.forEach((chunks, index) => {
     lines.push('');
-    lines.push(`bitmap_upload_tileset_atlas_w${index}:`);
-    lines.push(buildRleUploadAsm(chunks, banked));
+    lines.push(`${bodyPrefix}_w${index}:`);
+    lines.push(buildRleUploadAsm(chunks, banked, windowSafe));
   });
   return lines.join('\n');
+}
+
+function buildWorldAtlasUploadAsm(worldRleChunks: RleChunk[][], banked: boolean): string {
+  return buildWorldBlobUploadAsm(
+    worldRleChunks,
+    banked,
+    'bitmap_world_atlas_upload_table',
+    'bitmap_upload_tileset_atlas',
+    'its tile atlas',
+  );
 }
 
 interface BankedDataBlock {
@@ -10712,8 +10768,16 @@ interface BitmapDialogueBuildData {
   configs: BitmapDialogueConfigBuild[];
   /** Total blob rows (before base-row relocation), multiple of 8. */
   blobRows: number;
+  /** What one shared blob would have needed: worlds stacked instead of overlapped. */
+  blobRowsIfShared: number;
   /** Dialogue asset id -> runtime index, so other systems can open one by name. */
   dialogueIndexById: Map<string, number>;
+  /**
+   * Per portrait: the world that exclusively owns it, or null when more than one
+   * world can reach it (or its world is unknown). Private portraits of different
+   * worlds share VRAM rows because they are never loaded at the same time.
+   */
+  portraitWorld: Array<number | null>;
 }
 
 const BITMAP_DLG_TALK_KEY_MASKS: Record<string, number> = { up: 0x20, space: 0x01 };
@@ -10791,7 +10855,10 @@ function wrapBitmapDialogueText(text: string, maxCols: number, maxRows: number):
 function collectBitmapDialogueData(
   analysis: ProjectAnalysis,
   rooms: Msx2Screen5BitmapRoom[],
-  fallbackFont: Msx2HudFontAsset | undefined
+  fallbackFont: Msx2HudFontAsset | undefined,
+  /** Global room index -> world index. Absent (or single-world) packs as before. */
+  worldOfRoom?: (roomIndex: number) => number,
+  worldCount = 1,
 ): BitmapDialogueBuildData | null {
   const assets = ((analysis as any).assets || []) as Array<{ id?: string; type?: string; data?: unknown }>;
   const dialogueById = new Map<string, any>();
@@ -10801,6 +10868,14 @@ function collectBitmapDialogueData(
 
   const npcs: BitmapDialogueNpcRecord[] = [];
   const dialogueIndexById = new Map<string, number>();
+  // dialogue index -> the rooms that can open it. Used only to decide which
+  // world owns a portrait; a dialogue reachable from two worlds stays shared.
+  const dialogueRooms = new Map<number, Set<number>>();
+  const noteDialogueRoom = (dialogueIndex: number, roomIndex: number) => {
+    const known = dialogueRooms.get(dialogueIndex);
+    if (known) known.add(roomIndex);
+    else dialogueRooms.set(dialogueIndex, new Set([roomIndex]));
+  };
   const usedDialogues: any[] = [];
   for (const [roomIndex, room] of rooms.entries()) {
     for (const entity of room.entities || []) {
@@ -10814,6 +10889,7 @@ function collectBitmapDialogueData(
         dialogueIndexById.set(npcParams!.dialogueAssetId!, dialogueIndex);
         usedDialogues.push(dialogue);
       }
+      noteDialogueRoom(dialogueIndex, roomIndex);
       npcs.push({
         roomIndex,
         x: clampByte((entity.position?.x ?? 0) * TILE_GRID_SIZE, 0) & 0xff,
@@ -10830,7 +10906,7 @@ function collectBitmapDialogueData(
     if (asset.type !== 'msx2boss' || !asset.id) continue;
     bossDefParams.set(asset.id, (asset.data as any)?.params || asset.data || {});
   }
-  for (const room of rooms) {
+  for (const [roomIndex, room] of rooms.entries()) {
     for (const entity of room.entities || []) {
       if ((entity as any)?.kind !== 'boss') continue;
       const own = (entity as any).params || {};
@@ -10843,7 +10919,8 @@ function collectBitmapDialogueData(
         const assetId = String(action.dialogueAssetId || action.target || '').trim();
         const dialogue = assetId ? dialogueById.get(assetId) : undefined;
         if (!dialogue || !Array.isArray(dialogue.lines) || dialogue.lines.length === 0) continue;
-        if (dialogueIndexById.has(assetId)) continue;
+        if (dialogueIndexById.has(assetId)) { noteDialogueRoom(dialogueIndexById.get(assetId)!, roomIndex); continue; }
+        noteDialogueRoom(usedDialogues.length, roomIndex);
         dialogueIndexById.set(assetId, usedDialogues.length);
         usedDialogues.push(dialogue);
       }
@@ -10871,7 +10948,8 @@ function collectBitmapDialogueData(
           console.warn(`MSX2 bitmap boss intro dialogue "${assetId}" is missing or has no lines; it will be skipped.`);
           continue;
         }
-        if (dialogueIndexById.has(assetId)) continue;
+        if (dialogueIndexById.has(assetId)) { noteDialogueRoom(dialogueIndexById.get(assetId)!, roomIndex); continue; }
+        noteDialogueRoom(usedDialogues.length, roomIndex);
         dialogueIndexById.set(assetId, usedDialogues.length);
         usedDialogues.push(dialogue);
       }
@@ -11050,29 +11128,114 @@ function collectBitmapDialogueData(
   // dimmed atlas twin gives up silently as soon as the blob grows past what is
   // left under it, so a fatter portrait blob is what costs a dark project its
   // pre-dimmed atlas.
-  let shelfCursorX = 0;
-  let shelfHeight = 0;
-  for (const portrait of portraits) {
-    const pairWidth = portrait.width * 2;
-    if (pairWidth > SCREEN_WIDTH) {
-      throw new Error(`MSX2 dialogue portrait too wide: both mouth frames must fit one 256px VRAM row (width <= 128px).`);
+  // Which worlds can reach each portrait. A portrait only ONE world can reach is
+  // private: two such portraits from different worlds may share the same VRAM
+  // rows, because they are never both loaded. Anything reachable from two worlds
+  // (or whose world cannot be determined, e.g. a boss-defeat message with no NPC
+  // to locate) is treated as shared and packed in the common prefix.
+  const dialogueWorlds: Array<Set<number> | null> = configs.map(() => new Set<number>());
+  if (worldOfRoom && worldCount > 1) {
+    for (const [dialogueIndex, roomSet] of dialogueRooms) {
+      for (const roomIndex of roomSet) dialogueWorlds[dialogueIndex]?.add(worldOfRoom(roomIndex));
     }
-    if (shelfCursorX + pairWidth > SCREEN_WIDTH) {
-      shelfCursorX = 0;
-      blobRow += shelfHeight;
-      shelfHeight = 0;
-    }
-    portrait.blobRow = blobRow;
-    portrait.blobCol = shelfCursorX;
-    shelfCursorX += pairWidth;
-    shelfHeight = Math.max(shelfHeight, portrait.height);
+    // A dialogue nothing in any room opens cannot be attributed. Mark it shared
+    // rather than guessing: guessing wrong renders the wrong portrait.
+    dialogueWorlds.forEach((set, index) => { if (set && set.size === 0) dialogueWorlds[index] = null; });
   }
-  blobRow += shelfHeight; // close the last shelf
-  return { npcs, strips, portraits, lines, configs, blobRows: Math.ceil(blobRow / 8) * 8, dialogueIndexById };
+  const portraitWorlds: Array<Set<number> | null> = portraits.map(() => new Set<number>());
+  if (worldOfRoom && worldCount > 1) {
+    configs.forEach((config, dialogueIndex) => {
+      const worlds = dialogueWorlds[dialogueIndex];
+      for (let line = config.lineBase; line < config.lineBase + config.lineCount; line++) {
+        const portraitIndex = lines[line]?.portraitIndex;
+        if (portraitIndex === undefined || portraitIndex === 0xff) continue;
+        if (!worlds) { portraitWorlds[portraitIndex] = null; continue; }
+        const target = portraitWorlds[portraitIndex];
+        if (target) for (const world of worlds) target.add(world);
+      }
+    });
+  }
+  const isPrivateTo = (index: number): number | null => {
+    const worlds = portraitWorlds[index];
+    if (!worlds || worlds.size !== 1) return null;
+    return [...worlds][0];
+  };
+
+  // FASE 2a of the VRAM study (§3.4): shelf-pack the portraits instead of giving
+  // each one a full band of VRAM rows to itself. A 48x48 portrait pair is 96 px
+  // wide, so two of them share a 48-row shelf; three portraits drop from 144
+  // rows to 96 (6,0 KB). The rows freed here matter more than their size: the
+  // dimmed atlas twin gives up silently as soon as the blob grows past what is
+  // left under it, so a fatter portrait blob is what costs a dark project its
+  // pre-dimmed atlas.
+  const packShelf = (indices: number[], startRow: number): number => {
+    let shelfCursorX = 0;
+    let shelfHeight = 0;
+    let row = startRow;
+    for (const index of indices) {
+      const portrait = portraits[index];
+      const pairWidth = portrait.width * 2;
+      if (pairWidth > SCREEN_WIDTH) {
+        throw new Error(`MSX2 dialogue portrait too wide: both mouth frames must fit one 256px VRAM row (width <= 128px).`);
+      }
+      if (shelfCursorX + pairWidth > SCREEN_WIDTH) {
+        shelfCursorX = 0;
+        row += shelfHeight;
+        shelfHeight = 0;
+      }
+      portrait.blobRow = row;
+      portrait.blobCol = shelfCursorX;
+      shelfCursorX += pairWidth;
+      shelfHeight = Math.max(shelfHeight, portrait.height);
+    }
+    return row + shelfHeight; // close the last shelf
+  };
+
+  const allIndices = portraits.map((_portrait, index) => index);
+  if (!worldOfRoom || worldCount <= 1) {
+    // Single world: exactly the packing this always did, so the ROM is unchanged.
+    blobRow = packShelf(allIndices, blobRow);
+    const rows = Math.ceil(blobRow / 8) * 8;
+    return { npcs, strips, portraits, lines, configs, blobRows: rows, blobRowsIfShared: rows, dialogueIndexById, portraitWorld: allIndices.map(() => null) };
+  }
+  // Shared prefix first, so a portrait two worlds can reach keeps ONE row that is
+  // valid in both -- the dialogue config table bakes that row and is global.
+  const sharedEnd = packShelf(allIndices.filter(index => isPrivateTo(index) === null), blobRow);
+  let deepest = sharedEnd;
+  // What a single shared blob would have cost, so the build can state the saving
+  // instead of asserting it. Worlds stack here; above, they overlap.
+  let stacked = sharedEnd;
+  for (let world = 0; world < worldCount; world++) {
+    const privateOfWorld = allIndices.filter(index => isPrivateTo(index) === world);
+    const end = packShelf(privateOfWorld, sharedEnd);
+    deepest = Math.max(deepest, end);
+    stacked += end - sharedEnd;
+  }
+  // Re-pack so the FINAL rows stand: the loop above left every world's portraits
+  // written, and the last world to run would otherwise decide the survivors.
+  for (let world = 0; world < worldCount; world++) {
+    packShelf(allIndices.filter(index => isPrivateTo(index) === world), sharedEnd);
+  }
+  return {
+    npcs, strips, portraits, lines, configs,
+    blobRows: Math.ceil(deepest / 8) * 8,
+    blobRowsIfShared: Math.ceil(stacked / 8) * 8,
+    dialogueIndexById,
+    portraitWorld: allIndices.map(index => isPrivateTo(index)),
+  };
 }
 
-/** Renders the dialogue VRAM blob (glyph strips + portrait frame pairs) as pixel rows. */
-function buildBitmapDialogueBlobPixels(data: BitmapDialogueBuildData): number[][] {
+/**
+ * Renders the dialogue VRAM blob (glyph strips + portrait frame pairs) as pixel
+ * rows.
+ *
+ * @param world when given, render only what THAT world needs: the glyph strips
+ *   (shared by everyone), the portraits more than one world can reach, and that
+ *   world's private portraits. Private portraits of other worlds occupy the same
+ *   rows and are simply not drawn here -- which is the whole point, since only
+ *   one world's blob is ever in VRAM.
+ */
+function buildBitmapDialogueBlobPixels(data: BitmapDialogueBuildData, world?: number): number[][] {
   const rows: number[][] = Array.from({ length: data.blobRows }, () => Array.from({ length: SCREEN_WIDTH }, () => 0));
   for (const strip of data.strips) {
     strip.chars.forEach((char, index) => {
@@ -11084,14 +11247,16 @@ function buildBitmapDialogueBlobPixels(data: BitmapDialogueBuildData): number[][
       }
     });
   }
-  for (const portrait of data.portraits) {
+  data.portraits.forEach((portrait, index) => {
+    const owner = data.portraitWorld[index];
+    if (world !== undefined && owner !== null && owner !== world) return;
     for (let y = 0; y < portrait.height; y++) {
       for (let x = 0; x < portrait.width; x++) {
         rows[portrait.blobRow + y][portrait.blobCol + x] = portrait.closedPixels[y][x] & 0x0f;
         rows[portrait.blobRow + y][portrait.blobCol + portrait.width + x] = portrait.openPixels[y][x] & 0x0f;
       }
     }
-  }
+  });
   return rows;
 }
 
@@ -15165,7 +15330,19 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   // NPC dialogue system: its glyph-strip/portrait blob reserves rows at the TOP
   // end of VRAM (growing down from 1024), so the atlas and the linked-HUD slot
   // layout stay untouched; the HUD slot scan below simply stops at the blob.
-  const dialogueData = collectBitmapDialogueData(analysis, rooms, getBitmapHudFontAsset(analysis, room, linkedHudAsset));
+  // FASE 5b: the dialogue blob was the last tenant that grew with the whole
+  // project instead of with one world -- the union of every NPC portrait in the
+  // ROM, resident from boot, so a world with no NPC at all still paid for them.
+  // Now each world's private portraits share the same rows, exactly like the
+  // atlas, and the blob is uploaded on entry. Single-world projects pack and
+  // emit as before.
+  const dialogueData = collectBitmapDialogueData(
+    analysis,
+    rooms,
+    getBitmapHudFontAsset(analysis, room, linkedHudAsset),
+    multiWorld ? (roomIndex: number) => roomWorldIndices[roomIndex] ?? 0 : undefined,
+    worldPlans.length,
+  );
   const dialogueVramBaseRow = dialogueData ? 1024 - Math.ceil(dialogueData.blobRows / 16) * 16 : 1024;
   if (dialogueData && dialogueVramBaseRow < BITMAP_ROOM_ATLAS_BASE_Y + atlasRows16) {
     throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}": the NPC dialogue glyph/portrait blob needs ${dialogueData.blobRows} VRAM rows but only ${1024 - (BITMAP_ROOM_ATLAS_BASE_Y + atlasRows16)} rows are free after the shared atlas. Reduce portrait sizes/count or shrink the atlas.`);
@@ -15228,7 +15405,7 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   // several times the rows it uses, and a project could be rejected with "the
   // boss bodies need N rows" while fitting comfortably.
   const bossWindowSlotCount = (grid: BossBodyCellGrid) =>
-    new Set(grid.cells.map(cell => atlasEntryFingerprint(cell))).size;
+    new Set(grid.cellsByFrame.flat().map(cell => atlasEntryFingerprint(cell))).size;
   const bossWindowRows = bossWindowActive
     ? Math.ceil(
       Math.max(...[...bossStampCollection.bodyGrids.values()].map(bossWindowSlotCount))
@@ -15262,7 +15439,7 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
       // degenerates into "repaint everything" -- losing the blitter saving.
       const slotByFingerprint = new Map<string, { sx: number; localY: number }>();
       let nextSlot = 0;
-      grid.cells.forEach((cell, cellIndex) => {
+      grid.cellsByFrame.flat().forEach((cell, cellIndex) => {
         const fingerprint = atlasEntryFingerprint(cell);
         let slot = slotByFingerprint.get(fingerprint);
         if (!slot) {
@@ -15391,10 +15568,27 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   const tilesetRleChunks = worldTilesets.flatMap(entry => entry.chunks);
   // NPC dialogue glyph strips + portrait frames: one packed 4bpp blob uploaded
   // once at boot to the rows reserved above the atlas region.
-  const dialogueBlobBytes = dialogueData ? packBitmapPixels(buildBitmapDialogueBlobPixels(dialogueData)) : [];
-  const dialogueRleChunks = dialogueData
-    ? buildRleChunksForVram(dialogueBlobBytes, dialogueVramBaseRow * ROW_BYTES, 'bitmap_dlg_gfx_rle_chunk')
-    : [];
+  // One blob per world, all destined for the same VRAM rows. With a single world
+  // this is the one blob and the one label prefix it always was.
+  const dialogueWorldBlobs = !dialogueData
+    ? []
+    : (multiWorld ? worldPlans.map((_plan, index) => index) : [undefined]).map((world, index) => {
+      const bytes = packBitmapPixels(buildBitmapDialogueBlobPixels(dialogueData, world));
+      return {
+        bytes,
+        chunks: buildRleChunksForVram(
+          bytes,
+          dialogueVramBaseRow * ROW_BYTES,
+          multiWorld ? `bitmap_dlg_gfx_w${index}_rle_chunk` : 'bitmap_dlg_gfx_rle_chunk',
+        ),
+      };
+    });
+  // Any upload body emitted late enough to land inside #8000-#9FFF must hand its
+  // data bank to a helper below #8000 instead of mapping it itself. Both the boss
+  // window loader and the per-world dialogue loader are in that position.
+  const needsWindowSafeRle = isKonamiMegaRom && (bossWindowActive || dialogueWorldBlobs.length > 1);
+  const dialogueBlobBytes = dialogueWorldBlobs[0]?.bytes || [];
+  const dialogueRleChunks = dialogueWorldBlobs.flatMap(entry => entry.chunks);
   // Classic automatic hearts HUD tiles (16x16 full + 16x16 empty outline, side
   // by side = 32x16 4bpp blob). They are emitted only when no linked HUD asset
   // owns the HUD band; otherwise the linked HUD's tile/glyph data reuses the
@@ -16628,7 +16822,21 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
     playerHitbox,
     hudLinkedRamCursor,
     dialogueVramBaseRow,
-    buildRleUploadAsm(dialogueRleChunks, isKonamiMegaRom),
+    // FASE 5b: with several worlds this becomes a dispatch on bitmap_world_index
+    // over one upload body per world, exactly like the tileset atlas.
+    dialogueWorldBlobs.length > 1
+      ? buildWorldBlobUploadAsm(
+        dialogueWorldBlobs.map(entry => entry.chunks),
+        isKonamiMegaRom,
+        'bitmap_dlg_gfx_upload_table',
+        'bitmap_dlg_gfx_upload',
+        'its dialogue portraits',
+        // Window-safe by construction: this body is emitted with the dialogue
+        // system, far down the runtime, so it can land inside #8000-#9FFF just
+        // like the boss window loader did.
+        true,
+      )
+      : buildRleUploadAsm(dialogueRleChunks, isKonamiMegaRom),
     `${lightRecomposeAsm}${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${crumbleSystem.initialDrawCall}${swaySystem.initialDrawCall}${destroyTileApplyVisibleCall}${bossData.enabled ? '    call bitmap_boss_redraw_after_dialogue\n' : ''}`,
     isKonamiMegaRom
   );
@@ -17094,7 +17302,13 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     vramTenants.push({ from: bossWindowBaseY, to: bossWindowBaseY + bossWindowRows - 1, what: `boss transient window (${bossStampCollection.bodyGrids.size} boss bod[y/ies] reuse it)` });
   }
   if (dialogueData) {
-    vramTenants.push({ from: dialogueVramBaseRow, to: 1023, what: 'dialogue glyph/portrait blob' });
+    vramTenants.push({
+      from: dialogueVramBaseRow,
+      to: 1023,
+      what: dialogueData.blobRowsIfShared > dialogueData.blobRows
+        ? `dialogue glyph/portrait blob (per world; one shared blob would need ${dialogueData.blobRowsIfShared} rows)`
+        : 'dialogue glyph/portrait blob',
+    });
   }
   const vramSorted = [...vramTenants].sort((a, b) => a.from - b.from || a.to - b.to);
   const vramFree: Array<{ from: number; to: number }> = [];
@@ -17128,7 +17342,7 @@ ${vramFree.map(gap => `;   rows ${String(gap.from).padStart(4)}..${String(gap.to
     shaftOverride: shaftEnabled,
     multiWorld,
     darkAtlas: darkAtlasEnabled ? { baseY: darkAtlasBaseY, rows: darkTwinRows } : undefined,
-    bossWindow: bossWindowActive && isKonamiMegaRom,
+    bossWindow: needsWindowSafeRle,
   }, playerPhysics, playerHitbox, {
     // Boss auto-walk must override the physical keyboard before any player
     // skill reads C. The main-loop boss gate calls this same movement routine
@@ -17628,7 +17842,7 @@ ${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equa
 ; Mideas channel-C convention: gameplay SFX own PSG channel C. Every
 ; fire-and-forget SFX stores its R7 bits for C here (bit2 tone, bit5 noise);
 ; the music mixer merges them so its per-frame R7 heal never cuts a blip.
-${!(bossWindowActive && isKonamiMegaRom) ? '' : `; Data bank for bitmap_decompress_banked_rle_to_vram. It travels through RAM
+${!needsWindowSafeRle ? '' : `; Data bank for bitmap_decompress_banked_rle_to_vram. It travels through RAM
 ; because A, DE, BC and HL all already carry decompressor arguments, and the
 ; caller may live inside #8000-#9FFF, where mapping a bank would unmap the
 ; caller itself.

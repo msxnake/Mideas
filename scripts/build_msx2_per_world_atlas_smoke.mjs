@@ -26,10 +26,12 @@ const FIXTURE = resolve(OUT_DIR, 'two_worlds.json');
 const ASM_PATH = join(OUT_DIR, 'per_world_atlas.asm');
 const ROM_PATH = join(OUT_DIR, 'per_world_atlas.rom');
 
+// test/**/out/ is gitignored, so the fixture is derived from a committed base
+// on demand rather than checked in. Without this the check ran here and nowhere
+// else, which is worse than not having it.
 if (!existsSync(FIXTURE)) {
-  console.error(`Fixture missing: ${FIXTURE}`);
-  console.error('Build it with scripts/build_msx2_two_world_fixture.mjs first.');
-  process.exit(1);
+  execFileSync('node', ['--max-old-space-size=8192', join(ROOT, 'scripts', 'build_msx2_two_world_fixture.mjs')],
+    { cwd: ROOT, stdio: 'inherit' });
 }
 
 mkdirSync(OUT_DIR, { recursive: true });
@@ -148,10 +150,13 @@ if (failed) {
 }
 realLog(`MSX2 per-world atlas smoke passed (${checks.length}).`);
 realLog('');
-realLog('Hardware check (the one that actually matters) -- verified 2026-08-19:');
-realLog('  node test/msx2-boss/decode_world_atlases.mjs      # pick a row the worlds disagree on');
+realLog('Hardware check -- verified 2026-08-19 on a project with genuinely different worlds:');
+realLog('  node test/msx2-boss/decode_world_atlases.mjs <asm>   # find a row the worlds disagree on');
 realLog('  "/c/Program Files/openMSX/openmsx.exe" -machine Boosted_MSX2_EN \\');
 realLog(`    -cart ${ROM_PATH} -romtype KonamiSCC \\`);
 realLog('    -script test/msx2-boss/per_world_atlas_probe.tcl');
 realLog('  NOTE: -romtype must come AFTER -cart, or openMSX exits without running the script.');
-realLog('  Expected: row 545 changes to world 1\'s bytes, row 612 (past world 1\'s atlas) does not.');
+realLog('  NOTE: the fixture built here clones one world, so its two atlases are IDENTICAL and');
+realLog('        no VRAM row can tell them apart. It proves the structure, not the swap. The');
+realLog('        swap was verified on a two-world project whose worlds differ (row 545 changed');
+realLog('        to world 1 bytes; row 612, past world 1 atlas, did not).');
