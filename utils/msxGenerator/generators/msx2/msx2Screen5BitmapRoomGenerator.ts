@@ -17042,6 +17042,60 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
   // settle first; a buffered-jump fire then clears grounded and arms player_vy.
   const landClearHooks = `${wallJumpLandClear}${powerStompLandClear}${highJumpLandClear}${coyoteBufferLandHook}`;
   const leaveGroundHooks = `${coyoteBufferLeaveGroundHook}`;
+  // ---- VRAM budget report -------------------------------------------------
+  // The point of MSX2_VRAM_BUDGET_BOSS_STUDY.md is that a game should be able to
+  // grow without running into the VRAM wall. You cannot manage what you do not
+  // measure, so every build states who owns which rows and how many are left.
+  // Costs nothing at runtime: it is a comment in the emitted ASM.
+  const vramTenants: Array<{ from: number; to: number; what: string }> = [
+    { from: 0, to: SCREEN5_VISIBLE_HEIGHT - 1, what: 'page 0 (visible): HUD band + game band' },
+    { from: 256, to: 256 + SCREEN5_VISIBLE_HEIGHT - 1, what: 'page 1 (visible): double buffer' },
+    { from: 488, to: 511, what: 'sprite colour/SAT/pattern tables (#F400+)' },
+  ];
+  worldAtlasPixels.forEach((pixels, index) => vramTenants.push({
+    from: BITMAP_ROOM_ATLAS_BASE_Y,
+    to: BITMAP_ROOM_ATLAS_BASE_Y + Math.max(1, pixels.length) - 1,
+    what: worldAtlasPixels.length > 1
+      ? `tile atlas, world ${index} "${worldPlans[index]?.name || index}" (worlds share these rows)`
+      : 'tile atlas',
+  }));
+  if (darkAtlasEnabled) {
+    vramTenants.push({ from: darkAtlasBaseY, to: darkAtlasBaseY + darkTwinRows - 1, what: 'dimmed atlas twin (dark rooms)' });
+  }
+  if (tileBasedHudSources.length > 3) {
+    vramTenants.push({
+      from: postAtlasBaseY,
+      to: postAtlasBaseY + (tileBasedHudSources.length - 3) * 16 - 1,
+      what: `linked HUD tile sources (${tileBasedHudSources.length - 3} past the fixed slots)`,
+    });
+  }
+  if (carryBitmapScratchSlots > 0) {
+    vramTenants.push({ from: carryBitmapScratchBaseY, to: carryBitmapScratchEndY - 1, what: `carryable scratch (${carryBitmapScratchSlots} tile[s])` });
+  }
+  if (bossProjScratchSlots > 0) {
+    vramTenants.push({ from: bossProjScratchBaseY, to: bossProjScratchBaseY + 15, what: 'boss projectile scratch' });
+  }
+  if (bossWindowActive) {
+    vramTenants.push({ from: bossWindowBaseY, to: bossWindowBaseY + bossWindowRows - 1, what: `boss transient window (${bossStampCollection.bodyGrids.size} boss bod[y/ies] reuse it)` });
+  }
+  if (dialogueData) {
+    vramTenants.push({ from: dialogueVramBaseRow, to: 1023, what: 'dialogue glyph/portrait blob' });
+  }
+  const vramSorted = [...vramTenants].sort((a, b) => a.from - b.from || a.to - b.to);
+  const vramFree: Array<{ from: number; to: number }> = [];
+  let vramCursor = 0;
+  for (const tenant of vramSorted) {
+    if (tenant.from > vramCursor) vramFree.push({ from: vramCursor, to: tenant.from - 1 });
+    vramCursor = Math.max(vramCursor, tenant.to + 1);
+  }
+  if (vramCursor <= 1023) vramFree.push({ from: vramCursor, to: 1023 });
+  const vramFreeRows = vramFree.reduce((total, gap) => total + (gap.to - gap.from + 1), 0);
+  const vramRowsKb = (rows: number) => `${((rows * ROW_BYTES) / 1024).toFixed(1)} KB`;
+  const vramBudgetAsm = `; ---- VRAM budget (1024 rows of ${ROW_BYTES} B = 128 KB) ----
+${vramSorted.map(t => `;   rows ${String(t.from).padStart(4)}..${String(t.to).padStart(4)}  ${String(t.to - t.from + 1).padStart(4)} rows  ${vramRowsKb(t.to - t.from + 1).padStart(8)}  ${t.what}`).join('\n')}
+; free: ${vramFreeRows} rows (${vramRowsKb(vramFreeRows)}) in ${vramFree.length} gap(s)
+${vramFree.map(gap => `;   rows ${String(gap.from).padStart(4)}..${String(gap.to).padStart(4)}  ${String(gap.to - gap.from + 1).padStart(4)} rows free`).join('\n')}`;
+
   const runtimeAsm = buildRuntimeAsm(room, worldTilesets.map(entry => entry.chunks), allHudSeedRleChunks, {
     frameCount: spriteTables.frameCount,
     delayFrames: spriteTables.delayFrames,
@@ -17457,6 +17511,7 @@ ${worldPlans.map((plan, index) => `;   world ${index} "${plan.name || plan.id}":
 ; Per-world atlases (FASE 5): each loads at the same VRAM rows, so the region is
 ; sized by the tallest world (${atlasPixels.length} rows), not by their sum (${worldAtlasPixels.reduce((total, pixels) => total + pixels.length, 0)} rows).
 ${worldTilesets.map((entry, index) => `;   world ${index}: ${worldAtlasPixels[index].length} atlas rows, ${entry.bytes.length} raw bytes`).join('\n')}` : ''}
+${vramBudgetAsm}
 ; MSX2_GAMEFLOW_INTRO_SCENES: ${introScenes.length}
 ; ==================================================================
 
