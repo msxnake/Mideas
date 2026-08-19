@@ -1795,7 +1795,7 @@ const BOSS_WINDOW_SCRATCH_RESERVE_ROWS = 64;
  * is not a clean grid of 16x16 tiles -- an odd stamp keeps the old whole-body
  * path rather than being sliced into something the runtime cannot address.
  */
-function bossBodyCellGrid(stamp: any): BossBodyCellGrid | undefined {
+function bossBodyCellGrid(stamp: any, frameCounts: Set<number>, stampId = ''): BossBodyCellGrid | undefined {
   if (!BOSS_METATILE_ENABLED) return undefined;
   const columns = Math.max(1, Math.trunc(Number(stamp?.columns) || 0));
   const rows = Math.max(1, Math.trunc(Number(stamp?.rows) || 0));
@@ -1803,6 +1803,22 @@ function bossBodyCellGrid(stamp: any): BossBodyCellGrid | undefined {
   const tileHeight = Math.trunc(Number(stamp?.tileHeight) || 0);
   if (tileWidth !== TILE_GRID_SIZE || tileHeight !== TILE_GRID_SIZE) return undefined;
   if (!Array.isArray(stamp?.tiles) || stamp.tiles.length < columns * rows) return undefined;
+  // The cell blob addresses a frame's cells as `cy * columns + frame * cellsX + cx`,
+  // with cellsX derived from the PIXEL width (floor(stripW / frames) / 16). That
+  // only tiles the grid when the column count divides by the frame count. A
+  // 6-column strip declared as 4 frames gives cellsX = 1: the runtime would draw
+  // a 16px sliver, walk the first four columns as if they were the four frames,
+  // and never touch columns 4 and 5 -- silently, with no warning anywhere.
+  // Refuse the metatile path instead and let the body stay one rectangle.
+  for (const frames of frameCounts) {
+    if (columns % frames === 0) continue;
+    console.warn(
+      `MSX2 bitmap boss: body stamp "${stampId}" is ${columns} cell(s) wide but is used with ${frames} `
+      + 'animation frame(s), which does not divide evenly. Its body is kept as one rectangle instead of '
+      + `16x16 cells (more VRAM). Author the strip with a multiple of ${frames} columns to get the cells back.`,
+    );
+    return undefined;
+  }
   const cells: number[][][] = [];
   for (let index = 0; index < columns * rows; index++) {
     const tile = stamp.tiles[index];
@@ -1835,11 +1851,22 @@ export function collectBossBitmapStamps(analysis: ProjectAnalysis): BossBitmapSt
   const wanted = new Set<string>();
   // Body stamps are the ones that become metatile cells; death frames stay whole
   // rectangles because they are drawn with LMMM + TIMP in one go.
-  const bodyIds = new Set<string>();
+  // Body stamp -> every frame count some boss animates it with. The metatile
+  // split is only valid when the authored column count divides by that number,
+  // and the same stamp can be reused by two bosses with different counts.
+  const bodyFrames = new Map<string, Set<number>>();
   let needsDefaultDeathExplosion = false;
   const addParams = (params: Record<string, unknown>) => {
     const stampId = String(params.bossStampAssetId || '').trim();
-    if (stampId) { wanted.add(stampId); bodyIds.add(stampId); }
+    if (stampId) {
+      wanted.add(stampId);
+      // Same clamp the boss compiler applies, so the two cannot disagree about
+      // how many frames the strip has.
+      const frames = clampInt(params.bossFrames, 1, 4, 1);
+      const known = bodyFrames.get(stampId);
+      if (known) known.add(frames);
+      else bodyFrames.set(stampId, new Set([frames]));
+    }
     const deathIds = (Array.isArray(params.bossDeathExplosionStampIds)
       ? params.bossDeathExplosionStampIds
       : [])
@@ -1895,7 +1922,9 @@ export function collectBossBitmapStamps(analysis: ProjectAnalysis): BossBitmapSt
     // cells, not as one flattened rectangle. The packer dedupes by pixel
     // fingerprint, so flat fill, repeated background and cells shared between
     // animation frames collapse for free -- and collapse against room tiles too.
-    const grid = bodyIds.has(id) ? bossBodyCellGrid(stamp) : undefined;
+    const grid = bodyFrames.has(id)
+      ? bossBodyCellGrid(stamp, bodyFrames.get(id) as Set<number>, id)
+      : undefined;
     if (grid) {
       bodyGrids.set(id, grid);
       grid.cells.forEach((pixels, index) => out.push({ id: bossBodyCellKey(id, index), pixels }));
@@ -15134,9 +15163,17 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   // exists -- otherwise the window and the boss data would each need the other.
   // One window serves every boss in the project: they are never resident at the
   // same time, which is exactly what turns O(N) into O(1).
+  // Size it by the DEDUPED cell count, which is what the packing loop below
+  // actually stores. Sizing by `columns * rows` reserved a slot for every cell
+  // of the strip, duplicates included -- so a body whose frames share most of
+  // their art (the normal case, and the whole reason the dedup exists) claimed
+  // several times the rows it uses, and a project could be rejected with "the
+  // boss bodies need N rows" while fitting comfortably.
+  const bossWindowSlotCount = (grid: BossBodyCellGrid) =>
+    new Set(grid.cells.map(cell => atlasEntryFingerprint(cell))).size;
   const bossWindowRows = bossWindowActive
     ? Math.ceil(
-      Math.max(...[...bossStampCollection.bodyGrids.values()].map(grid => grid.columns * grid.rows))
+      Math.max(...[...bossStampCollection.bodyGrids.values()].map(bossWindowSlotCount))
       / BOSS_WINDOW_CELLS_PER_BAND,
     ) * TILE_GRID_SIZE
     : 0;

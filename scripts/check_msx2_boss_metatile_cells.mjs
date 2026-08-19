@@ -195,6 +195,31 @@ checks.push(['Dedup never points a cell outside the emitted window rows',
       counts.every(count => count > 0)]);
   }
 
+  // --- FASE 4: the transient boss window. It had no coverage of its own, which
+  // is how it shipped reserving twice the VRAM it uses.
+  //
+  // The window sits directly under the dialogue blob and its cells are packed
+  // from its base upwards, so the rows it RESERVES must equal the rows it USES.
+  // Reserving by the raw cell count instead of the deduped one wasted a band per
+  // duplicate group and could reject a project that fits.
+  if (animBlob) {
+    const slots = [...new Set(animBlob.records.map(r => `${r.sx},${r.sy}`))];
+    const rows = [...new Set(animBlob.records.map(r => r.sy))].sort((a, b) => a - b);
+    checks.push(['Window cells are deduped (identical art shares one slot)',
+      slots.length < animBlob.records.length]);
+    // Where the dialogue blob starts: the window is carved out just below it.
+    const dlg = /ld hl, bitmap_dlg_gfx_rle_chunk_0\n\s*ld a, (\d+)\n\s*ld de, #([0-9A-F]{4})/.exec(animAsm);
+    const dialogueRow = dlg ? (Number(dlg[1]) * 0x4000 + parseInt(dlg[2], 16)) / 128 : 1024;
+    const reservedRows = dialogueRow - rows[0];
+    const usedRows = (rows[rows.length - 1] - rows[0]) / 16 * 16 + 16;
+    realLog(`      window: ${slots.length} distinct slots in ${usedRows} rows, `
+      + `reserved ${reservedRows} rows below the dialogue blob at row ${dialogueRow}`);
+    checks.push(['The window reserves exactly the rows it uses',
+      reservedRows === usedRows]);
+    checks.push(['Window cells sit above the atlas and below the dialogue blob',
+      rows[0] > 512 && rows[rows.length - 1] + 16 <= dialogueRow]);
+  }
+
   checks.push(['Only the cadence path may skip a repaint; everyone else is unconditional',
   /bitmap_boss_draw_animated:/.test(animAsm)
   && /call bitmap_boss_draw_animated/.test(animAsm)
@@ -208,6 +233,56 @@ checks.push(['The runtime chooses between full and changed-cell repaint',
   // And nothing may be assumed on screen before the first draw of a room.
   checks.push(['Room load marks the body as not yet drawn',
     /ld \(boss_cells_shown\), a\s*; nothing of this boss is on screen yet/.test(animAsm)]);
+}
+
+// --- The cell blob only tiles when the columns divide by the frame count ------
+// `cellsX` is derived from the PIXEL width (floor(stripW / frames) / 16), so a
+// strip whose column count is not a multiple of `frames` produces a cellsX that
+// does not tile the authored grid. The runtime would then draw a narrow sliver,
+// walk the leading columns as if they were the frames, and never touch the rest
+// -- with no warning. The generator must refuse the split in that case and keep
+// the body as one rectangle.
+{
+  const badRaw = JSON.parse(readFileSync(join(repoRoot, 'test', 'msx2-boss', 'fixture_boss_anim_cells.json'), 'utf8'));
+  // The fixture's body is 16 cells wide. 16 % 3 != 0, so 3 frames cannot tile it.
+  let patched = 0;
+  for (const asset of badRaw.assets || []) {
+    const type = String(asset?.type || '').toLowerCase();
+    if (type !== 'msx2boss' && type !== 'bossdefinition') continue;
+    const params = asset?.data?.params || asset?.data?.boss?.params || asset?.data;
+    if (!params || !params.bossStampAssetId) continue;
+    params.bossFrames = 3;
+    patched += 1;
+  }
+  checks.push(['The fixture really got a non-dividing frame count', patched > 0]);
+
+  const warnings = [];
+  console.log = () => {};
+  console.warn = (...args) => warnings.push(args.join(' '));
+  let badAsm;
+  try {
+    const files = generator.generateModularASM('metatile-bad-frames', badRaw.assets, {
+      generateUnified: true,
+      romMode: 'megarom',
+      targetFormat: 'konami',
+      screenMode: badRaw.currentScreenMode || 'SCREEN 4 (Graphics II)',
+    });
+    badAsm = files['unitedFiles.asm'] || files['main.asm'];
+  } finally {
+    console.log = realLog;
+    console.warn = realWarn;
+  }
+
+  const badBlobs = readCellBlobs(badAsm);
+  checks.push(['A grid that does not tile the frame count is NOT split into cells',
+    badBlobs.length === 0]);
+  checks.push(['...and the refusal is reported, not silent',
+    warnings.some(text => /does not divide evenly/.test(text))]);
+  if (badBlobs.length) {
+    const blob = badBlobs[0];
+    realLog(`      bad-frames blob emitted anyway: ${blob.frames} frames x ${blob.perFrame} cells `
+      + `(the authored strip is 16 cells wide, so ${blob.frames} x ${blob.perFrame} should equal 16)`);
+  }
 }
 
 let failed = 0;
