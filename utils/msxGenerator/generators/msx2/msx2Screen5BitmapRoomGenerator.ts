@@ -1934,6 +1934,7 @@ function buildSharedWorldAtlasRooms(
   rooms: Msx2Screen5BitmapRoom[],
   extraItems: SharedAtlasExtraItem[] = [],
   groupDarkFirst = false,
+  extrasFirst = false,
 ): {
   rooms: Msx2Screen5BitmapRoom[];
   atlasRoom: Msx2Screen5BitmapRoom;
@@ -1942,7 +1943,6 @@ function buildSharedWorldAtlasRooms(
 } {
   const sharedWidth = SCREEN_WIDTH;
   const roomItems: Array<{ fingerprint: string; pixels: number[][]; w: number; h: number; dark: boolean }> = [];
-  const seenFingerprints = new Set<string>();
   const byFingerprint = new Map<string, { dark: boolean }>();
   for (const room of rooms) {
     const roomIsDark = isBitmapLightingRoom(room);
@@ -1956,7 +1956,6 @@ function buildSharedWorldAtlasRooms(
         if (roomIsDark) known.dark = true;
         continue;
       }
-      seenFingerprints.add(fingerprint);
       const item = {
         fingerprint,
         pixels,
@@ -1968,15 +1967,14 @@ function buildSharedWorldAtlasRooms(
       byFingerprint.set(fingerprint, item);
     }
   }
-  // Extras (boss bodies, death frames) are measured LAST so this pass walks the
-  // same order as the placing pass below; the shelf packer is order-dependent
-  // and the two must agree. They are never part of the dimmed prefix: a boss
-  // arena is authored lit (MSX2_VRAM_BUDGET_BOSS_STUDY.md §6.3).
+  // Extras (boss bodies, death frames) normally come LAST. They are never part
+  // of the dimmed prefix: a boss arena is authored lit (§6.3).
   const extraUniqueItems: Array<{ fingerprint: string; pixels: number[][]; w: number; h: number; dark: boolean }> = [];
+  const extraSeen = new Set<string>();
   for (const item of extraItems) {
     const fingerprint = atlasEntryFingerprint(item.pixels);
-    if (seenFingerprints.has(fingerprint)) continue;
-    seenFingerprints.add(fingerprint);
+    if (extraSeen.has(fingerprint)) continue;
+    extraSeen.add(fingerprint);
     extraUniqueItems.push({
       fingerprint,
       pixels: item.pixels,
@@ -1990,9 +1988,29 @@ function buildSharedWorldAtlasRooms(
   // to copy that prefix instead of the whole atlas, which both frees rows and
   // makes the twin fit at all in projects where it silently did not (§6.4).
   // Off by default so a project without dark rooms keeps its exact layout.
-  const uniqueItems = groupDarkFirst
-    ? [...roomItems.filter(item => item.dark), ...roomItems.filter(item => !item.dark), ...extraUniqueItems]
-    : [...roomItems, ...extraUniqueItems];
+  const roomOrdered = groupDarkFirst
+    ? [...roomItems.filter(item => item.dark), ...roomItems.filter(item => !item.dark)]
+    : roomItems;
+  // FASE 5: with one atlas per world, the extras (boss death frames) must land
+  // at the SAME coordinates in every world's atlas, because the boss tables that
+  // point at them are indexed by room, not by world. Placing them BEFORE any
+  // room tile is what guarantees that: the shelf packer is deterministic, and
+  // the extras list is identical for every world, so it starts from an identical
+  // empty atlas and produces identical rectangles. buildPerWorldAtlases asserts
+  // the result rather than trusting this reasoning.
+  const ordered = extrasFirst
+    ? [...extraUniqueItems, ...roomOrdered]
+    : [...roomOrdered, ...extraUniqueItems];
+  // The measuring pass below does NOT dedupe, so the list handed to it must
+  // already be unique -- otherwise a tile shared by a room and an extra would be
+  // counted twice and the atlas reserved taller than it needs to be.
+  const uniqueItems: typeof roomItems = [];
+  const orderedSeen = new Set<string>();
+  for (const item of ordered) {
+    if (orderedSeen.has(item.fingerprint)) continue;
+    orderedSeen.add(item.fingerprint);
+    uniqueItems.push(item);
+  }
   let measureX = 0;
   let measureY = 0;
   let measureShelfHeight = TILE_GRID_SIZE;
@@ -2102,6 +2120,92 @@ function buildSharedWorldAtlasRooms(
       },
     },
   };
+}
+
+/** One world's private tile atlas, and where its extras landed inside it. */
+interface WorldAtlas {
+  atlasRoom: Msx2Screen5BitmapRoom;
+  darkRows: number;
+}
+
+/**
+ * FASE 5 of the VRAM study (§9): ONE ATLAS PER WORLD.
+ *
+ * Until now every world in the ROM shared a single atlas, so the tiles of world
+ * 3 sat in VRAM while the player walked around world 1. Each new world added
+ * rows forever, and the atlas is the tenant that squeezes all the others: the
+ * dimmed twin, the dialogue blob, the transient boss window and the carry /
+ * projectile scratch all live in what the atlas leaves free.
+ *
+ * Now each world owns an atlas and they all load at the SAME offscreen rows
+ * (BITMAP_ROOM_ATLAS_BASE_Y), swapped when a WorldLink crosses. VRAM holds the
+ * BIGGEST world instead of the union of every world, which is the property that
+ * lets the game grow: adding a world costs ROM, no longer VRAM.
+ *
+ * Rooms keep their global index space -- only the atlas coordinates inside their
+ * entries are world-local -- so every per-room table stays a flat array.
+ *
+ * With a single world this returns exactly what buildSharedWorldAtlasRooms
+ * returned, extras and all, so those ROMs stay byte-identical.
+ */
+function buildPerWorldAtlases(
+  rooms: Msx2Screen5BitmapRoom[],
+  worldRanges: Array<{ roomBase: number; count: number }>,
+  extraItems: SharedAtlasExtraItem[],
+  groupDarkFirst: boolean,
+): {
+  rooms: Msx2Screen5BitmapRoom[];
+  worlds: WorldAtlas[];
+  extraPlacements: Map<string, SharedAtlasPlacement>;
+} {
+  // Only split when the ranges really tile the global room list. Anything else
+  // (the no-worldmap fallback, a plan that lost rooms) keeps the old single
+  // atlas: a room left out of every range would end up with no atlas at all.
+  const contiguous = worldRanges.every((range, index) =>
+    range.roomBase === (index === 0 ? 0 : worldRanges[index - 1].roomBase + worldRanges[index - 1].count));
+  const covered = worldRanges.reduce((sum, range) => sum + range.count, 0);
+  if (worldRanges.length <= 1 || !contiguous || covered !== rooms.length) {
+    const single = buildSharedWorldAtlasRooms(rooms, extraItems, groupDarkFirst);
+    return {
+      rooms: single.rooms,
+      worlds: [{ atlasRoom: single.atlasRoom, darkRows: single.darkRows }],
+      extraPlacements: single.extraPlacements,
+    };
+  }
+
+  const outRooms: Msx2Screen5BitmapRoom[] = [];
+  const worlds: WorldAtlas[] = [];
+  let extraPlacements: Map<string, SharedAtlasPlacement> | undefined;
+  for (const range of worldRanges) {
+    const slice = rooms.slice(range.roomBase, range.roomBase + range.count);
+    // Every world carries the SAME extras. Boss death-FX frames are a handful of
+    // small rectangles once FASE 4 moved the bodies to the transient window, and
+    // duplicating them costs far less than threading "which world placed this
+    // boss" through the collector. `extrasFirst` pins them to identical
+    // coordinates in every atlas, which is what the shared boss tables need.
+    const built = buildSharedWorldAtlasRooms(slice, extraItems, groupDarkFirst, true);
+    outRooms.push(...built.rooms);
+    worlds.push({ atlasRoom: built.atlasRoom, darkRows: built.darkRows });
+    if (!extraPlacements) {
+      extraPlacements = built.extraPlacements;
+      continue;
+    }
+    // The boss tables are indexed by ROOM and hold one atlas rectangle per stamp,
+    // so a stamp that landed somewhere else in world 2 would draw that world's
+    // scenery instead of the explosion. Verified, not assumed: this is exactly
+    // the kind of thing that renders "almost right" and is never noticed.
+    for (const [key, placed] of built.extraPlacements) {
+      const first = extraPlacements.get(key);
+      if (first && first.sx === placed.sx && first.sy === placed.sy
+        && first.w === placed.w && first.h === placed.h) continue;
+      throw new Error(
+        `MSX2 SCREEN 5 per-world atlas: shared stamp "${key}" landed at different coordinates in two `
+        + `worlds (${first ? `${first.sx},${first.sy}` : 'absent'} vs ${placed.sx},${placed.sy}). `
+        + 'Boss tables are indexed by room and cannot hold per-world coordinates.',
+      );
+    }
+  }
+  return { rooms: outRooms, worlds, extraPlacements: extraPlacements || new Map() };
 }
 
 const DEFAULT_HUD_CHARS = ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:-/';
@@ -2905,6 +3009,45 @@ function buildRleUploadAsm(rleChunks: RleChunk[], banked: boolean): string {
   return lines.join('\n');
 }
 
+/**
+ * FASE 5: body of `upload_tileset_atlas` when the ROM carries several worlds.
+ *
+ * Each world's atlas is a separate RLE stream aimed at the SAME offscreen VRAM
+ * rows, so uploading is a jump to the right stream. The index comes from
+ * `bitmap_world_index`, which init_rom latches to 0 before the first call and
+ * `bitmap_prepare_world` updates before every WorldLink entry -- so it is always
+ * a valid table slot by the time this runs.
+ *
+ * Keeps the documented contract of upload_tileset_atlas: destroys AF/BC/DE/HL,
+ * preserves IX/IY, returns with a plain RET from the per-world body.
+ */
+function buildWorldAtlasUploadAsm(worldRleChunks: RleChunk[][], banked: boolean): string {
+  const lines: string[] = [
+    '    ; Per-world atlas (study §9): every world loads at the same offscreen rows,',
+    '    ; so VRAM holds the biggest world instead of the sum of all of them.',
+    '    ld a, (bitmap_world_index)',
+    '    add a, a                  ; 2 bytes per DW entry',
+    '    ld e, a',
+    '    ld d, 0',
+    '    ld hl, bitmap_world_atlas_upload_table',
+    '    add hl, de',
+    '    ld a, (hl)',
+    '    inc hl',
+    '    ld h, (hl)',
+    '    ld l, a',
+    '    jp (hl)                   ; tail jump; each body ends in its own RET',
+    '',
+    'bitmap_world_atlas_upload_table:',
+    `    DW ${worldRleChunks.map((_chunks, index) => `bitmap_upload_tileset_atlas_w${index}`).join(', ')}`,
+  ];
+  worldRleChunks.forEach((chunks, index) => {
+    lines.push('');
+    lines.push(`bitmap_upload_tileset_atlas_w${index}:`);
+    lines.push(buildRleUploadAsm(chunks, banked));
+  });
+  return lines.join('\n');
+}
+
 interface BankedDataBlock {
   label: string;
   bytes: number[];
@@ -3139,7 +3282,8 @@ ${Array.from({ length: multiplier }, () => '    add a, b\n').join('')}    pop bc
 
 function buildRuntimeAsm(
   room: Msx2Screen5BitmapRoom,
-  rleChunks: RleChunk[],
+  /** FASE 5: one RLE stream per world, all uploaded to the same offscreen rows. */
+  worldRleChunks: RleChunk[][],
   hudSeedRleChunks: RleChunk[],
   playerAnimation: { frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right'; layerCount: number; spriteOffsets: BitmapSpriteSlotOffset[]; totalFrameCount?: number; hasStateAnimations?: boolean; glowingTailColors?: boolean },
   options: {
@@ -3233,7 +3377,11 @@ function buildRuntimeAsm(
   // Single backdrop color (R#7): background fill, transparency (color 0) and franjas share it.
   const backdropColor = clampByte(room.backgroundColor, 0) & 0x0f;
   const hudSeedUploadAsm = buildRleUploadAsm(hudSeedRleChunks, options.bankedRle);
-  const tilesetUploadAsm = buildRleUploadAsm(rleChunks, options.bankedRle);
+  // FASE 5: with several worlds the atlas upload becomes a dispatch on the
+  // active world; with one it stays the exact straight-line routine it was.
+  const tilesetUploadAsm = worldRleChunks.length > 1
+    ? buildWorldAtlasUploadAsm(worldRleChunks, options.bankedRle)
+    : buildRleUploadAsm(worldRleChunks[0] || [], options.bankedRle);
   // Per-state animations (separate sprite per state) append extra frame banks
   // after the base frames; totalFrames covers base + every state clip. When no
   // state animations exist, totalFrames === frameCount and hasStateAnim is false,
@@ -14780,8 +14928,9 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   // is a 192-byte tile map replayed as VRAM->VRAM copies by load_room.
   // Every world named by a GameFlow WorldLink is compiled into ONE global room
   // list (world N's rooms start at its roomBase), so per-room tables stay flat
-  // arrays. Phase 1 keeps ONE tileset atlas shared by all worlds; only the
-  // palette, start room and spawn are per world.
+  // arrays. Since FASE 5 each world also owns its TILESET ATLAS: they all load at
+  // the same offscreen rows and are swapped on a WorldLink, so VRAM holds the
+  // biggest world instead of the union (see buildPerWorldAtlases).
   const world = collectBitmapWorldRooms(analysis);
   const sourceRooms = (world.allRooms.length ? world.allRooms : [firstBitmapRoom(analysis)]).map(normalizeRoom);
   // Boss bodies and death explosions are `msx2bitmapstamp` assets, so no room
@@ -14821,8 +14970,11 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const DARK_ATLAS_PREFIX_ENABLED = true;
   const projectHasDarkRoom = DARK_ATLAS_PREFIX_ENABLED
     && sourceRooms.some(roomData => isBitmapLightingRoom(roomData));
-  const sharedAtlas = buildSharedWorldAtlasRooms(
+  // FASE 5 -- one atlas per world (study §9). Ranges come straight from the
+  // world collector, which is what defines the global room index space.
+  const sharedAtlas = buildPerWorldAtlases(
     sourceRooms,
+    world.worlds.map(plan => ({ roomBase: plan.roomBase, count: plan.rooms.length })),
     bossBitmapStamps.map(stamp => ({ key: stamp.id, pixels: stamp.pixels })),
     projectHasDarkRoom,
   );
@@ -14880,7 +15032,21 @@ ${formatBytes('bitmap_world_spawn_y_table', worldSpawns.map(entry => entry.y), '
 ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocalIndices, 'Active-world local room index used by reusable RAM pools')}
 `
     : '';
-  const atlasPixels = normalizeAtlasPixels(sharedAtlas.atlasRoom);
+  // FASE 5: every world's atlas loads at the same offscreen rows, so the VRAM
+  // region is sized by the TALLEST world, not by their sum.
+  const worldAtlasPixels = sharedAtlas.worlds.map(entry => normalizeAtlasPixels(entry.atlasRoom));
+  const atlasPixels = worldAtlasPixels.reduce(
+    (tallest, pixels) => (pixels.length > tallest.length ? pixels : tallest),
+    worldAtlasPixels[0],
+  );
+  // ...but SAMPLING atlas pixels is a different question, and the answer is not
+  // "the tallest world". The HUD seed bakes icons by reading atlas coordinates
+  // that come from the BOOT room's entries, which are local to the boot room's
+  // own world. Reading them out of a taller world's atlas would bake arbitrary
+  // pixels into the HUD band for the whole session -- and it is baked data, so
+  // changing world later does not repair it. Take the pixels from the very room
+  // whose entries are being sampled: then the two cannot disagree.
+  const bootAtlasPixels = normalizeAtlasPixels(room);
   // Linked MSX2 HUD asset (Msx2HudAsset via room.runtime.hudAssetId): supersedes the
   // legacy hardcoded hearts HUD + inline room.runtime.hudWidgets when present. See
   // resolveLinkedHudAsset / buildBitmapHudSeedPixels / buildBitmapHudLinked*Asm.
@@ -14931,9 +15097,14 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   // the whole atlas. buildSharedWorldAtlasRooms grouped those tiles at the
   // front precisely so this is one contiguous run and stays a single HMMM.
   // Falls back to the full atlas if the grouping produced nothing to dim.
+  // FASE 5: prepare_dark_atlas is a VRAM->VRAM copy from the atlas rows, so it
+  // re-dims whichever world is loaded; the row COUNT it copies is baked, so take
+  // the deepest dark prefix of any world. Copying a few rows a smaller world
+  // does not use costs boot time only -- reading an undimmed row would not.
+  const atlasDarkRows = sharedAtlas.worlds.reduce((deepest, entry) => Math.max(deepest, entry.darkRows), 0);
   const darkTwinRows = Math.min(
     atlasRows16,
-    sharedAtlas.darkRows > 0 ? Math.ceil(sharedAtlas.darkRows / 16) * 16 : atlasRows16,
+    atlasDarkRows > 0 ? Math.ceil(atlasDarkRows / 16) * 16 : atlasRows16,
   );
   const darkAtlasEnabled = anyDarkRoom
     && atlasRows16 > 0
@@ -14942,10 +15113,10 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   // Rounding or clamping darkTwinRows below the packer's prefix would leave the
   // tail of the dark tiles reading undimmed rows: a lit patch in a dark room,
   // and the kind of bug that only shows up in one corner of one screen.
-  if (darkAtlasEnabled && darkTwinRows < sharedAtlas.darkRows) {
+  if (darkAtlasEnabled && darkTwinRows < atlasDarkRows) {
     throw new Error(
       `MSX2 SCREEN 5 dimmed atlas: the twin covers ${darkTwinRows} rows but dark rooms paint up to `
-      + `row ${sharedAtlas.darkRows} of the atlas. Those tiles would render undimmed.`,
+      + `row ${atlasDarkRows} of the atlas. Those tiles would render undimmed.`,
     );
   }
   if (anyDarkRoom && !darkAtlasEnabled && atlasRows16 > 0) {
@@ -15105,8 +15276,24 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
       + 'non-zero index holding the same colour to free slot 8.',
     );
   }
-  const tilesetBytes = packAtlasPixels(sharedAtlas.atlasRoom, dimZeroPromotion);
-  const tilesetRleChunks = buildRleChunksForVram(tilesetBytes, atlasVramBase, 'bitmap_room_tileset_rle_chunk');
+  // FASE 5: one RLE stream per world, all destined for the same VRAM rows. With
+  // a single world the label prefix and the chunk list are exactly the legacy
+  // ones, so the ROM image does not move a byte.
+  const worldTilesets = sharedAtlas.worlds.map((entry, index) => {
+    const bytes = packAtlasPixels(entry.atlasRoom, dimZeroPromotion);
+    return {
+      bytes,
+      chunks: buildRleChunksForVram(
+        bytes,
+        atlasVramBase,
+        sharedAtlas.worlds.length > 1
+          ? `bitmap_room_tileset_w${index}_rle_chunk`
+          : 'bitmap_room_tileset_rle_chunk',
+      ),
+    };
+  });
+  const tilesetBytes = worldTilesets[0].bytes;
+  const tilesetRleChunks = worldTilesets.flatMap(entry => entry.chunks);
   // NPC dialogue glyph strips + portrait frames: one packed 4bpp blob uploaded
   // once at boot to the rows reserved above the atlas region.
   const dialogueBlobBytes = dialogueData ? packBitmapPixels(buildBitmapDialogueBlobPixels(dialogueData)) : [];
@@ -15175,7 +15362,7 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
     const target = (dir: ConnectionDirection) => (rails[dir] === undefined ? 0xff : rails[dir]!);
     return [target('west'), target('east'), target('north'), target('south')];
   });
-  const hudSeedBytes = packBitmapPixels(buildBitmapHudSeedPixels(room, atlasPixels, analysis, linkedHudAsset, playerVitals));
+  const hudSeedBytes = packBitmapPixels(buildBitmapHudSeedPixels(room, bootAtlasPixels, analysis, linkedHudAsset, playerVitals));
   const hudSeedRleChunksPage0 = buildRleChunksForVram(hudSeedBytes, 0, 'bitmap_room_hud_seed_p0_rle_chunk');
   const hudSeedRleChunksPage1 = buildRleChunksForVram(hudSeedBytes, BITMAP_ROOM_PAGE1_VRAM_BASE, 'bitmap_room_hud_seed_p1_rle_chunk');
   const allHudSeedRleChunks = [...hudSeedRleChunksPage0, ...hudSeedRleChunksPage1];
@@ -15366,7 +15553,11 @@ ${airAnimBodyAsm}`;
     : formatRleChunks(allHudSeedRleChunks, hudSeedBytes.length * 2, `Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed mirrored on page 0/1, packed 4bpp RLE`);
   const tilesetDataAsm = isKonamiMegaRom
     ? `; Shared world tileset RLE is emitted in Konami MegaROM data banks below.\n`
-    : formatRleChunks(tilesetRleChunks, tilesetBytes.length, `Shared world tileset (atlas), packed 4bpp RLE, destination VRAM ${hexVram(atlasVramBase)}`);
+    : formatRleChunks(
+      tilesetRleChunks,
+      worldTilesets.reduce((total, entry) => total + entry.bytes.length, 0),
+      `Shared world tileset (atlas), packed 4bpp RLE, destination VRAM ${hexVram(atlasVramBase)}`,
+    );
   const heartUploadAsm = useClassicHeartsHud ? buildRleUploadAsm(heartRleChunks, isKonamiMegaRom) : '';
   const heartDataAsm = useClassicHeartsHud
     ? (isKonamiMegaRom
@@ -16755,7 +16946,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
   // settle first; a buffered-jump fire then clears grounded and arms player_vy.
   const landClearHooks = `${wallJumpLandClear}${powerStompLandClear}${highJumpLandClear}${coyoteBufferLandHook}`;
   const leaveGroundHooks = `${coyoteBufferLeaveGroundHook}`;
-  const runtimeAsm = buildRuntimeAsm(room, tilesetRleChunks, allHudSeedRleChunks, {
+  const runtimeAsm = buildRuntimeAsm(room, worldTilesets.map(entry => entry.chunks), allHudSeedRleChunks, {
     frameCount: spriteTables.frameCount,
     delayFrames: spriteTables.delayFrames,
     mirror: spriteTables.mirror,
@@ -16884,9 +17075,10 @@ ${healSystem.initAsm}` : ''}${lightingSystem.enabled ? `    ; Same reason again,
     xor a
     ld (bitmap_displayed_page), a
 ${multiWorldSaveProgressAsm}
-${multiWorld ? `    ; Rebuild the shared off-screen atlas on every WorldLink entry. This
-    ; is intentionally done during the transition, outside the gameplay loop,
-    ; so each world starts from a deterministic tile resource state.
+${multiWorld ? `    ; Load THIS world's off-screen atlas (FASE 5): every world owns one and they
+    ; share the same VRAM rows, so entering a world is what puts its tiles there.
+    ; bitmap_prepare_world ran just above, so bitmap_world_index already selects
+    ; the right one. Done during the transition, outside the gameplay loop.
     call upload_tileset_atlas
 ${darkAtlasEnabled ? '    call prepare_dark_atlas   ; the dimmed twin belongs to the atlas it mirrors\n' : ''}` : ''}${multiWorld
   ? `    ; Multi-world: the entry room belongs to the world the WorldLink selected
@@ -17164,7 +17356,10 @@ ${psgMusicRam ? `${psgMusicRam.asm}\n` : ''}` : '';
 ; World rooms: ${rooms.length}; start room index: ${startIndex}${multiWorld ? `
 ; Worlds: ${worldPlans.length} (one global room list; palette/entry per world)
 ${worldPlans.map((plan, index) => `;   world ${index} "${plan.name || plan.id}": rooms ${plan.roomBase}..${plan.roomBase + plan.rooms.length - 1}, entry ${plan.startIndex}`).join('\n')}` : ''}
-; Shared tileset bytes: ${tilesetBytes.length} at VRAM ${hexVram(atlasVramBase)}
+; Shared tileset bytes: ${tilesetBytes.length} at VRAM ${hexVram(atlasVramBase)}${worldTilesets.length > 1 ? `
+; Per-world atlases (FASE 5): each loads at the same VRAM rows, so the region is
+; sized by the tallest world (${atlasPixels.length} rows), not by their sum (${worldAtlasPixels.reduce((total, pixels) => total + pixels.length, 0)} rows).
+${worldTilesets.map((entry, index) => `;   world ${index}: ${worldAtlasPixels[index].length} atlas rows, ${entry.bytes.length} raw bytes`).join('\n')}` : ''}
 ; MSX2_GAMEFLOW_INTRO_SCENES: ${introScenes.length}
 ; ==================================================================
 

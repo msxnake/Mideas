@@ -24,7 +24,7 @@ Convenciones:
 |---|---|---|
 | Atlas que paga cada sala | **26,0 KB** (unión de todo el proyecto) | **4,0 KB** (lo que la sala usa) |
 | Bosses que caben | **1** (2 revientan) | **~248**, limitado por ROM, no por VRAM |
-| Mundos que caben | **1** (2 revientan) | limitado por ROM |
+| Mundos que caben | **1** (2 revientan) | limitado por ROM — **hecho, Fase 5** |
 | Retratos de diálogo que caben | **3** | **~744**, limitado por ROM |
 | Coste VRAM de añadir contenido | **O(N), permanente** | **O(1)** |
 
@@ -35,6 +35,9 @@ Convenciones:
    están colocados en ninguna sala** (`msx2Screen5BitmapRoomGenerator.ts:1761-1765`). La sala
    que más tiles usa necesita **32 filas (4,0 KB)**; el atlas ocupa **208 filas (26,0 KB)**.
    Factor **13×**.
+   *(Estado 2026-08-19: los bosses huérfanos ya no entran — Fase 2b; los cuerpos salieron del
+   atlas — Fase 4; y la unión de mundos ya no existe — Fase 5. Lo que queda del factor 13× es la
+   unión de las salas de un mismo mundo, que es la Fase 6.)*
 
 2. **Pero se equivoca en el dominio (B).** El player y sus disparos **no están en el atlas**:
    son sprites hardware en `#F400/#F600/#F800` (21 filas = 2,6 KB, página 1). Ya están
@@ -1145,10 +1148,56 @@ entera o no entra.
    vacío. Sonda base: `test/msx2-boss/boss_render_probe.tcl`. Y comprobar que la ventana se
    reutiliza entre dos salas con bosses distintos, que es donde vive el O(1).
 
-### Fase 5 — Riesgo medio. Fase 2 del multi-mundo, ya prevista.
-**Atlas por mundo.** La fontanería de re-subida por WorldLink ya existe (`:16498-16502`).
-Gana: el atlas pasa de la unión de mundos al máximo de un mundo → **el número de mundos deja de
-estar limitado por VRAM**.
+### Fase 5 — **HECHA Y VERIFICADA EN HARDWARE (2026-08-19).**
+**Atlas por mundo.** Cada mundo empaqueta su propio atlas; todos se suben a las **mismas filas**
+de VRAM y `upload_tileset_atlas` pasa a ser un despacho por `bitmap_world_index` sobre una tabla
+de rutinas, una por mundo. La fontanería de re-subida por WorldLink ya existía
+(`:16498-16502`), así que el cambio es de datos y de una rutina.
+
+**Medido** sobre la fixture de dos mundos (`test/msx2-boss/out/two_worlds.json`):
+
+| | filas de atlas |
+|---|---|
+| mundo 0 `superficie_area51` (14 salas) | 208 |
+| mundo 1 `Caverna2` (7 salas) | 48 |
+| **antes** (atlas compartido = unión) | **256** |
+| **ahora** (región = el mayor) | **208** |
+
+**6,0 KB liberados** con sólo dos mundos. Pero el ahorro **no es el punto**: los tres mundos de
+`test540.json` no comparten **ni un tile**, así que con el atlas compartido cada mundo nuevo
+sumaba filas *para siempre*. Ahora la región la fija el mundo más grande y **añadir un mundo
+cuesta ROM, no VRAM**. Eso es lo que convierte el límite de mundos en un límite de cartucho.
+
+**Verificación en hardware, la que importa.** No basta con que el atlas encoja: hay que probar
+que al cruzar un WorldLink se sube el atlas *correcto*. Sonda
+`test/msx2-boss/per_world_atlas_probe.tcl`: arranca, vuelca VRAM, levanta
+`bitmap_gameflow_exit_flag` (el mismo byte que levanta el tile "Exit World", así que el cambio
+de mundo va por el camino real del juego), y vuelca otra vez.
+
+Primer intento **inconcluyente**: muestreaba la fila 512, que ambos mundos rellenan con el mismo
+color plano. Pasaba el test sin demostrar nada. Se decodificaron los dos streams RLE desde la
+propia ROM (`test/msx2-boss/decode_world_atlases.mjs`) para localizar una fila que de verdad los
+distinga — la 545 — y se repitió:
+
+```
+BEFORE world_index=0   row545 = 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+AFTER  world_index=1   row545 = 12 11 22 12 12 12 21 21 21 22 21 12 21 22 11 12
+```
+
+Los bytes de "AFTER" son **exactamente** los que el decodificador predice para el mundo 1. Y la
+fila 612, que está por encima de las 48 filas del mundo 1, **no cambia**: un mundo corto sólo
+escribe sus propias filas (los restos del mundo anterior quedan ahí, y nadie los lee).
+
+**Decisión de diseño que hay que recordar.** Los "extras" del atlas (fotogramas de muerte del
+boss; y los cuerpos, si la Fase 4 estuviera apagada) se colocan **al principio** de cada atlas,
+no al final como antes. Motivo: las tablas de boss están indexadas **por sala**, no por mundo,
+así que un stamp tiene que caer en las **mismas coordenadas** en todos los atlas. Colocarlo
+primero lo garantiza (el packer es determinista y la lista de extras es idéntica). El generador
+**no se fía de ese razonamiento**: compara las coordenadas de cada extra entre mundos y lanza
+error si divergen.
+
+ROM byte-idéntica con un solo mundo, comprobado con el arnés: los 9 fixtures dan el mismo hash
+con y sin la fase.
 
 ### Fase 6 — Riesgo alto, máxima ganancia. No bloquea nada.
 **Atlas por sala.** 208 → 32 filas (26,0 → 4,0 KB). Coste: 4.096 B por transición = **28,6 ms =
@@ -1199,7 +1248,9 @@ Salvo indicación, las líneas son de
 | Blob subido una vez en boot | `:10791-10792` |
 | `bitmap_dlg_close_box` repinta desde el programa de sala | `:11454-11503` |
 | Stamps de TODOS los `msx2boss`, colocados o no | `:1761-1791` |
-| "Phase 1 keeps ONE tileset atlas shared by all worlds" | `:14610` |
+| ~~"Phase 1 keeps ONE tileset atlas shared by all worlds"~~ — **superado por la Fase 5** | `:14610` |
+| Atlas por mundo: `buildPerWorldAtlases` + invariante de coordenadas de extras | `:2107-2190` |
+| Despacho `upload_tileset_atlas` por `bitmap_world_index` | `buildWorldAtlasUploadAsm` |
 | Stamps de boss inyectados en el atlas compartido | `:14617-14621` |
 | Mapa de slots libres (212/228/468; 488..511 tablas sprite) | `:14693-14700` |
 | `dialogueVramBaseRow` y su guarda | `:14709-14712` |
