@@ -192,6 +192,16 @@ import {
   type BitmapSwaySet,
 } from './msx2BitmapSwayGenerator';
 import {
+  buildBitmapAtlasAnimationSystemAsm,
+  MSX2_BITMAP_ATLAS_ANIMATION_MAX_FRAMES,
+  MSX2_BITMAP_ATLAS_ANIMATION_MAX_SETS,
+  MSX2_BITMAP_ATLAS_ANIMATION_SPEED_DEFAULT,
+  MSX2_BITMAP_ATLAS_ANIMATION_SPEED_MAX,
+  MSX2_BITMAP_ATLAS_ANIMATION_SPEED_MIN,
+  type BitmapAtlasAnimationCell,
+  type BitmapAtlasAnimationSet,
+} from './msx2BitmapAtlasAnimationGenerator';
+import {
   buildHardwareSpriteLayersForFrame,
   getFirstReferencedMsx2Sprite,
   getMsx2PlayerAssetRecords,
@@ -14890,6 +14900,65 @@ function collectBitmapSwayData(rooms: Msx2Screen5BitmapRoom[]): BitmapSwayCollec
   return { roomCells, sets };
 }
 
+/** Decorative atlas-animation cells per room plus their shared frame sets. */
+interface BitmapAtlasAnimationCollection {
+  roomCells: BitmapAtlasAnimationCell[][];
+  sets: BitmapAtlasAnimationSet[];
+}
+
+/**
+ * Collects the ordered frame ids authored on each atlas entry. Frame zero is
+ * always the painted entry, so older/malformed project data remains safe: a
+ * missing or deleted variant simply makes that cell static until the user adds
+ * another frame in the Screen Editor.
+ */
+function collectBitmapAtlasAnimationData(rooms: Msx2Screen5BitmapRoom[]): BitmapAtlasAnimationCollection {
+  const sets: BitmapAtlasAnimationSet[] = [];
+  const setIndexByKey = new Map<string, number>();
+  const atlasSource = (entry: { sx?: number; sy?: number } | undefined) => ({
+    sx: clampInt(entry?.sx, 0, 255, 0),
+    sy: BITMAP_ROOM_ATLAS_BASE_Y + clampInt(entry?.sy, 0, BITMAP_ROOM_ATLAS_MAX_HEIGHT - 1, 0),
+  });
+  const roomCells = rooms.map(room => {
+    const entries = room.atlas?.entries || [];
+    const grid = buildRoomTileIndexGrid(room);
+    const cells: BitmapAtlasAnimationCell[] = [];
+    for (let y = 0; y < COLLISION_ROWS; y++) {
+      for (let x = 0; x < COLLISION_COLS; x++) {
+        const value = grid[y]?.[x] ?? 0;
+        const entry = value > 0 ? entries[value - 1] : undefined;
+        if (!entry || entry.animation?.enabled !== true) continue;
+        const frameIds = Array.from(new Set([
+          entry.id,
+          ...(entry.animation.frameEntryIds || []),
+        ])).slice(0, MSX2_BITMAP_ATLAS_ANIMATION_MAX_FRAMES);
+        const frameSources = frameIds
+          .map(frameId => entries.find(candidate => candidate.id === frameId))
+          .filter(Boolean)
+          .map(frameEntry => atlasSource(frameEntry));
+        if (frameSources.length < 2) continue;
+        const speed = clampInt(
+          entry.animation.speed,
+          MSX2_BITMAP_ATLAS_ANIMATION_SPEED_MIN,
+          MSX2_BITMAP_ATLAS_ANIMATION_SPEED_MAX,
+          MSX2_BITMAP_ATLAS_ANIMATION_SPEED_DEFAULT,
+        );
+        const key = `${speed}|${frameSources.map(frame => `${frame.sx},${frame.sy}`).join('|')}`;
+        let set = setIndexByKey.get(key);
+        if (set === undefined) {
+          if (sets.length >= MSX2_BITMAP_ATLAS_ANIMATION_MAX_SETS) continue;
+          set = sets.length;
+          setIndexByKey.set(key, set);
+          sets.push({ speed, frames: frameSources });
+        }
+        cells.push({ cell: y * COLLISION_COLS + x, set });
+      }
+    }
+    return cells;
+  });
+  return { roomCells, sets };
+}
+
 function buildCollisionTableBytes(room: Msx2Screen5BitmapRoom, subCellShapes: boolean): number[] {
   const bytes: number[] = [];
   for (let y = 0; y < COLLISION_ROWS; y++) {
@@ -16438,6 +16507,10 @@ ${bossWindowRoomBlobIndex.map((blobIndex, roomIndex) => (blobIndex < 0
   // GRASS SWAY: no sprite, no SAT slot, no pattern group — it is pure command-engine
   // work on the room bitmap, so it is collected here only to be available further down.
   const swayData = collectBitmapSwayData(rooms);
+  // DECORATIVE BITMAP ATLAS ANIMATION: also uses only the resident atlas and the
+  // V9938 command engine. It is collected beside sway so the shared RAM chain can
+  // be allocated after the reactive overlay systems.
+  const bitmapAtlasAnimationData = collectBitmapAtlasAnimationData(rooms);
   const crumbleDebrisSlots = bitmapCrumbleCellCount(crumbleRoomCells) > 0
     ? MSX2_BITMAP_CRUMBLE_DEBRIS_SLOTS
     : 0;
@@ -16924,6 +16997,23 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
       : ''}${perceptionPauseGateAsm}`,
   });
   hudLinkedRamCursor += swaySystem.ramBytes;
+  // DECORATIVE BITMAP ATLAS ANIMATION: all painted copies of one authored atlas
+  // tile share a phase. It is paused with the rest of the bitmap world and its
+  // opaque HMMMs are dimmed again in dark rooms when needed.
+  const bitmapAtlasAnimationSystem = buildBitmapAtlasAnimationSystemAsm({
+    ramBase: hudLinkedRamCursor,
+    dimRepaintCallAsm: anyDarkRoom ? BITMAP_LIGHT_DIM_CMD_CALL : '',
+    gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
+    roomCells: bitmapAtlasAnimationData.roomCells,
+    sets: bitmapAtlasAnimationData.sets,
+    pauseGateAsm: `${dialogueData
+      ? `    ld a, (bitmap_dlg_state)   ; NPC dialogue open: atlas lights freeze too
+    or a
+    ret nz
+`
+      : ''}${perceptionPauseGateAsm}`,
+  });
+  hudLinkedRamCursor += bitmapAtlasAnimationSystem.ramBytes;
   // Perception still recomposes the visible room. Dialogue no longer does: it
   // restores the exact saved rectangle from its VRAM scratch shelf.
   // Keep this hook for perception/dark-room recomposition only.
@@ -17167,7 +17257,7 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
     collectibleCounter: gemCounterRam,
     keyCountAvailable: keyDoorSystem.ramBytes > 0,
     bankedRoomData: isKonamiMegaRom,
-    repaintOverlaysAsm: `${lightRecomposeAsm}${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${crumbleSystem.initialDrawCall}${swaySystem.initialDrawCall}${destroyTileApplyVisibleCall}`,
+    repaintOverlaysAsm: `${lightRecomposeAsm}${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${crumbleSystem.initialDrawCall}${swaySystem.initialDrawCall}${bitmapAtlasAnimationSystem.initialDrawCall}${destroyTileApplyVisibleCall}`,
   });
   hudLinkedRamCursor += perceptionSystem.ramBytes;
   const playerStateMachine = buildBitmapPlayerStateMachineAsm(analysis, room, stateAnimIds, hudLinkedRamCursor);
@@ -17333,7 +17423,7 @@ ${keyDoorSystem.enabled ? `    ld a, (bitmap_world_saved_keys)
   const combinedGlowingColors = useGlowingTailColors
     ? combinedColors.map(intensifyBitmapPlayerSpriteColor)
     : [];
-  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || healSystem.enabled || perceptionSystem.enabled || jumperSystem.enabled || wallJumperSystem.enabled || crumbleSystem.enabled || swaySystem.enabled || dialogueSystem.enabled || enemySystem.enabled || turretSystem.enabled || platformSystem.enabled || bossSystem.enabled || carryAndThrowSystem.enabled || playerStateMachine.enabled || lightingSystem.enabled || multiWorld) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
+  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || healSystem.enabled || perceptionSystem.enabled || jumperSystem.enabled || wallJumperSystem.enabled || crumbleSystem.enabled || swaySystem.enabled || bitmapAtlasAnimationSystem.enabled || dialogueSystem.enabled || enemySystem.enabled || turretSystem.enabled || platformSystem.enabled || bossSystem.enabled || carryAndThrowSystem.enabled || playerStateMachine.enabled || lightingSystem.enabled || multiWorld) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
     throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}" needs too much RAM for dynamic HUD/key-door/gem/perception/jumper/wall-jumper/dialogue/enemy/platform/boss/carry/state-machine/lighting systems: dedicated RAM chain (${hexWord(hudLinkedRamCursor)}) would overflow its ${hexWord(HUD_LINKED_RAM_BASE)}..${hexWord(HUD_LINKED_RAM_CEILING - 1)} window. Reduce dynamic HUD widgets, disable air timer, or reduce pickups/enemies/platforms/carryable objects.`);
   }
   const tileDataBySourceIndex = new Map(linkedHudTileData.map(entry => [entry.index, entry]));
@@ -17356,10 +17446,10 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
   const linkedHudSharedRoutines = linkedHudDynamicSources.length
     ? `${HUD_LINKED_LAUNCH_CMD_ROUTINE_ASM}${hudDec3BufferAddress !== undefined ? HUD_BYTE_TO_DEC3_ROUTINE_ASM : ''}${hudDec5BufferAddress !== undefined ? HUD_WORD_TO_DEC5_ROUTINE_ASM : ''}`
     : '';
-  const linkedHudEquates = `${linkedHudSharedEquates}${orphanAmmoEquates}${linkedHudElementAsms.map(asm => asm.equates).join('')}${airTimerSystem?.equates || ''}${experienceSystem?.equates || ''}${keyDoorSystem.equates}${gemSystem.equates}${healSystem.equates}${perceptionSystem.equates}${jumperSystem.equates}${wallJumperSystem.equates}${crumbleSystem.equates}${swaySystem.equates}${dialogueSystem.equates}${playerStateMachine.equates}${lightingSystem.equates}`;
-  const linkedHudInitAsm = `${orphanAmmoInitAsm}${linkedHudElementAsms.map(asm => asm.initAsm).join('')}${airTimerSystem?.initAsm || ''}${experienceSystem?.initAsm || ''}${keyDoorSystem.initAsm}${gemSystem.initAsm}${perceptionSystem.initAsm}${jumperSystem.initAsm}${wallJumperSystem.initAsm}${crumbleSystem.initAsm}${swaySystem.initAsm}${dialogueSystem.initAsm}${playerStateMachine.initAsm}${lightingSystem.initAsm}`;
-  const linkedHudMainLoopCall = `${linkedHudElementAsms.map(asm => asm.mainLoopCall).join('')}${airTimerSystem?.mainLoopCall || ''}${keyDoorSystem.mainLoopCall}${gemSystem.mainLoopCall}${healSystem.mainLoopCall}${jumperSystem.mainLoopCall}${wallJumperSystem.mainLoopCall}${crumbleSystem.mainLoopCall}${swaySystem.mainLoopCall}`;
-  const linkedHudRoutinesAsm = `${linkedHudSharedRoutines}${linkedHudElementAsms.map(asm => asm.routinesAsm).join('')}${airTimerSystem?.routinesAsm || ''}${experienceSystem?.routinesAsm || ''}${keyDoorSystem.routinesAsm}${gemSystem.routinesAsm}${healSystem.routinesAsm}${perceptionSystem.routinesAsm}${jumperSystem.routinesAsm}${wallJumperSystem.routinesAsm}${crumbleSystem.routinesAsm}${swaySystem.routinesAsm}${playerStateMachine.routinesAsm}${playerAirAnimRoutineAsm}${lightingSystem.routinesAsm}`;
+  const linkedHudEquates = `${linkedHudSharedEquates}${orphanAmmoEquates}${linkedHudElementAsms.map(asm => asm.equates).join('')}${airTimerSystem?.equates || ''}${experienceSystem?.equates || ''}${keyDoorSystem.equates}${gemSystem.equates}${healSystem.equates}${perceptionSystem.equates}${jumperSystem.equates}${wallJumperSystem.equates}${crumbleSystem.equates}${swaySystem.equates}${bitmapAtlasAnimationSystem.equates}${dialogueSystem.equates}${playerStateMachine.equates}${lightingSystem.equates}`;
+  const linkedHudInitAsm = `${orphanAmmoInitAsm}${linkedHudElementAsms.map(asm => asm.initAsm).join('')}${airTimerSystem?.initAsm || ''}${experienceSystem?.initAsm || ''}${keyDoorSystem.initAsm}${gemSystem.initAsm}${perceptionSystem.initAsm}${jumperSystem.initAsm}${wallJumperSystem.initAsm}${crumbleSystem.initAsm}${swaySystem.initAsm}${bitmapAtlasAnimationSystem.initAsm}${dialogueSystem.initAsm}${playerStateMachine.initAsm}${lightingSystem.initAsm}`;
+  const linkedHudMainLoopCall = `${linkedHudElementAsms.map(asm => asm.mainLoopCall).join('')}${airTimerSystem?.mainLoopCall || ''}${keyDoorSystem.mainLoopCall}${gemSystem.mainLoopCall}${healSystem.mainLoopCall}${jumperSystem.mainLoopCall}${wallJumperSystem.mainLoopCall}${crumbleSystem.mainLoopCall}${swaySystem.mainLoopCall}${bitmapAtlasAnimationSystem.mainLoopCall}`;
+  const linkedHudRoutinesAsm = `${linkedHudSharedRoutines}${linkedHudElementAsms.map(asm => asm.routinesAsm).join('')}${airTimerSystem?.routinesAsm || ''}${experienceSystem?.routinesAsm || ''}${keyDoorSystem.routinesAsm}${gemSystem.routinesAsm}${healSystem.routinesAsm}${perceptionSystem.routinesAsm}${jumperSystem.routinesAsm}${wallJumperSystem.routinesAsm}${crumbleSystem.routinesAsm}${swaySystem.routinesAsm}${bitmapAtlasAnimationSystem.routinesAsm}${playerStateMachine.routinesAsm}${playerAirAnimRoutineAsm}${lightingSystem.routinesAsm}`;
   const hudSeparatorRestore = buildBitmapHudSeparatorRestoreAsm(useClassicHeartsHud || linkedHudDynamicSources.length > 0);
   // DOUBLE JUMP skill: extends the inline jump block (see buildBitmapJumpBlockAsm,
   // wired in update_player_movement) from the same Player Config physics.
@@ -17479,7 +17569,7 @@ ${vramFree.map(gap => `;   rows ${String(gap.from).padStart(4)}..${String(gap.to
     gravityHookAsm: gravityHooks,
     landClearAsm: landClearHooks,
     leaveGroundAsm: leaveGroundHooks,
-  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${healSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}${crumbleSystem.pendingPageDrawCall}${swaySystem.pendingPageDrawCall}${destroyTileApplyPendingCall}${lightingSystem.pendingPageCallAsm}`, keyDoorSystem.solidProbeCallAsm, `${shaftSystem.preLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${bossWindowLoadCallAsm}${bossSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}${shaftSystem.commitCallAsm}`);
+  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${healSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}${crumbleSystem.pendingPageDrawCall}${swaySystem.pendingPageDrawCall}${bitmapAtlasAnimationSystem.pendingPageDrawCall}${destroyTileApplyPendingCall}${lightingSystem.pendingPageCallAsm}`, keyDoorSystem.solidProbeCallAsm, `${shaftSystem.preLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${bossWindowLoadCallAsm}${bossSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}${shaftSystem.commitCallAsm}`);
   // Foreground sprite load routine + its per-room dispatch/data tables (only when
   // some room actually defines foreground tiles).
   const foregroundLoadRoutineAsm = foregroundContext ? buildBitmapLoadForegroundSpritesAsm(foregroundContext) : '';
@@ -17602,7 +17692,7 @@ ${darkAtlasEnabled ? '    call prepare_dark_atlas   ; the dimmed twin belongs to
     ; be missing on page 0 and appear only on the never-wiped page 1 ("gem icon on
     ; alternate rooms"). Harmless on the plain boot path (idempotent re-upload).
     call init_bitmap_hud_band
-${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${crumbleSystem.initialDrawCall}${swaySystem.initialDrawCall}${destroyTileApplyVisibleCall}
+${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${crumbleSystem.initialDrawCall}${swaySystem.initialDrawCall}${bitmapAtlasAnimationSystem.initialDrawCall}${destroyTileApplyVisibleCall}
 ${shaftSystem.initCallAsm}${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}    ; Place the player at the room spawn point.
 ${multiWorld
   ? `    ld a, (bitmap_world_spawn_y)
@@ -18114,7 +18204,7 @@ bitmap_room_hud_linked_data_end:
 ${keyDoorSystem.dataAsm}
 ${gemSystem.dataAsm}${healSystem.dataAsm}
 ${destroyTileDataAsm}${perceptionSystem.dataAsm}${lightingSystem.dataAsm}
-${jumperSystem.dataAsm}${crumbleSystem.dataAsm}${swaySystem.dataAsm}
+${jumperSystem.dataAsm}${crumbleSystem.dataAsm}${swaySystem.dataAsm}${bitmapAtlasAnimationSystem.dataAsm}
 ${wallJumperSystem.dataAsm}
 ${dialogueSystem.dataAsm}${dialogueGfxDataAsm}${bossWindowUploadAsm}${bossWindowDataAsm}
 ${bitmapEndRuntime.dataAsm}

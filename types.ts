@@ -411,6 +411,20 @@ export type Msx2BitmapRoomCommand =
   | { id: string; op: 'lineH'; x: number; y: number; length: number; color: number }
   | { id: string; op: 'lineV'; x: number; y: number; length: number; color: number };
 
+/**
+ * Cosmetic animation for a SCREEN 5 bitmap-atlas tile. The first frame is the
+ * entry that owns this record; the remaining ids point at atlas variants. Every
+ * painted cell using the owner shares the same phase, so a room with many lamps
+ * costs one small atlas copy per visible instance only when the frame changes.
+ */
+export interface Msx2BitmapAtlasAnimation {
+  enabled?: boolean;
+  /** Ordered atlas entry ids. The owner entry is normalized as frame zero. */
+  frameEntryIds?: string[];
+  /** Frames between changes at 60 Hz; 60 is approximately one second. */
+  speed?: number;
+}
+
 export interface Msx2BitmapRoomAtlasEntry {
   id: string;
   name: string;
@@ -447,6 +461,8 @@ export interface Msx2BitmapRoomAtlasEntry {
   swayRightAtlasEntryId?: string;
   /** Frames the bend is held after the player stops touching the cell (2..60, default 8). */
   swayHoldFrames?: number;
+  /** Optional looping animation for decorative bitmap tiles such as fluctuating lights. */
+  animation?: Msx2BitmapAtlasAnimation;
   /**
    * Bitmap stamp this atlas tile was imported from (`msx2bitmapstamp` asset). Editor-only
    * provenance: deleting the stamp asset offers to delete the tiles it left in every room

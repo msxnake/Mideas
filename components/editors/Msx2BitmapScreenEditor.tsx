@@ -167,6 +167,13 @@ const SWAY_HOLD_MIN = 2;
 const SWAY_HOLD_MAX = 60;
 const SWAY_HOLD_DEFAULT = 8;
 
+// Decorative atlas animation: the runtime advances one shared phase per atlas
+// animation set, then HMMMs only the painted cells when their frame changes.
+const BITMAP_ANIMATION_SPEED_MIN = 1;
+const BITMAP_ANIMATION_SPEED_MAX = 255;
+const BITMAP_ANIMATION_SPEED_DEFAULT = 60;
+const BITMAP_ANIMATION_FRAME_MAX = 8;
+
 const SHAPE_BIT = { tl: 1, tr: 2, bl: 4, br: 8 } as const;
 const SHAPE_FULL = 0x0f;
 const SHAPE_QUADRANTS: { key: keyof typeof SHAPE_BIT; label: string }[] = [
@@ -1201,6 +1208,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const [pendingDeletePlaced, setPendingDeletePlaced] = useState<{ kind: 'entity' | 'player'; id: string } | null>(null);
   const [pendingDeleteAtlasEntryIds, setPendingDeleteAtlasEntryIds] = useState<string[]>([]);
   const [editingAtlasEntryId, setEditingAtlasEntryId] = useState<string | null>(null);
+  const [animationFrameToAdd, setAnimationFrameToAdd] = useState('');
 
   // collapsible panel toggles
   const [openTools, setOpenTools] = useState(true);
@@ -3806,6 +3814,20 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const selectedAtlasEntrySwayLeft = selectedAtlasEntry?.swayLeftAtlasEntryId || '';
   const selectedAtlasEntrySwayRight = selectedAtlasEntry?.swayRightAtlasEntryId || '';
   const selectedAtlasEntrySwayHold = clampInt(selectedAtlasEntry?.swayHoldFrames, SWAY_HOLD_MIN, SWAY_HOLD_MAX, SWAY_HOLD_DEFAULT);
+  const selectedAtlasEntryAnimation = selectedAtlasEntry?.animation;
+  const selectedAtlasEntryAnimationEnabled = selectedAtlasEntryAnimation?.enabled === true;
+  const selectedAtlasEntryAnimationFrames = selectedAtlasEntry
+    ? Array.from(new Set([
+      selectedAtlasEntry.id,
+      ...(selectedAtlasEntryAnimation?.frameEntryIds || []),
+    ])).filter(id => atlasEntries.some(entry => entry.id === id)).slice(0, BITMAP_ANIMATION_FRAME_MAX)
+    : [];
+  const selectedAtlasEntryAnimationSpeed = clampInt(
+    selectedAtlasEntryAnimation?.speed,
+    BITMAP_ANIMATION_SPEED_MIN,
+    BITMAP_ANIMATION_SPEED_MAX,
+    BITMAP_ANIMATION_SPEED_DEFAULT,
+  );
   const selectedAtlasEntryShape = selectedAtlasEntry ? (clampByte(selectedAtlasEntry.collisionShape, 0) & SHAPE_FULL) : 0;
   const selectedAtlasEntryShapeQuadrants = expandCellShape(selectedAtlasEntryShape);
 
@@ -4298,6 +4320,86 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     setStatusBarMessage?.(
       `SCREEN 5: la hierba tarda ${frames} frame(s) (~${(frames / 60).toFixed(2)}s) en volver a su sitio.`
     );
+  };
+
+  // Decorative bitmap-atlas animation. It is authored on the owner tile, just
+  // like grass sway: every painted instance of that tile receives the same
+  // ordered frame sequence, while collision/behavior stay on the base tile.
+  const toggleAtlasAnimation = () => {
+    if (!selectedAtlasEntry) {
+      setStatusBarMessage?.('Selecciona un tile del atlas primero.');
+      return;
+    }
+    const turnOn = !selectedAtlasEntryAnimationEnabled;
+    if (!turnOn) {
+      updateSelectedAtlasEntry({ animation: undefined });
+      setStatusBarMessage?.(`SCREEN 5: animación desactivada en "${selectedAtlasEntry.name || selectedAtlasEntry.id}".`);
+      return;
+    }
+    const frames = selectedAtlasEntryAnimationFrames.length > 0
+      ? selectedAtlasEntryAnimationFrames
+      : [selectedAtlasEntry.id];
+    updateSelectedAtlasEntry({
+      animation: {
+        enabled: true,
+        frameEntryIds: frames,
+        speed: selectedAtlasEntryAnimationSpeed === BITMAP_ANIMATION_SPEED_DEFAULT
+          ? undefined
+          : selectedAtlasEntryAnimationSpeed,
+      },
+    });
+    setStatusBarMessage?.(
+      `SCREEN 5: animación activada en "${selectedAtlasEntry.name || selectedAtlasEntry.id}".` +
+      (frames.length < 2 ? ' Añade al menos un frame variante para que fluctúe.' : '')
+    );
+  };
+
+  const addAtlasAnimationFrame = () => {
+    if (!selectedAtlasEntry || !animationFrameToAdd || !atlasEntries.some(entry => entry.id === animationFrameToAdd)) return;
+    if (selectedAtlasEntryAnimationFrames.includes(animationFrameToAdd)) return;
+    if (selectedAtlasEntryAnimationFrames.length >= BITMAP_ANIMATION_FRAME_MAX) {
+      setStatusBarMessage?.(`SCREEN 5: una animación admite como máximo ${BITMAP_ANIMATION_FRAME_MAX} frames.`);
+      return;
+    }
+    const nextFrames = [...selectedAtlasEntryAnimationFrames, animationFrameToAdd];
+    updateSelectedAtlasEntry({
+      animation: {
+        enabled: true,
+        frameEntryIds: nextFrames,
+        speed: selectedAtlasEntryAnimationSpeed === BITMAP_ANIMATION_SPEED_DEFAULT
+          ? undefined
+          : selectedAtlasEntryAnimationSpeed,
+      },
+    });
+    setAnimationFrameToAdd('');
+    setStatusBarMessage?.(`SCREEN 5: frame ${nextFrames.length - 1} añadido a la animación.`);
+  };
+
+  const removeAtlasAnimationFrame = (frameIndex: number) => {
+    if (!selectedAtlasEntry || frameIndex <= 0) return;
+    const nextFrames = selectedAtlasEntryAnimationFrames.filter((_id, index) => index !== frameIndex);
+    updateSelectedAtlasEntry({
+      animation: {
+        enabled: true,
+        frameEntryIds: nextFrames,
+        speed: selectedAtlasEntryAnimationSpeed === BITMAP_ANIMATION_SPEED_DEFAULT
+          ? undefined
+          : selectedAtlasEntryAnimationSpeed,
+      },
+    });
+    setStatusBarMessage?.(`SCREEN 5: frame ${frameIndex} eliminado de la animación.`);
+  };
+
+  const updateAtlasAnimationSpeed = (value: number) => {
+    const speed = clampInt(value, BITMAP_ANIMATION_SPEED_MIN, BITMAP_ANIMATION_SPEED_MAX, BITMAP_ANIMATION_SPEED_DEFAULT);
+    if (!updateSelectedAtlasEntry({
+      animation: {
+        enabled: true,
+        frameEntryIds: selectedAtlasEntryAnimationFrames,
+        speed: speed === BITMAP_ANIMATION_SPEED_DEFAULT ? undefined : speed,
+      },
+    })) return;
+    setStatusBarMessage?.(`SCREEN 5: la luz cambia cada ${speed} frame(s) (~${(speed / 60).toFixed(2)}s).`);
   };
 
   const selectedCellSlot = selectedCell ? composedPixels[selectedCell.y * GRID]?.[selectedCell.x * GRID] ?? 0 : 0;
@@ -6755,6 +6857,18 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                 />
                 Se mueve al pasar
               </label>
+              <label
+                className="flex items-center gap-1 text-xs text-msx-textsecondary"
+                title="Animación decorativa del tile bitmap: cambia entre frames del atlas sin modificar la colisión. Todas las instancias del tile comparten fase."
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedAtlasEntryAnimationEnabled}
+                  onChange={toggleAtlasAnimation}
+                  disabled={!selectedAtlasEntry}
+                />
+                Fluctúa / anima
+              </label>
             </div>
 
             {/* Grass sway. Tile-only: rest frame = this atlas tile, plus the two bent
@@ -6811,6 +6925,86 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                 ) : (
                   <p className="text-[0.6rem] text-msx-textsecondary">
                     Selecciona el tile del atlas para elegir los fotogramas doblados.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Decorative bitmap-atlas animation. The base tile is always frame 0;
+                variants are copied from the same resident atlas at runtime. */}
+            {selectedAtlasEntryAnimationEnabled && (
+              <div className="mt-2 rounded border border-msx-border bg-msx-bgcolor p-2">
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="text-[0.7rem] text-msx-highlight">Fluctuación del tile</span>
+                  <span className="text-[0.6rem] text-msx-textsecondary">compartida por sus instancias</span>
+                </div>
+                <div className="flex items-end gap-1">
+                  <label className="min-w-0 flex-1 text-[0.6rem] text-msx-textsecondary">
+                    Añadir frame del atlas
+                    <select
+                      value={animationFrameToAdd}
+                      onChange={event => setAnimationFrameToAdd(event.target.value)}
+                      className="mt-0.5 w-full rounded border border-msx-border bg-msx-panelbg px-1 py-0.5 text-xs text-msx-textprimary"
+                    >
+                      <option value="">(selecciona variante)</option>
+                      {atlasEntries
+                        .filter(entry => entry.id !== selectedAtlasEntry?.id && !selectedAtlasEntryAnimationFrames.includes(entry.id))
+                        .map(entry => (
+                          <option key={entry.id} value={entry.id}>{entry.name || entry.id}</option>
+                        ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    disabled={!animationFrameToAdd || selectedAtlasEntryAnimationFrames.length >= BITMAP_ANIMATION_FRAME_MAX}
+                    onClick={addAtlasAnimationFrame}
+                    className="rounded border border-msx-border px-2 py-1 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Añadir
+                  </button>
+                </div>
+                <div className="mt-2 space-y-1">
+                  {selectedAtlasEntryAnimationFrames.map((frameId, frameIndex) => {
+                    const frameEntry = atlasEntries.find(entry => entry.id === frameId);
+                    return (
+                      <div key={`${frameId}-${frameIndex}`} className="flex items-center justify-between gap-2 text-[0.65rem] text-msx-textsecondary">
+                        <span className="truncate">
+                          <span className="text-msx-highlight">{frameIndex}</span>{' '}
+                          {frameIndex === 0 ? 'Reposo (tile base)' : frameEntry?.name || frameId}
+                        </span>
+                        {frameIndex > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => removeAtlasAnimationFrame(frameIndex)}
+                            className="shrink-0 rounded border border-msx-border px-1 text-[0.6rem] hover:border-msx-danger hover:text-msx-danger"
+                          >
+                            Quitar
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <label className="mt-2 flex items-center gap-2 text-xs text-msx-textsecondary">
+                  Frames por cambio
+                  <input
+                    type="number"
+                    min={BITMAP_ANIMATION_SPEED_MIN}
+                    max={BITMAP_ANIMATION_SPEED_MAX}
+                    value={selectedAtlasEntryAnimationSpeed}
+                    onChange={event => updateAtlasAnimationSpeed(Number(event.target.value))}
+                    className="w-16 rounded border border-msx-border bg-msx-panelbg px-1 py-0.5 text-msx-textprimary"
+                  />
+                  <span className="text-[0.6rem]">~{(selectedAtlasEntryAnimationSpeed / 60).toFixed(2)}s a 60fps</span>
+                </label>
+                {selectedAtlasEntryAnimationFrames.length < 2 ? (
+                  <p className="mt-1 text-[0.6rem] text-msx-danger">
+                    Añade al menos un tile variante. Con un solo frame no hay copia ni fluctuación.
+                  </p>
+                ) : (
+                  <p className="mt-1 text-[0.6rem] text-msx-textsecondary">
+                    El tile base conserva la colisión; los frames son copias opacas de 16x16 desde el atlas.
+                    Todas las luces pintadas con este tile cambian juntas para ahorrar RAM y CPU.
                   </p>
                 )}
               </div>

@@ -8,7 +8,8 @@
  * (delete a bitmap stamp, which takes its imported copies with it) cannot drift apart.
  *
  * It also cuts the references that would otherwise dangle: autotile mappings, grass-sway
- * partners, foreground overlay tiles and the `*AtlasEntryId` params of placed entities.
+ * partners, bitmap animation frames, foreground overlay tiles and the `*AtlasEntryId` params
+ * of placed entities.
  */
 
 import {
@@ -146,16 +147,25 @@ export function removeAtlasEntriesFromRoom(
   const removedEntries = entries.filter(entry => removeIds.has(entry.id));
   if (removedEntries.length === 0) return null;
 
-  // Surviving entries, minus the sway partners that pointed at a removed tile.
+  // Surviving entries, minus sway/animation partners that pointed at a removed tile.
   const nextEntries = entries
     .filter(entry => !removeIds.has(entry.id))
     .map(entry => {
       const dropLeft = !!entry.swayLeftAtlasEntryId && removeIds.has(entry.swayLeftAtlasEntryId);
       const dropRight = !!entry.swayRightAtlasEntryId && removeIds.has(entry.swayRightAtlasEntryId);
-      if (!dropLeft && !dropRight) return entry;
+      const animationIds = entry.animation?.frameEntryIds || [];
+      const nextAnimationIds = animationIds.filter(id => !removeIds.has(id));
+      const animationChanged = nextAnimationIds.length !== animationIds.length;
+      if (!dropLeft && !dropRight && !animationChanged) return entry;
       const next = { ...entry };
       if (dropLeft) delete next.swayLeftAtlasEntryId;
       if (dropRight) delete next.swayRightAtlasEntryId;
+      if (animationChanged && next.animation) {
+        // Frame zero is normalized by the editor/generator. If all variants were
+        // removed, drop the flag rather than leaving a misleading one-frame loop.
+        if (nextAnimationIds.length < 2) delete next.animation;
+        else next.animation = { ...next.animation, frameEntryIds: nextAnimationIds };
+      }
       return next;
     });
 
