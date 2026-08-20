@@ -32,6 +32,11 @@ import {
   createScreen5PaletteAssetForTile,
   findMatchingScreen5PaletteAsset,
 } from '../utils/msx2Screen5BitmapTileLibrary';
+import {
+  buildStampAtlasIdentity,
+  findStampAtlasEntries,
+  removeAtlasEntriesFromRoom,
+} from '../utils/msx2BitmapAtlasRemoval';
 
 const MSX2_HUD_FONT_CHARACTERS = ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:-/';
 const DEFAULT_MSX2_HUD_FONT_PATTERNS: Record<string, number[]> = {
@@ -76,6 +81,14 @@ const DEFAULT_MSX2_HUD_FONT_PATTERNS: Record<string, number[]> = {
   '-': [0x00,0x00,0x00,0x7E,0x00,0x00,0x00,0x00],
   '/': [0x06,0x0C,0x0C,0x18,0x30,0x30,0x60,0x00],
 };
+
+/** Atlas tiles one bitmap stamp left behind in a SCREEN 5 bitmap room. */
+interface StampAtlasUsage {
+  roomAssetId: string;
+  roomName: string;
+  entryIds: string[];
+  entryNames: string[];
+}
 
 interface AssetHandlersProps {
   assets: ProjectAsset[];
@@ -265,6 +278,95 @@ export const useAssetHandlers = ({
     );
     setIsConfirmModalOpen(false);
     setConfirmModalProps(null);
+  };
+
+  /**
+   * Every room atlas holding a copy of `stampAsset`. Placing a stamp copies its tiles into the
+   * atlas of the room it is placed in, so one stamp can have copies in several rooms.
+   */
+  const collectStampAtlasUsage = (stampAsset: ProjectAsset): StampAtlasUsage[] => {
+    const identity = buildStampAtlasIdentity(stampAsset.id, stampAsset.data as any);
+    const usage: StampAtlasUsage[] = [];
+    assets.forEach(asset => {
+      if (asset.type !== 'msx2bitmaproom' || !asset.data) return;
+      const entries = findStampAtlasEntries(asset.data as Msx2Screen5BitmapRoom, identity);
+      if (entries.length === 0) return;
+      usage.push({
+        roomAssetId: asset.id,
+        roomName: asset.name,
+        entryIds: entries.map(entry => entry.id),
+        entryNames: entries.map(entry => entry.name),
+      });
+    });
+    return usage;
+  };
+
+  /**
+   * Deletes a bitmap stamp asset, optionally taking the atlas tiles it left in every bitmap
+   * room with it. Removing an atlas tile also empties the cells painted with it (the tile-map
+   * addresses entries by index, so a tile cannot survive its atlas entry).
+   */
+  const deleteStampAssetAndAtlasTiles = (assetToDelete: ProjectAsset, usage: StampAtlasUsage[]) => {
+    const idsByRoom = new Map(usage.map(item => [item.roomAssetId, new Set(item.entryIds)]));
+    const removedTileCount = usage.reduce((sum, item) => sum + item.entryIds.length, 0);
+
+    setAssetsWithHistory(prevAssets => prevAssets
+      .filter(asset => asset.id !== assetToDelete.id)
+      .map(asset => {
+        const entryIds = idsByRoom.get(asset.id);
+        if (!entryIds || asset.type !== 'msx2bitmaproom' || !asset.data) return asset;
+        const room = asset.data as Msx2Screen5BitmapRoom;
+        const removal = removeAtlasEntriesFromRoom(room, entryIds);
+        if (!removal) return asset;
+        return { ...asset, data: { ...room, ...removal.patch } };
+      }));
+
+    if (selectedAssetId === assetToDelete.id) {
+      setSelectedAssetId(null);
+      setCurrentEditor(EditorType.None);
+      setSelectedEffectZoneId(null);
+    }
+    setStatusBarMessage(
+      removedTileCount > 0
+        ? `Stamp "${assetToDelete.name}" deleted with ${removedTileCount} atlas tile${removedTileCount === 1 ? '' : 's'} in ${usage.length} room${usage.length === 1 ? '' : 's'}.`
+        : `Asset "${assetToDelete.name}" deleted.`
+    );
+    setIsConfirmModalOpen(false);
+    setConfirmModalProps(null);
+  };
+
+  /**
+   * Deletes 16x16 bitmap tile SOURCES in a single history step, as the Stamp editor's tile
+   * list mixes them: `msx2bitmaptile` project assets and atlas entries of bitmap rooms.
+   *
+   * The room patches are computed by the caller with `removeAtlasEntriesFromRoom` (which owns
+   * the cell re-indexing) and merged into the room data here, so one Undo puts everything back.
+   */
+  const handleDeleteBitmapTileSources = (payload: {
+    assetIds?: string[];
+    roomUpdates?: Array<{ assetId: string; data: Partial<Msx2Screen5BitmapRoom> }>;
+  }) => {
+    const assetIds = new Set(payload.assetIds || []);
+    const roomUpdates = new Map((payload.roomUpdates || []).map(item => [item.assetId, item.data]));
+    if (assetIds.size === 0 && roomUpdates.size === 0) return;
+
+    setAssetsWithHistory(prevAssets => prevAssets
+      .filter(asset => !assetIds.has(asset.id))
+      .map(asset => {
+        const patch = roomUpdates.get(asset.id);
+        if (!patch || !asset.data || typeof asset.data !== 'object') return asset;
+        return { ...asset, data: { ...(asset.data as object), ...patch } as ProjectAsset['data'] };
+      }));
+
+    if (selectedAssetId && assetIds.has(selectedAssetId)) {
+      setSelectedAssetId(null);
+      setCurrentEditor(EditorType.None);
+    }
+
+    const parts: string[] = [];
+    if (assetIds.size > 0) parts.push(`${assetIds.size} tile asset${assetIds.size === 1 ? '' : 's'}`);
+    if (roomUpdates.size > 0) parts.push(`atlas tiles in ${roomUpdates.size} room${roomUpdates.size === 1 ? '' : 's'}`);
+    setStatusBarMessage(`Deleted ${parts.join(' and ')}.`);
   };
 
   const handleUpdateAsset = useCallback((assetId: string, updatedData: any, newAssetsToCreate?: ProjectAsset[]) => {
@@ -1238,6 +1340,39 @@ export const useAssetHandlers = ({
         return;
       }
 
+      // A bitmap stamp usually has copies of its tiles in the atlas of every room it was
+      // placed in. Offer to delete those too — the cells painted with them are emptied.
+      const stampAtlasUsage = assetToDelete.type === 'msx2bitmapstamp' ? collectStampAtlasUsage(assetToDelete) : [];
+      if (stampAtlasUsage.length > 0) {
+        const tileCount = stampAtlasUsage.reduce((sum, item) => sum + item.entryIds.length, 0);
+        setConfirmModalProps({
+          title: "Delete Bitmap Stamp",
+          message: (
+            <div className="space-y-3">
+              <p>Delete stamp "{assetToDelete.name}"?</p>
+              <p>
+                It has {tileCount} tile{tileCount === 1 ? '' : 's'} in the Tile Atlas of {stampAtlasUsage.length} bitmap room{stampAtlasUsage.length === 1 ? '' : 's'}. Deleting them also empties every cell painted with those tiles.
+              </p>
+              <div className="max-h-28 overflow-y-auto rounded border border-msx-border bg-msx-bgcolor p-2 text-xs text-msx-textsecondary">
+                {stampAtlasUsage.map(item => (
+                  <div key={item.roomAssetId} className="truncate">
+                    {item.roomName}: {item.entryNames.join(', ')}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ),
+          onConfirm: () => deleteStampAssetAndAtlasTiles(assetToDelete, stampAtlasUsage),
+          onSecondaryAction: () => deleteAssetAndMaybeTiles(assetToDelete),
+          confirmText: "Delete Stamp + Atlas Tiles",
+          secondaryText: "Delete Stamp Only",
+          secondaryButtonVariant: "secondary",
+          confirmButtonVariant: "danger"
+        });
+        setIsConfirmModalOpen(true);
+        return;
+      }
+
       setConfirmModalProps({
         title: "Delete Asset",
         message: `Are you sure you want to delete asset "${assetToDelete.name}"? This action can be undone.`,
@@ -1423,6 +1558,7 @@ export const useAssetHandlers = ({
     handleNewAsset,
     handleDuplicateAsset,
     handleDeleteAsset,
+    handleDeleteBitmapTileSources,
     handleUpdateSpriteOrder,
     handleReorderSpriteFrames,
     handleOpenSpriteFramesModal,

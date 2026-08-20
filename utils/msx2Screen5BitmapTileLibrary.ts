@@ -1,4 +1,4 @@
-import { BitmapTileScreen5, BitmapTileStampScreen5, Msx2BitmapStampAsset, PaletteAsset, ProjectAsset, Screen5PaletteSlot } from '../types';
+import { BitmapTileScreen5, BitmapTileStampFrameVariantScreen5, BitmapTileStampScreen5, Msx2BitmapStampAsset, PaletteAsset, ProjectAsset, Screen5PaletteSlot } from '../types';
 import { ensureScreen5PaletteSlots } from './msx2PaletteUtils';
 
 const slugify = (value: string): string =>
@@ -112,7 +112,34 @@ export function bitmapTileScreen5ToAtlasTile(tile: BitmapTileScreen5): { id: str
 /** Composite a SCREEN 5 bitmap stamp (columns x rows of 16x16 tiles) into one
  *  palette-slot pixel grid. Mirrors the HUD editor's local compositor so a stamp
  *  metatile can be poured straight into a dialogue portrait frame. */
-export function bitmapStampToPixelGrid(stamp: BitmapTileStampScreen5): number[][] {
+/**
+ * Resolve one authored frame without expanding the sparse variant data in the
+ * project JSON. Frame 0 is the stamp's base grid; later frames apply only the
+ * cell patches authored in `frameVariants`.
+ */
+export function resolveBitmapStampFrameTiles(
+  stamp: BitmapTileStampScreen5,
+  frameIndex = 0,
+): Array<BitmapTileScreen5 | null> {
+  const columns = Math.max(1, Math.trunc(Number(stamp.columns) || 1));
+  const rows = Math.max(1, Math.trunc(Number(stamp.rows) || 1));
+  const cellCount = columns * rows;
+  const tiles: Array<BitmapTileScreen5 | null> = Array.from({ length: cellCount }, (_unused, index) => stamp.tiles?.[index] || null);
+  const variant = stamp.frameVariants?.[Math.max(0, Math.trunc(Number(frameIndex) || 0) - 1)] as BitmapTileStampFrameVariantScreen5 | undefined;
+  if (!variant || !Array.isArray(variant.cells)) return tiles;
+  for (const patch of variant.cells) {
+    const index = Math.trunc(Number(patch?.index));
+    if (!Number.isInteger(index) || index < 0 || index >= cellCount) continue;
+    tiles[index] = patch.tile || null;
+  }
+  return tiles;
+}
+
+export function bitmapStampFrameCount(stamp: BitmapTileStampScreen5): number {
+  return 1 + (Array.isArray(stamp.frameVariants) ? stamp.frameVariants.length : 0);
+}
+
+export function bitmapStampToPixelGrid(stamp: BitmapTileStampScreen5, frameIndex = 0): number[][] {
   const columns = Math.max(1, Math.trunc(Number(stamp.columns) || 1));
   const rows = Math.max(1, Math.trunc(Number(stamp.rows) || 1));
   const tileWidth = Math.max(1, Math.trunc(Number(stamp.tileWidth) || 16));
@@ -120,9 +147,10 @@ export function bitmapStampToPixelGrid(stamp: BitmapTileStampScreen5): number[][
   const width = columns * tileWidth;
   const height = rows * tileHeight;
   const pixels = Array.from({ length: height }, () => Array.from({ length: width }, () => 0));
+  const frameTiles = resolveBitmapStampFrameTiles(stamp, frameIndex);
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < columns; col++) {
-      const tile = stamp.tiles?.[row * columns + col];
+      const tile = frameTiles[row * columns + col];
       if (!tile) continue;
       const tilePixels = bitmapTileScreen5ToAtlasTile(tile).pixels;
       for (let y = 0; y < tileHeight; y++) {

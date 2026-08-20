@@ -13,7 +13,7 @@ import {
 import { createDefaultScreen5PaletteSlots, ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 import { WorldPaletteResolution, resolveWorldPalettes } from '../../utils/msx2WorldPalette';
 import { AtlasEntryRef, collectAtlasEntries } from '../../utils/msx2AtlasEntries';
-import { bitmapStampToPixelGrid } from '../../utils/msx2Screen5BitmapTileLibrary';
+import { bitmapStampFrameCount, bitmapStampToPixelGrid } from '../../utils/msx2Screen5BitmapTileLibrary';
 
 /**
  * MSX2 SCREEN 5 bitmap Boss Editor.
@@ -153,6 +153,9 @@ interface BodyStampRef {
   w: number;
   h: number;
   pixels: number[][];
+  /** Base plus sparse Stamp frame variants. Legacy horizontal strips keep using `pixels`. */
+  framePixels: number[][][];
+  frameCount: number;
   palette: Screen5PaletteSlot[];
 }
 
@@ -167,13 +170,15 @@ function useBodyStamps(allAssets: ProjectAsset[]): BodyStampRef[] {
       const stamp = data?.stamp;
       if (!stamp) continue;
       const pixels = bitmapStampToPixelGrid(stamp);
+      const frameCount = bitmapStampFrameCount(stamp);
+      const framePixels = Array.from({ length: frameCount }, (_unused, frameIndex) => bitmapStampToPixelGrid(stamp, frameIndex));
       const h = pixels.length;
       const w = pixels[0]?.length || 0;
       if (w <= 0 || h <= 0) continue;
       out.push({
         id: asset.id,
         name: asset.name || stamp.name || asset.id,
-        w, h, pixels,
+        w, h, pixels, framePixels, frameCount,
         // The generator injects stamps into the world atlas, so in game they
         // are drawn with the world palette, not the copy saved with the stamp.
         // With several world palettes there is no unambiguous choice, so the
@@ -194,8 +199,12 @@ const StampCanvas: React.FC<{
   frameIndex?: number;
 }> = ({ stamp, scale, frames = 1, frameIndex = 0 }) => {
   const ref = useRef<HTMLCanvasElement>(null);
-  const frameCount = Math.max(1, frames);
-  const w = Math.max(1, Math.floor(stamp.w / frameCount));
+  const hasVariantFrames = stamp.frameCount > 1;
+  const frameCount = hasVariantFrames ? stamp.frameCount : Math.max(1, frames);
+  const sourcePixels = hasVariantFrames
+    ? stamp.framePixels[Math.min(frameIndex, stamp.frameCount - 1)] || stamp.pixels
+    : stamp.pixels;
+  const w = hasVariantFrames ? Math.max(1, stamp.w) : Math.max(1, Math.floor(stamp.w / frameCount));
   const h = Math.max(1, stamp.h);
 
   useEffect(() => {
@@ -206,7 +215,7 @@ const StampCanvas: React.FC<{
     const originX = Math.min(frameIndex, frameCount - 1) * w;
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
-        const color = stamp.pixels[y]?.[originX + x];
+        const color = sourcePixels[y]?.[hasVariantFrames ? x : originX + x];
         if (!color) continue;                     // 0 = transparent, as on SCREEN 5
         const [r, g, b] = hexToRgb(stamp.palette[color & 0x0f]?.hex);
         const offset = (y * w + x) * 4;
@@ -218,7 +227,7 @@ const StampCanvas: React.FC<{
     }
     ctx.clearRect(0, 0, w, h);
     ctx.putImageData(image, 0, 0);
-  }, [stamp, w, h, frameIndex, frameCount]);
+  }, [stamp, sourcePixels, w, h, frameIndex, frameCount, hasVariantFrames]);
 
   return (
     <canvas
@@ -269,7 +278,7 @@ const BossBodyPicker: React.FC<{
         )}
         <div className="flex flex-wrap gap-2">
           {visible.map(stamp => {
-            const frameW = Math.max(1, Math.floor(stamp.w / Math.max(1, frames)));
+            const frameW = stamp.frameCount > 1 ? stamp.w : Math.max(1, Math.floor(stamp.w / Math.max(1, frames)));
             // Fit inside a 96px box, never upscaling past 3x so a small stamp and
             // a 96x96 body stay comparable at a glance.
             const scale = Math.max(1, Math.min(3, Math.floor(96 / Math.max(frameW, stamp.h, 1))));
@@ -282,7 +291,7 @@ const BossBodyPicker: React.FC<{
               <button
                 key={stamp.id}
                 onClick={() => onPick(stamp.id)}
-                title={`${stamp.name} — ${stamp.w}x${stamp.h}${frames > 1 ? ` (${frames} frames of ${perFrame})` : ''}`}
+                title={`${stamp.name} — ${stamp.w}x${stamp.h}${stamp.frameCount > 1 ? ` (${stamp.frameCount} sparse frames of ${perFrame})` : frames > 1 ? ` (${frames} horizontal frames of ${perFrame})` : ''}`}
                 className={`flex flex-col items-center justify-end gap-1 p-1 rounded border ${selected ? 'border-msx-accent' : 'border-msx-border hover:bg-msx-hover'}`}
                 style={{ background: MSX2_PREVIEW_BG, width: 108 }}
               >
@@ -378,8 +387,9 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
   // The body drives the zone editor canvas size: zones are authored in
   // boss-local pixels, so the preview must match the real body rectangle.
   const bodyStamp = bodyStamps.find(s => s.id === boss.bossStampAssetId);
-  const frames = Math.max(1, Number(boss.bossFrames) || 1);
-  const bodyW = bodyStamp ? Math.floor(bodyStamp.w / frames) : 64;
+  const stampFrameCount = bodyStamp && bodyStamp.frameCount > 1 ? bodyStamp.frameCount : 0;
+  const frames = stampFrameCount || Math.max(1, Number(boss.bossFrames) || 1);
+  const bodyW = bodyStamp ? (stampFrameCount ? bodyStamp.w : Math.floor(bodyStamp.w / frames)) : 64;
   const bodyH = bodyStamp ? bodyStamp.h : 64;
   const bodyPreviewScale = Math.max(1, Math.min(4, Math.floor(160 / Math.max(bodyW, 1))));
   const barrierEntry = atlasEntries.find(e => e.id === boss.bossBarrierTileId);
@@ -456,7 +466,15 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
                   stamps={bodyStamps}
                   value={boss.bossStampAssetId || ''}
                   frames={frames}
-                  onPick={id => onUpdate({ ...boss, bossStampAssetId: id, bossAtlasEntryId: '' })}
+                  onPick={id => {
+                    const picked = bodyStamps.find(stamp => stamp.id === id);
+                    onUpdate({
+                      ...boss,
+                      bossStampAssetId: id,
+                      bossAtlasEntryId: '',
+                      ...(picked && picked.frameCount > 1 ? { bossFrames: picked.frameCount } : {}),
+                    });
+                  }}
                 />
                 {!boss.bossStampAssetId && boss.bossAtlasEntryId && (
                   <p className="text-xs mt-1" style={{ color: '#ffb454' }}>
@@ -466,9 +484,11 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
                 )}
               </div>
               <div>
-                <label className={label}>Animation frames (horizontal strip)</label>
+                <label className={label}>{stampFrameCount ? 'Animation frames (from Stamp variants)' : 'Animation frames (horizontal strip)'}</label>
                 <input type="number" min={1} max={4} className={input}
-                  value={boss.bossFrames} onChange={e => set('bossFrames', Number(e.target.value))} />
+                  value={frames}
+                  disabled={!!stampFrameCount}
+                  onChange={e => set('bossFrames', Number(e.target.value))} />
               </div>
               <div>
                 <label className={label}>Frames between animation steps</label>
@@ -500,6 +520,9 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
 
             <p className="text-xs text-msx-textsecondary mt-3">
               Body size resolves to <strong>{bodyW}×{bodyH}</strong> px per frame.
+              {stampFrameCount
+                ? <> The Stamp supplies {stampFrameCount} sparse frames; only cells changed from the base are stored and packed.</>
+                : null}
               The body redraws every {boss.bossInterval} frames so its big blit never shares a
               frame with the projectiles — keep this at 3 unless you know the blit budget.
             </p>

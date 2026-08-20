@@ -13,6 +13,15 @@
  *
  * Drives the real generator and reads the emitted cell blob, which is where the
  * bugs live: an atlas-relative SY here renders the boss from the wrong VRAM row.
+ *
+ * HONEST LIMIT, measured 2026-08-20: this battery passed 37/37 on a tree where
+ * the boss drew ONE 16x16 cell and never repaired the background. Every check
+ * here is structural -- it reads the emitted text -- so it can prove the DATA is
+ * well formed and prove a routine exists, and it cannot prove the ROM renders.
+ * The blob was in fact perfect in that tree (frames=1, perFrame=48, stride=288,
+ * 48 records tiling 128x96, every sy >= 512); the fault was entirely in the Z80.
+ * So: green here is a precondition, never a verdict. The verdict is a ROM in
+ * OpenMSX (test/gen_test551_boss_rom.mjs + test/test551_boss_probe.tcl).
  */
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -225,15 +234,120 @@ checks.push(['Dedup never points a cell outside the emitted window rows',
   /bitmap_boss_draw_animated:/.test(animAsm)
   && /call bitmap_boss_draw_animated/.test(animAsm)
   && /^bitmap_boss_draw:[\s\S]{0,400}?jp nz, bitmap_boss_cells_full/m.test(animAsm)]);
-checks.push(['The runtime chooses between full and changed-cell repaint',
+  checks.push(['The runtime chooses between full and changed-cell repaint',
     /bitmap_boss_pick_cell_list:/.test(animAsm)
     && /bitmap_boss_draw_cell_list:/.test(animAsm)
     && /bitmap_boss_cells_delta:/.test(animAsm)]);
+  // The record cursor lives in IX because bitmap_boss_launch_cmd preserves it;
+  // BC (remaining records) is protected only across the launch itself.
+  const cellLoop = /bitmap_boss_draw_cell_list:([\s\S]{0,6000}?)\n    ret\n/.exec(animAsm);
+  checks.push(['The cell loop preserves IX and its remaining count across blits',
+    !!cellLoop
+    && /push ix\s+push hl\s+pop ix/.test(cellLoop[1])
+    && /push bc\s+call bitmap_boss_launch_cmd\s+pop bc/.test(cellLoop[1])
+    && /pop ix\s*$/.test(cellLoop[1])]);
+  checks.push(['The cell loop advances one record and repeats until the count is 0',
+    !!cellLoop
+    && new RegExp(`ld de, ${6}\\n\\s*add ix, de`).test(cellLoop[1])
+    && /dec c\s+jp z, \.cells_launch/.test(cellLoop[1])
+    && /pop bc\s+ld a, c\s+; launch destroys flags:[^\n]*\s+or a\s+jp nz, \.cells_next/.test(cellLoop[1])]);
+  checks.push(['Adjacent source/destination cells coalesce into a wider HMMM',
+    !!cellLoop
+    && /\.cells_try_merge:/.test(cellLoop[1])
+    && /expected next SX = SX \+ current NX/.test(cellLoop[1])
+    && /absolute next DX = boss X \+ record offset/.test(cellLoop[1])
+    && /add a, 16\s+ld \(boss_cmd_buf \+ 8\), a/.test(cellLoop[1])]);
   // A move invalidates everything on screen, so it must force a full repaint.
   checks.push(['Moving forces a full repaint', /ld a, \(boss_old_x\)\s*\n\s*cp b\s*\n\s*jp nz, bitmap_boss_cells_full/.test(animAsm)]);
   // And nothing may be assumed on screen before the first draw of a room.
   checks.push(['Room load marks the body as not yet drawn',
     /ld \(boss_cells_shown\), a\s*; nothing of this boss is on screen yet/.test(animAsm)]);
+  // Nothing may call the player logic from inside a command-ready wait. The
+  // SCREEN 5 loop is DI/polling-only: a routine that runs update_player_movement
+  // while the Boss is waiting on the blitter re-enters the V9938 command engine
+  // and eats the S#0 VBlank flag the main loop syncs on. A "soft tick" like that
+  // was tried in this subsystem and had to come out; assert it cannot come back.
+  checks.push(['The blit wait never re-enters the player logic',
+    !/call update_player_movement/.test(
+      (/bitmap_boss_launch_cmd:[\s\S]{0,900}?\n    ret\n/.exec(animAsm) || ['', ''])[0],
+    )
+    && !/bitmap_boss_player_tick_if_vblank/.test(animAsm)]);
+}
+
+// --- Sparse Stamp variants: the authoring path requested by the VRAM study ---
+// One base 2x2 Stamp gets a second frame that removes one cell and replaces
+// another. The frame stays 32x32; it must not be interpreted as a 64px-wide
+// horizontal strip, and the body window must pack only the distinct 16x16 art.
+{
+  const variantRaw = JSON.parse(JSON.stringify(raw));
+  const stampAsset = (variantRaw.assets || []).find(asset => asset.type === 'msx2bitmapstamp' && asset.data?.stamp?.columns === 2 && asset.data?.stamp?.rows === 2);
+  const bossAssets = (variantRaw.assets || []).filter(asset => String(asset?.type || '').toLowerCase() === 'msx2boss');
+  const baseTile = stampAsset?.data?.stamp?.tiles?.[1];
+  if (stampAsset && baseTile && bossAssets.length > 0) {
+    const replacement = {
+      ...baseTile,
+      id: `${baseTile.id}_variant`,
+      pixelData: baseTile.pixelData.map((value, index) => index === 0 ? (Number(value) === 15 ? 14 : 15) : value),
+    };
+    stampAsset.data.stamp.frameVariants = [{
+      id: `${stampAsset.id}_frame_1`,
+      name: 'Frame 1',
+      cells: [
+        { index: 0, tile: null },
+        { index: 1, tile: replacement },
+      ],
+    }];
+    for (const bossAsset of bossAssets) {
+      const params = bossAsset.data?.params || bossAsset.data?.boss?.params || bossAsset.data;
+      if (params) {
+        params.bossStampAssetId = stampAsset.id;
+        params.bossFrames = 1; // the Stamp variant count must win over this legacy field
+      }
+    }
+    let variantAsm;
+    console.log = () => {};
+    console.warn = () => {};
+    try {
+      const files = generator.generateModularASM('metatile-sparse-variants', variantRaw.assets, {
+        generateUnified: true,
+        romMode: 'megarom',
+        targetFormat: 'konami',
+        screenMode: variantRaw.currentScreenMode || 'SCREEN 4 (Graphics II)',
+      });
+      variantAsm = files['unitedFiles.asm'] || files['main.asm'];
+    } finally {
+      console.log = realLog;
+      console.warn = realWarn;
+    }
+    const variantBlob = readCellBlobs(variantAsm)[0];
+    checks.push(['A sparse Stamp variant produces a second full-size frame',
+      !!variantBlob && variantBlob.frames === 2 && variantBlob.perFrame === 4]);
+    if (variantBlob) {
+      const deltaCounts = [];
+      for (const match of variantAsm.matchAll(/bitmap_boss_cells_delta_room_\d+:\s*\n\s*db ([^\n]+)/g)) {
+        const deltaBytes = match[1].split(',').filter(Boolean).map(token => parseInt(token.trim().replace('#', ''), 16));
+        const candidate = [];
+        for (let index = 0; index < deltaBytes.length;) {
+          const count = deltaBytes[index] || 0;
+          candidate.push(count);
+          index += 1 + count * 6;
+        }
+        if (candidate.length >= 2) {
+          deltaCounts.push(...candidate);
+          break;
+        }
+      }
+      const distinctVariantCells = new Set(variantBlob.records.map(record => `${record.sx},${record.sy}`)).size;
+      realLog(`      sparse variant: ${variantBlob.frames} frames x ${variantBlob.perFrame} cells, `
+        + `changed per frame = [${deltaCounts.join(', ')}], ${distinctVariantCells} distinct cell slots`);
+      checks.push(['Removing/adding tiles changes only the affected cells',
+        deltaCounts.length === 2 && deltaCounts.every(count => count > 0 && count < variantBlob.perFrame)]);
+      checks.push(['Sparse variants reuse cell art instead of duplicating the full frame',
+        distinctVariantCells < variantBlob.frames * variantBlob.perFrame]);
+    }
+  } else {
+    checks.push(['The sparse Stamp fixture can be constructed', false]);
+  }
 }
 
 // --- The cell blob only tiles when the columns divide by the frame count ------

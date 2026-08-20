@@ -1,21 +1,26 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { BitmapTileScreen5, BitmapTileStampScreen5, EditorType, Msx2BitmapStampAsset, Msx2Screen5BitmapRoom, PaletteAsset, ProjectAsset, Screen5PaletteSlot, WorldMapGraph } from '../../types';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { BitmapTileScreen5, BitmapTileStampFrameVariantScreen5, BitmapTileStampScreen5, EditorType, Msx2BitmapStampAsset, Msx2Screen5BitmapRoom, PaletteAsset, ProjectAsset, Screen5PaletteSlot, WorldMapGraph } from '../../types';
 import { createDefaultScreen5PaletteSlots, ensureScreen5PaletteSlots, screen5SlotsToMsxColors } from '../../utils/msx2PaletteUtils';
-import { bitmapStampToPixelGrid, bitmapTileScreen5ToAtlasTile } from '../../utils/msx2Screen5BitmapTileLibrary';
+import { bitmapStampFrameCount, bitmapStampToPixelGrid, bitmapTileScreen5ToAtlasTile, resolveBitmapStampFrameTiles } from '../../utils/msx2Screen5BitmapTileLibrary';
+import { removeAtlasEntriesFromRoom } from '../../utils/msx2BitmapAtlasRemoval';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
+import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { PencilIcon, TrashIcon } from '../icons/MsxIcons';
 
 /**
  * Stamp assembler for SCREEN 5 bitmap metatiles (msx2bitmapstamp): a columns×rows
  * puzzle of 16x16 bitmap tiles (msx2bitmaptile assets). The individual tiles are
- * authored in the Bitmap Tile Editor; here you only place them into cells. Used to
- * build head metatiles that dialogue portraits import.
+ * authored in the Bitmap Tile Editor; here you place them into cells. Optional
+ * sparse frame variants let a Boss add/remove only the cells that animate, while
+ * dialogue portraits continue to use frame 0.
  */
 
 const TILE = 16;
 const MAX_DIM = 8;
+const MAX_BOSS_FRAMES = 4;
 const PREVIEW_ZOOM = 6;
+const btnFrame = 'px-2 py-0.5 text-[10px] rounded border border-msx-border hover:bg-msx-hover';
 
 interface Msx2BitmapStampEditorProps {
   stamp: Msx2BitmapStampAsset;
@@ -23,6 +28,11 @@ interface Msx2BitmapStampEditorProps {
   allAssets: ProjectAsset[];
   activeBitmapWorld?: WorldMapGraph;
   onSelectAsset?: (assetId: string, editorType?: EditorType) => void;
+  /** Deletes tile assets and/or room atlas entries in one history step (see useAssetHandlers). */
+  onDeleteTileSources?: (payload: {
+    assetIds?: string[];
+    roomUpdates?: Array<{ assetId: string; data: Partial<Msx2Screen5BitmapRoom> }>;
+  }) => void;
   setStatusBarMessage?: (message: string) => void;
 }
 
@@ -56,14 +66,23 @@ type StampSourceTile = BitmapTileScreen5 & {
   sourceAssetId?: string;
   sourceLabel?: string;
   sourcePalette?: Screen5PaletteSlot[];
+  /** Set on tiles read from a room atlas: which room asset and which entry inside it. */
+  sourceRoomAssetId?: string;
+  sourceRoomName?: string;
+  sourceAtlasEntryId?: string;
 };
 
-export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ stamp, onUpdate, allAssets, activeBitmapWorld, onSelectAsset, setStatusBarMessage }) => {
+export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ stamp, onUpdate, allAssets, activeBitmapWorld, onSelectAsset, onDeleteTileSources, setStatusBarMessage }) => {
   const stampData: BitmapTileStampScreen5 = stamp.stamp;
   const columns = clampInt(stampData.columns, 1, MAX_DIM, 2);
   const rows = clampInt(stampData.rows, 1, MAX_DIM, 2);
 
   const [selectedTileId, setSelectedTileId] = useState<string | undefined>(undefined);
+  const [activeFrame, setActiveFrame] = useState(0);
+  // Ctrl/Cmd+click marks source tiles for deletion (they are project assets or room atlas
+  // entries, so this is a real delete, not a stamp-cell operation).
+  const [deleteSelection, setDeleteSelection] = useState<string[]>([]);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const paintingRef = useRef<{ active: boolean; erase: boolean }>({ active: false, erase: false });
   const paletteAssets = useMemo(
     () => allAssets
@@ -128,6 +147,9 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
           updatedAt: new Date(0).toISOString(),
           sourceLabel: `Atlas inicial${activeBitmapWorld?.name ? `: ${activeBitmapWorld.name}` : ''}`,
           sourcePalette: room.palette,
+          sourceRoomAssetId: atlasRoomAsset?.id,
+          sourceRoomName: atlasRoomAsset?.name || room.name,
+          sourceAtlasEntryId: entry.id,
         });
       });
     }
@@ -154,6 +176,57 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
     onUpdate({ stamp: { ...stampData, ...patch, updatedAt: new Date().toISOString() } });
   };
 
+  const frameCount = bitmapStampFrameCount(stampData);
+  const activeFrameTiles = useMemo(
+    () => resolveBitmapStampFrameTiles(stampData, activeFrame),
+    [stampData, activeFrame],
+  );
+
+  useEffect(() => {
+    setActiveFrame(current => Math.max(0, Math.min(current, frameCount - 1)));
+  }, [frameCount]);
+
+  const addFrame = () => {
+    if (frameCount >= MAX_BOSS_FRAMES) {
+      setStatusBarMessage?.(`Un Boss admite como máximo ${MAX_BOSS_FRAMES} frames.`);
+      return;
+    }
+    const nextIndex = frameCount;
+    const variant: BitmapTileStampFrameVariantScreen5 = {
+      id: `${stampData.id}_frame_${nextIndex}_${Date.now()}`,
+      name: `Frame ${nextIndex}`,
+      cells: [],
+    };
+    commitStamp({ frameVariants: [...(stampData.frameVariants || []), variant] });
+    setActiveFrame(nextIndex);
+  };
+
+  const removeActiveFrame = () => {
+    if (frameCount <= 1) return;
+    if (activeFrame === 0) {
+      setStatusBarMessage?.('El frame base no se borra; elimina o edita sus tiles, o borra una variante.');
+      return;
+    }
+    const variants = (stampData.frameVariants || []).filter((_variant, index) => index !== activeFrame - 1);
+    commitStamp({ frameVariants: variants.length ? variants : undefined });
+    setActiveFrame(Math.min(activeFrame - 1, variants.length));
+  };
+
+  const updateVariantCell = (index: number, tile: BitmapTileScreen5 | null) => {
+    const variantIndex = activeFrame - 1;
+    const variants = (stampData.frameVariants || []).map(variant => ({
+      ...variant,
+      cells: Array.isArray(variant.cells) ? variant.cells.map(cell => ({ ...cell, tile: cell.tile ? { ...cell.tile } : null })) : [],
+    }));
+    const variant = variants[variantIndex];
+    if (!variant) return;
+    const cells = variant.cells.filter(cell => cell.index !== index);
+    cells.push({ index, tile: tile ? { ...tile } : null });
+    cells.sort((a, b) => a.index - b.index);
+    variants[variantIndex] = { ...variant, cells };
+    commitStamp({ frameVariants: variants });
+  };
+
   const setGridSize = (nextCols: number, nextRows: number) => {
     const cols = clampInt(nextCols, 1, MAX_DIM, columns);
     const rws = clampInt(nextRows, 1, MAX_DIM, rows);
@@ -164,15 +237,32 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
         tiles.push(old ? old : makeBlankTile(stampData.paletteId));
       }
     }
-    commitStamp({ columns: cols, rows: rws, tiles });
+    const frameVariants = (stampData.frameVariants || [])
+      .map(variant => ({
+        ...variant,
+        cells: (variant.cells || []).flatMap(cell => {
+          const oldIndex = Math.trunc(Number(cell.index));
+          const oldRow = Math.floor(oldIndex / columns);
+          const oldCol = oldIndex % columns;
+          if (oldIndex < 0 || oldRow >= rws || oldCol >= cols) return [];
+          return [{ ...cell, index: oldRow * cols + oldCol }];
+        }),
+      }));
+    commitStamp({ columns: cols, rows: rws, tiles, frameVariants: frameVariants.length ? frameVariants : undefined });
   };
 
   const assignCell = (index: number, erase: boolean) => {
     const tiles = (stampData.tiles || []).slice();
     while (tiles.length < columns * rows) tiles.push(makeBlankTile(stampData.paletteId));
     if (erase) {
-      tiles[index] = makeBlankTile(stampData.paletteId);
-      commitStamp({ tiles });
+      if (activeFrame === 0) {
+        tiles[index] = makeBlankTile(stampData.paletteId);
+        commitStamp({ tiles });
+      } else {
+        // A removed variant cell is sparse `null`, so the base tile is not
+        // copied into the frame and the atlas can keep serving the base art.
+        updateVariantCell(index, null);
+      }
       return;
     }
     if (!selectedTile) {
@@ -183,11 +273,16 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
     // source tile do not silently mutate the stamp. The whole cell is REPLACED,
     // so transparent (slot 0) pixels of the new tile erase whatever was there.
     const { sourceAssetId: _sourceAssetId, sourceLabel: _sourceLabel, sourcePalette: _sourcePalette, ...tileToStore } = selectedTile;
-    tiles[index] = {
+    const nextTile: BitmapTileScreen5 = {
       ...tileToStore,
       id: `${stampData.id}_cell_${index}_${Date.now()}`,
       paletteId: hasActiveProjectPalette ? stampData.paletteId : selectedTile.paletteId,
     };
+    if (activeFrame > 0) {
+      updateVariantCell(index, isBlankTile(nextTile) ? null : nextTile);
+      return;
+    }
+    tiles[index] = nextTile;
     // Adopt the placed tile's palette as the metatile palette so the composite
     // preview / portrait export render the tile's true colours (a stamp is one
     // metatile with one palette; tiles of a coherent head share a palette).
@@ -203,7 +298,68 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
     });
   };
 
-  const compositePixels = useMemo(() => bitmapStampToPixelGrid({ ...stampData, columns, rows }), [stampData, columns, rows]);
+  const compositePixels = useMemo(() => bitmapStampToPixelGrid({ ...stampData, columns, rows }, activeFrame), [stampData, columns, rows, activeFrame]);
+
+  // --- Deleting source tiles (Ctrl/Cmd+click selection) ---
+
+  // Drop marks whose tile is gone (deleted, or the room atlas changed under us).
+  useEffect(() => {
+    setDeleteSelection(current => {
+      const alive = current.filter(id => sourceTiles.some(tile => tile.id === id));
+      return alive.length === current.length ? current : alive;
+    });
+  }, [sourceTiles]);
+
+  const toggleDeleteMark = (tileId: string) => {
+    setDeleteSelection(current => current.includes(tileId)
+      ? current.filter(id => id !== tileId)
+      : [...current, tileId]);
+  };
+
+  const markedTiles = useMemo(
+    () => sourceTiles.filter(tile => deleteSelection.includes(tile.id)),
+    [sourceTiles, deleteSelection],
+  );
+  const markedAssetTiles = markedTiles.filter(tile => tile.sourceAssetId);
+  const markedAtlasTiles = markedTiles.filter(tile => tile.sourceRoomAssetId && tile.sourceAtlasEntryId);
+  const markedAtlasRoomNames = Array.from(new Set(markedAtlasTiles.map(tile => tile.sourceRoomName || tile.sourceRoomAssetId!)));
+
+  /**
+   * Deletes the marked tiles at their SOURCE: tile assets leave the project, atlas tiles leave
+   * the room's atlas (which also empties the cells that room painted with them). Tiles already
+   * placed in this stamp are copies and are not touched.
+   */
+  const deleteMarkedTiles = () => {
+    const assetIds = Array.from(new Set(markedAssetTiles.map(tile => tile.sourceAssetId!)));
+
+    const entryIdsByRoom = new Map<string, string[]>();
+    markedAtlasTiles.forEach(tile => {
+      const list = entryIdsByRoom.get(tile.sourceRoomAssetId!) || [];
+      list.push(tile.sourceAtlasEntryId!);
+      entryIdsByRoom.set(tile.sourceRoomAssetId!, list);
+    });
+
+    const roomUpdates: Array<{ assetId: string; data: Partial<Msx2Screen5BitmapRoom> }> = [];
+    entryIdsByRoom.forEach((entryIds, roomAssetId) => {
+      const roomAsset = allAssets.find(asset => asset.id === roomAssetId && asset.type === 'msx2bitmaproom');
+      if (!roomAsset?.data) return;
+      const removal = removeAtlasEntriesFromRoom(roomAsset.data as Msx2Screen5BitmapRoom, entryIds);
+      if (removal) roomUpdates.push({ assetId: roomAssetId, data: removal.patch });
+    });
+
+    setIsDeleteConfirmOpen(false);
+    if (assetIds.length === 0 && roomUpdates.length === 0) {
+      setDeleteSelection([]);
+      return;
+    }
+    if (!onDeleteTileSources) {
+      setStatusBarMessage?.('No se pueden borrar tiles desde aquí en este contexto.');
+      return;
+    }
+    onDeleteTileSources({ assetIds, roomUpdates });
+    if (selectedTileId && deleteSelection.includes(selectedTileId)) setSelectedTileId(undefined);
+    setDeleteSelection([]);
+  };
 
   const renameStamp = (name: string) => onUpdate({ name, stamp: { ...stampData, name } });
   const activatePalette = (paletteId: string) => {
@@ -229,20 +385,32 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
               </p>
             )}
             <div className="grid grid-cols-3 gap-1">
-              {sourceTiles.map(tile => (
-                <button
-                  key={tile.id}
-                  title={`${tile.name}${tile.sourceLabel ? ` - ${tile.sourceLabel}` : ''}`}
-                  onClick={() => setSelectedTileId(tile.id)}
-                  onDoubleClick={() => { if (tile.sourceAssetId) onSelectAsset?.(tile.sourceAssetId, EditorType.Msx2BitmapTile); }}
-                  className={`relative border ${selectedTileId === tile.id ? 'border-msx-accent ring-1 ring-msx-accent' : 'border-msx-border'} bg-msx-bgcolor p-0.5`}
-                >
-                  <TileThumb tile={tile} colors={colors} zoom={3} />
-                  {tile.sourceLabel?.startsWith('Atlas') && (
-                    <span className="absolute bottom-0 right-0 bg-msx-panelbg/90 px-0.5 text-[8px] text-msx-highlight">A</span>
-                  )}
-                </button>
-              ))}
+              {sourceTiles.map(tile => {
+                const marked = deleteSelection.includes(tile.id);
+                return (
+                  <button
+                    key={tile.id}
+                    title={`${tile.name}${tile.sourceLabel ? ` - ${tile.sourceLabel}` : ''}\nCtrl+clic: marcar para borrar`}
+                    onClick={event => {
+                      if (event.ctrlKey || event.metaKey) {
+                        toggleDeleteMark(tile.id);
+                        return;
+                      }
+                      setSelectedTileId(tile.id);
+                    }}
+                    onDoubleClick={() => { if (tile.sourceAssetId) onSelectAsset?.(tile.sourceAssetId, EditorType.Msx2BitmapTile); }}
+                    className={`relative border ${marked ? 'border-msx-danger ring-1 ring-msx-danger' : selectedTileId === tile.id ? 'border-msx-accent ring-1 ring-msx-accent' : 'border-msx-border'} bg-msx-bgcolor p-0.5`}
+                  >
+                    <TileThumb tile={tile} colors={colors} zoom={3} />
+                    {tile.sourceLabel?.startsWith('Atlas') && (
+                      <span className="absolute bottom-0 right-0 bg-msx-panelbg/90 px-0.5 text-[8px] text-msx-highlight">A</span>
+                    )}
+                    {marked && (
+                      <span className="absolute top-0 left-0 bg-msx-danger/90 px-0.5 text-[8px] text-white">✕</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
             {selectedTile && (
               <p className="text-[10px] text-msx-textsecondary mt-1 truncate">
@@ -250,8 +418,27 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
                 {selectedTile.sourceLabel && <span> · {selectedTile.sourceLabel}</span>}
               </p>
             )}
+            {deleteSelection.length > 0 && (
+              <div className="mt-1 flex flex-wrap items-center gap-1 rounded border border-msx-danger/60 bg-msx-bgcolor p-1">
+                <span className="text-[10px] text-msx-textsecondary">
+                  {deleteSelection.length} marcado{deleteSelection.length === 1 ? '' : 's'}
+                </span>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  icon={<TrashIcon className="w-3 h-3" />}
+                  onClick={() => setIsDeleteConfirmOpen(true)}
+                >
+                  Borrar
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setDeleteSelection([])}>
+                  Quitar marcas
+                </Button>
+              </div>
+            )}
             <p className="text-[9px] text-msx-textsecondary leading-tight mt-1">
-              Clic = seleccionar pincel · doble clic = abrir tile en su editor. En la rejilla: clic coloca, clic derecho borra.
+              Clic = seleccionar pincel · doble clic = abrir tile en su editor · Ctrl+clic = marcar para borrar.
+              En la rejilla: clic coloca, clic derecho borra.
             </p>
           </div>
         </Panel>
@@ -295,6 +482,28 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
               <span className="text-[10px] text-msx-textsecondary">= {columns * TILE}×{rows * TILE}px</span>
             </div>
 
+            <div className="flex flex-wrap items-center gap-1 rounded border border-msx-border bg-msx-bgcolor/50 p-2">
+              <span className="mr-1 text-xs text-msx-textsecondary">Frames Boss:</span>
+              {Array.from({ length: frameCount }, (_unused, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  className={`${btnFrame} ${activeFrame === index ? 'bg-msx-accent text-white' : ''}`}
+                  onClick={() => setActiveFrame(index)}
+                  title={index === 0 ? 'Frame base' : stampData.frameVariants?.[index - 1]?.name || `Frame ${index}`}
+                >
+                  {index}
+                </button>
+              ))}
+              <Button size="sm" variant="ghost" onClick={addFrame} disabled={frameCount >= MAX_BOSS_FRAMES}>+ Añadir frame</Button>
+              <Button size="sm" variant="ghost" onClick={removeActiveFrame} disabled={frameCount <= 1 || activeFrame === 0}>Quitar frame</Button>
+              <span className="ml-1 text-[10px] text-msx-textsecondary">
+                {activeFrame === 0
+                  ? 'Base: las variantes reutilizan estos tiles.'
+                  : 'Esta variante sólo guarda los tiles añadidos, cambiados o quitados.'}
+              </span>
+            </div>
+
             <div className="flex flex-wrap items-center gap-2 rounded border border-msx-border bg-msx-bgcolor/50 p-2">
               <label className="flex min-w-[220px] flex-1 items-center gap-2 text-xs text-msx-textsecondary">
                 Paleta
@@ -329,7 +538,7 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
             >
               <div className="grid" style={{ gridTemplateColumns: `repeat(${columns}, ${TILE * PREVIEW_ZOOM}px)` }}>
                 {Array.from({ length: columns * rows }, (_unused, index) => {
-                  const tile = stampData.tiles?.[index];
+                  const tile = activeFrameTiles[index];
                   const blank = isBlankTile(tile);
                   return (
                     <div
@@ -356,7 +565,16 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
                 size="sm"
                 variant="ghost"
                 icon={<TrashIcon className="w-3 h-3" />}
-                onClick={() => commitStamp({ tiles: Array.from({ length: columns * rows }, () => makeBlankTile(stampData.paletteId)) })}
+                onClick={() => {
+                  if (activeFrame === 0) {
+                    commitStamp({ tiles: Array.from({ length: columns * rows }, () => makeBlankTile(stampData.paletteId)) });
+                  } else {
+                    const variants = (stampData.frameVariants || []).map((item, variantIndex) => variantIndex === activeFrame - 1
+                      ? { ...item, cells: Array.from({ length: columns * rows }, (_unused, index) => ({ index, tile: null })) }
+                      : item);
+                    commitStamp({ frameVariants: variants });
+                  }
+                }}
               >
                 Vaciar rejilla
               </Button>
@@ -374,6 +592,41 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
           </div>
         </Panel>
       </div>
+
+      {isDeleteConfirmOpen && (
+        <ConfirmationModal
+          isOpen={isDeleteConfirmOpen}
+          title="Borrar tiles 16×16"
+          message={(
+            <div className="space-y-2">
+              <p>¿Borrar {markedTiles.length} tile{markedTiles.length === 1 ? '' : 's'} en su origen?</p>
+              {markedAssetTiles.length > 0 && (
+                <p>
+                  {markedAssetTiles.length} {markedAssetTiles.length === 1 ? 'es un asset' : 'son assets'} MSX2 Bitmap Tile: {markedAssetTiles.length === 1 ? 'se borra' : 'se borran'} del proyecto.
+                </p>
+              )}
+              {markedAtlasTiles.length > 0 && (
+                <p>
+                  {markedAtlasTiles.length} {markedAtlasTiles.length === 1 ? 'viene' : 'vienen'} del atlas de {markedAtlasRoomNames.join(', ')}: al borrarlos se
+                  vacían también las celdas que esa sala tiene pintadas con ellos.
+                </p>
+              )}
+              <div className="max-h-28 overflow-y-auto rounded border border-msx-border bg-msx-bgcolor p-2 text-xs text-msx-textsecondary">
+                {markedTiles.slice(0, 12).map(tile => (
+                  <div key={tile.id} className="truncate">{tile.name}</div>
+                ))}
+                {markedTiles.length > 12 && <div>...y {markedTiles.length - 12} más</div>}
+              </div>
+              <p className="text-msx-textsecondary">Los tiles ya colocados en este stamp son copias y no se tocan. Se puede deshacer.</p>
+            </div>
+          )}
+          onConfirm={deleteMarkedTiles}
+          onCancel={() => setIsDeleteConfirmOpen(false)}
+          confirmText="Borrar"
+          cancelText="Cancelar"
+          confirmButtonVariant="danger"
+        />
+      )}
     </div>
   );
 };

@@ -1,0 +1,651 @@
+{
+  "atlas": "cueva_atlas_8x8_indexed.png",
+  "tileSize": [
+    16,
+    16
+  ],
+  "columns": 8,
+  "rows": 8,
+  "tiles": [
+    {
+      "index": 0,
+      "row": 0,
+      "column": 0,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r00_c00",
+      "name": "roca_relleno_bolas",
+      "role": "fill",
+      "gameplayRole": "solid",
+      "description": "roca de relleno"
+    },
+    {
+      "index": 1,
+      "row": 0,
+      "column": 1,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r00_c01",
+      "name": "roca_relleno_granulado",
+      "role": "fill",
+      "gameplayRole": "solid",
+      "description": "roca de relleno"
+    },
+    {
+      "index": 2,
+      "row": 0,
+      "column": 2,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r00_c02",
+      "name": "roca_relleno_losetas",
+      "role": "fill",
+      "gameplayRole": "solid",
+      "description": "roca de relleno"
+    },
+    {
+      "index": 3,
+      "row": 0,
+      "column": 3,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r00_c03",
+      "name": "roca_relleno_puntos",
+      "role": "fill",
+      "gameplayRole": "solid",
+      "description": "roca de relleno"
+    },
+    {
+      "index": 4,
+      "row": 0,
+      "column": 4,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r00_c04",
+      "name": "sombra_receso_01",
+      "role": "fill",
+      "gameplayRole": "solid",
+      "description": "roca de relleno"
+    },
+    {
+      "index": 5,
+      "row": 0,
+      "column": 5,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r00_c05",
+      "name": "sombra_receso_02",
+      "role": "fill",
+      "gameplayRole": "solid",
+      "description": "roca de relleno"
+    },
+    {
+      "index": 6,
+      "row": 0,
+      "column": 6,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r00_c06",
+      "name": "sombra_receso_03",
+      "role": "fill",
+      "gameplayRole": "solid",
+      "description": "roca de relleno"
+    },
+    {
+      "index": 7,
+      "row": 0,
+      "column": 7,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r00_c07",
+      "name": "nudo_rocoso",
+      "role": "fill",
+      "gameplayRole": "solid",
+      "description": "roca de relleno"
+    },
+    {
+      "index": 8,
+      "row": 1,
+      "column": 0,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r01_c00",
+      "name": "borde_horizontal_roca_01",
+      "role": "edge",
+      "gameplayRole": "solid",
+      "description": "transicion de pared o suelo"
+    },
+    {
+      "index": 9,
+      "row": 1,
+      "column": 1,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r01_c01",
+      "name": "borde_horizontal_roca_02",
+      "role": "edge",
+      "gameplayRole": "solid",
+      "description": "transicion de pared o suelo"
+    },
+    {
+      "index": 10,
+      "row": 1,
+      "column": 2,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r01_c02",
+      "name": "borde_horizontal_estalactitas",
+      "role": "edge",
+      "gameplayRole": "solid",
+      "description": "transicion de pared o suelo"
+    },
+    {
+      "index": 11,
+      "row": 1,
+      "column": 3,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r01_c03",
+      "name": "borde_horizontal_roca_03",
+      "role": "edge",
+      "gameplayRole": "solid",
+      "description": "transicion de pared o suelo"
+    },
+    {
+      "index": 12,
+      "row": 1,
+      "column": 4,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r01_c04",
+      "name": "borde_superior_suelo_01",
+      "role": "edge",
+      "gameplayRole": "solid",
+      "description": "transicion de pared o suelo"
+    },
+    {
+      "index": 13,
+      "row": 1,
+      "column": 5,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r01_c05",
+      "name": "borde_superior_suelo_02",
+      "role": "edge",
+      "gameplayRole": "solid",
+      "description": "transicion de pared o suelo"
+    },
+    {
+      "index": 14,
+      "row": 1,
+      "column": 6,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r01_c06",
+      "name": "borde_superior_suelo_03",
+      "role": "edge",
+      "gameplayRole": "solid",
+      "description": "transicion de pared o suelo"
+    },
+    {
+      "index": 15,
+      "row": 1,
+      "column": 7,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r01_c07",
+      "name": "borde_superior_suelo_04",
+      "role": "edge",
+      "gameplayRole": "solid",
+      "description": "transicion de pared o suelo"
+    },
+    {
+      "index": 16,
+      "row": 2,
+      "column": 0,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r02_c00",
+      "name": "borde_vertical_roca_01",
+      "role": "edge",
+      "gameplayRole": "solid",
+      "description": "transicion de pared o suelo"
+    },
+    {
+      "index": 17,
+      "row": 2,
+      "column": 1,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r02_c01",
+      "name": "borde_vertical_roca_02",
+      "role": "edge",
+      "gameplayRole": "solid",
+      "description": "transicion de pared o suelo"
+    },
+    {
+      "index": 18,
+      "row": 2,
+      "column": 2,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r02_c02",
+      "name": "borde_vertical_estalactitas",
+      "role": "edge",
+      "gameplayRole": "solid",
+      "description": "transicion de pared o suelo"
+    },
+    {
+      "index": 19,
+      "row": 2,
+      "column": 3,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r02_c03",
+      "name": "borde_vertical_roca_03",
+      "role": "edge",
+      "gameplayRole": "solid",
+      "description": "transicion de pared o suelo"
+    },
+    {
+      "index": 20,
+      "row": 2,
+      "column": 4,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r02_c04",
+      "name": "borde_vertical_suelo_01",
+      "role": "edge",
+      "gameplayRole": "solid",
+      "description": "transicion de pared o suelo"
+    },
+    {
+      "index": 21,
+      "row": 2,
+      "column": 5,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r02_c05",
+      "name": "borde_vertical_suelo_02",
+      "role": "edge",
+      "gameplayRole": "solid",
+      "description": "transicion de pared o suelo"
+    },
+    {
+      "index": 22,
+      "row": 2,
+      "column": 6,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r02_c06",
+      "name": "borde_vertical_suelo_03",
+      "role": "edge",
+      "gameplayRole": "solid",
+      "description": "transicion de pared o suelo"
+    },
+    {
+      "index": 23,
+      "row": 2,
+      "column": 7,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r02_c07",
+      "name": "borde_vertical_suelo_04",
+      "role": "edge",
+      "gameplayRole": "solid",
+      "description": "transicion de pared o suelo"
+    },
+    {
+      "index": 24,
+      "row": 3,
+      "column": 0,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r03_c00",
+      "name": "esquina_exterior_noroeste",
+      "role": "corner",
+      "gameplayRole": "solid",
+      "description": "esquina de transicion"
+    },
+    {
+      "index": 25,
+      "row": 3,
+      "column": 1,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r03_c01",
+      "name": "esquina_exterior_noreste",
+      "role": "corner",
+      "gameplayRole": "solid",
+      "description": "esquina de transicion"
+    },
+    {
+      "index": 26,
+      "row": 3,
+      "column": 2,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r03_c02",
+      "name": "esquina_exterior_suroeste",
+      "role": "corner",
+      "gameplayRole": "solid",
+      "description": "esquina de transicion"
+    },
+    {
+      "index": 27,
+      "row": 3,
+      "column": 3,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r03_c03",
+      "name": "esquina_exterior_sureste",
+      "role": "corner",
+      "gameplayRole": "solid",
+      "description": "esquina de transicion"
+    },
+    {
+      "index": 28,
+      "row": 3,
+      "column": 4,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r03_c04",
+      "name": "esquina_exterior_estalactita_01",
+      "role": "corner",
+      "gameplayRole": "solid",
+      "description": "esquina de transicion"
+    },
+    {
+      "index": 29,
+      "row": 3,
+      "column": 5,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r03_c05",
+      "name": "esquina_exterior_estalactita_02",
+      "role": "corner",
+      "gameplayRole": "solid",
+      "description": "esquina de transicion"
+    },
+    {
+      "index": 30,
+      "row": 3,
+      "column": 6,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r03_c06",
+      "name": "esquina_exterior_estalactita_03",
+      "role": "corner",
+      "gameplayRole": "solid",
+      "description": "esquina de transicion"
+    },
+    {
+      "index": 31,
+      "row": 3,
+      "column": 7,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r03_c07",
+      "name": "esquina_exterior_estalactita_04",
+      "role": "corner",
+      "gameplayRole": "solid",
+      "description": "esquina de transicion"
+    },
+    {
+      "index": 32,
+      "row": 4,
+      "column": 0,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r04_c00",
+      "name": "esquina_interior_noroeste",
+      "role": "corner",
+      "gameplayRole": "solid",
+      "description": "esquina de transicion"
+    },
+    {
+      "index": 33,
+      "row": 4,
+      "column": 1,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r04_c01",
+      "name": "esquina_interior_noreste",
+      "role": "corner",
+      "gameplayRole": "solid",
+      "description": "esquina de transicion"
+    },
+    {
+      "index": 34,
+      "row": 4,
+      "column": 2,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r04_c02",
+      "name": "esquina_interior_suroeste",
+      "role": "corner",
+      "gameplayRole": "solid",
+      "description": "esquina de transicion"
+    },
+    {
+      "index": 35,
+      "row": 4,
+      "column": 3,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r04_c03",
+      "name": "esquina_interior_sureste",
+      "role": "corner",
+      "gameplayRole": "solid",
+      "description": "esquina de transicion"
+    },
+    {
+      "index": 36,
+      "row": 4,
+      "column": 4,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r04_c04",
+      "name": "esquina_interior_estalactita_01",
+      "role": "corner",
+      "gameplayRole": "solid",
+      "description": "esquina de transicion"
+    },
+    {
+      "index": 37,
+      "row": 4,
+      "column": 5,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r04_c05",
+      "name": "esquina_interior_estalactita_02",
+      "role": "corner",
+      "gameplayRole": "solid",
+      "description": "esquina de transicion"
+    },
+    {
+      "index": 38,
+      "row": 4,
+      "column": 6,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r04_c06",
+      "name": "esquina_interior_estalactita_03",
+      "role": "corner",
+      "gameplayRole": "solid",
+      "description": "esquina de transicion"
+    },
+    {
+      "index": 39,
+      "row": 4,
+      "column": 7,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r04_c07",
+      "name": "esquina_interior_estalactita_04",
+      "role": "corner",
+      "gameplayRole": "solid",
+      "description": "esquina de transicion"
+    },
+    {
+      "index": 40,
+      "row": 5,
+      "column": 0,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r05_c00",
+      "name": "union_t_izquierda",
+      "role": "junction",
+      "gameplayRole": "solid",
+      "description": "union de transiciones"
+    },
+    {
+      "index": 41,
+      "row": 5,
+      "column": 1,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r05_c01",
+      "name": "union_t_derecha",
+      "role": "junction",
+      "gameplayRole": "solid",
+      "description": "union de transiciones"
+    },
+    {
+      "index": 42,
+      "row": 5,
+      "column": 2,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r05_c02",
+      "name": "union_t_arriba",
+      "role": "junction",
+      "gameplayRole": "solid",
+      "description": "union de transiciones"
+    },
+    {
+      "index": 43,
+      "row": 5,
+      "column": 3,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r05_c03",
+      "name": "union_t_abajo",
+      "role": "junction",
+      "gameplayRole": "solid",
+      "description": "union de transiciones"
+    },
+    {
+      "index": 44,
+      "row": 5,
+      "column": 4,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r05_c04",
+      "name": "union_cruz_01",
+      "role": "junction",
+      "gameplayRole": "solid",
+      "description": "union de transiciones"
+    },
+    {
+      "index": 45,
+      "row": 5,
+      "column": 5,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r05_c05",
+      "name": "union_cruz_02",
+      "role": "junction",
+      "gameplayRole": "solid",
+      "description": "union de transiciones"
+    },
+    {
+      "index": 46,
+      "row": 5,
+      "column": 6,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r05_c06",
+      "name": "union_cruz_03",
+      "role": "junction",
+      "gameplayRole": "solid",
+      "description": "union de transiciones"
+    },
+    {
+      "index": 47,
+      "row": 5,
+      "column": 7,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r05_c07",
+      "name": "union_cruz_04",
+      "role": "junction",
+      "gameplayRole": "solid",
+      "description": "union de transiciones"
+    },
+    {
+      "index": 48,
+      "row": 6,
+      "column": 0,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r06_c00",
+      "name": "receso_arco_01",
+      "role": "recess",
+      "gameplayRole": "empty",
+      "description": "hueco o recoveco"
+    },
+    {
+      "index": 49,
+      "row": 6,
+      "column": 1,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r06_c01",
+      "name": "receso_arco_02",
+      "role": "recess",
+      "gameplayRole": "empty",
+      "description": "hueco o recoveco"
+    },
+    {
+      "index": 50,
+      "row": 6,
+      "column": 2,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r06_c02",
+      "name": "receso_arco_03",
+      "role": "recess",
+      "gameplayRole": "empty",
+      "description": "hueco o recoveco"
+    },
+    {
+      "index": 51,
+      "row": 6,
+      "column": 3,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r06_c03",
+      "name": "receso_arco_04",
+      "role": "recess",
+      "gameplayRole": "empty",
+      "description": "hueco o recoveco"
+    },
+    {
+      "index": 52,
+      "row": 6,
+      "column": 4,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r06_c04",
+      "name": "receso_puerta_01",
+      "role": "recess",
+      "gameplayRole": "empty",
+      "description": "hueco o recoveco"
+    },
+    {
+      "index": 53,
+      "row": 6,
+      "column": 5,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r06_c05",
+      "name": "receso_puerta_02",
+      "role": "recess",
+      "gameplayRole": "empty",
+      "description": "hueco o recoveco"
+    },
+    {
+      "index": 54,
+      "row": 6,
+      "column": 6,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r06_c06",
+      "name": "mineral_ambar_01",
+      "role": "accent",
+      "gameplayRole": "decorative",
+      "description": "mineral decorativo"
+    },
+    {
+      "index": 55,
+      "row": 6,
+      "column": 7,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r06_c07",
+      "name": "mineral_ambar_02",
+      "role": "accent",
+      "gameplayRole": "decorative",
+      "description": "mineral decorativo"
+    },
+    {
+      "index": 56,
+      "row": 7,
+      "column": 0,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r07_c00",
+      "name": "agua_borde_01",
+      "role": "water_edge",
+      "gameplayRole": "hazard",
+      "description": "agua subterranea"
+    },
+    {
+      "index": 57,
+      "row": 7,
+      "column": 1,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r07_c01",
+      "name": "agua_borde_02",
+      "role": "water_edge",
+      "gameplayRole": "hazard",
+      "description": "agua subterranea"
+    },
+    {
+      "index": 58,
+      "row": 7,
+      "column": 2,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r07_c02",
+      "name": "agua_borde_03",
+      "role": "water_edge",
+      "gameplayRole": "hazard",
+      "description": "agua subterranea"
+    },
+    {
+      "index": 59,
+      "row": 7,
+      "column": 3,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r07_c03",
+      "name": "agua_relleno",
+      "role": "water_edge",
+      "gameplayRole": "hazard",
+      "description": "agua subterranea"
+    },
+    {
+      "index": 60,
+      "row": 7,
+      "column": 4,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r07_c04",
+      "name": "estalagmita_ambar",
+      "role": "decoration",
+      "gameplayRole": "decorative",
+      "description": "estalactita o estalagmita"
+    },
+    {
+      "index": 61,
+      "row": 7,
+      "column": 5,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r07_c05",
+      "name": "estalagmita_piedra",
+      "role": "decoration",
+      "gameplayRole": "decorative",
+      "description": "estalactita o estalagmita"
+    },
+    {
+      "index": 62,
+      "row": 7,
+      "column": 6,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r07_c06",
+      "name": "estalactita_larga",
+      "role": "decoration",
+      "gameplayRole": "decorative",
+      "description": "estalactita o estalagmita"
+    },
+    {
+      "index": 63,
+      "row": 7,
+      "column": 7,
+      "id": "bitmap_stamp_screen5_cueva_16x16_tile_r07_c07",
+      "name": "grupo_mineral_ambar",
+      "role": "decoration",
+      "gameplayRole": "decorative",
+      "description": "estalactita o estalagmita"
+    }
+  ]
+}

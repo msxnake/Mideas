@@ -1,0 +1,1 @@
+Droide explorador original con tobera central y fuego de cohete, MSX2 SCREEN 5, sprite único 96x96

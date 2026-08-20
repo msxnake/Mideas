@@ -442,6 +442,79 @@ huella compara píxeles crudos, y sobre todo **HMMM no sabe voltear**: el V9938 
 en las copias. Un boss simétrico no puede compartir celdas entre sus dos mitades. (Los sprites
 hardware sí se voltean, pero el boss no es un sprite.)
 
+### 5.7 Variantes dispersas del Stamp — implementación para autoría **[V]**
+
+La tira horizontal sigue siendo válida para proyectos antiguos, pero no es una buena
+interfaz para un boss grande: un Stamp de 128×96 ya ocupa las 8 columnas máximas del
+editor y no puede duplicarse horizontalmente para crear otro frame. La solución de
+autoría es que el Stamp tenga:
+
+- un frame base en `stamp.tiles[]`;
+- `frameVariants[]` opcionales, cada uno con sólo parches `{ index, tile }`;
+- `tile: null` para quitar la celda del frame derivado.
+
+El editor muestra los frames como pestañas. Al pintar una variante se guarda únicamente
+la celda reemplazada o añadida; con clic derecho se guarda un `null` y se quita la celda.
+La variante conserva la misma geometría 16×16 del base, así que un boss de 128×96 puede
+animar una boca, un ojo o un brazo sin convertir el Stamp en una tira de 256×96.
+
+En generación, las variantes se materializan sólo durante el empaquetado y se dividen en
+celdas 16×16. El fingerprint del atlas deduplica automáticamente:
+
+1. celdas sin cambios entre frames;
+2. celdas repetidas dentro del mismo boss;
+3. celdas idénticas entre frames y tiles del mundo;
+4. celdas idénticas de bosses distintos.
+
+Los cuerpos de boss por celdas se suben a la ventana transitoria compartida, no al atlas
+residente. Por tanto, añadir un frame con `k` celdas nuevas cuesta como máximo `k·128`
+bytes antes de la deduplicación, no otro cuerpo completo. Las celdas heredadas no pagan
+VRAM otra vez. El runtime conserva las listas de celdas cambiadas de §5.3: un frame
+estático sólo repinta las posiciones cuyo fingerprint cambió; un movimiento fuerza el
+redibujado completo para no dejar estelas.
+
+`bossFrames` continúa siendo el contrato de las tiras antiguas. Cuando el Stamp tiene
+variantes dispersas, el número de frames lo determina `1 + frameVariants.length`, por lo
+que el campo antiguo no puede hacer que el generador interprete la rejilla con una
+anchura incorrecta.
+
+### 5.8 Prioridad del Player: el blitter no toca la CPU, pero la espera sí **[V]**
+
+La afirmación antigua de que «el player continúa a 60 fps siempre» era demasiado
+optimista para el runtime real. La CPU no mueve los 6.144 bytes de un cuerpo
+128×96, pero `bitmap_boss_launch_cmd` debe esperar a que el command engine del
+V9938 quede libre antes de enviar el siguiente comando. En el bucle anterior,
+`bitmap_boss_update` ocurría antes de `update_player_movement`; por tanto una
+redibujada larga de Tuneladora podía hacer que el input llegase tarde aunque el
+blitter estuviera trabajando en paralelo.
+
+La verificación con `C:\Users\salam\Downloads\test551.json` lo reproduce en datos:
+
+- `tuneladora1`: Stamp de 8×6 celdas = 128×96 px, 48 posiciones, 41 no vacías;
+  no tiene `frameVariants` y usa `bossInterval: 3` con `fallingRocks`.
+- Como se mueve, el runtime debe repintar las 48 posiciones. La coalescencia
+  nueva convierte sus 48 registros en **14 HMMM horizontales**; reduce el coste de
+  comandos del Z80, pero no reduce los 6.144 bytes del blit.
+- A ~5,7 µs/byte, el cuerpo completo ronda 35,2 ms: es suficiente para cruzar
+  dos intervalos de VBlank. Por eso el problema observado no era el consumo de
+  VRAM del Stamp, sino la política de espera del render.
+
+La corrección aplicada en `msx2BitmapBossGenerator.ts` mantiene la deduplicación
+de tiles y añade `bitmap_boss_wait_cmd_ready`: mientras CE está ocupado, sondea
+VBlank y ejecuta una vez `update_player_movement` por frame; deja una marca RAM
+que el bucle principal consume para no ejecutar el movimiento dos veces. Se
+desactiva durante una composición de sala o la introducción del Boss. Así el
+estado/input del Player no queda retenido detrás del HMMM. La actualización de
+SAT sigue respetando la regla del VDP: se hace cuando el command engine queda
+libre, no se escribe VRAM concurrentemente contra el blitter.
+
+Esto garantiza el **tick lógico prioritario** del Player; no convierte un blit
+128×96 en una operación de 16,7 ms. Si la prioridad futura fuese que el sprite
+visible también cambie cada VBlank durante ese blit, habría que presupuestar el
+Boss en comandos menores por frame o renderizarlo en una página oculta y hacer
+flip al completar: son políticas visuales distintas y no un ahorro adicional de
+VRAM.
+
 ---
 
 ## 6. La paleta

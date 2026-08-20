@@ -244,9 +244,10 @@ const contractChecks = [
     /ld \(player_x\), a[\s\S]{0,1800}?\$\{bossSystem\.loadCallAsm\}/.test(roomGen),
   ],
   [
-    'Dialogue-close repaint restores the live boss/chain and preserves IX',
-    roomGen.includes('call bitmap_boss_redraw_after_dialogue') &&
-      /bitmap_boss_redraw_after_dialogue:[\s\S]{0,200}?push ix[\s\S]{0,300}?pop ix/.test(bossGen) &&
+    'Dialogue-close restores its live snapshot without a second boss redraw',
+    roomGen.includes('jp bitmap_dlg_restore_box') &&
+      !roomGen.includes('call bitmap_boss_redraw_after_dialogue') &&
+      !bossGen.includes('bitmap_boss_redraw_after_dialogue:') &&
       bossGen.includes('bitmap_boss_barrier_redraw:') &&
       bossGen.includes('    cp 2\n    jr z, .cell_redraw') &&
       bossGen.includes('.cell_redraw:'),

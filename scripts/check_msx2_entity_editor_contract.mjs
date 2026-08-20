@@ -112,6 +112,10 @@ const msx2SpriteEditorSource = readFileSync(msx2SpriteEditorPath, 'utf8');
 const msx2PlayerEditorSource = readFileSync(msx2PlayerEditorPath, 'utf8');
 const msx2HudFontEditorSource = readFileSync(msx2HudFontEditorPath, 'utf8');
 const msx2BitmapRoomEditorSource = readFileSync(msx2BitmapRoomEditorPath, 'utf8');
+// Tile-map <-> composition surgery (build the grid, emit one 'copy' per cell, remove an atlas
+// entry and re-index the rest) lives in this util, shared by the editor's atlas panel and by
+// the "delete a bitmap stamp" sweep in useAssetHandlers.
+const msx2BitmapAtlasRemovalSource = readFileSync(join(repoRoot, 'utils', 'msx2BitmapAtlasRemoval.ts'), 'utf8');
 const toolbarSource = readFileSync(toolbarPath, 'utf8');
 const codeExportModalSource = readFileSync(codeExportModalPath, 'utf8');
 const fileExplorerSource = readFileSync(fileExplorerPath, 'utf8');
@@ -182,7 +186,7 @@ const checks = [
   ['WorldView accepts SCREEN 4 native rooms', worldViewEditorSource.includes('isMsx2Screen4Mode') && worldViewEditorSource.includes("vdpMode === 'SCREEN4'")],
   ['MSX2 sprite creator uses MSX2 Sprites label', toolbarSource.includes('>MSX2 Sprites</DropdownItem>') && fileExplorerSource.includes('msx2sprite: "MSX2 Sprites"')],
   ['MSX2 SCREEN 5 Bitmap Room is exposed as a separate asset', toolbarSource.includes("onNewAsset('msx2bitmaproom')") && toolbarSource.includes('>MSX2 SCREEN 5 Bitmap Room</DropdownItem>') && fileExplorerSource.includes('msx2bitmaproom: "MSX2 SCREEN 5 Bitmap Rooms"') && fileExplorerSource.includes('msx2bitmaproom: EditorType.Msx2BitmapRoom') && appUiSource.includes('Msx2BitmapScreenEditor')],
-  ['MSX2 SCREEN 5 Bitmap Room editor owns the tile map and composition model', msx2BitmapRoomEditorSource.includes("op: 'copy'") && msx2BitmapRoomEditorSource.includes("op: 'fill'") && msx2BitmapRoomEditorSource.includes('renderComposition') && msx2BitmapRoomEditorSource.includes('tileGrid') && msx2BitmapRoomEditorSource.includes('importTilesIntoAtlas')],
+  ['MSX2 SCREEN 5 Bitmap Room editor owns the tile map and composition model', msx2BitmapAtlasRemovalSource.includes("op: 'copy'") && msx2BitmapRoomEditorSource.includes('buildCopyCommandsFromGrid') && msx2BitmapRoomEditorSource.includes("op: 'fill'") && msx2BitmapRoomEditorSource.includes('renderComposition') && msx2BitmapRoomEditorSource.includes('tileGrid') && msx2BitmapRoomEditorSource.includes('importTilesIntoAtlas')],
   ['MSX2 SCREEN 5 carryables expose hardware/bitmap render selection', msx2BitmapRoomEditorSource.includes('Render del carryable') && msx2BitmapRoomEditorSource.includes('carryableRenderMode') && msx2BitmapRoomEditorSource.includes('carryableBitmapAtlasEntryId') && msx2BitmapRoomEditorSource.includes('Bitmap atlas (16 colores)') && msx2BitmapRoomEditorSource.includes('Hardware sprite (4 colores)')],
   ['MSX2 SCREEN 5 Bitmap Room editor links a semantic HUD asset', msx2BitmapRoomEditorSource.includes('createDefaultMsx2HudAsset') && msx2BitmapRoomEditorSource.includes('hudAssetId') && msx2BitmapRoomEditorSource.includes('hudFontAssetId') && msx2BitmapRoomEditorSource.includes('onOpenHudAsset')],
   ['MSX2 SCREEN 5 Bitmap Room editor imports SCREEN 4 tiles from the global library', msx2BitmapRoomEditorSource.includes('Msx2TileLibraryModal') && msx2BitmapRoomEditorSource.includes('importTilesIntoAtlas') && msx2BitmapRoomEditorSource.includes('onImportTiles')],

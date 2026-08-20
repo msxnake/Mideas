@@ -9148,7 +9148,13 @@ ${dimRepaintCall}    ld a, #0F
 ; DESTROYS: AF, B, DE, HL.  PRESERVES: C, IX, IY.
 ; ------------------------------------------------------------
 bitmap_gem_room_table:
-    ld a, (current_screen_index)
+${bankedTables ? `    ; The room resource loader may leave either mapper window on a streamed
+    ; bank. The gem pointer/count/bank tables are resident in P3 and the
+    ; per-room records are banked in P2, so restore both windows before reading
+    ; even the cache-hit path. bitmap_copy_banked_to_ram restores them again
+    ; after staging the records.
+    call bitmap_room_restore_resident_banks
+` : ''}    ld a, (current_screen_index)
     ld e, a
     ld d, 0
     ld hl, bitmap_gem_count_table
@@ -9174,10 +9180,15 @@ ${bankedTables ? `    ; Records live in a data bank. Stage them ONCE per room: t
     push bc
     ld a, (current_screen_index)
     ld c, a
+    ; Store room+1 in the cache marker: zero is the power-on value on
+    ; GameFlow paths that skip the collector init, so room 0 must not look
+    ; staged before its banked records have been copied.
+    inc a
+    ld d, a
     ld a, (bitmap_gem_staged_room)
-    cp c
+    cp d
     jp z, .gem_table_staged
-    ld a, c
+    ld a, d
     ld (bitmap_gem_staged_room), a
     ld e, c
     ld d, 0
@@ -11266,9 +11277,9 @@ function buildBitmapDialogueSystemAsm(
   hitbox: BitmapPlayerHitbox,
   ramBase: number,
   vramBaseRow: number,
+  scratchShelves: Array<{ baseY: number; rows: number }>,
   uploadAsm: string,
-  keyDoorVisibleDrawCall: string,
-  bankedRoomData: boolean
+  scratchReloadAsm: string
 ): {
   enabled: boolean;
   ramBytes: number;
@@ -11288,7 +11299,7 @@ function buildBitmapDialogueSystemAsm(
   // optional system (ceiling #C1F0 checked by the caller).
   const cfg = ramBase;
   const state = cfg + BITMAP_DLG_CFG_BYTES;
-  const ramBytes = BITMAP_DLG_CFG_BYTES + 16;
+  const ramBytes = BITMAP_DLG_CFG_BYTES + 18;
   const equates = `; SCREEN 5 bitmap NPC dialogue system. Config mirror (20B, LDIR'd on open) + state.
 bitmap_dlg_cfg             EQU ${hexWord(cfg)}
 bitmap_dlg_cfg_box_x       EQU ${hexWord(cfg + 0)}
@@ -11325,6 +11336,8 @@ bitmap_dlg_key_mask        EQU ${hexWord(state + 12)}
 bitmap_dlg_wait_flags      EQU ${hexWord(state + 13)}
 bitmap_dlg_scratch_idx     EQU ${hexWord(state + 14)}
 bitmap_dlg_sfx_seed        EQU ${hexWord(state + 15)}
+bitmap_dlg_copy_y          EQU ${hexWord(state + 16)}
+bitmap_dlg_copy_left       EQU ${hexWord(state + 17)}
 bitmap_dlg_cmd_block       EQU #C2C0
 `;
 
@@ -11348,6 +11361,58 @@ bitmap_dlg_cmd_block       EQU #C2C0
   const hbTop = hitbox.y;
   const hbBottom = hitbox.y + hitbox.h - 1;
   const addA = (n: number) => (n > 0 ? `    add a, ${n}\n` : '');
+  const saveScratchChunksAsm = scratchShelves.map((shelf, index) => `    ld a, (bitmap_dlg_copy_left)
+    or a
+    jp z, .dlg_save_done
+    cp ${shelf.rows + 1}
+    jp c, .dlg_save_height_${index}
+    ld a, ${shelf.rows}
+.dlg_save_height_${index}:
+    ld c, a                    ; C = rows copied by this shelf
+    ld (bitmap_dlg_cmd_block + 10), a
+    xor a
+    ld (bitmap_dlg_cmd_block + 11), a
+    ld a, (bitmap_dlg_copy_y)
+    ld l, a
+    ld a, (bitmap_displayed_page)
+    ld h, a
+    ld (bitmap_dlg_cmd_block + 2), hl
+    ld hl, ${hexWord(shelf.baseY)}
+    ld (bitmap_dlg_cmd_block + 6), hl
+    call bitmap_dlg_finish_hmmm
+    ld a, (bitmap_dlg_copy_y)
+    add a, c
+    ld (bitmap_dlg_copy_y), a
+    ld a, (bitmap_dlg_copy_left)
+    sub c
+    ld (bitmap_dlg_copy_left), a
+`).join('');
+  const restoreScratchChunksAsm = scratchShelves.map((shelf, index) => `    ld a, (bitmap_dlg_copy_left)
+    or a
+    jp z, .dlg_restore_done
+    cp ${shelf.rows + 1}
+    jp c, .dlg_restore_height_${index}
+    ld a, ${shelf.rows}
+.dlg_restore_height_${index}:
+    ld c, a                    ; C = rows copied by this shelf
+    ld (bitmap_dlg_cmd_block + 10), a
+    xor a
+    ld (bitmap_dlg_cmd_block + 11), a
+    ld hl, ${hexWord(shelf.baseY)}
+    ld (bitmap_dlg_cmd_block + 2), hl
+    ld a, (bitmap_dlg_copy_y)
+    ld l, a
+    ld a, (bitmap_displayed_page)
+    ld h, a
+    ld (bitmap_dlg_cmd_block + 6), hl
+    call bitmap_dlg_finish_hmmm
+    ld a, (bitmap_dlg_copy_y)
+    add a, c
+    ld (bitmap_dlg_copy_y), a
+    ld a, (bitmap_dlg_copy_left)
+    sub c
+    ld (bitmap_dlg_copy_left), a
+`).join('');
 
   const routinesAsm = `
 ; ------------------------------------------------------------
@@ -11612,6 +11677,7 @@ bitmap_dlg_open:
     ld de, bitmap_dlg_cfg
     ld bc, ${BITMAP_DLG_CFG_BYTES}
     ldir
+    call bitmap_dlg_save_box
     call bitmap_dlg_draw_box
     ld a, (bitmap_dlg_cfg_line_count)
     ld (bitmap_dlg_lines_left), a
@@ -12023,57 +12089,87 @@ bitmap_dlg_draw_box:
     jp bitmap_dlg_fill_rect
 
 ; ------------------------------------------------------------
+; FUNCTION: bitmap_dlg_save_box
+; ------------------------------------------------------------
+; PURPOSE:
+;   Save the exact live pixels covered by the dialogue box into its dedicated
+;   offscreen VRAM scratch rectangle. This snapshot includes runtime mutations
+;   and overlays (boss, barrier, pickups, destroyed tiles), not merely the
+;   authored room program.
+; INPUT: bitmap_dlg_cfg box rectangle, bitmap_displayed_page.
+; OUTPUT: One opaque HMMM queued.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+; ------------------------------------------------------------
+bitmap_dlg_save_box:
+    ld a, (bitmap_dlg_cfg_box_x)
+    ld (bitmap_dlg_cmd_block + 0), a   ; SX = live box X
+    xor a
+    ld (bitmap_dlg_cmd_block + 1), a
+    xor a
+    ld (bitmap_dlg_cmd_block + 4), a   ; DX = 0 in scratch
+    ld (bitmap_dlg_cmd_block + 5), a
+    ld a, (bitmap_dlg_cfg_box_w)
+    ld (bitmap_dlg_cmd_block + 8), a
+    xor a
+    ld (bitmap_dlg_cmd_block + 9), a
+    ld a, (bitmap_dlg_cfg_box_y)
+    ld (bitmap_dlg_copy_y), a
+    ld a, (bitmap_dlg_cfg_box_h)
+    ld (bitmap_dlg_copy_left), a
+${saveScratchChunksAsm}.dlg_save_done:
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_dlg_restore_box
+; ------------------------------------------------------------
+; PURPOSE:
+;   Restore the saved live rectangle in one HMMM. No room replay and no overlay
+;   redraw are needed: the snapshot is already the pixel-exact pre-dialogue
+;   state.
+; INPUT: bitmap_dlg_cfg box rectangle, bitmap_displayed_page.
+; OUTPUT: One opaque HMMM queued.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+; ------------------------------------------------------------
+bitmap_dlg_restore_box:
+    xor a
+    ld (bitmap_dlg_cmd_block + 0), a   ; SX = 0 in scratch
+    ld (bitmap_dlg_cmd_block + 1), a
+    ld a, (bitmap_dlg_cfg_box_x)
+    ld (bitmap_dlg_cmd_block + 4), a   ; DX = live box X
+    xor a
+    ld (bitmap_dlg_cmd_block + 5), a
+    ld a, (bitmap_dlg_cfg_box_w)
+    ld (bitmap_dlg_cmd_block + 8), a
+    xor a
+    ld (bitmap_dlg_cmd_block + 9), a
+    ld a, (bitmap_dlg_cfg_box_y)
+    ld (bitmap_dlg_copy_y), a
+    ld a, (bitmap_dlg_cfg_box_h)
+    ld (bitmap_dlg_copy_left), a
+${restoreScratchChunksAsm}.dlg_restore_done:
+${scratchReloadAsm}    ret
+
+bitmap_dlg_finish_hmmm:
+    xor a
+    ld (bitmap_dlg_cmd_block + 12), a  ; CLR unused
+    ld (bitmap_dlg_cmd_block + 13), a  ; ARG = 0
+    ld a, #D0
+    ld (bitmap_dlg_cmd_block + 14), a  ; HMMM
+    jp bitmap_dlg_launch_cmd
+
+; ------------------------------------------------------------
 ; FUNCTION: bitmap_dlg_close_box
 ; ------------------------------------------------------------
 ; PURPOSE:
-;   Close the dialogue: replay the current room's render program on the
-;   DISPLAYED page (same blocks load_room uses), restoring the background
-;   under the box${keyDoorVisibleDrawCall ? ' and re-applying door state visuals' : ''}. The talk latch stays set so the
-;   held key must be released before it can jump or reopen the dialogue.
+;   Close the dialogue and restore the exact rectangle saved before it opened.
+;   The talk latch stays set so the held key must be released before it can
+;   jump or reopen the dialogue.
 ; DESTROYS: AF, BC, DE, HL
 ; ------------------------------------------------------------
 bitmap_dlg_close_box:
     xor a
     ld (bitmap_dlg_state), a
-    ld a, (bitmap_displayed_page)
-    or a
-    jp z, .dlg_close_p0
-    ld hl, bitmap_room_render_ptr_table_p1
-${bankedRoomData ? `    ld bc, bitmap_room_render_bank_table_p1
-` : ''}    jp .dlg_close_have_table
-.dlg_close_p0:
-    ld hl, bitmap_room_render_ptr_table_p0
-${bankedRoomData ? `    ld bc, bitmap_room_render_bank_table_p0
-` : ''}
-.dlg_close_have_table:
-    ld a, (current_screen_index)
-    ld e, a
-    ld d, 0
-    add hl, de
-    add hl, de
-    ld a, (hl)
-    inc hl
-    ld h, (hl)
-    ld l, a
-${bankedRoomData ? `    push hl
-    ld h, b
-    ld l, c
-    add hl, de
-    ld a, (hl)
-    call bitmap_room_select_data_bank_a
-    pop hl
-` : ''}
-    push hl
-    ld hl, bitmap_room_blockcount_table
-    add hl, de
-    add hl, de
-    ld c, (hl)
-    inc hl
-    ld b, (hl)
-    pop hl
-    call replay_room_commands
-${bankedRoomData ? `    call bitmap_room_restore_resident_banks
-` : ''}${keyDoorVisibleDrawCall}    ret
+    jp bitmap_dlg_restore_box
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_dlg_launch_cmd
@@ -15344,6 +15440,12 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
     worldPlans.length,
   );
   const dialogueVramBaseRow = dialogueData ? 1024 - Math.ceil(dialogueData.blobRows / 16) * 16 : 1024;
+  // Closing a dialogue restores the exact pixels that were below its box. The
+  // save rectangle uses one shared scratch shelf sized for the tallest box;
+  // dialogues are modal, so concurrent slots would only waste VRAM.
+  const dialogueScratchRows = dialogueData
+    ? Math.max(0, ...dialogueData.configs.map(config => config.boxH))
+    : 0;
   if (dialogueData && dialogueVramBaseRow < BITMAP_ROOM_ATLAS_BASE_Y + atlasRows16) {
     throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}": the NPC dialogue glyph/portrait blob needs ${dialogueData.blobRows} VRAM rows but only ${1024 - (BITMAP_ROOM_ATLAS_BASE_Y + atlasRows16)} rows are free after the shared atlas. Reduce portrait sizes/count or shrink the atlas.`);
   }
@@ -16160,6 +16262,23 @@ ${bossWindowRoomBlobIndex.map((blobIndex, roomIndex) => (blobIndex < 0
   if (bossProjScratchSlots > 0 && bossProjScratchBaseY + 16 > postAtlasCeilingY) {
     throw new Error(`SCREEN 5 boss projectiles need a 16x16 VRAM scratch tile after the atlas, but the space after the atlas ends at VRAM row ${postAtlasCeilingY}. Reduce the atlas/dialogue size, shrink the boss bodies, or disable boss projectiles.`);
   }
+  const dialogueScratchBaseY = bossProjScratchBaseY + bossProjScratchSlots * 16;
+  // Dialogue and boss rendering are mutually exclusive. If the free gap before
+  // the transient boss window is too short, the snapshot may temporarily alias
+  // the start of that window. Closing restores the box first and then reloads
+  // the current boss body from its bank, so no persistent source art is lost.
+  const dialogueScratchCeilingY = bossWindowActive
+    ? bossWindowBaseY + bossWindowRows
+    : postAtlasCeilingY;
+  const dialogueScratchUsesBossWindow = dialogueScratchRows > 0
+    && bossWindowActive
+    && dialogueScratchBaseY + dialogueScratchRows > bossWindowBaseY;
+  if (dialogueScratchRows > 0 && dialogueScratchBaseY + dialogueScratchRows > dialogueScratchCeilingY) {
+    throw new Error(`SCREEN 5 dialogue save/restore needs ${dialogueScratchRows} VRAM rows after the atlas, but only ${Math.max(0, dialogueScratchCeilingY - dialogueScratchBaseY)} rows are available (including the temporally shared boss window). Reduce the atlas/dialogue size, shrink the boss bodies, or reduce the dialogue box height.`);
+  }
+  const dialogueScratchShelves = dialogueScratchRows > 0
+    ? [{ baseY: dialogueScratchBaseY, rows: dialogueScratchRows }]
+    : [];
   const enemyPatternGroupBase = foregroundPatternGroupBase + foregroundCount;
   const enemyVariantsPerFrame = bitmapEnemyVariantsPerFrame(enemyData);
   // Slime ceiling variants are reserved only for the fixed slots that can
@@ -16805,14 +16924,9 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
       : ''}${perceptionPauseGateAsm}`,
   });
   hudLinkedRamCursor += swaySystem.ramBytes;
-  // Closing a dialogue box (or the perception window) replays the room's command
-  // program on the VISIBLE page. In a dark room that program repaints the whole
-  // game band from the dimmed atlas, so it takes the halo with it and nothing
-  // used to put it back: the player was left standing in total darkness until he
-  // moved far enough for the halo passes to grow it back a strip at a time.
-  // Dropping the "a halo is painted" flag makes bitmap_light_update repaint it in
-  // full on the next frame, and keeps the overlay redraws that follow from
-  // relighting against a halo that is no longer on screen.
+  // Perception still recomposes the visible room. Dialogue no longer does: it
+  // restores the exact saved rectangle from its VRAM scratch shelf.
+  // Keep this hook for perception/dark-room recomposition only.
   const lightRecomposeAsm = anyDarkRoom
     ? '    xor a\n    ld (bitmap_light_active), a    ; the recompose wiped the halo: repaint it next frame\n'
     : '';
@@ -16822,6 +16936,7 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
     playerHitbox,
     hudLinkedRamCursor,
     dialogueVramBaseRow,
+    dialogueScratchShelves,
     // FASE 5b: with several worlds this becomes a dispatch on bitmap_world_index
     // over one upload body per world, exactly like the tileset atlas.
     dialogueWorldBlobs.length > 1
@@ -16837,8 +16952,11 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
         true,
       )
       : buildRleUploadAsm(dialogueRleChunks, isKonamiMegaRom),
-    `${lightRecomposeAsm}${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${crumbleSystem.initialDrawCall}${swaySystem.initialDrawCall}${destroyTileApplyVisibleCall}${bossData.enabled ? '    call bitmap_boss_redraw_after_dialogue\n' : ''}`,
-    isKonamiMegaRom
+    dialogueScratchUsesBossWindow
+      ? `    call vdp_wait_cmd_ready    ; snapshot aliased the boss source window
+    call bitmap_boss_window_load  ; restore its banked body art before gameplay resumes
+`
+      : ''
   );
   hudLinkedRamCursor += dialogueSystem.ramBytes;
   // Enemy patrol runtime state chains after the dialogue system. While an NPC
@@ -17297,6 +17415,15 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
   }
   if (bossProjScratchSlots > 0) {
     vramTenants.push({ from: bossProjScratchBaseY, to: bossProjScratchBaseY + 15, what: 'boss projectile scratch' });
+  }
+  if (dialogueScratchRows > 0) {
+    vramTenants.push({
+      from: dialogueScratchBaseY,
+      to: dialogueScratchBaseY + dialogueScratchRows - 1,
+      what: dialogueScratchUsesBossWindow
+        ? 'dialogue box save/restore scratch (temporarily aliases boss window)'
+        : 'dialogue box save/restore scratch',
+    });
   }
   if (bossWindowActive) {
     vramTenants.push({ from: bossWindowBaseY, to: bossWindowBaseY + bossWindowRows - 1, what: `boss transient window (${bossStampCollection.bodyGrids.size} boss bod[y/ies] reuse it)` });

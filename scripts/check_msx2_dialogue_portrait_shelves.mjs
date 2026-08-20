@@ -113,6 +113,23 @@ checks.push(['The drawing routine reads SX from the record',
 checks.push(['The drawing routine indexes by the 5-byte stride',
   /HL = index\*5 \(record is 5 bytes\)/.test(asm)]);
 
+// Opening saves the live box rectangle; closing restores that exact snapshot.
+// Replaying the whole room here caused large bosses to sweep the dialogue away
+// over many frames and also lost runtime-mutated pixels.
+const openRoutine = /bitmap_dlg_open:([\s\S]{0,900}?)bitmap_dlg_start_line:/.exec(asm)?.[1] || '';
+const closeRoutine = /bitmap_dlg_close_box:([\s\S]{0,900}?)bitmap_dlg_launch_cmd:/.exec(asm)?.[1] || '';
+checks.push(['Dialogue open saves the box before drawing it',
+  /call bitmap_dlg_save_box[\s\S]*call bitmap_dlg_draw_box/.test(openRoutine)]);
+checks.push(['Dialogue close restores its snapshot without replaying the room',
+  /jp bitmap_dlg_restore_box/.test(closeRoutine)
+  && !/replay_room_commands/.test(closeRoutine)]);
+checks.push(['Dialogue save/restore use one opaque HMMM command',
+  /bitmap_dlg_save_box:/.test(asm)
+  && /bitmap_dlg_restore_box:/.test(asm)
+  && /bitmap_dlg_finish_hmmm:[\s\S]{0,220}?ld a, #D0/.test(asm)]);
+checks.push(['VRAM report reserves the dialogue snapshot shelf',
+  /dialogue box save\/restore scratch/.test(asm)]);
+
 let failed = 0;
 for (const [label, ok] of checks) {
   realLog(`${ok ? 'OK  ' : 'FAIL'}: ${label}`);

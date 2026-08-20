@@ -1,0 +1,302 @@
+{
+  "atlas": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\assets\\tilesets\\cave-world\\screen5\\cave-world-screen5-16x16.png",
+  "width": 256,
+  "height": 32,
+  "tile_size": 16,
+  "columns": 16,
+  "rows": 2,
+  "tile_count": 32,
+  "source_color_count": 16,
+  "rgb333_equivalent_color_count": 16,
+  "alpha_values": {
+    "255": 8192
+  },
+  "rgb333_palette": [
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      1
+    ],
+    [
+      1,
+      1,
+      2
+    ],
+    [
+      2,
+      1,
+      3
+    ],
+    [
+      2,
+      3,
+      5
+    ],
+    [
+      2,
+      5,
+      6
+    ],
+    [
+      3,
+      2,
+      4
+    ],
+    [
+      3,
+      5,
+      2
+    ],
+    [
+      3,
+      6,
+      7
+    ],
+    [
+      4,
+      3,
+      5
+    ],
+    [
+      5,
+      3,
+      2
+    ],
+    [
+      5,
+      4,
+      5
+    ],
+    [
+      6,
+      3,
+      1
+    ],
+    [
+      6,
+      4,
+      2
+    ],
+    [
+      6,
+      5,
+      3
+    ],
+    [
+      7,
+      7,
+      5
+    ]
+  ],
+  "tiles": [
+    {
+      "row": 0,
+      "column": 0,
+      "colors": 6,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 0,
+      "column": 1,
+      "colors": 8,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 0,
+      "column": 2,
+      "colors": 9,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 0,
+      "column": 3,
+      "colors": 6,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 0,
+      "column": 4,
+      "colors": 8,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 0,
+      "column": 5,
+      "colors": 6,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 0,
+      "column": 6,
+      "colors": 6,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 0,
+      "column": 7,
+      "colors": 6,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 0,
+      "column": 8,
+      "colors": 5,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 0,
+      "column": 9,
+      "colors": 7,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 0,
+      "column": 10,
+      "colors": 6,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 0,
+      "column": 11,
+      "colors": 6,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 0,
+      "column": 12,
+      "colors": 6,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 0,
+      "column": 13,
+      "colors": 6,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 0,
+      "column": 14,
+      "colors": 10,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 0,
+      "column": 15,
+      "colors": 9,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 1,
+      "column": 0,
+      "colors": 11,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 1,
+      "column": 1,
+      "colors": 6,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 1,
+      "column": 2,
+      "colors": 8,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 1,
+      "column": 3,
+      "colors": 7,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 1,
+      "column": 4,
+      "colors": 6,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 1,
+      "column": 5,
+      "colors": 6,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 1,
+      "column": 6,
+      "colors": 7,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 1,
+      "column": 7,
+      "colors": 5,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 1,
+      "column": 8,
+      "colors": 6,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 1,
+      "column": 9,
+      "colors": 7,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 1,
+      "column": 10,
+      "colors": 6,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 1,
+      "column": 11,
+      "colors": 7,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 1,
+      "column": 12,
+      "colors": 7,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 1,
+      "column": 13,
+      "colors": 6,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 1,
+      "column": 14,
+      "colors": 6,
+      "transparent_pixels": 0
+    },
+    {
+      "row": 1,
+      "column": 15,
+      "colors": 6,
+      "transparent_pixels": 0
+    }
+  ],
+  "duplicate_analysis": {
+    "exact_duplicate_groups": [],
+    "mirror_pairs": [],
+    "near_duplicate_pairs": [],
+    "near_duplicate_threshold_pixels": 8,
+    "near_duplicate_pairs_truncated": false
+  },
+  "stamp_json": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\assets\\tilesets\\cave-world\\screen5\\cave-world-screen5-bitmap-stamp.asset.json",
+  "stamp_errors": [],
+  "errors": [],
+  "warnings": [],
+  "status": "pass"
+}

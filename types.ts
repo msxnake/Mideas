@@ -349,9 +349,25 @@ export interface BitmapTileStampScreen5 {
   sourceFileName?: string;
   paletteId: string;
   tiles: BitmapTileScreen5[];
+  /**
+   * Optional sparse Boss animation variants. Frame 0 is `tiles`; every entry
+   * below stores only the cells that differ from that base frame. A `null`
+   * tile means that the cell was removed in that frame. Keeping the variants
+   * sparse is the authoring-side counterpart of the SCREEN 5 VRAM saver: a
+   * frame can add/remove a handful of 16x16 cells without duplicating the
+   * complete Boss bitmap.
+   */
+  frameVariants?: BitmapTileStampFrameVariantScreen5[];
   tags?: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface BitmapTileStampFrameVariantScreen5 {
+  id: string;
+  name: string;
+  /** Sparse cell patches; indices are row-major in the parent stamp grid. */
+  cells: Array<{ index: number; tile: BitmapTileScreen5 | null }>;
 }
 
 /**
@@ -1820,8 +1836,9 @@ export interface Msx2BossDefinition {
   id: string;
   name: string;
   /**
-   * Body: a `msx2bitmapstamp` asset, composed into one rectangle and injected
-   * into the shared world atlas by the generator, then blitted with V9938 HMMM.
+   * Body: a `msx2bitmapstamp` asset, composed into one rectangle (or sparse
+   * 16x16 frame variants) and injected into the transient Boss window by the
+   * generator, then blitted with V9938 HMMM/cell commands.
    *
    * A stamp is the right unit for a boss: it is authored as one picture and the
    * boss is one picture. Atlas entries are not — importing a stamp into a room

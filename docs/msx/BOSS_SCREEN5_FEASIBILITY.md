@@ -13,12 +13,14 @@ OpenMSX (`test/boss/boss_blit_bench.asm`, C-BIOS_MSX2, display i sprites actius)
 (com el `bossesGenerator` MSX1 de tiles, però bitmap), tenint en compte que si
 el boss es mou "la quantitat de bytes per moure pot ser un llast"?
 
-## Resposta curta: SÍ — el Z80 no mou els bytes, els mou el blitter del V9938
+## Resposta curta: SÍ, però el tick del Player exigeix una política separada
 
 Llançar un HMMM costa al Z80 ~15 OUTs (~300 cicles); la còpia la fa el VDP en
-paral·lel mentre la CPU segueix executant la lògica del joc. El límit real no és
-la CPU sinó el **throughput del blitter**, mesurat empíricament en
-**~5,7 µs/byte** (HMMM, pantalla i sprites actius).
+paral·lel mentre la CPU segueix executant la lògica del joc. El límit visual real
+és el **throughput del blitter**, mesurat empíricament en **~5,7 µs/byte**
+(HMMM, pantalla i sprites actius). Però el runtime també ha d'esperar que el
+command engine quedi lliure abans d'enviar el següent HMMM; si el boss ocupa
+diversos milers de bytes, aquesta espera pot retardar el bucle del Player.
 
 ## Mesures reals (OpenMSX, marker de validesa OK)
 
@@ -35,8 +37,11 @@ pàgina 1 (fons net) + redraw complet des de la pàgina 2 (atlas). Captura visua
 sense cap rastre ni corrupció.
 
 Nota: un boss que s'actualitza cada 2 frames segueix semblant fluid (els bosses
-grans clàssics de MSX2 fan exactament això); el player continua a 60 fps
-sempre — el blitter no toca la CPU.
+grans clàssics de MSX2 fan exactament això). La còpia del blitter no toca els
+registres de la CPU, però `vdp_wait_cmd_ready` sí que pot retenir el bucle. Per
+això el runtime SCREEN 5 manté un tick de moviment del Player durant les
+esperes llargues del Boss i evita repetir-lo quan torna al bucle principal;
+la pujada SAT visual es fa quan el command engine queda lliure.
 
 ## Per què encaixa amb el motor actual
 

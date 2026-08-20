@@ -1,0 +1,6 @@
+Use case: stylized-concept
+Asset type: 4x4 retro pixel-art tileset atlas for an MSX2 SCREEN 5 side-view boss room
+Primary request: Sixteen tiles for the Area 51 Defense Omega chamber: military wall panels, bolts, ventilation grille, cracked metal, floor and ceiling plates, hazard stripes, corner support, horizontal and vertical laser emitters, guided-rocket launcher, turret base, defense core, cable conduit, warning light, and dark background.
+Style: authentic low-resolution pixel art, hard square pixels, readable at 16x16, strict 4x4 equal-cell atlas, front-facing orthographic tiles.
+Palette constraint: preserve player registers 0, 11, 13 and 15; room tiles may use only the remaining SCREEN 5 palette indices.
+Avoid: characters, text, labels, logos, watermark, perspective, anti-aliasing, smooth gradients, irregular cells, or reserved player colors.

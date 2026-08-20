@@ -1,0 +1,8 @@
+mode: grid
+source: C:\Users\salam\Documents\Programacion\Mideas\assets\tilesets\cave-world\cave-world-source.png
+padded_size: 1248x1248
+placements: 64
+unique_tiles: 64
+compression_ratio_pixels: 1.000
+mean_channel_diff: 0.000
+max_channel_diff: 0

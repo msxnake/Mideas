@@ -35,6 +35,19 @@ function isValidEntry(value: unknown): value is Msx2BitmapStampLibraryEntry {
     && Number.isFinite(stamp.rows)
     && Array.isArray(stamp.tiles)
     && stamp.tiles.every(tile => tile?.mode === 'SCREEN5_BITMAP' && Array.isArray(tile.pixelData))
+    && (!stamp.frameVariants || (
+      Array.isArray(stamp.frameVariants)
+      && stamp.frameVariants.length <= 3
+      && stamp.frameVariants.every(variant => (
+        typeof variant?.id === 'string'
+        && typeof variant?.name === 'string'
+        && Array.isArray(variant.cells)
+        && variant.cells.every(cell => (
+          Number.isInteger(cell?.index)
+          && (cell.tile === null || (cell.tile?.mode === 'SCREEN5_BITMAP' && Array.isArray(cell.tile.pixelData)))
+        ))
+      ))
+    ))
     && Array.isArray(entry.palette),
   );
 }
@@ -281,9 +294,25 @@ export function adaptStampEntryToPalette(
     }),
     updatedAt: now,
   }));
+  const frameVariants = entry.stamp.frameVariants?.map(variant => ({
+    ...variant,
+    cells: (variant.cells || []).map(cell => ({
+      ...cell,
+      tile: cell.tile
+        ? {
+          ...cell.tile,
+          pixelData: cell.tile.pixelData.map(value => {
+            const index = clampSlot(value);
+            return remap[index] ?? index;
+          }),
+          updatedAt: now,
+        }
+        : null,
+    })),
+  }));
   return {
     ...entry,
-    stamp: { ...entry.stamp, tiles, updatedAt: now },
+    stamp: { ...entry.stamp, tiles, frameVariants, updatedAt: now },
     palette: palette.map(slot => ({ ...slot })),
   };
 }

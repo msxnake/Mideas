@@ -1,0 +1,232 @@
+{
+  "id": "palette_screen5_cave_world",
+  "name": "Cave World MSX2 SCREEN 5",
+  "target": "MSX2 V9938 SCREEN 5 / Graphic 4",
+  "slots": [
+    {
+      "slotIndex": 0,
+      "masterIndex": 0,
+      "rgb333": [
+        0,
+        0,
+        0
+      ],
+      "hex": "#000000",
+      "vdpBytes": [
+        0,
+        0
+      ]
+    },
+    {
+      "slotIndex": 1,
+      "masterIndex": 1,
+      "rgb333": [
+        0,
+        0,
+        1
+      ],
+      "hex": "#000024",
+      "vdpBytes": [
+        1,
+        0
+      ]
+    },
+    {
+      "slotIndex": 2,
+      "masterIndex": 74,
+      "rgb333": [
+        1,
+        1,
+        2
+      ],
+      "hex": "#242449",
+      "vdpBytes": [
+        18,
+        1
+      ]
+    },
+    {
+      "slotIndex": 3,
+      "masterIndex": 139,
+      "rgb333": [
+        2,
+        1,
+        3
+      ],
+      "hex": "#49246D",
+      "vdpBytes": [
+        35,
+        1
+      ]
+    },
+    {
+      "slotIndex": 4,
+      "masterIndex": 212,
+      "rgb333": [
+        3,
+        2,
+        4
+      ],
+      "hex": "#6D4992",
+      "vdpBytes": [
+        52,
+        2
+      ]
+    },
+    {
+      "slotIndex": 5,
+      "masterIndex": 285,
+      "rgb333": [
+        4,
+        3,
+        5
+      ],
+      "hex": "#926DB6",
+      "vdpBytes": [
+        69,
+        3
+      ]
+    },
+    {
+      "slotIndex": 6,
+      "masterIndex": 357,
+      "rgb333": [
+        5,
+        4,
+        5
+      ],
+      "hex": "#B692B6",
+      "vdpBytes": [
+        85,
+        4
+      ]
+    },
+    {
+      "slotIndex": 7,
+      "masterIndex": 346,
+      "rgb333": [
+        5,
+        3,
+        2
+      ],
+      "hex": "#B66D49",
+      "vdpBytes": [
+        82,
+        3
+      ]
+    },
+    {
+      "slotIndex": 8,
+      "masterIndex": 418,
+      "rgb333": [
+        6,
+        4,
+        2
+      ],
+      "hex": "#DB9249",
+      "vdpBytes": [
+        98,
+        4
+      ]
+    },
+    {
+      "slotIndex": 9,
+      "masterIndex": 427,
+      "rgb333": [
+        6,
+        5,
+        3
+      ],
+      "hex": "#DBB66D",
+      "vdpBytes": [
+        99,
+        5
+      ]
+    },
+    {
+      "slotIndex": 10,
+      "masterIndex": 157,
+      "rgb333": [
+        2,
+        3,
+        5
+      ],
+      "hex": "#496DB6",
+      "vdpBytes": [
+        37,
+        3
+      ]
+    },
+    {
+      "slotIndex": 11,
+      "masterIndex": 174,
+      "rgb333": [
+        2,
+        5,
+        6
+      ],
+      "hex": "#49B6DB",
+      "vdpBytes": [
+        38,
+        5
+      ]
+    },
+    {
+      "slotIndex": 12,
+      "masterIndex": 247,
+      "rgb333": [
+        3,
+        6,
+        7
+      ],
+      "hex": "#6DDBFF",
+      "vdpBytes": [
+        55,
+        6
+      ]
+    },
+    {
+      "slotIndex": 13,
+      "masterIndex": 234,
+      "rgb333": [
+        3,
+        5,
+        2
+      ],
+      "hex": "#6DB649",
+      "vdpBytes": [
+        50,
+        5
+      ]
+    },
+    {
+      "slotIndex": 14,
+      "masterIndex": 409,
+      "rgb333": [
+        6,
+        3,
+        1
+      ],
+      "hex": "#DB6D24",
+      "vdpBytes": [
+        97,
+        3
+      ]
+    },
+    {
+      "slotIndex": 15,
+      "masterIndex": 509,
+      "rgb333": [
+        7,
+        7,
+        5
+      ],
+      "hex": "#FFFFB6",
+      "vdpBytes": [
+        117,
+        7
+      ]
+    }
+  ],
+  "notes": "RGB333 authority; slot 0 is the shared backdrop/transparent slot."
+}

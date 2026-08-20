@@ -78,10 +78,17 @@ export const BOSS_CELL_RECORD_BYTES = 6;
 
 /** A boss body split back into the 16x16 cells it was authored with. */
 export interface BossBodyCellGrid {
-  /** Cells of the whole strip, row-major: index = row * columns + column. */
+  /** Cells per animation frame, each frame row-major. */
+  cellsByFrame: number[][][][];
+  /** First-frame cells, kept as a convenient/debug-compatible alias. */
   cells: number[][][];
+  /** Columns in one frame, not in a legacy horizontal strip. */
   columns: number;
   rows: number;
+  /** Number of frames represented by the Stamp. */
+  frameCount: number;
+  /** True for sparse `frameVariants`; false for legacy horizontal strips. */
+  variantFrames?: boolean;
 }
 
 /** Atlas key of one body cell. Stable, so the placements can be looked up back. */
@@ -813,10 +820,20 @@ export function buildBitmapRoomBossData(
         cellsDelta: [0],
       };
     }
-    const frames = clampInt(params.bossFrames, 1, 4, 1);
-    const stripW = Math.max(1, Math.floor(Number(bodySource.rect.w) || 0));
-    const stripH = Math.max(1, Math.floor(Number(bodySource.rect.h) || 0));
-    const width = even(clampInt(Math.floor(stripW / frames), 16, 128, 16));
+    // A sparse Stamp variant owns the frame count and keeps every frame at the
+    // base grid size. Legacy stamps still use a horizontal strip and the
+    // explicit bossFrames field, so existing projects keep their old layout.
+    const variantFrames = bodyGrid?.variantFrames === true;
+    const frames = variantFrames
+      ? Math.max(1, Math.min(4, bodyGrid?.frameCount || 1))
+      : clampInt(params.bossFrames, 1, 4, 1);
+    const stripW = variantFrames
+      ? Math.max(1, bodyGrid!.columns * BOSS_CELL_SIZE)
+      : Math.max(1, Math.floor(Number(bodySource.rect.w) || 0));
+    const stripH = variantFrames
+      ? Math.max(1, bodyGrid!.rows * BOSS_CELL_SIZE)
+      : Math.max(1, Math.floor(Number(bodySource.rect.h) || 0));
+    const width = even(clampInt(variantFrames ? stripW : Math.floor(stripW / frames), 16, 128, 16));
     const height = clampInt(stripH, 16, 96, 16);
     // FASE 3: one cell record per 16x16 of the frame, for every frame, in one
     // flat uniform blob: [frameCount, cellsPerFrame, records...]. Uniform because
@@ -825,13 +842,17 @@ export function buildBitmapRoomBossData(
     const cellBlob: number[] = [];
     const cellDeltaBlob: number[] = [];
     if (bodyGrid) {
-      const cellsX = Math.floor(width / BOSS_CELL_SIZE);
-      const cellsY = Math.floor(height / BOSS_CELL_SIZE);
+      const cellsX = variantFrames ? bodyGrid.columns : Math.floor(width / BOSS_CELL_SIZE);
+      const cellsY = variantFrames ? bodyGrid.rows : Math.floor(height / BOSS_CELL_SIZE);
       const perFrame = cellsX * cellsY;
       const stride = perFrame * BOSS_CELL_RECORD_BYTES;
       let missing = 0;
       const record = (frame: number, cx: number, cy: number) => {
-        const gridIndex = cy * bodyGrid.columns + frame * cellsX + cx;
+        // Legacy strips are one wide grid whose frame starts at `frame*cellsX`;
+        // sparse variants are already separate full-frame grids.
+        const gridIndex = variantFrames
+          ? frame * perFrame + cy * cellsX + cx
+          : cy * bodyGrid.columns + frame * cellsX + cx;
         const placed = bodyStampPlacements.get(bossBodyCellKey(stampId, gridIndex));
         if (!placed) { missing += 1; }
         return {
@@ -899,10 +920,14 @@ export function buildBitmapRoomBossData(
     const hp = clampInt(params.bossHp, 1, 255, 8);
     const damage = clampInt(params.bossDamage, 0, 8, 1);
     const bytesPerBlit = (width / 2) * height;
-    // Enemy-style cadence: the body moves/redraws every 3 frames by default so
-    // its big HMMM never shares a frame with the projectile blits (which run on
-    // the off-frames). Large bodies stay at >= 3; authors can override.
-    const interval = clampInt(params.bossInterval, 1, 8, bytesPerBlit > 2048 ? 3 : 3);
+    // Enemy-style cadence: the body moves/redraws only on its own ticks, while
+    // the player keeps every ordinary main-loop frame. A >4KB body monopolises
+    // the V9938 for several VBlanks even after adjacent cells are coalesced, so
+    // cap it at 10 movement/redraw ticks per second (interval >= 6). Medium
+    // bodies retain the historical >=3 floor; small bosses keep author control.
+    const authoredInterval = clampInt(params.bossInterval, 1, 8, 3);
+    const safeBodyInterval = bytesPerBlit > 4096 ? 6 : bytesPerBlit > 2048 ? 3 : 1;
+    const interval = Math.max(authoredInterval, safeBodyInterval);
     const atlasX = even(clampInt(bodySource.rect.sx, 0, 4096, 0));
     const atlasY = clampInt(bodySource.rect.sy, 0, 4096, 0);
     const patrol = resolvePatrol(entity);
@@ -2695,29 +2720,25 @@ bitmap_boss_draw_cells:
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_draw_cell_list
 ; ------------------------------------------------------------
-; PURPOSE: Blit C cells from the record list at HL. Shared by the full-frame
-;   path and the changed-cells path, so both compose pixels the same way.
+; PURPOSE: Blit C cells from the record list at HL. Consecutive records whose
+;   source and destination are horizontally adjacent are coalesced into one
+;   wider HMMM. A 128x96 body therefore needs one command per contiguous run,
+;   not one command per 16x16 cell. Shared by full-frame and delta paths.
 ; INPUT: HL -> (sxLo,sxHi,syLo,syHi,dx,dy)*, C = how many.
 ; DESTROYS: AF, BC, DE, HL. PRESERVES: IX.
 ; ------------------------------------------------------------
 bitmap_boss_draw_cell_list:
-.cells_next:
-    push bc
+    push ix
     push hl
-    ld a, (hl)
-    ld (boss_cmd_buf + 0), a   ; SX low
-    inc hl
-    ld a, (hl)
-    ld (boss_cmd_buf + 1), a   ; SX high
-    inc hl
-    ld a, (hl)
-    ld (boss_cmd_buf + 2), a   ; SY low
-    inc hl
-    ld a, (hl)
-    ld (boss_cmd_buf + 3), a   ; SY high
-    inc hl
-    ld a, (hl)                 ; cell X offset inside the body
-    inc hl
+    pop ix                      ; IX = stable record cursor across VDP waits
+.cells_next:
+    ld l, (ix+0)
+    ld h, (ix+1)
+    ld (boss_cmd_buf + 0), hl  ; SX
+    ld l, (ix+2)
+    ld h, (ix+3)
+    ld (boss_cmd_buf + 2), hl  ; SY
+    ld a, (ix+4)               ; cell X offset inside the body
     ld b, a
     ld a, (boss_x)
     and #FE
@@ -2725,7 +2746,7 @@ bitmap_boss_draw_cell_list:
     ld (boss_cmd_buf + 4), a   ; DX
     xor a
     ld (boss_cmd_buf + 5), a
-    ld a, (hl)                 ; cell Y offset; HL is free after this read
+    ld a, (ix+5)               ; cell Y offset
     ld b, a
     ld a, (boss_y)
     add a, ${asmByte(gameY)}
@@ -2741,13 +2762,64 @@ ${visiblePageH}
     ld (boss_cmd_buf + 13), a  ; ARG = 0
     ld a, #D0
     ld (boss_cmd_buf + 14), a  ; HMMM
-    call bitmap_boss_launch_cmd
-    pop hl
     ld de, ${BOSS_CELL_RECORD_BYTES}
-    add hl, de
-    pop bc
+    add ix, de                  ; point at the next candidate record
     dec c
+    jp z, .cells_launch
+.cells_try_merge:
+    ; Source must continue exactly after the current run on the same row.
+    ld hl, (boss_cmd_buf + 0)
+    ld de, (boss_cmd_buf + 8)
+    add hl, de                  ; expected next SX = SX + current NX
+    ld a, (ix+0)
+    cp l
+    jp nz, .cells_launch
+    ld a, (ix+1)
+    cp h
+    jp nz, .cells_launch
+    ld hl, (boss_cmd_buf + 2)
+    ld a, (ix+2)
+    cp l
+    jp nz, .cells_launch
+    ld a, (ix+3)
+    cp h
+    jp nz, .cells_launch
+    ; Destination must be the same horizontal continuation too.
+    ld a, (boss_x)
+    and #FE
+    ld b, a
+    ld a, (ix+4)
+    add a, b                   ; absolute next DX = boss X + record offset
+    ld b, a
+    ld a, (boss_cmd_buf + 4)
+    ld e, a
+    ld a, (boss_cmd_buf + 8)
+    add a, e                   ; expected next DX = current DX + current NX
+    cp b
+    jp nz, .cells_launch
+    ld a, (boss_y)
+    add a, ${asmByte(gameY)}
+    add a, (ix+5)
+    ld b, a
+    ld a, (boss_cmd_buf + 6)
+    cp b
+    jp nz, .cells_launch
+    ; Same run: consume this record and widen the pending command by one cell.
+    ld a, (boss_cmd_buf + 8)
+    add a, ${BOSS_CELL_SIZE}
+    ld (boss_cmd_buf + 8), a
+    ld de, ${BOSS_CELL_RECORD_BYTES}
+    add ix, de
+    dec c
+    jp nz, .cells_try_merge
+.cells_launch:
+    push bc
+    call bitmap_boss_launch_cmd
+    pop bc
+    ld a, c                    ; launch destroys flags: re-test the real count
+    or a
     jp nz, .cells_next
+    pop ix
     ret
 `}
 
@@ -4304,26 +4376,6 @@ bitmap_boss_intro_barrier_done:
     ret
 ` : ''}
 
-; ------------------------------------------------------------
-; FUNCTION: bitmap_boss_redraw_after_dialogue
-; ------------------------------------------------------------
-; PURPOSE: Dialogue close replays the clean room, which erases dynamic bitmap
-;   overlays. Repaint the live boss and a chain that has already been raised.
-; INPUT: boss runtime state. OUTPUT: boss/chain restored on displayed page.
-; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
-; ------------------------------------------------------------
-bitmap_boss_redraw_after_dialogue:
-    ld a, (boss_active)
-    or a
-    ret z
-    push ix
-${hasBarrier ? `    ld a, (boss_barrier_draw)
-    cp 1
-    call z, bitmap_boss_barrier_redraw
-` : ''}    call bitmap_boss_table_ix
-    call bitmap_boss_draw
-    pop ix
-    ret
 ${hasBarrier && !opts.playerOverlapHelperAvailable ? `
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_player_overlaps_16  (barrier-local copy)
@@ -5145,12 +5197,10 @@ ${visiblePageH}
     ld (boss_cmd_buf + 10), hl
     jp bitmap_boss_finish_hmmm
 
-; Draw the projectile atlas tile at the current position on page 0.
-; Uses LMMM + TIMP (#98), NOT the opaque HMMM the body uses: with TIMP the VDP
-; skips source pixels of colour 0, so the room art that bitmap_boss_proj_save
-; kept underneath shows through the transparent pixels of the bullet art.
-; LMMM is a per-pixel command (~5.9 us/px vs 2.91 for HMMM), so a 16x16 bullet
-; costs ~1 ms more per frame -- and only while a bullet is in flight.
+; Draw the projectile atlas tile at the current position on the visible page.
+; Aimed bitmap shots use LMMM + TIMP (#98), preserving colour-0 transparency.
+; Falling rocks deliberately use opaque HMMM (#D0): their authored black/zero
+; pixels are solid again and the byte copy is about twice as fast as LMMM.
 ; DX stays snapped to even: save/restore are HMMM (byte units) and their rect
 ; must line up exactly with the drawn one or a 1px column would be left behind.
 bitmap_boss_proj_draw:
@@ -5178,8 +5228,14 @@ ${visiblePageH}
     xor a
     ld (boss_cmd_buf + 12), a  ; CLR unused
     ld (boss_cmd_buf + 13), a  ; ARG = 0
-    ld a, #98
-    ld (boss_cmd_buf + 14), a  ; LMMM + TIMP: colour 0 stays transparent
+${hasFallingRocks ? `    ld a, (ix+10)
+    cp 2
+    ld a, #D0                  ; falling rock: opaque + cheaper HMMM
+    jp z, .boss_proj_draw_op_ready
+    ld a, #98                  ; aimed bitmap: LMMM + TIMP
+.boss_proj_draw_op_ready:
+` : `    ld a, #98                  ; aimed bitmap: LMMM + TIMP
+`}    ld (boss_cmd_buf + 14), a
     jp bitmap_boss_launch_cmd
 
 ; Projectile-vs-player AABB. On hit: erase, despawn, hurt the player.
