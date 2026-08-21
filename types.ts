@@ -1938,6 +1938,18 @@ export interface Msx2BossDefinition {
   bossShootInterval: number;
   bossProjectileSpeed: number;
   bossProjectileDamage: number;
+  /**
+   * Bitmap laser used by the double-boss encounter. When two boss entities
+   * share a SCREEN 5 room, each one may fire a growing cardinal laser from
+   * its Path node actions. Empty falls back to bossProjectileTileId.
+   */
+  bossLaserTileId?: string;
+  /** Frames between automatic laser waves (double-boss rooms only). */
+  bossLaserInterval?: number;
+  /** Maximum length of one growing laser in pixels (rounded to 16px cells). */
+  bossLaserMaxLengthPx?: number;
+  /** Cardinal mask: bit 0=N, bit 1=E, bit 2=S, bit 3=O. Omitted = all four. */
+  bossLaserDirectionMask?: number;
   bossPhases: Msx2BossPhase[];
   /** Weak points must be listed BEFORE the armour that contains them. */
   damageZones: Msx2BossDamageZone[];

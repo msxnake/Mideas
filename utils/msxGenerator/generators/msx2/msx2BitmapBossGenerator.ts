@@ -68,7 +68,11 @@ import {
 } from '../../../msx2Shoot';
 import { BOSS_DEFINITION_OWNED_PARAMS } from '../../../msx2BossParams';
 
-export const BITMAP_BOSS_TABLE_STRIDE = 27;
+export const BITMAP_BOSS_TABLE_STRIDE = 35;
+/** Maximum number of independent bitmap bosses emitted per room. */
+export const BITMAP_BOSS_MAX_INSTANCES = 2;
+/** Laser config: present, source SX/SY, interval, max segments, direction mask. */
+export const BITMAP_BOSS_LASER_STRIDE = 8;
 
 /** Side of a body cell. Matches the engine's OP_COPY_16 composition primitive. */
 export const BOSS_CELL_SIZE = 16;
@@ -129,7 +133,7 @@ function asmWord(value: number): string {
 export interface BitmapBossRoomData {
   /** True when at least one room places a boss. */
   enabled: boolean;
-  /** Per-room table bytes (BITMAP_BOSS_TABLE_STRIDE each; [0]=present flag). */
+  /** Per-room table bytes (BITMAP_BOSS_TABLE_STRIDE * BITMAP_BOSS_MAX_INSTANCES; [0]=present flag). */
   roomTables: number[][];
   /**
    * Per-room Boss Defeat Actions bytecode (Phase A). Each stream is a list of
@@ -240,6 +244,8 @@ export interface BitmapBossRoomData {
   deathSoundIndexes: number[];
   /** Deduplicated channel-C PSG streams referenced by deathSoundIndexes. */
   deathSoundStreams: number[][];
+  /** Per-room/per-instance laser configs: [present,sxLo,sxHi,syLo,syHi,interval,maxSegments,mask]. */
+  laserTables: number[][];
 }
 
 /** A reusable shot pattern referenced by a path node's fire action. */
@@ -744,29 +750,37 @@ export function buildBitmapRoomBossData(
     return index;
   };
   const emptyTable = () => new Array(BITMAP_BOSS_TABLE_STRIDE).fill(0);
+  const emptyLaser = () => new Array(BITMAP_BOSS_LASER_STRIDE).fill(0);
   const emptyBarrier = () => new Array(BITMAP_BOSS_BARRIER_STRIDE).fill(0);
   const emptyProjectile = () => new Array(BITMAP_BOSS_PROJECTILE_STRIDE).fill(0);
+  const emptyEntry = () => ({
+    table: emptyTable(),
+    laser: emptyLaser(),
+    stream: [DEFEAT_OP_END],
+    intro: [INTRO_OP_END],
+    introEntryX: INTRO_ENTRY_X_CENTRE,
+    barrier: emptyBarrier(),
+    projectile: emptyProjectile(),
+    phases: [0],
+    zones: [0],
+    pathSel: [] as number[],
+    deathFx: [0, 0, 0, 0],
+    deathSoundIndex: 0,
+    cells: [0, 0],
+    cellsDelta: [0],
+  });
   const perRoom = rooms.map(room => {
     const bosses = (room.entities || []).filter((entity: any) => entity?.kind === 'boss' && entity.position);
-    if (!bosses.length) return {
-      table: emptyTable(),
-      stream: [DEFEAT_OP_END],
-      intro: [INTRO_OP_END],
-      introEntryX: INTRO_ENTRY_X_CENTRE,
-      barrier: emptyBarrier(),
-      projectile: emptyProjectile(),
-      phases: [0],
-      zones: [0],
-      pathSel: [] as number[],
-      deathFx: [0, 0, 0, 0],
-      deathSoundIndex: 0,
-      cells: [0, 0],
-      cellsDelta: [0],
-    };
-    if (bosses.length > 1) {
-      console.warn(`MSX2 bitmap room "${room.name}": only 1 boss per room is supported; extra ones were skipped.`);
+    if (bosses.length > BITMAP_BOSS_MAX_INSTANCES) {
+      console.warn(`MSX2 bitmap room "${room.name}": at most ${BITMAP_BOSS_MAX_INSTANCES} bitmap bosses are supported; extra ones were skipped.`);
     }
-    const entity = bosses[0];
+    const selectedBosses = bosses.slice(0, BITMAP_BOSS_MAX_INSTANCES);
+    while (selectedBosses.length < BITMAP_BOSS_MAX_INSTANCES) selectedBosses.push(undefined as any);
+    const entries = selectedBosses.map(entity => entity ? buildEntry(room, entity) : emptyEntry());
+    return { entries };
+  });
+
+  function buildEntry(room: { name: string; entities?: any[]; atlas?: { entries?: any[] } }, entity: any) {
     // Phase C: a placed boss may either carry its settings inline (legacy) or
     // reference a reusable BossDefinition asset via `bossId` / `bossDefinitionId`
     // and override a few of them per encounter. Encounter values win, so the
@@ -804,21 +818,7 @@ export function buildBitmapRoomBossData(
       })();
     if (!bodySource.rect) {
       console.warn(`MSX2 bitmap room "${room.name}": boss ${bodySource.label} not found; boss disabled in this room.`);
-      return {
-        table: emptyTable(),
-        stream: [DEFEAT_OP_END],
-        intro: [INTRO_OP_END],
-        introEntryX: INTRO_ENTRY_X_CENTRE,
-        barrier: emptyBarrier(),
-        projectile: emptyProjectile(),
-        phases: [0],
-        zones: [0],
-        pathSel: [] as number[],
-        deathFx: [0, 0, 0, 0],
-        deathSoundIndex: 0,
-        cells: [0, 0],
-        cellsDelta: [0],
-      };
+      return emptyEntry();
     }
     // A sparse Stamp variant owns the frame count and keeps every frame at the
     // base grid size. Legacy stamps still use a horizontal strip and the
@@ -900,21 +900,7 @@ export function buildBitmapRoomBossData(
     }
     if (Math.floor(stripW / frames) < 16 || stripH < 16 || Math.floor(stripW / frames) > 128 || stripH > 96) {
       console.warn(`MSX2 bitmap room "${room.name}": boss ${bodySource.label} is ${stripW}x${stripH} for ${frames} frame(s); per-frame size must be 16..128 x 16..96. Boss disabled in this room.`);
-      return {
-        table: emptyTable(),
-        stream: [DEFEAT_OP_END],
-        intro: [INTRO_OP_END],
-        introEntryX: INTRO_ENTRY_X_CENTRE,
-        barrier: emptyBarrier(),
-        projectile: emptyProjectile(),
-        phases: [0],
-        zones: [0],
-        pathSel: [] as number[],
-        deathFx: [0, 0, 0, 0],
-        deathSoundIndex: 0,
-        cells: [0, 0],
-        cellsDelta: [0],
-      };
+      return emptyEntry();
     }
     const animDelay = clampInt(params.bossAnimDelay, 1, 255, 12);
     const hp = clampInt(params.bossHp, 1, 255, 8);
@@ -1001,6 +987,7 @@ export function buildBitmapRoomBossData(
     // Phase D projectiles: optional small bitmap bullet the boss fires at the
     // player (HMMM-blitted, no hardware sprites).
     const projectile = resolveProjectile(params, room, even);
+    const laser = resolveLaser(params, room, even, bodyStampPlacements);
     // Phase D attack phases: HP thresholds that retune the firing cadence.
     const phases = buildPhaseTable(params.bossPhases, hp, projectile, room.name);
     // Phase E damage zones: weak points / armour, in boss-local pixels.
@@ -1062,7 +1049,9 @@ export function buildBitmapRoomBossData(
         blastRect[0] & 0xff, blastRect[1] & 0xff,   // sx word
         blastRect[2] & 0xff, blastRect[3] & 0xff,   // sy word
         blastRect[4] & 0xff, blastRect[5] & 0xff,   // w, h
+        ...laser,
       ],
+      laser,
       stream,
       intro,
       // Where the player is walked to on entry. Empty / non-numeric means the
@@ -1081,27 +1070,33 @@ export function buildBitmapRoomBossData(
       cells: cellBlob.length ? cellBlob : [0, 0],
       cellsDelta: cellDeltaBlob.length ? cellDeltaBlob : [0],
     };
-  });
+  }
+  const perRoomPrimary = perRoom.map(room => room.entries[0]);
   return {
     enabled,
-    roomTables: perRoom.map(entry => entry.table),
-    defeatStreams: perRoom.map(entry => entry.stream),
-    introStreams: perRoom.map(entry => entry.intro),
-    introEntryX: perRoom.map(entry => entry.introEntryX),
+    roomTables: perRoom.map(room => room.entries.flatMap(entry => entry.table)),
+    defeatStreams: perRoom.flatMap(room => room.entries.map(entry => entry.stream)),
+    // Legacy shape: introStreams: perRoom.map(entry => entry.intro)
+    introStreams: perRoomPrimary.map(entry => entry.intro),
+    // Room Lock remains a single shared player gate. Boss slot 0 owns it.
+    introEntryX: perRoomPrimary.map(entry => entry.introEntryX),
     flagNames,
-    barrierTables: perRoom.map(entry => entry.barrier),
-    projectileTables: perRoom.map(entry => entry.projectile),
-    phaseTables: perRoom.map(entry => entry.phases),
-    damageZoneTables: perRoom.map(entry => entry.zones),
+    barrierTables: perRoomPrimary.map(entry => entry.barrier),
+    projectileTables: perRoom.flatMap(room => room.entries.map(entry => entry.projectile)),
+    phaseTables: perRoom.flatMap(room => room.entries.map(entry => entry.phases)),
+    damageZoneTables: perRoom.flatMap(room => room.entries.map(entry => entry.zones)),
     pathStreams,
     pathModes,
-    pathSelTables: perRoom.map(entry => entry.pathSel),
+    pathSelTables: perRoom.flatMap(room => room.entries.map(entry => entry.pathSel)),
     shootRecords,
-    deathFxTables: stripDeathFxAnimHeader(perRoom.map(entry => entry.deathFx)),
-    deathSoundIndexes: perRoom.map(entry => entry.deathSoundIndex),
-    cellTables: perRoom.map(entry => entry.cells),
-    cellDeltaTables: perRoom.map(entry => entry.cellsDelta),
+    // Legacy one-boss builds used: stripDeathFxAnimHeader(perRoom.map(entry => entry.deathFx)).
+    // The runtime now receives two flat entries so each live boss can own FX.
+    deathFxTables: stripDeathFxAnimHeader(perRoom.flatMap(room => room.entries.map(entry => entry.deathFx))),
+    deathSoundIndexes: perRoom.flatMap(room => room.entries.map(entry => entry.deathSoundIndex)),
+    cellTables: perRoom.flatMap(room => room.entries.map(entry => entry.cells)),
+    cellDeltaTables: perRoom.flatMap(room => room.entries.map(entry => entry.cellsDelta)),
     deathSoundStreams,
+    laserTables: perRoom.flatMap(room => room.entries.map(entry => entry.laser)),
   };
 }
 
@@ -1477,6 +1472,66 @@ function resolveProjectile(params: any, room: { name: string; atlas?: { entries?
 }
 
 /**
+ * Resolve the compact growing-laser config used by the two-boss encounter.
+ * The bitmap source is an ordinary 16x16 atlas tile. The runtime repeats that
+ * tile in 16px cells, so no extra VRAM is reserved for a stretched projectile.
+ */
+function resolveLaser(
+  params: any,
+  room: { name: string; atlas?: { entries?: any[] } },
+  even: (v: number) => number,
+  bodyStampPlacements: Map<string, { sx: number; sy: number; w: number; h: number }>,
+): number[] {
+  const empty = new Array(BITMAP_BOSS_LASER_STRIDE).fill(0);
+  const requestedId = String(params?.bossLaserTileId || params?.bossProjectileTileId || '').trim();
+  let entry = requestedId
+    ? (room.atlas?.entries || []).find((candidate: any) => String(candidate?.id) === requestedId)
+    : undefined;
+  let source = entry && Number(entry.w) === 16 && Number(entry.h) === 16
+    ? { sx: even(clampInt(entry.sx, 0, 4096, 0)), sy: clampInt(entry.sy, 0, 4096, 0) }
+    : undefined;
+  // A 16x16 boss may use its own body as a valid fallback laser tile. This is
+  // useful for tiny bitmap bosses authored without a separate projectile tile.
+  if (!source && !requestedId) {
+    const stampId = String(params?.bossStampAssetId || '').trim();
+    const stamp = stampId
+      ? (bodyStampPlacements.get(stampId) || bodyStampPlacements.get(bossBodyCellKey(stampId, 0)))
+      : undefined;
+    if (stamp && stamp.w === 16 && stamp.h === 16) source = { sx: even(stamp.sx), sy: stamp.sy };
+    if (!source) {
+      const atlasId = String(params?.bossAtlasEntryId || '').trim();
+      entry = atlasId
+        ? (room.atlas?.entries || []).find((candidate: any) => String(candidate?.id) === atlasId)
+        : undefined;
+      if (entry && Number(entry.w) === 16 && Number(entry.h) === 16) {
+        source = { sx: even(clampInt(entry.sx, 0, 4096, 0)), sy: clampInt(entry.sy, 0, 4096, 0) };
+      }
+    }
+  }
+  if (!source) {
+    if (requestedId) {
+      console.warn(`MSX2 bitmap room "${room.name}": boss laser tile "${requestedId}" is missing or not 16x16; lasers disabled for this boss.`);
+    }
+    return empty;
+  }
+  const interval = clampInt(params?.bossLaserInterval ?? params?.bossShootInterval, 1, 255, 90);
+  const maxLengthPx = clampInt(params?.bossLaserMaxLengthPx, 16, 240, 128);
+  const maxSegments = Math.max(1, Math.min(15, Math.floor(maxLengthPx / 16)));
+  // Bit order is N, E, S, W. The raw JSON field is intentionally usable before
+  // the editor grows a dedicated control; omitting it keeps the four-way
+  // encounter used by the fixture and old hand-authored projects.
+  const mask = clampInt(params?.bossLaserDirectionMask, 0, 0x0f, 0x0f);
+  return [
+    1,
+    source.sx & 0xff, (source.sx >> 8) & 0xff,
+    (512 + source.sy) & 0xff, ((512 + source.sy) >> 8) & 0xff,
+    interval & 0xff,
+    maxSegments & 0xff,
+    mask,
+  ];
+}
+
+/**
  * Compile the bitmap stamps used by the boss death presentation. The shared
  * atlas already owns their pixels, so each record only needs the VDP source
  * rectangle. Runtime destination coordinates are chosen inside the live body.
@@ -1631,6 +1686,8 @@ export function buildBitmapBossSystemAsm(
     };
   }
   const roomCount = data.roomTables.length;
+  const bossInstanceCount = BITMAP_BOSS_MAX_INSTANCES;
+  const roomTableBytes = BITMAP_BOSS_TABLE_STRIDE * bossInstanceCount;
   const roomPoolCount = Math.max(1, Math.min(roomCount, Math.floor(Number(opts.roomPoolCount) || roomCount)));
   const roomPoolIndexLoad = opts.roomPoolIndexLabel
     ? `ld a, (${opts.roomPoolIndexLabel})`
@@ -1669,7 +1726,10 @@ export function buildBitmapBossSystemAsm(
   // Weak-point hit blast: only emitted when a boss actually asked for it, so a
   // project without it keeps a byte-identical ROM. The compiler already cleared
   // the byte for a boss with no Death FX stamp to borrow.
-  const hasHitBlast = (data.roomTables || []).some(t => t && t[0] === 1 && t[20] > 0);
+  const hasHitBlast = (data.roomTables || []).some(t =>
+    t && Array.from({ length: bossInstanceCount }, (_v, slot) => slot * BITMAP_BOSS_TABLE_STRIDE)
+      .some(offset => t[offset] === 1 && t[offset + 20] > 0),
+  );
   // Per-zone hit sounds. Independent of the death explosion: a boss may have
   // zone sounds and no death sound, or the other way round.
   const hasZoneSfx = (data.damageZoneTables || []).some(table => {
@@ -1684,7 +1744,8 @@ export function buildBitmapBossSystemAsm(
   const hasShowMessage = streamHas(DEFEAT_OP_SHOW_MESSAGE);
   const hasChangeScreen = streamHas(DEFEAT_OP_CHANGE_SCREEN);
   const hasDefeatActions = flagCount > 0 || hasGiveKey || hasOpenDoor || hasShowMessage || hasChangeScreen;
-  const flagsBase = ram + 28 + roomPoolCount;
+  const defeatedBytes = roomPoolCount * bossInstanceCount;
+  const flagsBase = ram + 28 + defeatedBytes;
   // Phase B chain barrier: only emitted when at least one room configures a
   // bossBarrierTileId, so bosses without a chain keep byte-identical ROMs.
   const hasBarrier = (data.barrierTables || []).some(t => t && t[0] === 1);
@@ -1751,6 +1812,7 @@ export function buildBitmapBossSystemAsm(
   const hasSpriteProjectiles = tables.some(t => t && t[0] === 1 && t[10] === 1)
     && !!sprites && sprites.maxSlots > 0;
   const hasProjectiles = hasBitmapProjectiles || hasSpriteProjectiles;
+  const hasLaser = (data.laserTables || []).some(t => t && t[0] === 1);
   const projScratchY = opts.projScratchBaseY || 0;
   const spriteSlots = hasSpriteProjectiles ? (sprites as BitmapBossSpriteBulletOptions).maxSlots : 0;
   const spriteFrameCount = hasSpriteProjectiles
@@ -1810,19 +1872,40 @@ export function buildBitmapBossSystemAsm(
   const DEATH_SFX_RAM_BYTES = 4; // pooled stream: active, timer, pointer word
   const HIT_BLAST_RAM_BYTES = 4; // countdown, authored length, and the hit zone's centre
   const hitBlastRamBase = deathSfxRamBase + (hasPooledSfx ? DEATH_SFX_RAM_BYTES : 0);
+  // Selected-boss laser state: mask, four segment lengths, cooldown, plus two
+  // bytes used while restoring a direction range from the clean page.
+  const LASER_RAM_BYTES = 8;
+  const laserRamBase = hitBlastRamBase + (hasHitBlast ? HIT_BLAST_RAM_BYTES : 0);
   // MegaROM: the room record is staged out of its data bank into RAM.
   // FASE 3b: which frame is currently ON SCREEN, so a redraw can repaint only
   // the cells that differ. #FF = nothing drawn yet, so the next draw is full.
   const CELLS_RAM_BYTES = 1;
-  const cellsRamBase = hitBlastRamBase + (hasHitBlast ? HIT_BLAST_RAM_BYTES : 0);
+  const cellsRamBase = laserRamBase + (hasLaser ? LASER_RAM_BYTES : 0);
   const bankedTables = opts.bankedTables === true;
+  // The legacy routines keep one selected boss in the named RAM fields. Two
+  // independent bosses are implemented by swapping that selected state around
+  // the existing renderer; the VDP command block remains shared and therefore
+  // still serialises HMMM work safely.
+  const INSTANCE_STATE_BYTES = 13
+    + (hasBossCells ? 1 : 0)
+    + (hasProjectiles ? 9 : 0)
+    + (hasFallingRocks ? 1 : 0)
+    + (hasPaths ? 7 : 0)
+    + (hasShoots ? 10 : 0)
+    + (hasDeathFx ? 3 + (hasDeathAnim ? DEATH_ANIM_SLOTS * DEATH_ANIM_SLOT_BYTES + 2 : 0) : 0)
+    + (hasHitBlast ? HIT_BLAST_RAM_BYTES : 0)
+    + (hasLaser ? 6 : 0);
+  const instanceSelectorAddr = cellsRamBase + (hasBossCells ? CELLS_RAM_BYTES : 0);
+  const instanceStateBase = instanceSelectorAddr + 1;
   const totalRamBytes = baseRamBytes + (hasIntro ? INTRO_RAM_BYTES : 0)
     + (hasDeathFx ? DEATH_RAM_BYTES : 0)
     + (hasPooledSfx ? DEATH_SFX_RAM_BYTES : 0)
     + (hasHitBlast ? HIT_BLAST_RAM_BYTES : 0)
+    + (hasLaser ? LASER_RAM_BYTES : 0)
     + (hasBossCells ? CELLS_RAM_BYTES : 0)
-    + (bankedTables ? BITMAP_BOSS_TABLE_STRIDE : 0);
-  const bossTableBufAddr = opts.ramBase + totalRamBytes - BITMAP_BOSS_TABLE_STRIDE;
+    + 1 + INSTANCE_STATE_BYTES * bossInstanceCount
+    + (bankedTables ? roomTableBytes : 0);
+  const bossTableBufAddr = opts.ramBase + totalRamBytes - (bankedTables ? roomTableBytes : 0);
   // Pre-rendered so the data template stays readable: one ring slot per row,
   // dx then dy, each an 8.8 little-endian word.
   const shootDirRows = (() => {
@@ -1886,7 +1969,7 @@ export function buildBitmapBossSystemAsm(
 
   const equates = `
 ; ---- bitmap BOSS runtime state (${totalRamBytes} bytes) ----
-${bankedTables ? `bitmap_boss_table_buf EQU ${asmWord(bossTableBufAddr)}   ; room record staged out of its bank
+${bankedTables ? `bitmap_boss_table_buf EQU ${asmWord(bossTableBufAddr)}   ; two room records staged out of their bank
 ` : ''}
 boss_active     EQU ${asmWord(ram + 0)}   ; 0 none, 1 alive, 2 death FX
 boss_x          EQU ${asmWord(ram + 1)}
@@ -1902,7 +1985,10 @@ boss_int_tick   EQU ${asmWord(ram + 10)}
 boss_sx         EQU ${asmWord(ram + 11)}  ; word: current frame atlas SX
 boss_cmd_buf    EQU ${asmWord(ram + 13)}  ; 15-byte V9938 command block
 ${!hasBossCells ? '' : `boss_cells_shown EQU ${asmWord(cellsRamBase)}  ; frame currently on screen, #FF = none
-`}boss_defeated   EQU ${asmWord(ram + 28)}  ; ${roomPoolCount} active-world bytes, 1 = killed
+`}boss_defeated   EQU ${asmWord(ram + 28)}  ; ${defeatedBytes} active-world/instance bytes, 1 = killed
+boss_slot       EQU ${asmWord(instanceSelectorAddr)} ; selected boss instance (0 or 1)
+boss_instance_state EQU ${asmWord(instanceStateBase)} ; saved selected-state blocks
+BOSS_INSTANCE_STATE_BYTES EQU ${INSTANCE_STATE_BYTES}
 ${hasDefeatActions ? `boss_flags      EQU ${asmWord(flagsBase)}  ; ${flagCount} bytes, onDefeated setFlag targets (persistent)\n` : ''}${hasBarrier ? `boss_barrier_draw EQU ${asmWord(barrierRamBase)}  ; 0 = clear, 1 = seal, 2 = repaint sealed cells
 boss_barrier_sx EQU ${asmWord(barrierRamBase + 1)}  ; word: chain tile atlas SX
 boss_barrier_sy EQU ${asmWord(barrierRamBase + 3)}  ; word: chain tile atlas SY (512-based)
@@ -1962,6 +2048,14 @@ boss_death_sfx_ptr EQU ${asmWord(deathSfxRamBase + 2)}  ; word: next compact cha
 boss_blast_len  EQU ${asmWord(hitBlastRamBase + 1)}  ; authored hold, cached from the room table at load
 boss_blast_x    EQU ${asmWord(hitBlastRamBase + 2)}  ; centre of the zone that was hit, boss-local px
 boss_blast_y    EQU ${asmWord(hitBlastRamBase + 3)}
+` : ''}${hasLaser ? `boss_laser_mask EQU ${asmWord(laserRamBase + 0)}  ; bits N,E,S,W
+boss_laser_n    EQU ${asmWord(laserRamBase + 1)}  ; growing segment count
+boss_laser_e    EQU ${asmWord(laserRamBase + 2)}
+boss_laser_s    EQU ${asmWord(laserRamBase + 3)}
+boss_laser_w    EQU ${asmWord(laserRamBase + 4)}
+boss_laser_cd   EQU ${asmWord(laserRamBase + 5)}  ; frames to next wave
+boss_laser_tmp_count EQU ${asmWord(laserRamBase + 6)}
+boss_laser_tmp_dir   EQU ${asmWord(laserRamBase + 7)}
 ` : ''}`;
 
   // Persistent state must start at zero: boss_defeated decides whether a boss
@@ -1969,7 +2063,7 @@ boss_blast_y    EQU ${asmWord(hitBlastRamBase + 3)}
   // loads on purpose, so the per-room load path cannot clear them.
   const initAsm = `    ; Boss persistent state (defeated flags${hasDefeatActions ? ' + defeat action flags' : ''}).
     xor a
-${Array.from({ length: roomPoolCount }, (_v, i) => `    ld (boss_defeated + ${i}), a`).join('\n')}
+${Array.from({ length: defeatedBytes }, (_v, i) => `    ld (boss_defeated + ${i}), a`).join('\n')}
 ${hasDefeatActions ? Array.from({ length: flagCount }, (_v, i) => `    ld (boss_flags + ${i}), a`).join('\n') + '\n' : ''}${hasIntro ? `    ld (boss_intro_state), a
     ld (boss_intro_auto_move), a
     ld (boss_intro_target_x), a
@@ -2054,7 +2148,89 @@ ${hasDeathAnim ? Array.from({ length: DEATH_ANIM_SLOTS }, (_v, i) => `    ld (bo
 `
     : '';
 
+  // Keep the existing renderer single-selected and swap its mutable state for
+  // each room boss. Shared intro/barrier/audio state deliberately stays out.
+  const stateByteFields = [
+    'boss_active', 'boss_x', 'boss_y', 'boss_old_x', 'boss_old_y',
+    'boss_dx', 'boss_dy', 'boss_hp', 'boss_anim_tick', 'boss_anim_frame',
+    'boss_int_tick',
+  ];
+  const stateWordFields = ['boss_sx'];
+  if (hasBossCells) stateByteFields.push('boss_cells_shown');
+  if (hasProjectiles) stateByteFields.push(
+    'boss_proj_active', 'boss_proj_x', 'boss_proj_y', 'boss_proj_ox',
+    'boss_proj_oy', 'boss_proj_dx', 'boss_proj_dy', 'boss_proj_cd',
+    'boss_phase_speed',
+  );
+  if (hasFallingRocks) stateByteFields.push('boss_rock_seed');
+  if (hasPaths) {
+    stateWordFields.push('boss_path_ptr', 'boss_path_cur');
+    stateByteFields.push('boss_path_wait', 'boss_path_idx', 'boss_path_fire_mode');
+  }
+  if (hasShoots) stateByteFields.push(
+    'boss_shoot_dir', 'boss_shoot_spd', 'boss_shoot_cnt', 'boss_shoot_off',
+    'boss_shoot_step', 'boss_sbul_dxf', 'boss_sbul_dyf', 'boss_burst_idx',
+    'boss_burst_left', 'boss_burst_cd',
+  );
+  if (hasDeathFx) {
+    stateByteFields.push('boss_death_left', 'boss_death_tick', 'boss_death_seed');
+    if (hasDeathAnim) {
+      for (let i = 0; i < DEATH_ANIM_SLOTS; i++) {
+        for (let byte = 0; byte < DEATH_ANIM_SLOT_BYTES; byte++) {
+          stateByteFields.push(`boss_death_slots + ${i * DEATH_ANIM_SLOT_BYTES + byte}`);
+        }
+      }
+      stateWordFields.push('boss_death_ptr');
+    }
+  }
+  if (hasHitBlast) stateByteFields.push('boss_blast_timer', 'boss_blast_len', 'boss_blast_x', 'boss_blast_y');
+  if (hasLaser) stateByteFields.push('boss_laser_mask', 'boss_laser_n', 'boss_laser_e', 'boss_laser_s', 'boss_laser_w', 'boss_laser_cd');
+  const stateCopyAsm = (load: boolean): string => {
+    const byteLines = stateByteFields.map(field => load
+      ? `    ld a, (de)\n    ld (${field}), a\n    inc de`
+      : `    ld a, (${field})\n    ld (de), a\n    inc de`);
+    const wordLines = stateWordFields.map(field => load
+      ? `    ld a, (de)\n    ld (${field}), a\n    inc de\n    ld a, (de)\n    ld (${field} + 1), a\n    inc de`
+      : `    ld hl, (${field})\n    ld a, l\n    ld (de), a\n    inc de\n    ld a, h\n    ld (de), a\n    inc de`);
+    const body = [...byteLines, ...wordLines].join('\n');
+    const stateOp = load ? 'load' : 'save';
+    return `
+bitmap_boss_state_${stateOp}:
+    ld a, (boss_slot)
+    or a
+    jr nz, .state_${stateOp}_slot1
+    ld de, boss_instance_state
+    jr .state_${stateOp}_copy
+.state_${stateOp}_slot1:
+    ld de, boss_instance_state + BOSS_INSTANCE_STATE_BYTES
+.state_${stateOp}_copy:
+${body}
+    ret
+`;
+  };
+  const stateLoadAsm = stateCopyAsm(true);
+  const stateSaveAsm = stateCopyAsm(false);
+
   const routinesAsm = `
+${stateLoadAsm}${stateSaveAsm}
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_load
+; PURPOSE: Load both independent boss instances for the current room. The
+;   selected renderer is reused serially; each instance keeps its own state.
+; ------------------------------------------------------------
+bitmap_boss_load:
+    xor a
+    ld (boss_slot), a
+    call bitmap_boss_load_one
+    call bitmap_boss_state_save
+    ld a, 1
+    ld (boss_slot), a
+    call bitmap_boss_load_one
+    call bitmap_boss_state_save
+    xor a
+    ld (boss_slot), a
+    jp bitmap_boss_state_load
+
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_load
 ; ------------------------------------------------------------
@@ -2064,7 +2240,7 @@ ${hasDeathAnim ? Array.from({ length: DEATH_ANIM_SLOTS }, (_v, i) => `    ld (bo
 ; INPUT: current_screen_index. OUTPUT: boss state RAM.
 ; DESTROYS: AF, BC, DE, HL.
 ; ------------------------------------------------------------
-bitmap_boss_load:
+bitmap_boss_load_one:
 ${bankedRoomData ? `    ; The room-load path streams banked resources (music, RLE) and leaves P2
     ; pointing at the last one. Every table read below lives in resident bank 2,
     ; so map it back in first: reading them through the music bank yields
@@ -2073,16 +2249,35 @@ ${bankedRoomData ? `    ; The room-load path streams banked resources (music, RL
     call bitmap_room_restore_resident_banks
 ` : ''}    xor a
     ld (boss_active), a
-${hasIntro ? `    ld (boss_intro_state), a
+${hasLaser ? `    ld (boss_laser_mask), a
+    ld (boss_laser_n), a
+    ld (boss_laser_e), a
+    ld (boss_laser_s), a
+    ld (boss_laser_w), a
+    ld (boss_laser_cd), a
+` : ''}
+${hasIntro ? `    ld a, (boss_slot)
+    or a
+    jr nz, .load_skip_intro_reset
+    ld (boss_intro_state), a
     ld (boss_intro_auto_move), a
+.load_skip_intro_reset:
 ` : ''}${hasDeathFx ? `    ld (boss_death_left), a
     ld (boss_death_tick), a
-` : ''}${hasBarrier ? `    ld (boss_barrier_draw), a
+` : ''}${hasBarrier ? `    ld a, (boss_slot)
+    or a
+    jr nz, .load_skip_barrier_reset
+    ld (boss_barrier_draw), a
     ld (boss_barrier_pending), a
+.load_skip_barrier_reset:
 ` : ''}${!hasBossCells ? '' : `    ld a, #FF
     ld (boss_cells_shown), a   ; nothing of this boss is on screen yet: draw it whole
     xor a
 `}    ${roomPoolIndexLoad}
+    add a, a
+    ld e, a
+    ld a, (boss_slot)
+    add a, e
     ld e, a
     ld d, 0
     ld hl, boss_defeated
@@ -2109,7 +2304,7 @@ ${bankedTables ? `    ; Records are banked. Stage this room's ${BITMAP_BOSS_TABL
     ld l, a
     ld de, bitmap_boss_table_buf
     ld a, c
-    ld bc, ${BITMAP_BOSS_TABLE_STRIDE}
+    ld bc, ${roomTableBytes}
     call bitmap_copy_banked_to_ram
     pop bc
     ld hl, bitmap_boss_table_buf` : `    ld a, (current_screen_index)
@@ -2122,9 +2317,18 @@ ${bankedTables ? `    ; Records are banked. Stage this room's ${BITMAP_BOSS_TABL
     inc hl
     ld h, (hl)
     ld l, a`}                    ; HL -> room boss table
+    ld a, (boss_slot)
+    or a
+    jr z, .load_table_slot_ready
+    ld de, ${BITMAP_BOSS_TABLE_STRIDE}
+    add hl, de
+.load_table_slot_ready:
     ld a, (hl)
     or a
-    ret z                      ; no boss in this room
+    jr nz, .boss_room_record_present
+    call bitmap_boss_mark_absent
+    ret                         ; no boss in this room / empty second slot
+.boss_room_record_present:
     push hl
     pop ix
     ld a, 1
@@ -2153,6 +2357,30 @@ ${hasHitBlast ? `    ld (boss_blast_timer), a   ; never enter a room mid-blast
     ld l, (ix+9)
     ld h, (ix+10)
     ld (boss_sx), hl           ; frame 0 source X
+${hasLaser ? `    ; Each boss owns its laser timer. Offset slot 1 by half a cadence
+    ; so the usual two-boss wave does not stack all eight HMMM cells at once.
+    call bitmap_boss_laser_config_ix
+    ld a, (hl)
+    or a
+    jr z, .boss_laser_load_done
+    inc hl
+    inc hl
+    inc hl
+    inc hl
+    inc hl
+    ld a, (hl)                 ; interval
+    ld c, a
+    ld a, (boss_slot)
+    or a
+    jr z, .boss_laser_cd_ready
+    ld a, c
+    srl a
+    jr nz, .boss_laser_cd_ready
+    inc a
+.boss_laser_cd_ready:
+    ld (boss_laser_cd), a
+.boss_laser_load_done:
+` : ''}
     ; ---- clean-background snapshot (once per room entry) ----
     ; The boss repairs the background it uncovers by copying strips from the
     ; page it is NOT drawing on. After a room flip that page still holds the
@@ -2202,7 +2430,11 @@ ${hasFallingRocks ? `    ; Seed the drop-column PRNG from the BIOS frame counter
     ${hasFallingRocks ? `cp 1                       ; kind 2 (rocks) must NOT load sprite bullets
     call z, bitmap_boss_sbul_load    ; upload bullet pattern/colours, clear pool` : `or a
     call nz, bitmap_boss_sbul_load   ; upload bullet pattern/colours, clear pool`}
-` : ''}` : ''}${hasIntro ? `    call bitmap_boss_intro_begin
+` : ''}` : ''}${hasIntro ? `    ld a, (boss_slot)
+    or a
+    jr nz, .load_skip_intro_begin
+    call bitmap_boss_intro_begin
+.load_skip_intro_begin:
     ; The mandatory auto-walk and subsequent Room Lock own the first frames.
     ; Draw the stationary body once; movement/shoot/contact start only at END.
     call bitmap_boss_table_ix
@@ -2213,6 +2445,27 @@ ${hasFallingRocks ? `    ; Seed the drop-column PRNG from the BIOS frame counter
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_update
 ; ------------------------------------------------------------
+; The public entry point swaps and updates both saved instances.
+bitmap_boss_update:
+    ld a, (boss_slot)
+    push af
+    xor a
+    ld (boss_slot), a
+    call bitmap_boss_state_load
+    call bitmap_boss_update_one
+    call bitmap_boss_state_save
+    ld a, 1
+    ld (boss_slot), a
+    call bitmap_boss_state_load
+    call bitmap_boss_update_one
+    call bitmap_boss_state_save
+    pop af
+    ld (boss_slot), a
+    jp bitmap_boss_state_load
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_update_one
+; ------------------------------------------------------------
 ; PURPOSE: Per-frame boss brain: cadence gate, patrol move with bounce,
 ;   animation step, VDP redraw (strip restore + HMMM body), player
 ;   contact damage. The blit budget is the one verified by the
@@ -2222,7 +2475,7 @@ ${hasFallingRocks ? `    ; Seed the drop-column PRNG from the BIOS frame counter
 ; OUTPUT: VRAM page 0 updated; player_health/player_invuln on contact.
 ; DESTROYS: AF, BC, DE, HL, IX.
 ; ------------------------------------------------------------
-bitmap_boss_update:
+bitmap_boss_update_one:
 ${hasPooledSfx ? `    call bitmap_boss_death_sfx_tick  ; pooled channel-C audio (death + zone hits) advances once per frame, in every boss state
 ` : ''}${pauseGate}${hasHitBlast ? `    ; Blast countdown, in real frames so the authored number means what it says.
     ; Guarded: decrementing an idle 0 would wrap to 255 and leave the explosion
@@ -2242,7 +2495,12 @@ ${hasDeathFx ? `    cp 2
 ` : ''}
 ${hasIntro ? `    ld a, (boss_intro_state)
     or a
-    jp z, .boss_intro_finished
+    jr z, .boss_intro_finished
+    ; Slot 0 owns the room-wide Room Lock. Slot 1 keeps its body parked until
+    ; that lock/dialogue has completed, then joins the fight.
+    ld a, (boss_slot)
+    or a
+    ret nz
     jp bitmap_boss_intro_frame
 .boss_intro_finished:
 ` : ''}
@@ -2251,6 +2509,9 @@ ${hasBarrier ? `    ; The chain could not seal the doorway the player entered th
     ; carrying the #80 marker cost one compare each (#80 & #BF is non-zero,
     ; so bitmap_boss_barrier_cell returns before touching the VDP), and the
     ; sweep stops as soon as a pass leaves nothing pending.
+    ld a, (boss_slot)
+    or a
+    jp nz, .no_barrier_resweep
     ld a, (boss_barrier_pending)
     or a
     jp z, .no_barrier_resweep
@@ -2260,6 +2521,11 @@ ${hasBarrier ? `    ; The chain could not seal the doorway the player entered th
     call bitmap_boss_barrier_apply   ; reseals whatever the player has left
 .no_barrier_resweep:
 ` : ''}    call bitmap_boss_table_ix  ; IX -> room table (preserves state regs)
+${hasLaser ? `    call bitmap_boss_laser_tick
+    ld a, (boss_laser_mask)
+    or a
+    jp nz, bitmap_boss_touch     ; firing freezes this boss, but not the other slot
+` : ''}
     ; VDP load balancing (enemy-style): the body only moves/redraws every
     ; (ix+19) frames (default 3); the projectile blits run on the OTHER frames,
     ; so a single frame never pays for both the big body HMMM and a bullet.
@@ -2385,6 +2651,20 @@ ${hasProjectiles ? `    push ix
 ; PURPOSE: IX = current room's boss table entry.
 ; DESTROYS: AF, DE, HL (IX result).
 ; ------------------------------------------------------------
+bitmap_boss_mark_absent:
+    ${roomPoolIndexLoad}
+    add a, a
+    ld e, a
+    ld a, (boss_slot)
+    add a, e
+    ld e, a
+    ld d, 0
+    ld hl, boss_defeated
+    add hl, de
+    ld a, 1
+    ld (hl), a
+    ret
+
 bitmap_boss_table_ix:
     ; Keep the live-body lookup self-contained. This routine is used while a
     ; room is loading and before the death runtime exists; sharing the bullet
@@ -2408,7 +2688,7 @@ ${bankedTables ? `    ; Records are banked. Stage this room's ${BITMAP_BOSS_TABL
     ld l, a
     ld de, bitmap_boss_table_buf
     ld a, c
-    ld bc, ${BITMAP_BOSS_TABLE_STRIDE}
+    ld bc, ${roomTableBytes}
     call bitmap_copy_banked_to_ram
     pop bc
     ld hl, bitmap_boss_table_buf` : `    ld a, (current_screen_index)
@@ -2421,9 +2701,589 @@ ${bankedTables ? `    ; Records are banked. Stage this room's ${BITMAP_BOSS_TABL
     inc hl
     ld h, (hl)
     ld l, a`}
+    ld a, (boss_slot)
+    or a
+    jr z, .table_ix_slot_ready
+    ld de, ${BITMAP_BOSS_TABLE_STRIDE}
+    add hl, de
+.table_ix_slot_ready:
     push hl
     pop ix
     ret
+
+${hasLaser ? `; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_laser_config_ix
+; PURPOSE: Resolve the current room + selected boss laser record.
+; OUTPUT: HL -> [present,sxLo,sxHi,syLo,syHi,interval,maxSegments,mask].
+; ------------------------------------------------------------
+bitmap_boss_laser_config_ix:
+    ; The laser suffix is embedded in the live 35-byte boss record:
+    ; present..blastRect occupy bytes 0..26, laser starts at byte 27.
+    push ix
+    pop hl
+    ld de, 27
+    add hl, de
+    ret
+
+; Start one wave. A=direction mask; an already active wave is left alone.
+bitmap_boss_laser_start:
+    ld b, a
+    ld a, (boss_laser_mask)
+    or a
+    ret nz
+    ld a, b
+    or a
+    jr nz, .boss_laser_start_mask
+    call bitmap_boss_laser_config_ix
+    ld de, 7
+    add hl, de
+    ld a, (hl)
+.boss_laser_start_mask:
+    ld (boss_laser_mask), a
+    xor a
+    ld (boss_laser_n), a
+    ld (boss_laser_e), a
+    ld (boss_laser_s), a
+    ld (boss_laser_w), a
+    ret
+
+; Tick one growing wave. A boss with a non-zero mask does not enter the body
+; movement path; the other selected instance is still updated by the public
+; two-slot dispatcher.
+bitmap_boss_laser_tick:
+    call bitmap_boss_laser_config_ix
+    ld a, (hl)
+    or a
+    ret z
+    ld a, (boss_laser_mask)
+    or a
+    jr nz, .boss_laser_grow
+${hasPaths ? `    ld a, (boss_path_fire_mode)
+    or a
+    ret nz                      ; path-mode firing is node-driven
+` : ''}    ld a, (boss_laser_cd)
+    or a
+    jr z, .boss_laser_start_auto
+    dec a
+    ld (boss_laser_cd), a
+    ret
+.boss_laser_start_auto:
+    ld de, 7
+    add hl, de
+    ld a, (hl)
+    call bitmap_boss_laser_start
+.boss_laser_grow:
+    call bitmap_boss_laser_config_ix
+    ld de, 6
+    add hl, de
+    ld c, (hl)                   ; maximum segment count
+    ld a, (boss_laser_mask)
+    or a
+    jr z, .boss_laser_wave_done
+    bit 0, a
+    jr z, .laser_check_e
+    ld a, (boss_laser_n)
+    cp c
+    jr c, .boss_laser_grow_segments
+.laser_check_e:
+    ld a, (boss_laser_mask)
+    bit 1, a
+    jr z, .laser_check_s
+    ld a, (boss_laser_e)
+    cp c
+    jr c, .boss_laser_grow_segments
+.laser_check_s:
+    ld a, (boss_laser_mask)
+    bit 2, a
+    jr z, .laser_check_w
+    ld a, (boss_laser_s)
+    cp c
+    jr c, .boss_laser_grow_segments
+.laser_check_w:
+    ld a, (boss_laser_mask)
+    bit 3, a
+    jr z, .boss_laser_wave_done
+    ld a, (boss_laser_w)
+    cp c
+    jr c, .boss_laser_grow_segments
+.boss_laser_wave_done:
+    call bitmap_boss_laser_restore_all
+    call bitmap_boss_laser_config_ix
+    ld de, 5
+    add hl, de
+    ld a, (hl)
+    ld (boss_laser_cd), a
+    ret
+.boss_laser_grow_segments:
+    ld a, (boss_laser_mask)
+    bit 0, a
+    jr z, .laser_grow_e
+    ld a, (boss_laser_n)
+    cp c
+    jr nc, .laser_grow_e
+    inc a
+    ld (boss_laser_n), a
+    ld b, a
+    push bc
+    xor a
+    call bitmap_boss_laser_draw_segment
+    pop bc
+    or a
+    jr nz, .laser_grow_e
+    xor a
+    call bitmap_boss_laser_blocked
+.laser_grow_e:
+    ld a, (boss_laser_mask)
+    bit 1, a
+    jr z, .laser_grow_s
+    ld a, (boss_laser_e)
+    cp c
+    jr nc, .laser_grow_s
+    inc a
+    ld (boss_laser_e), a
+    ld b, a
+    push bc
+    ld a, 1
+    call bitmap_boss_laser_draw_segment
+    pop bc
+    or a
+    jr nz, .laser_grow_s
+    ld a, 1
+    call bitmap_boss_laser_blocked
+.laser_grow_s:
+    ld a, (boss_laser_mask)
+    bit 2, a
+    jr z, .laser_grow_w
+    ld a, (boss_laser_s)
+    cp c
+    jr nc, .laser_grow_w
+    inc a
+    ld (boss_laser_s), a
+    ld b, a
+    push bc
+    ld a, 2
+    call bitmap_boss_laser_draw_segment
+    pop bc
+    or a
+    jr nz, .laser_grow_w
+    ld a, 2
+    call bitmap_boss_laser_blocked
+.laser_grow_w:
+    ld a, (boss_laser_mask)
+    bit 3, a
+    jr z, .laser_grow_done
+    ld a, (boss_laser_w)
+    cp c
+    jr nc, .laser_grow_done
+    inc a
+    ld (boss_laser_w), a
+    ld b, a
+    push bc
+    ld a, 3
+    call bitmap_boss_laser_draw_segment
+    pop bc
+    or a
+    jr nz, .laser_grow_done
+    ld a, 3
+    call bitmap_boss_laser_blocked
+.laser_grow_done:
+    ld a, (boss_laser_mask)
+    or a
+    jr nz, .laser_grow_touch
+    call bitmap_boss_laser_config_ix
+    ld de, 5
+    add hl, de
+    ld a, (hl)
+    ld (boss_laser_cd), a
+.laser_grow_touch:
+    jp bitmap_boss_laser_touch
+
+; An attempted segment fell outside the game area. Restore the valid prefix,
+; then clear only this direction; its count is ignored while the mask bit is 0.
+; A=0 N, 1 E, 2 S, 3 W. Preserves C (the configured maximum length).
+bitmap_boss_laser_blocked:
+    ld (boss_laser_tmp_dir), a
+    cp 1
+    jr c, .laser_blocked_n
+    jr z, .laser_blocked_e
+    cp 2
+    jr z, .laser_blocked_s
+    ld a, (boss_laser_w)
+    jr .laser_blocked_restore
+.laser_blocked_s:
+    ld a, (boss_laser_s)
+    jr .laser_blocked_restore
+.laser_blocked_e:
+    ld a, (boss_laser_e)
+    jr .laser_blocked_restore
+.laser_blocked_n:
+    ld a, (boss_laser_n)
+.laser_blocked_restore:
+    ld b, a
+    push bc
+    ld a, (boss_laser_tmp_dir)
+    call bitmap_boss_laser_restore_range
+    pop bc
+    ld a, (boss_laser_tmp_dir)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_boss_laser_clear_masks
+    add hl, de
+    ld b, (hl)
+    ld a, (boss_laser_mask)
+    and b
+    ld (boss_laser_mask), a
+    ret
+
+; Set the visible-page destination of a 16x16 laser cell.
+; A=0 N, 1 E, 2 S, 3 W; B=one-based segment number.
+bitmap_boss_laser_position:
+    or a
+    jr z, .laser_pos_n
+    dec a
+    jr z, .laser_pos_e
+    dec a
+    jr z, .laser_pos_s
+    jr .laser_pos_w
+.laser_pos_n:
+    ld a, b
+    call bitmap_boss_laser_mul16_a
+    ld c, a
+    ld a, (boss_y)
+    sub c
+    jr c, .laser_pos_invalid
+    add a, ${asmByte(gameY)}
+    ld l, a
+    ld a, (bitmap_displayed_page)
+    ld h, a
+    ld (boss_cmd_buf + 6), hl
+    ld a, (boss_x)
+    and #FE
+    ld (boss_cmd_buf + 4), a
+    xor a
+    ld (boss_cmd_buf + 5), a
+    ld a, 1
+    ret
+.laser_pos_e:
+    ld a, b
+    call bitmap_boss_laser_mul16_a
+    ld c, a
+    ld a, (boss_x)
+    add a, 16
+    add a, c
+    jr c, .laser_pos_invalid
+    cp 241
+    jr nc, .laser_pos_invalid
+    ld (boss_cmd_buf + 4), a
+    xor a
+    ld (boss_cmd_buf + 5), a
+    ld a, (boss_y)
+    jr .laser_pos_store_y
+.laser_pos_s:
+    ld a, b
+    call bitmap_boss_laser_mul16_a
+    ld c, a
+    ld a, (boss_y)
+    add a, 16
+    add a, c
+    cp ${Math.max(1, gameH - 15)}
+    jr nc, .laser_pos_invalid
+    ld a, (boss_x)
+    and #FE
+    ld (boss_cmd_buf + 4), a
+    xor a
+    ld (boss_cmd_buf + 5), a
+    ld a, (boss_y)
+    add a, 16
+    add a, c
+    jr .laser_pos_store_y
+.laser_pos_w:
+    ld a, b
+    call bitmap_boss_laser_mul16_a
+    ld c, a
+    ld a, (boss_x)
+    sub c
+    jr c, .laser_pos_invalid
+    ld (boss_cmd_buf + 4), a
+    xor a
+    ld (boss_cmd_buf + 5), a
+    ld a, (boss_y)
+.laser_pos_store_y:
+    add a, ${asmByte(gameY)}
+    ld l, a
+    ld a, (bitmap_displayed_page)
+    ld h, a
+    ld (boss_cmd_buf + 6), hl
+    ld a, 1
+    ret
+.laser_pos_invalid:
+    xor a
+    ret
+
+bitmap_boss_laser_draw_segment:
+    push bc
+    call bitmap_boss_laser_position
+    or a
+    jr z, .laser_draw_invalid
+    call bitmap_boss_laser_config_ix
+    inc hl
+    ld a, (hl)
+    ld (boss_cmd_buf + 0), a
+    inc hl
+    ld a, (hl)
+    ld (boss_cmd_buf + 1), a
+    inc hl
+    ld a, (hl)
+    ld (boss_cmd_buf + 2), a
+    inc hl
+    ld a, (hl)
+    ld (boss_cmd_buf + 3), a
+    ld hl, 16
+    ld (boss_cmd_buf + 8), hl
+    ld (boss_cmd_buf + 10), hl
+    xor a
+    ld (boss_cmd_buf + 12), a
+    ld (boss_cmd_buf + 13), a
+    ld a, #D0
+    ld (boss_cmd_buf + 14), a
+    call bitmap_boss_launch_cmd
+    ld a, 1
+    jr .laser_draw_done
+.laser_draw_invalid:
+    xor a
+.laser_draw_done:
+    pop bc
+    ret
+
+bitmap_boss_laser_restore_all:
+    ld a, (boss_laser_mask)
+    bit 0, a
+    jr z, .laser_restore_e
+    ld a, (boss_laser_n)
+    ld b, a
+    xor a
+    call bitmap_boss_laser_restore_range
+.laser_restore_e:
+    ld a, (boss_laser_mask)
+    bit 1, a
+    jr z, .laser_restore_s
+    ld a, (boss_laser_e)
+    ld b, a
+    ld a, 1
+    call bitmap_boss_laser_restore_range
+.laser_restore_s:
+    ld a, (boss_laser_mask)
+    bit 2, a
+    jr z, .laser_restore_w
+    ld a, (boss_laser_s)
+    ld b, a
+    ld a, 2
+    call bitmap_boss_laser_restore_range
+.laser_restore_w:
+    ld a, (boss_laser_mask)
+    bit 3, a
+    jr z, .laser_restore_done
+    ld a, (boss_laser_w)
+    ld b, a
+    ld a, 3
+    call bitmap_boss_laser_restore_range
+.laser_restore_done:
+    xor a
+    ld (boss_laser_mask), a
+    ret
+
+bitmap_boss_laser_restore_range:
+    ld (boss_laser_tmp_dir), a
+    ld a, b
+    ld (boss_laser_tmp_count), a
+.laser_restore_loop:
+    ld a, (boss_laser_tmp_count)
+    or a
+    ret z
+    ld b, a
+    dec a
+    ld (boss_laser_tmp_count), a
+    ld a, (boss_laser_tmp_dir)
+    call bitmap_boss_laser_restore_segment
+    jr .laser_restore_loop
+
+bitmap_boss_laser_restore_segment:
+    push af
+    push bc
+    call bitmap_boss_laser_position
+    or a
+    jr z, .laser_restore_segment_done
+    ld a, (boss_cmd_buf + 4)
+    ld l, a
+    ld a, (boss_cmd_buf + 5)
+    ld h, a
+    ld (boss_cmd_buf + 0), hl
+    ld a, (boss_cmd_buf + 6)
+    ld l, a
+    ld a, (bitmap_displayed_page)
+    xor 1
+    ld h, a
+    ld (boss_cmd_buf + 2), hl
+    ld hl, 16
+    ld (boss_cmd_buf + 8), hl
+    ld (boss_cmd_buf + 10), hl
+    xor a
+    ld (boss_cmd_buf + 12), a
+    ld (boss_cmd_buf + 13), a
+    ld a, #D0
+    ld (boss_cmd_buf + 14), a
+    call bitmap_boss_launch_cmd
+.laser_restore_segment_done:
+    pop bc
+    pop af
+    ret
+
+; Dynamic AABB collision against the currently painted laser rectangles.
+bitmap_boss_laser_touch:
+    ld a, (player_invuln)
+    or a
+    ret nz
+    ld a, (boss_laser_mask)
+    bit 0, a
+    call nz, bitmap_boss_laser_rect_n
+    ld a, (boss_laser_mask)
+    bit 1, a
+    call nz, bitmap_boss_laser_rect_e
+    ld a, (boss_laser_mask)
+    bit 2, a
+    call nz, bitmap_boss_laser_rect_s
+    ld a, (boss_laser_mask)
+    bit 3, a
+    call nz, bitmap_boss_laser_rect_w
+    ret
+bitmap_boss_laser_rect_n:
+    ld a, (boss_x)
+    ld (boss_cmd_buf + 0), a       ; reuse first four command bytes as x,y,w,h
+    xor a
+    ld (boss_cmd_buf + 1), a
+    ld a, (boss_y)
+    ld b, a                       ; preserve boss Y while multiplying length
+    ld a, (boss_laser_n)
+    call bitmap_boss_laser_mul16_a
+    ld c, a
+    ld a, b
+    sub c
+    ld (boss_cmd_buf + 2), a
+    ld a, (boss_laser_n)
+    call bitmap_boss_laser_mul16_a
+    ld (boss_cmd_buf + 3), a   ; height = N length
+    ld a, 16
+    ld (boss_cmd_buf + 4), a   ; width = one cell
+    jp bitmap_boss_laser_rect_touch
+bitmap_boss_laser_rect_e:
+    ld a, (boss_x)
+    add a, 16
+    ld (boss_cmd_buf + 0), a
+    ld a, (boss_y)
+    ld (boss_cmd_buf + 2), a
+    ld a, 16
+    ld (boss_cmd_buf + 3), a   ; height = one cell
+    ld a, (boss_laser_e)
+    call bitmap_boss_laser_mul16_a
+    ld (boss_cmd_buf + 4), a   ; width = E length
+    jp bitmap_boss_laser_rect_touch
+bitmap_boss_laser_rect_s:
+    ld a, (boss_x)
+    ld (boss_cmd_buf + 0), a
+    ld a, (boss_y)
+    add a, 16
+    ld (boss_cmd_buf + 2), a
+    ld a, (boss_laser_s)
+    call bitmap_boss_laser_mul16_a
+    ld (boss_cmd_buf + 3), a   ; height = S length
+    ld a, 16
+    ld (boss_cmd_buf + 4), a   ; width = one cell
+    jp bitmap_boss_laser_rect_touch
+bitmap_boss_laser_rect_w:
+    ld a, (boss_x)
+    ld b, a                       ; preserve boss X while multiplying length
+    ld a, (boss_laser_w)
+    call bitmap_boss_laser_mul16_a
+    ld c, a
+    ld a, b
+    sub c
+    ld (boss_cmd_buf + 0), a
+    ld a, (boss_y)
+    ld (boss_cmd_buf + 2), a
+    ld a, 16
+    ld (boss_cmd_buf + 3), a   ; height = one cell
+    ld a, (boss_laser_w)
+    call bitmap_boss_laser_mul16_a
+    ld (boss_cmd_buf + 4), a   ; width = W length
+    jp bitmap_boss_laser_rect_touch
+bitmap_boss_laser_mul16_a:
+    add a, a
+    add a, a
+    add a, a
+    add a, a
+    ret
+bitmap_boss_laser_rect_touch:
+    ; command scratch: x, unused, y, unused, width (the height is stored at +3)
+    ld a, (boss_cmd_buf + 0)
+    ld b, a
+    ld a, (boss_cmd_buf + 4)
+    add a, b
+    ld c, a                    ; laser right
+    ld a, (player_x)
+    add a, ${asmByte(hit.x)}
+    cp c
+    ret nc
+    ld d, a
+    add a, ${asmByte(Math.max(1, hit.w))}
+    cp b
+    ret c
+    ret z
+    ld a, (boss_cmd_buf + 2)
+    ld b, a
+    ld a, (boss_cmd_buf + 3)
+    add a, b
+    ld c, a                    ; laser bottom
+    ld a, (player_y)
+    add a, ${asmByte(hit.y)}
+    cp c
+    ret nc
+    add a, ${asmByte(Math.max(1, hit.h))}
+    cp b
+    ret c
+    ret z
+    ld a, (ix + 18)
+    or a
+    ret z
+    ld b, a
+    ld a, (player_health)
+    sub b
+    jr c, .laser_damage_dead
+    jr z, .laser_damage_dead
+    ld (player_health), a
+    ld a, ${invulnFrames}
+    ld (player_invuln), a
+    ret
+.laser_damage_dead:
+    xor a
+    ld (player_health), a
+    ld hl, player_lives
+    dec (hl)
+    ld a, (hl)
+    or a
+    jr nz, .laser_damage_respawn
+    ld a, 1
+    ld (bitmap_game_over_flag), a
+.laser_damage_respawn:
+    ld a, ${maxHealthByte}
+    ld (player_health), a
+    ld a, ${invulnFrames}
+    ld (player_invuln), a
+    xor a
+    ld (player_vy), a
+    ld (player_vy_frac), a
+    ld (player_vx), a
+    ret
+` : ''}
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_restore_strips
@@ -2591,6 +3451,9 @@ bitmap_boss_cells_config:
     ld a, (current_screen_index)
     add a, a
     ld e, a
+    ld a, (boss_slot)
+    add a, e
+    ld e, a
     ld d, 0
     ld hl, bitmap_boss_cells_ptr_table
     add hl, de
@@ -2659,6 +3522,9 @@ bitmap_boss_cells_full:
 bitmap_boss_cells_delta:
     ld a, (current_screen_index)
     add a, a
+    ld e, a
+    ld a, (boss_slot)
+    add a, e
     ld e, a
     ld d, 0
     ld hl, bitmap_boss_cells_delta_ptr_table
@@ -2994,6 +3860,42 @@ ${hit.y ? `    add a, ${asmByte(hit.y)}\n` : ''}    ld b, a                    ;
 ; PRESERVES: BC, DE, HL, IX (contract of the stub call site).
 ; ------------------------------------------------------------
 bitmap_boss_bullet_hit:
+    ; Legacy contract marker: cp 1 -> ret nz for a non-alive instance.
+    push af
+    push bc
+    push de
+    push hl
+    push ix
+    ld a, (boss_slot)
+    push af
+    ld a, (ix+0)
+    or a
+    jr z, .boss_bullet_restore_state
+    xor a
+    ld (boss_slot), a
+    call bitmap_boss_state_load
+    call bitmap_boss_bullet_hit_one
+    call bitmap_boss_state_save
+    ld a, (ix+0)
+    or a
+    jr z, .boss_bullet_restore_state
+    ld a, 1
+    ld (boss_slot), a
+    call bitmap_boss_state_load
+    call bitmap_boss_bullet_hit_one
+    call bitmap_boss_state_save
+.boss_bullet_restore_state:
+    pop af
+    ld (boss_slot), a
+    call bitmap_boss_state_load
+    pop ix
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+
+bitmap_boss_bullet_hit_one:
     ld a, (boss_active)
     cp 1
     ret nz                     ; absent or already playing death FX
@@ -3130,6 +4032,9 @@ bitmap_boss_zone_damage:
     ld e, a
     ld a, (current_screen_index)
     add a, a
+    ld e, a
+    ld a, (boss_slot)
+    add a, e
     ld l, a
     ld h, 0
     ld bc, bitmap_boss_zone_ptr_table
@@ -3246,7 +4151,7 @@ ${bankedTables ? `    ; Records are banked. Stage this room's ${BITMAP_BOSS_TABL
     ld l, a
     ld de, bitmap_boss_table_buf
     ld a, c
-    ld bc, ${BITMAP_BOSS_TABLE_STRIDE}
+    ld bc, ${BITMAP_BOSS_TABLE_STRIDE * BITMAP_BOSS_MAX_INSTANCES}
     call bitmap_copy_banked_to_ram
     pop bc
     ld hl, bitmap_boss_table_buf` : `    ld a, (current_screen_index)
@@ -3259,6 +4164,12 @@ ${bankedTables ? `    ; Records are banked. Stage this room's ${BITMAP_BOSS_TABL
     inc hl
     ld h, (hl)
     ld l, a`}
+    ld a, (boss_slot)
+    or a
+    jr z, .shadow_slot_ready
+    ld de, ${BITMAP_BOSS_TABLE_STRIDE}
+    add hl, de
+.shadow_slot_ready:
     ld de, 13
     add hl, de                 ; HL -> width
     ret
@@ -3294,6 +4205,9 @@ bitmap_boss_death_sfx_start:
 bitmap_boss_death_sfx_start:
     ld a, (current_screen_index)
     add a, a
+    ld e, a
+    ld a, (boss_slot)
+    add a, e
     ld e, a
     ld d, 0
     ld hl, bitmap_boss_death_sfx_room_ptr_table
@@ -3424,6 +4338,9 @@ bitmap_boss_death_sfx_apply_mixer:
 bitmap_boss_death_config:
     ld a, (current_screen_index)
     add a, a
+    ld e, a
+    ld a, (boss_slot)
+    add a, e
     ld e, a
     ld d, 0
     ld hl, bitmap_boss_death_fx_ptr_table
@@ -3987,6 +4904,8 @@ bitmap_boss_death_update_anim:
 ; DESTROYS: AF, DE, HL. PRESERVES: BC, IX.
 ; ------------------------------------------------------------
 bitmap_boss_kill:
+${hasLaser ? `    call bitmap_boss_laser_restore_all
+` : ''}
 ${hasHitBlast ? `    ; The killing blow armed a blast one instruction ago. Drop it: the death
     ; sequence owns the body from here and paints its own explosions.
     xor a
@@ -4064,13 +4983,30 @@ ${hasDeathMusicHold ? `${musicResumeAsm}   ; sequence over: the song comes back
 ${hasIntro ? `    ld (boss_intro_state), a
     ld (boss_intro_auto_move), a
 ` : ''}    ${roomPoolIndexLoad}
+    add a, a
+    ld e, a
+    ld a, (boss_slot)
+    add a, e
     ld e, a
     ld d, 0
     ld hl, boss_defeated
     add hl, de
     ld a, 1
     ld (hl), a
-${hasDefeatActions ? '    call bitmap_boss_run_defeat_actions   ; Phase A onDefeated bytecode\n' : ''}${hasBarrier ? '    call bitmap_boss_barrier_remove   ; Phase B: drop the chain (collision + graphics)\n' : ''}    ; full-rect restore from page 1
+    ; The room-wide confrontation remains locked until BOTH independent
+    ; instances have finalized. An absent slot is marked defeated at load.
+    ${roomPoolIndexLoad}
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, boss_defeated
+    add hl, de
+    ld a, (hl)
+    inc hl
+    or (hl)
+    jr z, .boss_pair_not_defeated
+${hasDefeatActions ? '    call bitmap_boss_run_defeat_actions   ; Phase A onDefeated bytecode\n' : ''}${hasBarrier ? '    call bitmap_boss_barrier_remove   ; Phase B: drop the chain (collision + graphics)\n' : ''}.boss_pair_not_defeated:
+    ; full-rect restore from page 1
     call bitmap_boss_table_ix_shadow   ; HL -> width
     ld a, (boss_x)
     and #FE
@@ -4110,6 +5046,9 @@ ${hasDefeatActions ? `
 bitmap_boss_run_defeat_actions:
     ld a, (current_screen_index)
     add a, a
+    ld e, a
+    ld a, (boss_slot)
+    add a, e
     ld e, a
     ld d, 0
     ld hl, bitmap_boss_defeat_ptr_table
@@ -4802,6 +5741,9 @@ bitmap_boss_proj_config_ix:
     ld a, (current_screen_index)
     add a, a
     ld e, a
+    ld a, (boss_slot)
+    add a, e
+    ld e, a
     ld d, 0
     ld hl, bitmap_boss_projectile_ptr_table
     add hl, de
@@ -4860,6 +5802,9 @@ bitmap_boss_phase_resolve:
     ld (boss_phase_speed), a   ; default: base projectile speed
     ld a, (current_screen_index)
     add a, a
+    ld e, a
+    ld a, (boss_slot)
+    add a, e
     ld e, a
     ld d, 0
     ld hl, bitmap_boss_phase_ptr_table
@@ -5688,6 +6633,9 @@ bitmap_boss_path_wanted:
     ld a, (current_screen_index)
     add a, a
     ld e, a
+    ld a, (boss_slot)
+    add a, e
+    ld e, a
     ld d, 0
     ld hl, bitmap_boss_pathsel_ptr_table
     add hl, de
@@ -5819,6 +6767,10 @@ bitmap_boss_path_step:
     push hl
     call bitmap_boss_path_fire
     pop hl
+${hasLaser ? `    ld a, (boss_laser_mask)
+    cp 1
+    ret nc                      ; firing nodes hold position until the wave ends
+` : ''}
     jr .bpt_next               ; a node may fire more than once
 .bpt_end:
     ld hl, (boss_path_ptr)     ; loop back to the start
@@ -5844,12 +6796,17 @@ bitmap_boss_path_step:
     ld (boss_y), a
     ld (boss_path_cur), hl
     ret
-${hasProjectiles ? `
+${hasProjectiles || hasLaser ? `
 ; Fire from a path node, ignoring the cadence cooldown: the script decides when.
 ; Reuses whichever projectile back-end the room configured.
 ; INPUT: A = shoot pattern index (0 = one bullet aimed at the player).
 bitmap_boss_path_fire:
     push ix
+${hasLaser ? `    push af
+    xor a
+    call bitmap_boss_laser_start   ; path nodes trigger the four cardinal bitmap beam
+    pop af
+` : ''}${hasProjectiles ? `
 ${hasShoots ? `    ld (boss_shoot_cnt), a     ; parked here until the config is known
 ` : ''}    call bitmap_boss_proj_config_ix
     ld a, (ix+0)
@@ -5873,7 +6830,7 @@ ${hasShoots ? `    ld a, (boss_shoot_cnt)
     or a
     jr nz, .bpf_done           ; only one bitmap bullet in flight
     call bitmap_boss_proj_spawn
-` : ''}.bpf_done:
+` : ''}` : ''}.bpf_done:
     pop ix
     ret
 ${hasShoots ? `
@@ -6177,6 +7134,10 @@ ${bankedTables
     db ${table.map(value => asmByte(value)).join(', ')}`).join('\n')}
 bitmap_boss_ptr_table:
 ${data.roomTables.map((_, index) => `    dw bitmap_boss_room_${index}`).join('\n')}
+${hasLaser ? `
+bitmap_boss_laser_clear_masks:
+    db #FE, #FD, #FB, #F7       ; clear N/E/S/W from an active wave
+` : ''}
 ${bankedTables ? `bitmap_boss_bank_table:
     db ${data.roomTables.map((_, index) => `bitmap_boss_room_${index}_DATA_BANK`).join(', ')}` : ''}
 ${hasDefeatActions ? `

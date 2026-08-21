@@ -40,6 +40,10 @@ export const BOSS_DEFINITION_OWNED_PARAMS: ReadonlySet<string> = new Set([
   'bossShootInterval',
   'bossProjectileSpeed',
   'bossProjectileDamage',
+  'bossLaserTileId',
+  'bossLaserInterval',
+  'bossLaserMaxLengthPx',
+  'bossLaserDirectionMask',
   // --- attack phases ---
   'bossPhases',
   // --- damage zones (authored only in the Boss Editor) ---

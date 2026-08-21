@@ -15577,12 +15577,16 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   // boss bodies need N rows" while fitting comfortably.
   const bossWindowSlotCount = (grid: BossBodyCellGrid) =>
     new Set(grid.cellsByFrame.flat().map(cell => atlasEntryFingerprint(cell))).size;
-  const bossWindowRows = bossWindowActive
+  const bossWindowRowsPerBlob = bossWindowActive
     ? Math.ceil(
       Math.max(...[...bossStampCollection.bodyGrids.values()].map(bossWindowSlotCount))
       / BOSS_WINDOW_CELLS_PER_BAND,
     ) * TILE_GRID_SIZE
     : 0;
+  // Different body stamps occupy different bands simultaneously when two
+  // bosses share a room. A reused stamp still costs one band only.
+  const bossWindowBlobCount = bossWindowActive ? bossStampCollection.bodyGrids.size : 0;
+  const bossWindowRows = bossWindowRowsPerBlob * bossWindowBlobCount;
   const bossWindowBaseY = dialogueVramBaseRow - bossWindowRows;
   if (bossWindowActive && bossWindowBaseY < postAtlasBaseY + BOSS_WINDOW_SCRATCH_RESERVE_ROWS) {
     throw new Error(
@@ -15601,7 +15605,7 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
     let blobIndex = 0;
     for (const [stampId, grid] of bossStampCollection.bodyGrids) {
       const pixels = Array.from(
-        { length: bossWindowRows },
+        { length: bossWindowRowsPerBlob },
         () => Array.from({ length: SCREEN_WIDTH }, () => 0),
       );
       // Dedupe by pixel fingerprint, exactly like the atlas packer did before the
@@ -15627,7 +15631,8 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
         }
         bossWindowPlacements.set(bossBodyCellKey(stampId, cellIndex), {
           sx: slot.sx,
-          sy: bossWindowBaseY - BITMAP_ROOM_ATLAS_BASE_Y + slot.localY,
+          sy: bossWindowBaseY - BITMAP_ROOM_ATLAS_BASE_Y
+            + blobIndex * bossWindowRowsPerBlob + slot.localY,
           w: TILE_GRID_SIZE,
           h: TILE_GRID_SIZE,
         });
@@ -15847,7 +15852,7 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
     ...blob,
     rleChunks: buildRleChunksForVram(
       blob.bytes,
-      bossWindowBaseY * ROW_BYTES,
+      (bossWindowBaseY + blob.index * bossWindowRowsPerBlob) * ROW_BYTES,
       `bitmap_boss_window${blob.index}_rle_chunk`,
     ),
   }));
@@ -16066,13 +16071,15 @@ ${airAnimBodyAsm}`;
       params: (asset?.data?.params || asset?.data?.boss?.params || asset?.data || {}) as Record<string, unknown>,
     });
   }
-  const bossWindowRoomBlobIndex = sharedAtlas.rooms.map(roomData => {
-    const entity = (roomData.entities || []).find((candidate: any) => candidate?.kind === 'boss');
-    if (!entity) return -1;
-    const resolved = resolveBossParams(entity, bossWindowDefinitions);
-    const stampId = String(resolved?.bossStampAssetId || '').trim();
-    const blob = bossWindowBlobData.find(candidate => candidate.stampId === stampId);
-    return blob ? blob.index : -1;
+  const bossWindowRoomBlobIndices = sharedAtlas.rooms.map(roomData => {
+    const indices: number[] = [];
+    for (const entity of (roomData.entities || []).filter((candidate: any) => candidate?.kind === 'boss').slice(0, 2)) {
+      const resolved = resolveBossParams(entity, bossWindowDefinitions);
+      const stampId = String(resolved?.bossStampAssetId || '').trim();
+      const blob = bossWindowBlobData.find(candidate => candidate.stampId === stampId);
+      if (blob && !indices.includes(blob.index)) indices.push(blob.index);
+    }
+    return indices;
   });
   const bossWindowUploadAsm = !bossWindowActive ? '' : `
 ${bossWindowBlobData.map(blob => `; ---- upload boss body #${blob.index} into the transient window ----
@@ -16080,6 +16087,10 @@ ${bossWindowBlobData.map(blob => `; ---- upload boss body #${blob.index} into th
 ; inside #8000-#9FFF in projects big enough, so it must not map its own bank.
 bitmap_boss_window_upload_${blob.index}:
 ${buildRleUploadAsm(blob.rleChunks, isKonamiMegaRom, true)}`).join('\n')}
+
+${bossWindowRoomBlobIndices.map((indices, roomIndex) => indices.length === 0 ? '' : `bitmap_boss_window_room_load_${roomIndex}:
+${indices.map(index => `    call bitmap_boss_window_upload_${index}`).join('\n')}
+    ret`).join('\n')}
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_window_load
@@ -16106,9 +16117,9 @@ bitmap_boss_window_load:
     jp (hl)
 
 bitmap_boss_window_ptr_table:
-${bossWindowRoomBlobIndex.map((blobIndex, roomIndex) => (blobIndex < 0
+${bossWindowRoomBlobIndices.map((indices, roomIndex) => (indices.length === 0
     ? `    dw 0                       ; room ${roomIndex}: no boss`
-    : `    dw bitmap_boss_window_upload_${blobIndex}   ; room ${roomIndex}`)).join('\n')}
+    : `    dw bitmap_boss_window_room_load_${roomIndex}   ; room ${roomIndex}, ${indices.length} body band(s)`)).join('\n')}
 `;
   // Must run BEFORE bitmap_boss_load: that is where the boss is armed and its
   // first body blit can happen, and the window has to hold pixels by then.
