@@ -92,3 +92,6 @@ Cuando Jordi diga **"inicio cooperacion para ... tarea X"**:
   bloque escrito queda ahí aunque el chip ya esté tostado.
 - Leer el final del fichero con `tail -c` tras cada crecimiento; el historial
   completo solo al entrar por primera vez a una cooperación.
+- Una ROTACION de canal ENCOGE el fichero: un vigilante por tamaño que solo
+  dispara al crecer se queda ciego (le pasó a ZCode el 2026-08-21 con el
+  inicio de la cooperacion del doble boss). Vigilar tambien los decrecimientos.
