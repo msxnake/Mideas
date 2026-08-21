@@ -2627,7 +2627,7 @@ ${hasPaths ? `    ; ---- authored path (Fase G) wins over the patrol ----
 
     ; ---- VDP phase: uncovered-edge strips from page 1, then body HMMM ----
     call bitmap_boss_restore_strips
-    call bitmap_boss_draw_animated
+${hasBossCells ? '    call bitmap_boss_draw_animated' : '    call bitmap_boss_draw'}
 ${hasHitBlast ? `    call bitmap_boss_hit_blast_draw   ; over the body just painted; next redraw erases it
 ` : ''}    jp bitmap_boss_touch
 

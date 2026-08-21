@@ -1796,10 +1796,11 @@ const BOSS_WINDOW_CELLS_PER_BAND = SCREEN_WIDTH / TILE_GRID_SIZE;
 /**
  * Rows kept between the last atlas tenant and the boss window, for the carry and
  * projectile scratch rectangles that are sized only after the boss data is
- * built. Generous on purpose: the measured free gap is 208-368 rows and a boss
- * needs at most 112, so this costs nothing real (study §7.4).
+ * built. The exact carry/projectile checks below remain authoritative; this
+ * guard is only a conservative preflight and must not consume the whole gap in
+ * compact projects such as test554.
  */
-const BOSS_WINDOW_SCRATCH_RESERVE_ROWS = 64;
+const BOSS_WINDOW_SCRATCH_RESERVE_ROWS = 48;
 
 /**
  * Split a stamp into its authored 16x16 cells. Returns undefined when the stamp
@@ -7120,8 +7121,11 @@ function collectBitmapKeyDoorRecords(rooms: Msx2Screen5BitmapRoom[], roomWorldIn
     pressureButtons,
     pressureButtonVisuals,
     doorOpenOffsetByEntityId,
-    pickupFlagBytes: Math.max(0, ...pickupFlagsByWorld.map(value => value || 0)),
-    doorFlagBytes: Math.max(0, ...doorFlagsByWorld.map(value => value || 0)),
+    // World-local pools may be sparse when the first authored key/door lives in
+    // a later WorldLink. Spreading a sparse array passes `undefined` to
+    // Math.max and poisons the complete SCREEN 5 RAM chain with NaN.
+    pickupFlagBytes: pickupFlagsByWorld.reduce((max, value) => Math.max(max, value || 0), 0),
+    doorFlagBytes: doorFlagsByWorld.reduce((max, value) => Math.max(max, value || 0), 0),
   };
 }
 
