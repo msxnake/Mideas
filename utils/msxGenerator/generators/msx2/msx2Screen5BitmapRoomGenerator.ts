@@ -17707,7 +17707,7 @@ ${darkAtlasEnabled ? '    call prepare_dark_atlas   ; the dimmed twin belongs to
     ; be missing on page 0 and appear only on the never-wiped page 1 ("gem icon on
     ; alternate rooms"). Harmless on the plain boot path (idempotent re-upload).
     call init_bitmap_hud_band
-${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${crumbleSystem.initialDrawCall}${swaySystem.initialDrawCall}${bitmapAtlasAnimationSystem.initialDrawCall}${destroyTileApplyVisibleCall}
+
 ${shaftSystem.initCallAsm}${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}    ; Place the player at the room spawn point.
 ${multiWorld
   ? `    ld a, (bitmap_world_spawn_y)
@@ -17759,7 +17759,8 @@ ${bossWindowLoadCallAsm}${bossSystem.loadCallAsm}${deadlySystem.initAsm}${hearts
     ld a, #01
     ld e, #62
     call vdp_write_register
-${introSpriteReenableAsm}${lightingSystem.bootPaintCallAsm}    ; Select status register 0 so vblank polling reads S#0 (the VDP command
+${introSpriteReenableAsm}${lightingSystem.bootPaintCallAsm}    ; Reapply room overlays after every boot-time room/foreground/entity loader.
+${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${crumbleSystem.initialDrawCall}${swaySystem.initialDrawCall}${bitmapAtlasAnimationSystem.initialDrawCall}${destroyTileApplyVisibleCall}    ; Select status register 0 so vblank polling reads S#0 (the VDP command
     ; engine left R#15 pointing at S#2). This runtime drives its own 60 Hz sync
     ; by polling the frame flag, so interrupts stay disabled and the BIOS cannot
     ; consume S#0 before the main loop sees it.

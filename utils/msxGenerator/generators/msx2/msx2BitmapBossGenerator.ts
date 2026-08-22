@@ -1901,13 +1901,16 @@ export function buildBitmapBossSystemAsm(
     + (hasLaser ? 6 : 0);
   const instanceSelectorAddr = cellsRamBase + (hasBossCells ? CELLS_RAM_BYTES : 0);
   const instanceStateBase = instanceSelectorAddr + 1;
+  // Shared by both selected boss instances. This latch prevents the second
+  // boss from snapshotting the first boss as part of the clean page.
+  const cleanSnapshotFlagAddr = instanceStateBase + INSTANCE_STATE_BYTES * bossInstanceCount;
   const totalRamBytes = baseRamBytes + (hasIntro ? INTRO_RAM_BYTES : 0)
     + (hasDeathFx ? DEATH_RAM_BYTES : 0)
     + (hasPooledSfx ? DEATH_SFX_RAM_BYTES : 0)
     + (hasHitBlast ? HIT_BLAST_RAM_BYTES : 0)
     + (hasLaser ? LASER_RAM_BYTES : 0)
     + (hasBossCells ? CELLS_RAM_BYTES : 0)
-    + 1 + INSTANCE_STATE_BYTES * bossInstanceCount
+    + 1 + INSTANCE_STATE_BYTES * bossInstanceCount + 1
     + (bankedTables ? roomTableBytes : 0);
   const bossTableBufAddr = opts.ramBase + totalRamBytes - (bankedTables ? roomTableBytes : 0);
   // Pre-rendered so the data template stays readable: one ring slot per row,
@@ -1993,6 +1996,7 @@ ${!hasBossCells ? '' : `boss_cells_shown EQU ${asmWord(cellsRamBase)}  ; frame c
 boss_slot       EQU ${asmWord(instanceSelectorAddr)} ; selected boss instance (0 or 1)
 boss_instance_state EQU ${asmWord(instanceStateBase)} ; saved selected-state blocks
 BOSS_INSTANCE_STATE_BYTES EQU ${INSTANCE_STATE_BYTES}
+boss_clean_snapshot_done EQU ${asmWord(cleanSnapshotFlagAddr)} ; 1 = clean page mirrored for this room entry
 ${hasDefeatActions ? `boss_flags      EQU ${asmWord(flagsBase)}  ; ${flagCount} bytes, onDefeated setFlag targets (persistent)\n` : ''}${hasBarrier ? `boss_barrier_draw EQU ${asmWord(barrierRamBase)}  ; 0 = clear, 1 = seal, 2 = repaint sealed cells
 boss_barrier_sx EQU ${asmWord(barrierRamBase + 1)}  ; word: chain tile atlas SX
 boss_barrier_sy EQU ${asmWord(barrierRamBase + 3)}  ; word: chain tile atlas SY (512-based)
@@ -2224,6 +2228,7 @@ ${stateLoadAsm}${stateSaveAsm}
 ; ------------------------------------------------------------
 bitmap_boss_load:
     xor a
+    ld (boss_clean_snapshot_done), a
     ld (boss_slot), a
     call bitmap_boss_load_one
     call bitmap_boss_state_save
@@ -2392,6 +2397,11 @@ ${hasLaser ? `    ; Each boss owns its laser timer. Offset slot 1 by half a cade
     ; would be painted with the previous screen's pixels. Mirror the freshly
     ; composed game area onto it with one HMMM. This runs only here, never per
     ; frame, and only in rooms that actually arm a boss.
+    ld a, (boss_clean_snapshot_done)
+    or a
+    jr nz, .boss_background_snapshot_done
+    ld a, 1
+    ld (boss_clean_snapshot_done), a
     xor a
     ld (boss_cmd_buf + 0), a   ; SX = 0
     ld (boss_cmd_buf + 1), a
@@ -2409,6 +2419,7 @@ ${visiblePageH}
     ld hl, ${gameH}
     ld (boss_cmd_buf + 10), hl ; NY = game area height
     call bitmap_boss_finish_hmmm
+.boss_background_snapshot_done:
 ${hasPaths ? `    push ix
     call bitmap_boss_path_wanted     ; A = path for the boss's starting HP
     call bitmap_boss_path_select
