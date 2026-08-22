@@ -2984,7 +2984,6 @@ bitmap_boss_laser_position:
     call bitmap_boss_laser_mul16_a
     ld c, a
     ld a, (boss_x)
-    add a, 16
     add a, c
     jr c, .laser_pos_invalid
     cp 241
@@ -2999,7 +2998,6 @@ bitmap_boss_laser_position:
     call bitmap_boss_laser_mul16_a
     ld c, a
     ld a, (boss_y)
-    add a, 16
     add a, c
     cp ${Math.max(1, gameH - 15)}
     jr nc, .laser_pos_invalid
@@ -3009,7 +3007,6 @@ bitmap_boss_laser_position:
     xor a
     ld (boss_cmd_buf + 5), a
     ld a, (boss_y)
-    add a, 16
     add a, c
     jr .laser_pos_store_y
 .laser_pos_w:
