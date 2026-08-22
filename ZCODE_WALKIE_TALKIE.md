@@ -95,3 +95,15 @@ Cuando Jordi diga **"inicio cooperacion para ... tarea X"**:
 - Una ROTACION de canal ENCOGE el fichero: un vigilante por tamaño que solo
   dispara al crecer se queda ciego (le pasó a ZCode el 2026-08-21 con el
   inicio de la cooperacion del doble boss). Vigilar tambien los decrecimientos.
+- Tras escribir en el canal, re-armar el vigilante solo con el tamaño YA
+  asentado (releer y verificar el final del fichero antes de armar): un
+  vigilante armado a mitad de flush cazó la cola del propio mensaje de ZCode
+  como falsa alarma (2026-08-22, tras el [037]). Ante un disparo, verificar
+  siempre que el tramo "nuevo" no sea mensaje propio.
+- Un agente con writer defectuoso puede INSERTAR mensajes al inicio o en
+  medio del fichero (2026-08-22: dos [038] insertados tras el [001] y un
+  [021] duplicado). `tail -c` es CIEGO a eso: ante cualquier disparo del
+  vigilante, re-escanear cabeceras (grep -n "^\[") y comparar con la
+  numeración/posiciones conocidas, no solo leer el tramo final. Marcar la
+  colisión o duplicado en el siguiente mensaje propio; jamás renumerar,
+  reordenar ni "arreglar" el fichero.

@@ -1749,7 +1749,11 @@ export function buildBitmapBossSystemAsm(
   // Phase B chain barrier: only emitted when at least one room configures a
   // bossBarrierTileId, so bosses without a chain keep byte-identical ROMs.
   const hasBarrier = (data.barrierTables || []).some(t => t && t[0] === 1);
-  const barrierRamBase = ram + 28 + roomPoolCount + flagCount;
+  // The persistent defeat pool has one byte per room *and* per boss slot.
+  // Using roomPoolCount here leaves the second slot's flag overlapping the
+  // first path pointer in every two-boss room; the path loader then writes a
+  // non-zero value into boss_defeated[1] and silently suppresses Boss Beta.
+  const barrierRamBase = ram + 28 + defeatedBytes + flagCount;
   const introStreams = data.introStreams || [];
   const introStreamIsEmpty = (stream: number[] | undefined) =>
     !stream || stream.length === 0 || (stream.length === 1 && stream[0] === INTRO_OP_END);
@@ -1849,7 +1853,7 @@ export function buildBitmapBossSystemAsm(
   const hasShoots = hasPaths && hasSpriteProjectiles && shootRecords.length > 0;
   const shootRamBase = pathRamBase + (hasPaths ? PATH_RAM_BYTES : 0);
   const SHOOT_RAM_BYTES = 10;
-  const baseRamBytes = 11 + 2 + 15 + roomPoolCount + flagCount + (hasBarrier ? 7 : 0)
+  const baseRamBytes = 11 + 2 + 15 + defeatedBytes + flagCount + (hasBarrier ? 7 : 0)
     + PROJ_RAM_BYTES + spriteSlots * BOSS_SBUL_SLOT_BYTES
     + (hasPaths ? PATH_RAM_BYTES : 0) + (hasShoots ? SHOOT_RAM_BYTES : 0);
   const introRamBase = ram + baseRamBytes;
@@ -6630,11 +6634,16 @@ ${hasShoots ? `    ld (boss_burst_idx), a     ; a burst owed by the previous bos
 ; DESTROYS: AF, BC, DE, HL.
 ; ------------------------------------------------------------
 bitmap_boss_path_wanted:
+    ; The selection pointer table stores one word per room/slot. The room
+    ; index is already doubled above; double the combined room/slot index
+    ; once more before walking the word table, otherwise slot 1 reads the
+    ; high byte of slot 0's pointer and silently falls back to no path.
     ld a, (current_screen_index)
     add a, a
     ld e, a
     ld a, (boss_slot)
     add a, e
+    add a, a
     ld e, a
     ld d, 0
     ld hl, bitmap_boss_pathsel_ptr_table

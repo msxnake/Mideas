@@ -270,12 +270,17 @@ export const Msx2BossPathEditor: React.FC<Msx2BossPathEditorProps> = ({ path, on
             </div>
           </div>
           <div className="mt-2">
-            <label className={label}>Firing</label>
+            <label className={label}>Firing — laser and projectile timing</label>
             <select className={input} value={path.firing}
               onChange={e => set('firing', e.target.value as Msx2BossPath['firing'])}>
               <option value="auto">Keep the phase's shot cadence</option>
               <option value="path">Only the node scripts shoot</option>
             </select>
+            <p className="text-xs text-msx-textsecondary mt-2">
+              For the growing bitmap laser, choose <strong>Only the node scripts shoot</strong>
+              and add <strong>+ Fire</strong> to a node. The Boss Editor supplies the 16×16
+              bitmap, N/E/S/O directions, wave interval and maximum length.
+            </p>
           </div>
         </div>
 
@@ -418,8 +423,9 @@ const NodeActions: React.FC<{
     <p className="text-xs text-msx-textsecondary mt-1">
       A pause costs nothing on the VDP: a boss that is not moving is not redrawn.
       Firing here only reaches the game if the path's firing mode is set to the node scripts.
-      Patterns come from <strong>MSX2 Shoots Definition</strong> assets, and only apply to
-      hardware-sprite bullets — a bitmap bullet always fires one aimed shot.
+      It starts the configured growing bitmap laser as well as the selected normal projectile.
+      Patterns come from <strong>MSX2 Shoots Definition</strong> assets and only affect
+      hardware-sprite bullets; a bitmap bullet still fires one aimed shot.
     </p>
   </div>
 );

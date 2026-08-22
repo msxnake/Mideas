@@ -37,8 +37,15 @@ interface Msx2BossEditorProps {
   setStatusBarMessage?: (message: string) => void;
 }
 
-const NAV_ITEMS = ['General', 'Body & Graphics', 'Movement', 'Room Lock', 'Projectiles', 'Attack Phases', 'Damage Zones', 'Death FX', 'Defeat Actions', 'Encounters'] as const;
+const NAV_ITEMS = ['General', 'Body & Graphics', 'Movement', 'Room Lock', 'Projectiles', 'Laser Attack', 'Attack Phases', 'Damage Zones', 'Death FX', 'Defeat Actions', 'Encounters'] as const;
 type Section = typeof NAV_ITEMS[number];
+
+const LASER_DIRECTIONS = [
+  { key: 'N', label: 'North', bit: 0, lineStyle: { left: '50%', top: 0, width: 3, height: '50%', transform: 'translateX(-50%)' } },
+  { key: 'E', label: 'East', bit: 1, lineStyle: { right: 0, top: '50%', width: '50%', height: 3, transform: 'translateY(-50%)' } },
+  { key: 'S', label: 'South', bit: 2, lineStyle: { left: '50%', bottom: 0, width: 3, height: '50%', transform: 'translateX(-50%)' } },
+  { key: 'O', label: 'West', bit: 3, lineStyle: { left: 0, top: '50%', width: '50%', height: 3, transform: 'translateY(-50%)' } },
+] as const;
 
 /** MSX2 palette approximation, good enough for the zone-editor preview. */
 const MSX2_PREVIEW_BG = '#101018';
@@ -394,6 +401,15 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
   const bodyPreviewScale = Math.max(1, Math.min(4, Math.floor(160 / Math.max(bodyW, 1))));
   const barrierEntry = atlasEntries.find(e => e.id === boss.bossBarrierTileId);
   const projectileEntry = atlasEntries.find(e => e.id === boss.bossProjectileTileId);
+  const laserEntry = atlasEntries.find(e => e.id === boss.bossLaserTileId);
+  const laserEntries = atlasEntries.filter(e => e.w === 16 && e.h === 16);
+  const laserMask = boss.bossLaserDirectionMask ?? 0x0f;
+  const activePath = pathAssets.find(asset => asset.id === boss.bossPathId);
+  const activePathFiring = (activePath?.data as any)?.firing;
+
+  const toggleLaserDirection = (bit: number) => {
+    set('bossLaserDirectionMask', laserMask ^ (1 << bit));
+  };
 
   return (
     <div className="flex h-full text-msx-textprimary">
@@ -449,6 +465,12 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
             <p className="text-xs text-msx-textsecondary mt-3">
               A screen uses this boss by placing a boss entity with <code>bossId = {boss.id || '…'}</code>.
               The screen may override HP with <code>hpOverride</code>.
+            </p>
+            <p className="text-xs text-msx-textsecondary mt-2">
+              For a double confrontation, create two Boss assets when they need different
+              Paths, select one route in each asset's <strong>Movement</strong> tab, then place
+              both Boss entities in the same SCREEN 5 room. Their laser state and defeat state
+              remain independent.
             </p>
           </div>
         )}
@@ -736,6 +758,131 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
                 <label className={label}>Damage (hearts)</label>
                 <input type="number" min={0} max={8} className={input}
                   value={boss.bossProjectileDamage} onChange={e => set('bossProjectileDamage', Number(e.target.value))} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {section === 'Laser Attack' && (
+          <div className={card}>
+            <h3 className="text-sm font-semibold mb-3">Laser Attack — growing bitmap beams</h3>
+            <p className="text-xs text-msx-textsecondary mb-3">
+              This is the special attack for the double-boss encounter. Each boss owns its
+              own laser state, grows one 16×16 bitmap cell at a time and stays still while
+              the beam is visible. When the beam is erased, that boss can move again; the
+              other boss continues independently.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={label}>Frames between laser waves</label>
+                <input type="number" min={1} max={255} className={input}
+                  value={boss.bossLaserInterval ?? 90}
+                  onChange={e => set('bossLaserInterval', Number(e.target.value))} />
+                <p className="text-xs text-msx-textsecondary mt-1">
+                  Used in automatic firing mode. 60 frames is approximately one second.
+                </p>
+              </div>
+              <div>
+                <label className={label}>Maximum length (pixels)</label>
+                <input type="number" min={16} max={240} step={16} className={input}
+                  value={boss.bossLaserMaxLengthPx ?? 128}
+                  onChange={e => set('bossLaserMaxLengthPx', Number(e.target.value))} />
+                <p className="text-xs text-msx-textsecondary mt-1">
+                  Rounded to 16×16 cells by the MSX2 renderer.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <label className={label}>Laser bitmap tile — exactly 16×16</label>
+              <div className="max-h-72 overflow-y-auto border border-msx-border rounded p-2">
+                <div className="flex flex-wrap gap-2">
+                  <button type="button"
+                    className={`${btn} ${!boss.bossLaserTileId ? 'border-msx-accent' : ''}`}
+                    onClick={() => set('bossLaserTileId', '')}
+                    title="Use the boss projectile tile if it is 16x16; otherwise use the 16x16 boss body cell">
+                    Automatic fallback
+                  </button>
+                  {laserEntries.map(entry => {
+                    const scale = Math.max(2, Math.floor(70 / Math.max(entry.w, entry.h, 1)));
+                    return (
+                      <button type="button" key={entry.id} onClick={() => set('bossLaserTileId', entry.id)}
+                        className={`flex flex-col items-center justify-center gap-1 p-1 rounded border ${boss.bossLaserTileId === entry.id ? 'border-msx-accent' : 'border-msx-border hover:bg-msx-hover'}`}
+                        style={{ background: MSX2_PREVIEW_BG, width: 80 }}
+                        title={`${entry.label}${entry.roomCount > 1 ? ` — used in ${entry.roomCount} rooms` : ` — ${entry.roomName}`}`}>
+                        <div className="flex-1 flex items-center justify-center" style={{ minHeight: 70 }}>
+                          <AtlasEntryCanvas entry={entry} scale={scale} />
+                        </div>
+                        <span className="text-[8px] leading-tight text-msx-textprimary truncate w-full text-center">{entry.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {laserEntries.length === 0 && (
+                  <p className="text-xs text-msx-textsecondary p-2">
+                    No 16×16 atlas tile is available. The automatic fallback can still use
+                    the body when this Boss is a 16×16 Bitmap Stamp.
+                  </p>
+                )}
+              </div>
+              <div className="mt-2">
+                <AtlasPreviewBox entry={laserEntry} scale={4} emptyHint="Automatic: projectile tile, then 16×16 body cell." />
+              </div>
+              <p className="text-xs text-msx-textsecondary mt-2">
+                Leave this on <strong>Automatic fallback</strong> for a small 16×16 Boss to
+                reuse its body cell. Pick a separate tile when the laser should have its own
+                bitmap. Larger tiles are deliberately excluded because every beam segment is
+                one 16×16 cell.
+              </p>
+            </div>
+
+            <div className="mt-4">
+              <label className={label}>Directions fired by each wave</label>
+              <div className="flex flex-wrap gap-2">
+                {LASER_DIRECTIONS.map(direction => (
+                  <label key={direction.key}
+                    className={`inline-flex items-center gap-2 px-2 py-1 rounded border cursor-pointer ${laserMask & (1 << direction.bit) ? 'border-msx-accent bg-msx-hover' : 'border-msx-border'}`}>
+                    <input type="checkbox" checked={!!(laserMask & (1 << direction.bit))}
+                      onChange={() => toggleLaserDirection(direction.bit)} />
+                    <span>{direction.key} — {direction.label}</span>
+                  </label>
+                ))}
+              </div>
+              {laserMask === 0 && (
+                <p className="text-xs text-yellow-400 mt-2">Select at least one direction or the laser will be visually disabled.</p>
+              )}
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-4 items-start">
+              <div>
+                <label className={label}>Preview</label>
+                <div className="relative w-28 h-28 border border-msx-border rounded" style={{ background: MSX2_PREVIEW_BG }}>
+                  {LASER_DIRECTIONS.filter(direction => laserMask & (1 << direction.bit)).map(direction => (
+                    <span key={direction.key} className="absolute bg-msx-accent rounded"
+                      style={direction.lineStyle} />
+                  ))}
+                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded border-2 border-white flex items-center justify-center text-[9px] text-white">
+                    16×16
+                  </div>
+                </div>
+              </div>
+              <div className="flex-1 min-w-[220px] text-xs text-msx-textsecondary">
+                <label className={label}>Path connection</label>
+                {activePath ? (
+                  <p>
+                    Selected path: <strong>{activePath.name}</strong>. Its firing mode is{' '}
+                    <strong>{activePathFiring === 'path' ? 'node scripts' : 'automatic cadence'}</strong>.
+                  </p>
+                ) : (
+                  <p>Select a path in <strong>Movement</strong> to place laser shots on route nodes.</p>
+                )}
+                <p className="mt-2">
+                  To fire at a node: open the selected asset in <strong>MSX2 Boss Paths</strong>,
+                  choose <strong>Only the node scripts shoot</strong>, select a node and press
+                  <strong> + Fire</strong>. The laser wave starts on arrival; while it grows,
+                  that Boss is held in place.
+                </p>
               </div>
             </div>
           </div>
@@ -1562,7 +1709,9 @@ const EncountersPanel: React.FC<{
       <p className="text-xs text-msx-textsecondary mt-2">
         The definition supplies the defaults and the placed boss wins on anything it sets,
         so the same creature can appear in several rooms with a different HP or reward.
-        Leave the override empty to inherit {boss.bossHp} HP.
+        Two entries in the same room are allowed for the double-boss encounter; use a
+        different Boss definition when each entry needs its own Path. Leave the override
+        empty to inherit {boss.bossHp} HP.
       </p>
     </div>
   );
@@ -1709,6 +1858,10 @@ export function createMsx2BossDefinition(id: string, name: string): Msx2BossDefi
     bossShootInterval: 90,
     bossProjectileSpeed: 2,
     bossProjectileDamage: 1,
+    bossLaserTileId: '',
+    bossLaserInterval: 90,
+    bossLaserMaxLengthPx: 128,
+    bossLaserDirectionMask: 0x0f,
     bossPhases: [],
     damageZones: [],
     bossDeathExplosionStampIds: [],

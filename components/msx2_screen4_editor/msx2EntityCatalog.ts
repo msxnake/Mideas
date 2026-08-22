@@ -889,7 +889,7 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
     kind: 'boss',
     runtime: 'MSX2',
     engine: 'bitmapBoss',
-    description: 'Large bitmap boss for SCREEN 5 bitmap rooms: an atlas region blitted with V9938 HMMM (up to 128x96 px). Patrols like an enemy, hurts on contact, takes player-bullet hits and dies permanently. One per room. Supports a chain barrier that locks the room, projectiles (hardware sprite or bitmap), HP attack phases, weak points and defeat actions. See docs/msx/BOSS_SYSTEM_DESIGN.md.',
+    description: 'Bitmap boss for SCREEN 5 bitmap rooms: a reusable 16x16-or-larger Bitmap Stamp blitted with V9938 HMMM. Two boss entities may share a room, each with its own Path, growing N/E/S/O bitmap lasers, HP and defeat state. Supports a chain barrier, projectiles, HP attack phases, weak points and defeat actions. See docs/msx/BOSS_SYSTEM_DESIGN.md.',
     components: {
       msx2_transform: {},
       msx2_movement: { mode: 'patrolX', direction: 1, boundsUnit: 'px' },
@@ -937,6 +937,13 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       bossShootInterval: 90,
       bossProjectileSpeed: 2,
       bossProjectileDamage: 1,
+      // --- double-boss growing bitmap laser ---
+      // Empty uses a 16x16 boss projectile tile, then the body cell. The Boss
+      // Editor exposes the explicit tile picker, interval, length and N/E/S/O mask.
+      bossLaserTileId: '',
+      bossLaserInterval: 90,
+      bossLaserMaxLengthPx: 128,
+      bossLaserDirectionMask: 15,
       // --- attack phases (Phase D): angrier as HP drops ---
       // [{ id, enterWhenHpBelowPercent, interval, projectileSpeed }]
       bossPhases: [],
