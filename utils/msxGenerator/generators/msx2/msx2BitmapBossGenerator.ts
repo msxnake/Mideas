@@ -59,6 +59,7 @@ import {
   PATH_OP_ARG_BYTES,
   PATH_OP_END,
   bakeBossPath,
+  rotateBakedPath,
 } from '../../../msx2BossPath';
 import {
   MSX2_SHOOT_DIR16_TABLE_BYTES,
@@ -196,8 +197,18 @@ export interface BitmapBossRoomData {
    * interval, projSpeed) * count], ordered most-damaged-first. The runtime
    * picks the FIRST entry whose hpAtOrBelow >= current boss_hp, so a boss gets
    * angrier as it loses health. An empty table ([0]) keeps the base cadence.
+   *
+   * When {@link phaseTablesExtended} is set every entry carries four more bytes
+   * — shoot pattern, laser interval, body cadence, movement steps — so a phase
+   * can escalate the whole attack instead of only its rhythm.
    */
   phaseTables: number[][];
+  /**
+   * Stride selector for {@link phaseTables}: false = the original 3 bytes per
+   * entry, true = 7. Set only when a project actually authors an escalation, so
+   * every ROM built before the feature keeps its exact bytes.
+   */
+  phaseTablesExtended: boolean;
   /**
    * Baked path streams (Fase G), one per referenced `msx2bosspath` asset, in
    * first-seen order. Each stream is per-tick movement bytes with escaped
@@ -729,10 +740,15 @@ export function buildBitmapRoomBossData(
     shootIndexById.set(id, index);
     return index;
   };
-  const indexOfPath = (rawId: unknown): number => {
+  const indexOfPath = (rawId: unknown, startNode: number = 0): number => {
     const id = String(rawId ?? '').trim();
     if (!id || id.toLowerCase() === 'none') return 0;
-    const known = pathIndexById.get(id);
+    const start = Math.max(0, Math.floor(Number(startNode) || 0));
+    // One baked stream per (route, entry node): the rotation is a different byte
+    // sequence, so two bosses sharing a route but entering it at different nodes
+    // need one stream each. Same route + same node is still shared.
+    const key = start > 0 ? `${id}#${start}` : id;
+    const known = pathIndexById.get(key);
     if (known !== undefined) return known;
     const asset = paths.get(id);
     if (!asset) {
@@ -743,10 +759,33 @@ export function buildBitmapRoomBossData(
     for (const warning of baked.warnings) {
       console.warn(`MSX2 bitmap boss path "${asset.name || id}": ${warning}`);
     }
-    pathStreams.push(baked.bytes);
-    pathModes.push(String(asset.path?.firing || 'auto') === 'path' ? 1 : 0);
+    let bytes = baked.bytes;
+    if (start > 0) {
+      // Only a closed ring can be entered anywhere: an open route rotated would
+      // start half-way and then march off, because the closing leg is missing.
+      if (String(asset.path?.loopMode || '') !== 'loop') {
+        console.warn(`MSX2 bitmap boss path "${asset.name || id}": a start node only applies to a looping route; node 0 used instead.`);
+      } else if (start >= (baked.nodeOffsets || []).length) {
+        console.warn(`MSX2 bitmap boss path "${asset.name || id}": start node ${start} does not exist (the route has ${(baked.nodeOffsets || []).length} nodes); node 0 used instead.`);
+      } else {
+        bytes = rotateBakedPath(baked, start);
+      }
+    }
+    pathStreams.push(bytes);
+    // Bit 0 = only the node scripts shoot. Bit 1 = the route is walked ONCE.
+    //
+    // The loop mode used to stop at the baker: the runtime replayed every stream
+    // forever. A looping route survives that, because the baker appends the leg
+    // back to node 0 and one lap therefore sums to a zero delta — but an `once`
+    // route has no closing leg, so replaying it displaces the boss by the whole
+    // shape every lap (a 6-node zigzag drifts 120px a pass) until it is off the
+    // screen. Now the runtime knows the difference and holds still at the end.
+    pathModes.push(
+      (String(asset.path?.firing || 'auto') === 'path' ? 1 : 0)
+      | (String(asset.path?.loopMode || 'loop') === 'once' ? 2 : 0),
+    );
     const index = pathStreams.length;   // 1-based
-    pathIndexById.set(id, index);
+    pathIndexById.set(key, index);
     return index;
   };
   const emptyTable = () => new Array(BITMAP_BOSS_TABLE_STRIDE).fill(0);
@@ -959,23 +998,16 @@ export function buildBitmapRoomBossData(
     }
     const x0 = even(Math.max(minX, Math.min(patrol?.x ?? minX, maxX)));
     const y0 = Math.max(minY, Math.min(patrol?.y ?? minY, maxY));
-    // If the boss has a path, use the position of path node 1 as the initial position.
-    // The node position is the CENTER of the boss; convert to top-left corner.
-    // Otherwise use x0/y0 from the patrol/placed position.
-    let finalX = x0;
-    let finalY = y0;
-    const pathId = String(params.bossPathId || '').trim();
-    if (pathId) {
-      const pathAsset = paths.get(pathId);
-      if (pathAsset && Array.isArray(pathAsset.path?.nodes) && pathAsset.path.nodes.length > 0) {
-        const node1 = pathAsset.path.nodes[0];
-        if (Number.isFinite(node1?.x) && Number.isFinite(node1?.y)) {
-          // node1.x/y is the center; subtract half-width/height to get top-left
-          finalX = even(Math.round(node1.x) - width / 2);
-          finalY = Math.round(node1.y) - height / 2;
-        }
-      }
-    }
+    // The boss spawns WHERE IT WAS PLACED, path or no path. The baked path is a
+    // stream of relative dx/dy steps (see bitmap_boss_path_step), so the route's
+    // shape is preserved wherever it is anchored -- the node coordinates only
+    // exist to compute those deltas at generation time.
+    //
+    // This used to snap the boss onto path node 1 instead, which threw away the
+    // placement and, worse, parked every boss sharing a route on the same pixel:
+    // a two-boss encounter on one path drew both bodies on top of each other.
+    const finalX = x0;
+    const finalY = y0;
     const sx = atlasX;
     const sy = 512 + atlasY; // atlas lives at VRAM rows 512+
     enabled = true;
@@ -988,8 +1020,10 @@ export function buildBitmapRoomBossData(
     // player (HMMM-blitted, no hardware sprites).
     const projectile = resolveProjectile(params, room, even);
     const laser = resolveLaser(params, room, even, bodyStampPlacements);
-    // Phase D attack phases: HP thresholds that retune the firing cadence.
-    const phases = buildPhaseTable(params.bossPhases, hp, projectile, room.name);
+    // Phase D attack phases: HP thresholds that retune the firing cadence, and
+    // optionally the shot pattern, the laser cadence, the body cadence and how
+    // many movement steps one body update takes.
+    const phases = buildPhaseTable(params.bossPhases, hp, projectile, room.name, indexOfShoot);
     // Phase E damage zones: weak points / armour, in boss-local pixels.
     const zones = buildDamageZoneTable(params.damageZones ?? params.bossDamageZones, width, height, room.name, indexOfDeathSound);
     // Formal defeat presentation: several transparent bitmap stamps scattered
@@ -1083,7 +1117,10 @@ export function buildBitmapRoomBossData(
     flagNames,
     barrierTables: perRoomPrimary.map(entry => entry.barrier),
     projectileTables: perRoom.flatMap(room => room.entries.map(entry => entry.projectile)),
-    phaseTables: perRoom.flatMap(room => room.entries.map(entry => entry.phases)),
+    ...(() => {
+      const phases = stripPhaseEscalation(perRoom.flatMap(room => room.entries.map(entry => entry.phases)));
+      return { phaseTables: phases.tables, phaseTablesExtended: phases.extended };
+    })(),
     damageZoneTables: perRoom.flatMap(room => room.entries.map(entry => entry.zones)),
     pathStreams,
     pathModes,
@@ -1133,21 +1170,52 @@ function warnIfPathLeavesRoom(
 }
 
 /**
- * Compile `bossPhases` into the runtime table [count, (hpAtOrBelow, interval,
- * projSpeed) * count]. Authoring uses `enterWhenHpBelowPercent` (design doc
- * §6); it is converted to an absolute HP threshold against the boss's own HP so
- * the runtime only needs a byte compare. Entries are sorted most-damaged-first
- * so the first match wins.
- *
- * NOTE: phases deliberately do NOT retune movement speed. The body's trail
- * cleanup restores 4px strips, which caps patrol speed at 2px/frame, so there
- * is no useful range there — the interesting knob is the attack.
+ * Bytes per phase entry in the ORIGINAL table: [hpAtOrBelow, interval, speed].
+ * Every ROM built before phases could retune anything else uses this stride.
  */
-function buildPhaseTable(bossPhases: unknown, hp: number, projectile: number[], roomName: string): number[] {
+export const BITMAP_BOSS_PHASE_ENTRY_BASE = 3;
+
+/**
+ * Bytes per phase entry once ANY phase in the project authors an escalation
+ * override: [hpAtOrBelow, interval, speed, shootIdx, laserInterval, bodyInterval,
+ * moveSteps]. A zero in one of the four extra slots means "keep the boss
+ * default", except `moveSteps`, where the neutral value is 1.
+ */
+export const BITMAP_BOSS_PHASE_ENTRY_FULL = 7;
+
+/** Cap on the steps a phase may take per body update (see `moveStepMultiplier`). */
+const PHASE_MAX_MOVE_STEPS = 3;
+
+/**
+ * Compile `bossPhases` into the runtime table
+ * [count, (hpAtOrBelow, interval, projSpeed, shoot, laserInt, bodyInt, moveSteps) * count].
+ * Authoring uses `enterWhenHpBelowPercent` (design doc §6); it is converted to an
+ * absolute HP threshold against the boss's own HP so the runtime only needs a
+ * byte compare. Entries are sorted most-damaged-first so the first match wins.
+ *
+ * The four escalation bytes are always emitted here and trimmed back to the
+ * original 3-byte stride by {@link stripPhaseEscalation} when NO room in the
+ * project uses them, which is what keeps existing ROMs byte-identical.
+ *
+ * NOTE on movement: a single step stays capped at 2px because the body's trail
+ * cleanup restores strips around the old rectangle. `moveSteps` does not lift
+ * that cap — it applies the step two or three times per body update, and the
+ * restore strips widen to match (see `bitmap_boss_restore_strips`).
+ */
+function buildPhaseTable(
+  bossPhases: unknown,
+  hp: number,
+  projectile: number[],
+  roomName: string,
+  indexOfShoot: (id: unknown) => number,
+): number[] {
   if (!Array.isArray(bossPhases) || !bossPhases.length) return [0];
   const baseInterval = projectile[7] || 90;
   const baseSpeed = projectile[8] || 2;
-  const entries: Array<{ threshold: number; interval: number; speed: number }> = [];
+  const entries: Array<{
+    threshold: number; interval: number; speed: number;
+    shoot: number; laserInterval: number; bodyInterval: number; moveSteps: number;
+  }> = [];
   for (const raw of bossPhases) {
     if (!raw || typeof raw !== 'object') continue;
     const phase = raw as any;
@@ -1158,6 +1226,11 @@ function buildPhaseTable(bossPhases: unknown, hp: number, projectile: number[], 
       threshold,
       interval: clampInt(phase.interval ?? phase.attack?.interval, 10, 255, baseInterval),
       speed: clampInt(phase.projectileSpeed ?? phase.attack?.projectileSpeed, 1, 4, baseSpeed),
+      // A missing / unknown shoot asset resolves to 0, i.e. the plain aimed shot.
+      shoot: indexOfShoot(phase.shootId) & 0xff,
+      laserInterval: clampInt(phase.laserInterval, 0, 255, 0),
+      bodyInterval: clampInt(phase.bodyInterval, 0, 16, 0),
+      moveSteps: clampInt(phase.moveStepMultiplier, 1, PHASE_MAX_MOVE_STEPS, 1),
     });
   }
   if (!entries.length) return [0];
@@ -1166,7 +1239,47 @@ function buildPhaseTable(bossPhases: unknown, hp: number, projectile: number[], 
     entries.length = 8;
   }
   entries.sort((a, b) => a.threshold - b.threshold); // most damaged first
-  return [entries.length, ...entries.flatMap(e => [e.threshold & 0xff, e.interval & 0xff, e.speed & 0xff])];
+  return [entries.length, ...entries.flatMap(e => [
+    e.threshold & 0xff, e.interval & 0xff, e.speed & 0xff,
+    e.shoot & 0xff, e.laserInterval & 0xff, e.bodyInterval & 0xff, e.moveSteps & 0xff,
+  ])];
+}
+
+/** True when a phase entry asks for anything the original 3 bytes cannot say. */
+function phaseEntryEscalates(entry: number[]): boolean {
+  return (entry[3] || 0) !== 0        // shoot pattern
+    || (entry[4] || 0) !== 0          // laser interval override
+    || (entry[5] || 0) !== 0          // body cadence override
+    || (entry[6] || 1) > 1;           // several movement steps per update
+}
+
+/**
+ * Trim every phase table back to the original 3-byte stride when no room in the
+ * project authored an escalation override, exactly as `stripDeathFxAnimHeader`
+ * does for the death FX header.
+ *
+ * This is the whole byte-identity contract for the feature: an old project must
+ * not pay a single ROM byte, and the runtime picks its stride from the same
+ * flag, so the two can never disagree.
+ */
+function stripPhaseEscalation(tables: number[][]): { tables: number[][]; extended: boolean } {
+  const entriesOf = (table: number[]): number[][] => {
+    const count = table[0] || 0;
+    const out: number[][] = [];
+    for (let i = 0; i < count; i++) {
+      out.push(table.slice(1 + i * BITMAP_BOSS_PHASE_ENTRY_FULL, 1 + (i + 1) * BITMAP_BOSS_PHASE_ENTRY_FULL));
+    }
+    return out;
+  };
+  const extended = tables.some(table => entriesOf(table || [0]).some(phaseEntryEscalates));
+  if (extended) return { tables, extended };
+  return {
+    tables: tables.map(table => [
+      table[0] || 0,
+      ...entriesOf(table || [0]).flatMap(entry => entry.slice(0, BITMAP_BOSS_PHASE_ENTRY_BASE)),
+    ]),
+    extended: false,
+  };
 }
 
 /** `#FF` in a phase slot means "keep whatever the boss's default path is". */
@@ -1181,8 +1294,11 @@ const PATH_SEL_INHERIT = 0xff;
  * no second pointer to keep in step. `pathIdx` is 1-based (0 = stand still,
  * #FF = inherit the default).
  */
-function buildPathSelTable(params: any, hp: number, indexOfPath: (id: unknown) => number): number[] {
-  const defaultIdx = indexOfPath(params.bossPathId);
+function buildPathSelTable(params: any, hp: number, indexOfPath: (id: unknown, startNode?: number) => number): number[] {
+  // Per-encounter entry point into the route. Phase paths share it: a boss that
+  // swaps routes mid-fight keeps the offset it was authored with.
+  const startNode = Math.max(0, Math.floor(Number(params.bossPathStartNode) || 0));
+  const defaultIdx = indexOfPath(params.bossPathId, startNode);
   const rows: Array<{ threshold: number; path: number }> = [];
   for (const raw of Array.isArray(params.bossPhases) ? params.bossPhases : []) {
     if (!raw || typeof raw !== 'object') continue;
@@ -1192,7 +1308,7 @@ function buildPathSelTable(params: any, hp: number, indexOfPath: (id: unknown) =
     const spelled = String(phase.pathId ?? '').trim();
     const path = spelled === ''
       ? PATH_SEL_INHERIT
-      : spelled.toLowerCase() === 'none' ? 0 : indexOfPath(spelled);
+      : spelled.toLowerCase() === 'none' ? 0 : indexOfPath(spelled, startNode);
     rows.push({ threshold, path });
   }
   if (rows.length > 8) rows.length = 8;
@@ -1846,16 +1962,51 @@ export function buildBitmapBossSystemAsm(
   const hasPaths = pathStreams.length > 0
     && (data.pathSelTables || []).some(table => table && table.length > 0);
   const pathRamBase = spriteRamBase + spriteSlots * BOSS_SBUL_SLOT_BYTES;
-  const PATH_RAM_BYTES = 7;
-  // Shot patterns only exist when a path node names one AND the boss fires
-  // hardware sprites (a single bitmap bullet cannot fan out).
+  // 7 until the route swap had to be deferred: `pending` is the route the phase
+  // asked for and `once` is the loop mode of the active one.
+  const PATH_RAM_BYTES = 9;
+  // ---- attack-phase escalation (opt-in, hence byte-identical when unused) ----
+  // The stride comes from the data, never from a re-derivation here: the table
+  // builder already decided it, and two independent decisions would eventually
+  // disagree and make the runtime read a phase entry at the wrong offset.
+  const phasesExtended = data.phaseTablesExtended === true;
+  const phaseEntryBytes = phasesExtended ? BITMAP_BOSS_PHASE_ENTRY_FULL : BITMAP_BOSS_PHASE_ENTRY_BASE;
+  const phaseEntriesOf = (table: number[] | undefined): number[][] => {
+    const rows: number[][] = [];
+    const count = table?.[0] || 0;
+    for (let i = 0; i < count; i++) {
+      rows.push((table as number[]).slice(1 + i * phaseEntryBytes, 1 + (i + 1) * phaseEntryBytes));
+    }
+    return rows;
+  };
+  const phaseEntries = (data.phaseTables || []).flatMap(table => phaseEntriesOf(table));
+  // Each escalation knob is gated on its own so a boss that only speeds up its
+  // laser does not drag the shoot-pattern dispatch into the ROM.
+  const hasPhaseShoots = phasesExtended && phaseEntries.some(entry => (entry[3] || 0) > 0);
+  const hasPhaseLaserInterval = phasesExtended && phaseEntries.some(entry => (entry[4] || 0) > 0);
+  const hasPhaseBodyInterval = phasesExtended && phaseEntries.some(entry => (entry[5] || 0) > 0);
+  const hasPhaseMoveSteps = phasesExtended && phaseEntries.some(entry => (entry[6] || 1) > 1);
+  // The phase table used to live inside the projectile block, so a boss with no
+  // bullets at all had no phases either -- which is exactly why a laser-only
+  // boss could not escalate anything. It is emitted on its own terms now.
+  const hasPhaseTables = hasProjectiles || phasesExtended;
+  // Shot patterns only exist when a path node or an attack phase names one AND
+  // the boss fires hardware sprites (a single bitmap bullet cannot fan out).
   const shootRecords = data.shootRecords || [];
-  const hasShoots = hasPaths && hasSpriteProjectiles && shootRecords.length > 0;
+  const hasShoots = (hasPaths || hasPhaseShoots) && hasSpriteProjectiles && shootRecords.length > 0;
   const shootRamBase = pathRamBase + (hasPaths ? PATH_RAM_BYTES : 0);
   const SHOOT_RAM_BYTES = 10;
+  // Resolved-phase scratch: interval, projectile speed, shoot index, laser
+  // interval, body cadence, movement steps. Recomputed from boss_hp at the top
+  // of every boss update, so it is NOT part of the per-instance saved state the
+  // two-boss dispatcher swaps -- and one scan per frame serves every consumer,
+  // instead of each one walking the table again.
+  const PHASE_RAM_BYTES = 6;
+  const phaseRamBase = shootRamBase + (hasShoots ? SHOOT_RAM_BYTES : 0);
   const baseRamBytes = 11 + 2 + 15 + defeatedBytes + flagCount + (hasBarrier ? 7 : 0)
     + PROJ_RAM_BYTES + spriteSlots * BOSS_SBUL_SLOT_BYTES
-    + (hasPaths ? PATH_RAM_BYTES : 0) + (hasShoots ? SHOOT_RAM_BYTES : 0);
+    + (hasPaths ? PATH_RAM_BYTES : 0) + (hasShoots ? SHOOT_RAM_BYTES : 0)
+    + (phasesExtended ? PHASE_RAM_BYTES : 0);
   const introRamBase = ram + baseRamBytes;
   const INTRO_RAM_BYTES = 7;
   const deathRamBase = introRamBase + (hasIntro ? INTRO_RAM_BYTES : 0);
@@ -1890,11 +2041,19 @@ export function buildBitmapBossSystemAsm(
   // independent bosses are implemented by swapping that selected state around
   // the existing renderer; the VDP command block remains shared and therefore
   // still serialises HMMM work safely.
+  // MUST match `stateByteFields` + 2 * `stateWordFields` below, field for field.
+  // They are two lists that have to agree, and when they stopped agreeing the
+  // symptom was not a compile error: slot 1's block simply started two bytes
+  // inside slot 0's, so each boss corrupted the tail of the other's state (the
+  // path cursor, which is last) and the route walked into nonsense. Guarded by
+  // scripts/check_msx2_boss_path_phase_switch.mjs, which counts the copies the
+  // generator actually emitted.
   const INSTANCE_STATE_BYTES = 13
     + (hasBossCells ? 1 : 0)
     + (hasProjectiles ? 9 : 0)
     + (hasFallingRocks ? 1 : 0)
-    + (hasPaths ? 7 : 0)
+    // wait, idx, fire_mode, pending, once + the ptr and cur words
+    + (hasPaths ? 9 : 0)
     + (hasShoots ? 10 : 0)
     + (hasDeathFx ? 3 + (hasDeathAnim ? DEATH_ANIM_SLOTS * DEATH_ANIM_SLOT_BYTES + 2 : 0) : 0)
     + (hasHitBlast ? HIT_BLAST_RAM_BYTES : 0)
@@ -1974,6 +2133,298 @@ export function buildBitmapBossSystemAsm(
   const maxHealthByte = asmByte(opts.maxHealth || 3);
   const pauseGate = opts.pauseGateAsm || '';
 
+  // Authored shot patterns are not a PATH feature: an attack phase may name
+  // one too, and then these routines must exist in a project that has no path
+  // at all. Hoisted into one string, emitted in its original position inside a
+  // path build so those ROMs keep their exact bytes.
+  const shootRoutinesAsm = !hasShoots ? '' : `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_shoot_record
+; ------------------------------------------------------------
+; PURPOSE: 1-based pattern index -> its ${MSX2_SHOOT_RECORD_BYTES}-byte record.
+; INPUT: A = index. OUTPUT: HL -> record. DESTROYS: AF, DE. Preserves BC, IX, IY.
+; ------------------------------------------------------------
+bitmap_boss_shoot_record:
+    dec a
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl                 ; record index * ${MSX2_SHOOT_RECORD_BYTES}
+    ld de, bitmap_boss_shoot_table
+    add hl, de
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_shoot_fire
+; ------------------------------------------------------------
+; PURPOSE: Trigger one authored shot pattern: arm the burst, then send the first
+;   wave out on this very frame. A burst of 1 (the usual case) leaves
+;   boss_burst_idx at 0 and nothing ticks afterwards.
+; INPUT: boss_shoot_cnt = 1-based pattern index. OUTPUT: bullets in the pool.
+; DESTROYS: AF, BC, DE, HL. Preserves IX.
+; ------------------------------------------------------------
+bitmap_boss_shoot_fire:
+    ld a, (boss_shoot_cnt)
+    ld c, a                    ; C = pattern index, kept across the lookup
+    call bitmap_boss_shoot_record
+    ld de, 6
+    add hl, de                 ; HL -> burst count
+    ld a, (hl)
+    dec a                      ; waves still owed once this one has gone
+    ld (boss_burst_left), a
+    jr z, .bsf_single
+    inc hl
+    ld a, (hl)                 ; frames until the next wave
+    ld (boss_burst_cd), a
+    ld a, c
+    ld (boss_burst_idx), a
+    jr .bsf_wave
+.bsf_single:
+    xor a
+    ld (boss_burst_idx), a     ; single volley: nothing left to tick
+.bsf_wave:
+    ld a, c
+    jp bitmap_boss_shoot_wave
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_burst_tick
+; ------------------------------------------------------------
+; PURPOSE: Release the remaining waves of a burst, one every burstInterval
+;   frames. Runs every frame while the boss lives; costs a load and a branch
+;   when no burst is in flight.
+; DESTROYS: AF, BC, DE, HL. Preserves IX. Must NOT run inside the pool loop:
+;   firing a wave rewrites IY.
+; ------------------------------------------------------------
+bitmap_boss_burst_tick:
+    ld a, (boss_burst_idx)
+    or a
+    ret z                      ; no burst in flight
+    ld hl, boss_burst_cd
+    dec (hl)
+    ret nz                     ; still counting down
+    ld c, a                    ; C = pattern index
+    call bitmap_boss_shoot_record
+    ld de, 7
+    add hl, de
+    ld a, (hl)
+    ld (boss_burst_cd), a      ; reload the gap for the wave after this one
+    ld hl, boss_burst_left
+    dec (hl)
+    jr nz, .bbt_fire
+    xor a
+    ld (boss_burst_idx), a     ; this is the last wave of the burst
+.bbt_fire:
+    ld a, c
+    jp bitmap_boss_shoot_wave
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_shoot_wave
+; ------------------------------------------------------------
+; PURPOSE: Spawn ONE wave of a pattern. The record carries a bullet count, a
+;   base direction, a speed override and a signed start/stride pair in ring
+;   steps, so a fan and a full ring are the same loop: walk dir+start, add
+;   stride, look the 8.8 vector up. No angle, no multiply, no fan arithmetic.
+; INPUT: A = 1-based pattern index. OUTPUT: bullets in the pool.
+; DESTROYS: AF, BC, DE, HL. Preserves IX.
+; ------------------------------------------------------------
+bitmap_boss_shoot_wave:
+    call bitmap_boss_shoot_record
+    ld a, (hl)                 ; pattern: 0 aimed, 1 linear, 2 spread, 3 radial
+    inc hl
+    ld c, a                    ; C = pattern
+    ld a, (hl)
+    ld (boss_shoot_cnt), a     ; bullets in this wave
+    inc hl
+    ld a, (hl)
+    ld (boss_shoot_dir), a     ; authored ring direction
+    inc hl
+    ld a, (hl)                 ; speed override, 0 = phase speed
+    or a
+    jr nz, .bsw_speed
+    ld a, (boss_phase_speed)
+.bsw_speed:
+    ld (boss_shoot_spd), a
+    inc hl
+    ld a, (hl)                 ; signed ring offset of the first bullet
+    ld (boss_shoot_off), a
+    inc hl
+    ld a, (hl)                 ; signed ring step between bullets
+    ld (boss_shoot_step), a
+    ; Everything the loop needs is in RAM now, so the aim lookup is free to
+    ; clobber HL/DE/BC.
+    ld a, c
+    cp 1
+    jr z, .bsw_loop            ; linear keeps the authored direction
+    call bitmap_boss_aim_index ; aimed, spread and radial centre on the player
+    ld (boss_shoot_dir), a
+.bsw_loop:
+    ld a, (boss_shoot_off)
+    ld hl, boss_shoot_dir
+    add a, (hl)
+    and ${MSX2_SHOOT_RING - 1}                     ; wrap around the ring
+    call bitmap_boss_shoot_vector
+    call bitmap_boss_sbul_spawn_dir
+    ld a, (boss_shoot_off)
+    ld hl, boss_shoot_step
+    add a, (hl)
+    ld (boss_shoot_off), a
+    ld hl, boss_shoot_cnt
+    dec (hl)
+    jr nz, .bsw_loop
+    ret
+
+; Ring slot -> velocity. IN: A = slot 0..${MSX2_SHOOT_RING - 1}.
+; OUT: D = whole-pixel dx, E = whole-pixel dy, and the matching 8.8 fractions in
+;      boss_sbul_dxf / boss_sbul_dyf, which is the ABI bitmap_boss_sbul_spawn_dir
+;      expects. DESTROYS: AF, BC, DE, HL.
+bitmap_boss_shoot_vector:
+    add a, a
+    add a, a                   ; ring slot * 4 (two 8.8 words per slot)
+    ld l, a
+    ld h, 0
+    ld de, bitmap_boss_dir16_table
+    add hl, de                 ; HL -> dx low byte
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                 ; DE = unit dx as 8.8
+    inc hl
+    push hl                    ; the dy pointer has to survive the scaling
+    call bitmap_boss_shoot_scale
+    ld a, e
+    ld (boss_sbul_dxf), a
+    ld b, d                    ; B = whole-pixel dx
+    pop hl
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                 ; DE = unit dy as 8.8
+    call bitmap_boss_shoot_scale
+    ld a, e
+    ld (boss_sbul_dyf), a
+    ld e, d                    ; E = whole-pixel dy
+    ld d, b                    ; D = whole-pixel dx
+    ret
+
+; DE = DE * boss_shoot_spd, by repeated addition: speed tops out at 4, so the
+; loop beats any multiply routine and costs no table.
+; DESTROYS: AF, HL. Preserves BC, IX, IY.
+bitmap_boss_shoot_scale:
+    ld a, (boss_shoot_spd)
+    cp 2
+    ret c                      ; speed 0 or 1: DE already is the answer
+    push de
+    pop hl                     ; HL = accumulator, seeded with one unit
+.bss_add:
+    add hl, de
+    dec a
+    cp 1
+    jr nz, .bss_add
+    ex de, hl
+    ret
+
+; Which of the 8 compass directions points at the player, as a RING slot.
+; The compass is every other ring direction, so the sign lookup (which is all
+; aiming really needs) doubles into the finer ring the bullets fly on.
+; OUT: A = 0, 2, 4 ... 14. DESTROYS: AF, BC, DE, HL. Preserves IX.
+bitmap_boss_aim_index:
+    call bitmap_boss_table_ix_shadow   ; HL -> boss width
+    ld a, (hl)
+    srl a
+    ld b, a
+    ld a, (boss_x)
+    add a, b                   ; boss centre X
+    ld b, a
+    ld a, (player_x)
+    cp b
+    ld c, 1                    ; 1 = same column
+    jr z, .bai_y
+    jr nc, .bai_right
+    ld c, 0                    ; player to the left
+    jr .bai_y
+.bai_right:
+    ld c, 2
+.bai_y:
+    call bitmap_boss_table_ix_shadow
+    inc hl
+    ld a, (hl)                 ; boss height
+    srl a
+    ld b, a
+    ld a, (boss_y)
+    add a, b                   ; boss centre Y
+    ld b, a
+    ld a, (player_y)
+    cp b
+    ld e, 1                    ; 1 = same row
+    jr z, .bai_lookup
+    jr nc, .bai_below
+    ld e, 0                    ; player above
+    jr .bai_lookup
+.bai_below:
+    ld e, 2
+.bai_lookup:
+    ld a, e
+    add a, a
+    add a, e                   ; row * 3
+    add a, c                   ; + column
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_boss_aim_ring
+    add hl, de
+    ld a, (hl)
+    ret
+
+; Spawn one sprite bullet from the boss centre.
+; IN: D = dx whole pixels, E = dy whole pixels,
+;     boss_sbul_dxf / boss_sbul_dyf = the matching 8.8 fractions.
+; Nothing happens when the pool is full, exactly like the cadence path.
+bitmap_boss_sbul_spawn_dir:
+    ld iy, boss_sbul_pool
+    ld b, ${spriteSlots}
+.bsd_find:
+    ld a, (iy+0)
+    or a
+    jr z, .bsd_found
+    push bc
+    ld bc, BOSS_SBUL_SLOT
+    add iy, bc
+    pop bc
+    djnz .bsd_find
+    ret
+.bsd_found:
+    push de
+    call bitmap_boss_table_ix_shadow   ; HL -> boss width (IX/IY preserved)
+    ld a, (hl)
+    srl a
+    ld b, a
+    ld a, (boss_x)
+    add a, b
+    sub 8                      ; centre the 16x16 sprite
+    ld (iy+1), a
+    inc hl
+    ld a, (hl)
+    srl a
+    ld b, a
+    ld a, (boss_y)
+    add a, b
+    sub 8
+    ld (iy+2), a
+    pop de
+    ld (iy+3), d
+    ld (iy+4), e
+    xor a
+    ld (iy+5), a               ; position starts on an exact pixel
+    ld (iy+6), a
+    ld a, (boss_sbul_dxf)      ; the caller parks the fractional velocity here:
+    ld (iy+7), a               ; B is the slot-search counter, so it cannot ride
+    ld a, (boss_sbul_dyf)      ; in a register
+    ld (iy+8), a
+${hasAnimatedSpriteBullet ? `    xor a
+    ld (iy+9), a               ; patterned volleys also start on frame 0
+    ld (iy+10), a
+` : ''}    ld (iy+0), 1
+    ret
+`;
+
   const equates = `
 ; ---- bitmap BOSS runtime state (${totalRamBytes} bytes) ----
 ${bankedTables ? `bitmap_boss_table_buf EQU ${asmWord(bossTableBufAddr)}   ; two room records staged out of their bank
@@ -2025,6 +2476,8 @@ boss_path_cur   EQU ${asmWord(pathRamBase + 2)}  ; word: read cursor into it
 boss_path_wait  EQU ${asmWord(pathRamBase + 4)}  ; ticks left on a wait opcode
 boss_path_idx   EQU ${asmWord(pathRamBase + 5)}  ; active path, 1-based (0 = standing still)
 boss_path_fire_mode EQU ${asmWord(pathRamBase + 6)}  ; 1 = only the node scripts shoot
+boss_path_pending EQU ${asmWord(pathRamBase + 7)}  ; route the phase wants; applied when the lap closes
+boss_path_once  EQU ${asmWord(pathRamBase + 8)}  ; non-zero: walk the route once, then hold
 ` : ''}${hasShoots ? `boss_shoot_dir  EQU ${asmWord(shootRamBase + 0)}  ; ring slot (0..15) the wave is centred on
 boss_shoot_spd  EQU ${asmWord(shootRamBase + 1)}  ; px/frame for this volley
 boss_shoot_cnt  EQU ${asmWord(shootRamBase + 2)}  ; bullets left in the current wave
@@ -2035,6 +2488,15 @@ boss_sbul_dyf   EQU ${asmWord(shootRamBase + 6)}
 boss_burst_idx  EQU ${asmWord(shootRamBase + 7)}  ; pattern being burst-fired, 1-based (0 = idle)
 boss_burst_left EQU ${asmWord(shootRamBase + 8)}  ; waves still owed after the current one
 boss_burst_cd   EQU ${asmWord(shootRamBase + 9)}  ; frames until the next wave
+` : ''}${phasesExtended ? `; ---- active attack phase, resolved once per boss update from boss_hp ----
+; 0 in a slot means "no phase matched, keep the boss default"; the movement
+; slot is the exception, where the neutral value is 1 step per update.
+boss_phase_int  EQU ${asmWord(phaseRamBase + 0)}  ; fire interval of the active phase
+boss_phase_spd  EQU ${asmWord(phaseRamBase + 1)}  ; projectile speed of the active phase
+boss_phase_shoot EQU ${asmWord(phaseRamBase + 2)}  ; shoot pattern (0 = single aimed bullet)
+boss_phase_laser_int EQU ${asmWord(phaseRamBase + 3)}  ; laser cadence override
+boss_phase_body_int EQU ${asmWord(phaseRamBase + 4)}  ; body cadence override
+boss_phase_move EQU ${asmWord(phaseRamBase + 5)}  ; movement steps per body update
 ` : ''}${hasIntro ? `boss_intro_state EQU ${asmWord(introRamBase + 0)}  ; 0 fight/idle, 1 dispatch, 2 wait, 3 dialogue, 4 barrier, 5 auto-walk
 boss_intro_ptr EQU ${asmWord(introRamBase + 1)}  ; word: next opcode or active-step argument
 boss_intro_counter EQU ${asmWord(introRamBase + 3)}  ; wait frames / raster scanlines left this frame
@@ -2173,7 +2635,12 @@ ${hasDeathAnim ? Array.from({ length: DEATH_ANIM_SLOTS }, (_v, i) => `    ld (bo
   if (hasFallingRocks) stateByteFields.push('boss_rock_seed');
   if (hasPaths) {
     stateWordFields.push('boss_path_ptr', 'boss_path_cur');
-    stateByteFields.push('boss_path_wait', 'boss_path_idx', 'boss_path_fire_mode');
+    stateByteFields.push(
+      'boss_path_wait', 'boss_path_idx', 'boss_path_fire_mode',
+      // Per instance too: two bosses in one room queue their route swaps
+      // independently, and they rarely close their laps on the same frame.
+      'boss_path_pending', 'boss_path_once',
+    );
   }
   if (hasShoots) stateByteFields.push(
     'boss_shoot_dir', 'boss_shoot_spd', 'boss_shoot_cnt', 'boss_shoot_off',
@@ -2536,7 +3003,8 @@ ${hasBarrier ? `    ; The chain could not seal the doorway the player entered th
     call bitmap_boss_barrier_apply   ; reseals whatever the player has left
 .no_barrier_resweep:
 ` : ''}    call bitmap_boss_table_ix  ; IX -> room table (preserves state regs)
-${hasLaser ? `    call bitmap_boss_laser_tick
+${phasesExtended ? `    call bitmap_boss_phase_apply   ; before the laser and the cadence gate: both read it
+` : ''}${hasLaser ? `    call bitmap_boss_laser_tick
     ld a, (boss_laser_mask)
     or a
     jp nz, bitmap_boss_touch     ; firing freezes this boss, but not the other slot
@@ -2544,11 +3012,24 @@ ${hasLaser ? `    call bitmap_boss_laser_tick
     ; VDP load balancing (enemy-style): the body only moves/redraws every
     ; (ix+19) frames (default 3); the projectile blits run on the OTHER frames,
     ; so a single frame never pays for both the big body HMMM and a bullet.
+${hasPhaseBodyInterval ? `    ; The active phase may shorten the cadence: a lower interval means the body
+    ; moves, animates and redraws more often -- the one escalation here that
+    ; really does cost extra VDP time, which is why it is authored per phase.
+    ld b, (ix+19)
+    ld a, (boss_phase_body_int)
+    or a
+    jr z, .boss_body_cadence
+    ld b, a
+.boss_body_cadence:
     ld a, (boss_int_tick)
     inc a
     ld (boss_int_tick), a
+    cp b
+` : `    ld a, (boss_int_tick)
+    inc a
+    ld (boss_int_tick), a
     cp (ix+19)
-    jp c, bitmap_boss_off_frame   ; off-frame: bullets + contact damage
+`}    jp c, bitmap_boss_off_frame   ; off-frame: bullets + contact damage
     xor a
     ld (boss_int_tick), a
 
@@ -2563,16 +3044,30 @@ ${hasPaths ? `    ; ---- authored path (Fase G) wins over the patrol ----
     ld a, (boss_path_idx)
     or a
     jr z, .bp_patrol
+${hasPhaseMoveSteps ? `    ; An angrier phase walks the SAME baked route several steps per update
+    ; instead of re-baking it faster: the stream stays shared, and node waits
+    ; naturally get shorter as the boss speeds up.
     push ix
+    ld a, (boss_phase_move)
+    ld b, a
+.bp_path_steps:
+    push bc
+    call bitmap_boss_path_step
+    pop bc
+    djnz .bp_path_steps
+    pop ix
+` : `    push ix
     call bitmap_boss_path_step
     pop ix
+`}    call bitmap_boss_path_clamp
     jp .no_y
 .bp_patrol:
 ` : ''}    ; ---- X patrol with bounce ----
     ld a, (boss_dx)
     or a
     jr z, .no_x
-    ld b, a
+${hasPhaseMoveSteps ? `    call bitmap_boss_phase_step_scale   ; A = patrol step * boss_phase_move
+` : ''}    ld b, a
     ld a, (boss_x)
     add a, b
     ld (boss_x), a
@@ -2582,8 +3077,9 @@ ${hasPaths ? `    ; ---- authored path (Fase G) wins over the patrol ----
     jr z, .no_x
     jr c, .no_x
 .bounce_x:
-    ld a, b
-    neg
+${hasPhaseMoveSteps ? `    ld a, (boss_dx)            ; flip the PATROL step, never the scaled one
+` : `    ld a, b
+`}    neg
     ld (boss_dx), a
     ld a, (boss_old_x)
     ld (boss_x), a             ; stay in bounds this frame
@@ -2592,7 +3088,8 @@ ${hasPaths ? `    ; ---- authored path (Fase G) wins over the patrol ----
     ld a, (boss_dy)
     or a
     jr z, .no_y
-    ld b, a
+${hasPhaseMoveSteps ? `    call bitmap_boss_phase_step_scale
+` : ''}    ld b, a
     ld a, (boss_y)
     add a, b
     ld (boss_y), a
@@ -2602,8 +3099,9 @@ ${hasPaths ? `    ; ---- authored path (Fase G) wins over the patrol ----
     jr z, .no_y
     jr c, .no_y
 .bounce_y:
-    ld a, b
-    neg
+${hasPhaseMoveSteps ? `    ld a, (boss_dy)
+` : `    ld a, b
+`}    neg
     ld (boss_dy), a
     ld a, (boss_old_y)
     ld (boss_y), a
@@ -2827,7 +3325,13 @@ ${hasPaths ? `    ld a, (boss_path_fire_mode)
     ld de, 5
     add hl, de
     ld a, (hl)
-    ld (boss_laser_cd), a
+${hasPhaseLaserInterval ? `    ld b, a
+    ld a, (boss_phase_laser_int)   ; the active phase may fire waves faster
+    or a
+    jr nz, .boss_laser_cd_phase
+    ld a, b
+.boss_laser_cd_phase:
+` : ''}    ld (boss_laser_cd), a
     ret
 .boss_laser_grow_segments:
     ld a, (boss_laser_mask)
@@ -3300,7 +3804,125 @@ bitmap_boss_laser_rect_touch:
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_restore_strips
 ; ------------------------------------------------------------
-; PURPOSE: Repair the background the body uncovered this tick: one 4px
+${hasPhaseMoveSteps ? `; PURPOSE: Repair the background the body uncovered this tick: one vertical
+;   strip (movement X) and one horizontal strip (movement Y), copied page1 ->
+;   page0 at the OLD position edges.
+;
+;   The strip is 4px wide for the usual 1-2px step, and grows with the step when
+;   an attack phase takes several of them per update (see boss_phase_move): a
+;   fixed 4px is exactly what would leave a 2px trail of body behind a boss
+;   moving 6px at a time.
+; INPUT: boss_old_x/y, boss_x/y, IX -> table. DESTROYS: AF, BC, DE, HL.
+; ------------------------------------------------------------
+bitmap_boss_restore_strips:
+    ; X strip: moved right -> left edge uncovered (at old_x);
+    ;          moved left  -> right edge (old_x + W - strip).
+    ld a, (boss_x)
+    ld b, a                    ; B = new X
+    ld a, (boss_old_x)
+    ld d, a                    ; D = old X
+    cp b
+    jr z, .strip_y             ; no X move
+    jr c, .strip_dx_right
+    sub b                      ; moved left: |delta| = old - new
+    jr .strip_dx_have
+.strip_dx_right:
+    ld a, b
+    sub d                      ; moved right: |delta| = new - old
+.strip_dx_have:
+    call bitmap_boss_strip_width   ; A = |delta| -> C = strip width
+    ld a, d
+    cp b
+    jr c, .strip_left          ; old < new: uncovered at old left edge
+    add a, (ix+13)             ; old > new: right edge
+    sub c
+.strip_left:
+    and #FE
+    ld (boss_cmd_buf + 0), a   ; SX low (page 1 source, same X)
+    ld (boss_cmd_buf + 4), a   ; DX low
+    xor a
+    ld (boss_cmd_buf + 1), a
+    ld (boss_cmd_buf + 5), a
+    ld a, (boss_old_y)
+    add a, ${asmByte(gameY)}
+    ld l, a
+${visiblePageH}
+    ld (boss_cmd_buf + 6), hl  ; DY = visible page
+    ld a, h
+    xor 1
+    ld h, a
+    ld (boss_cmd_buf + 2), hl  ; SY = clean page
+    ld l, c
+    ld h, 0
+    ld (boss_cmd_buf + 8), hl  ; NX = strip width
+    ld l, (ix+14)
+    ld h, 0
+    ld (boss_cmd_buf + 10), hl ; NY = boss height
+    call bitmap_boss_finish_hmmm
+.strip_y:
+    ; Y strip: moved down -> top edge uncovered (at old_y); up -> bottom.
+    ld a, (boss_y)
+    ld b, a                    ; B = new Y
+    ld a, (boss_old_y)
+    ld d, a                    ; D = old Y
+    cp b
+    ret z
+    jr c, .strip_dy_down
+    sub b
+    jr .strip_dy_have
+.strip_dy_down:
+    ld a, b
+    sub d
+.strip_dy_have:
+    call bitmap_boss_strip_width
+    ld a, d
+    cp b
+    jr c, .strip_top
+    add a, (ix+14)
+    sub c
+.strip_top:
+    add a, ${asmByte(gameY)}
+    ld l, a
+${visiblePageH}
+    ld (boss_cmd_buf + 6), hl  ; DY = visible page
+    ld a, h
+    xor 1
+    ld h, a
+    ld (boss_cmd_buf + 2), hl  ; SY = clean page
+    ld a, (boss_old_x)
+    and #FE
+    ld (boss_cmd_buf + 0), a
+    ld (boss_cmd_buf + 4), a
+    xor a
+    ld (boss_cmd_buf + 1), a
+    ld (boss_cmd_buf + 5), a
+    ld l, (ix+13)
+    ld h, 0
+    ld (boss_cmd_buf + 8), hl  ; NX = boss width
+    ld l, c
+    ld h, 0
+    ld (boss_cmd_buf + 10), hl ; NY = strip height
+    jp bitmap_boss_finish_hmmm
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_strip_width
+; ------------------------------------------------------------
+; PURPOSE: How wide the repair strip must be for a step of |delta| pixels.
+;   The body is blitted on an EVEN X (and #FE), so the uncovered band can start
+;   one pixel before the step: the width is |delta| rounded up to even, plus 2.
+;   |d| <= 2 therefore still gives the historical 4.
+; INPUT: A = |delta| (0..6). OUTPUT: C = 4, 6 or 8. DESTROYS: AF.
+; ------------------------------------------------------------
+bitmap_boss_strip_width:
+    ld c, 4
+    cp 3
+    ret c
+    ld c, 6
+    cp 5
+    ret c
+    ld c, 8
+    ret
+` : `; PURPOSE: Repair the background the body uncovered this tick: one 4px
 ;   vertical strip (movement X) and one 4px horizontal strip (movement Y),
 ;   copied page1 -> page0 at the OLD position edges. 4px covers |d| <= 2.
 ; INPUT: boss_old_x/y, boss_x/y, IX -> table. DESTROYS: AF, BC, DE, HL.
@@ -3370,7 +3992,7 @@ ${visiblePageH}
     ld hl, 4
     ld (boss_cmd_buf + 10), hl ; NY = 4 px
     jp bitmap_boss_finish_hmmm
-
+`}
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_draw
 ; ------------------------------------------------------------
@@ -3469,6 +4091,7 @@ bitmap_boss_cells_config:
     ld d, 0
     ld hl, bitmap_boss_cells_ptr_table
     add hl, de
+    add hl, de                 ; word table: the entry index is room*2+slot
     ld a, (hl)
     inc hl
     ld h, (hl)
@@ -3541,6 +4164,7 @@ bitmap_boss_cells_delta:
     ld d, 0
     ld hl, bitmap_boss_cells_delta_ptr_table
     add hl, de
+    add hl, de                 ; word table: the entry index is room*2+slot
     ld a, (hl)
     inc hl
     ld h, (hl)
@@ -4025,6 +4649,25 @@ ${hasZones ? `; ------------------------------------------------------------
 ; DESTROYS: AF, BC, DE, HL. Preserves IX.
 ; ------------------------------------------------------------
 bitmap_boss_zone_damage:
+    ; Resolve this boss's zone table FIRST. The pointer maths needs a scratch
+    ; register, and it used to borrow E -- the very register holding the
+    ; bullet's local Y, computed two instructions earlier. The Y range test
+    ; below then compared the screen index against the zone, missed every time
+    ; and every bullet "passed through" a boss it had actually hit.
+    ld a, (current_screen_index)
+    add a, a
+    ld b, a
+    ld a, (boss_slot)
+    add a, b
+    ld l, a
+    ld h, 0
+    add hl, hl                 ; word table: the entry index is room*2+slot
+    ld bc, bitmap_boss_zone_ptr_table
+    add hl, bc
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a                    ; HL -> zone table
     ; local coords: D = bulletCentreX - boss_x, E = bulletCentreY - boss_y
     ld a, (ix+1)
     add a, 8
@@ -4042,19 +4685,6 @@ bitmap_boss_zone_damage:
     ld a, b
     sub c
     ld e, a
-    ld a, (current_screen_index)
-    add a, a
-    ld e, a
-    ld a, (boss_slot)
-    add a, e
-    ld l, a
-    ld h, 0
-    ld bc, bitmap_boss_zone_ptr_table
-    add hl, bc
-    ld a, (hl)
-    inc hl
-    ld h, (hl)
-    ld l, a                    ; HL -> zone table
     ld a, (hl)
     or a
     jp z, .zone_body_default   ; no zones authored: the whole body is the target
@@ -4224,6 +4854,7 @@ bitmap_boss_death_sfx_start:
     ld d, 0
     ld hl, bitmap_boss_death_sfx_room_ptr_table
     add hl, de
+    add hl, de                 ; word table: the entry index is room*2+slot
     ld e, (hl)
     inc hl
     ld d, (hl)
@@ -4357,6 +4988,7 @@ bitmap_boss_death_config:
     ld d, 0
     ld hl, bitmap_boss_death_fx_ptr_table
     add hl, de
+    add hl, de                 ; word table: the entry index is room*2+slot
     ld a, (hl)
     inc hl
     ld h, (hl)
@@ -5065,6 +5697,7 @@ bitmap_boss_run_defeat_actions:
     ld d, 0
     ld hl, bitmap_boss_defeat_ptr_table
     add hl, de
+    add hl, de                 ; word table: the entry index is room*2+slot
     ld a, (hl)
     inc hl
     ld h, (hl)
@@ -5742,7 +6375,102 @@ ${visiblePageH}
     call bitmap_boss_finish_hmmm
     pop bc
     ret
-` : ''}${hasProjectiles ? `
+` : ''}${phasesExtended ? `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_phase_apply
+; ------------------------------------------------------------
+; PURPOSE: Resolve the attack phase for the current boss_hp ONCE per boss
+;   update and park it in RAM. Everything that escalates -- firing cadence,
+;   shot pattern, laser rhythm, body cadence, movement steps -- then reads those
+;   bytes instead of walking the table again.
+;
+;   Doing it here, rather than inside the firing code, is what lets a boss with
+;   no projectile config at all (a laser-only boss) have phases: there is no IX
+;   and no cadence to hang the lookup on.
+; INPUT: boss_hp, boss_slot, current_screen_index.
+; OUTPUT: boss_phase_int / _spd / _shoot / _laser_int / _body_int / _move.
+; DESTROYS: AF, BC, DE, HL. Preserves IX.
+; ------------------------------------------------------------
+bitmap_boss_phase_apply:
+    xor a
+    ld (boss_phase_int), a     ; 0 = no phase matched, keep the boss defaults
+    ld (boss_phase_spd), a
+    ld (boss_phase_shoot), a
+    ld (boss_phase_laser_int), a
+    ld (boss_phase_body_int), a
+    inc a
+    ld (boss_phase_move), a    ; neutral movement is ONE step, not zero
+    ld a, (current_screen_index)
+    add a, a
+    ld e, a
+    ld a, (boss_slot)
+    add a, e
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_boss_phase_ptr_table
+    add hl, de
+    add hl, de                 ; word table: the entry index is room*2+slot
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a                    ; HL -> phase table
+    ld a, (hl)
+    or a
+    ret z                      ; count 0 -> this boss has no phases
+    ld b, a                    ; B = phase count
+    inc hl
+    ld de, ${BITMAP_BOSS_PHASE_ENTRY_FULL}
+.bpa_scan:
+    ld a, (boss_hp)
+    cp (hl)                    ; boss_hp <= hpAtOrBelow ?
+    jr z, .bpa_match
+    jr c, .bpa_match
+    add hl, de                 ; skip this entry
+    djnz .bpa_scan
+    ret                        ; healthier than every threshold: base behaviour
+.bpa_match:
+    inc hl
+    ld a, (hl)                 ; interval
+    ld (boss_phase_int), a
+    inc hl
+    ld a, (hl)                 ; projectile speed
+    ld (boss_phase_spd), a
+    inc hl
+    ld a, (hl)                 ; shoot pattern, 1-based (0 = plain aimed shot)
+    ld (boss_phase_shoot), a
+    inc hl
+    ld a, (hl)                 ; laser interval override
+    ld (boss_phase_laser_int), a
+    inc hl
+    ld a, (hl)                 ; body cadence override
+    ld (boss_phase_body_int), a
+    inc hl
+    ld a, (hl)                 ; movement steps per body update
+    or a
+    ret z                      ; a 0 here would freeze the body; keep the 1
+    ld (boss_phase_move), a
+    ret
+${hasPhaseMoveSteps ? `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_phase_step_scale
+; ------------------------------------------------------------
+; PURPOSE: Repeat the patrol step boss_phase_move times. Repeated addition, not
+;   a multiply: the multiplier is 1..3 and the step is signed, so this is both
+;   smaller and correct for negative deltas.
+; INPUT: A = one patrol step (signed). OUTPUT: A = the scaled step.
+; DESTROYS: AF, BC. Preserves DE, HL, IX.
+; ------------------------------------------------------------
+bitmap_boss_phase_step_scale:
+    ld c, a                    ; C = one step
+    ld a, (boss_phase_move)
+    ld b, a
+    ld a, c
+.bpss_next:
+    dec b
+    ret z
+    add a, c
+    jr .bpss_next
+` : ''}` : ''}${hasProjectiles ? `
 ; ------------------------------------------------------------
 ; PHASE D: boss bitmap projectile (single bullet, no hardware sprites)
 ; Config table [present,sxLo,sxHi,syLo,syHi,w,h,interval,speed,damage] via
@@ -5759,6 +6487,7 @@ bitmap_boss_proj_config_ix:
     ld d, 0
     ld hl, bitmap_boss_projectile_ptr_table
     add hl, de
+    add hl, de                 ; word table: the entry index is room*2+slot
     ld a, (hl)
     inc hl
     ld h, (hl)
@@ -5801,7 +6530,28 @@ ${hasPaths ? `    ld a, (boss_path_fire_mode)
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_phase_resolve
 ; ------------------------------------------------------------
-; PURPOSE: Pick the attack phase matching the boss's current HP and apply it.
+${phasesExtended ? `; PURPOSE: Hand the firing code the cadence and bullet speed of the phase that
+;   bitmap_boss_phase_apply already resolved this frame. A zero interval means
+;   no phase matched, so the projectile config's own numbers stand.
+; INPUT: IX -> projectile config, boss_phase_int / boss_phase_spd.
+; OUTPUT: A = fire interval, boss_phase_speed = projectile speed.
+; DESTROYS: AF, BC. Preserves IX.
+; ------------------------------------------------------------
+bitmap_boss_phase_resolve:
+    ld a, (boss_phase_int)
+    or a
+    jr nz, .from_phase
+    ld a, (ix+8)
+    ld (boss_phase_speed), a   ; default: base projectile speed
+    ld a, (ix+7)               ; base interval
+    ret
+.from_phase:
+    ld b, a
+    ld a, (boss_phase_spd)
+    ld (boss_phase_speed), a
+    ld a, b
+    ret
+` : `; PURPOSE: Pick the attack phase matching the boss's current HP and apply it.
 ;   Table: [count, (hpAtOrBelow, interval, projSpeed) * count], most damaged
 ;   first; the first entry with hpAtOrBelow >= boss_hp wins. With no table (or
 ;   no match) the base cadence from the projectile config is used.
@@ -5821,6 +6571,7 @@ bitmap_boss_phase_resolve:
     ld d, 0
     ld hl, bitmap_boss_phase_ptr_table
     add hl, de
+    add hl, de                 ; word table: the entry index is room*2+slot
     ld a, (hl)
     inc hl
     ld h, (hl)
@@ -5850,7 +6601,7 @@ bitmap_boss_phase_resolve:
     ld (boss_phase_speed), a
     ld a, c                    ; A = interval (return value)
     ret
-
+`}
 ; Spawn at the boss centre, aimed 8-directionally at the player.
 ; IX -> projectile config. Uses bitmap_boss_table_ix_shadow for the boss size.
 bitmap_boss_proj_spawn:
@@ -6328,7 +7079,15 @@ ${hasShoots ? `    call bitmap_boss_burst_tick   ; outside the loop: a wave rewr
 .sb_fire:
     call bitmap_boss_phase_resolve   ; A = interval for the current HP phase
     ld (boss_proj_cd), a
-    jp bitmap_boss_sbul_spawn
+${hasPhaseShoots ? `    ; A phase may fire a whole authored pattern (fan, ring, burst) instead of
+    ; the single aimed bullet: that is how a boss shoots MORE, not just faster.
+    ld a, (boss_phase_shoot)
+    or a
+    jp nz, .sb_fire_pattern
+` : ''}    jp bitmap_boss_sbul_spawn${hasPhaseShoots ? `
+.sb_fire_pattern:
+    ld (boss_shoot_cnt), a     ; parked here until the config is known
+    jp bitmap_boss_shoot_fire` : ''}
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_sbul_step
@@ -6697,9 +7456,11 @@ bitmap_boss_path_wanted:
 ; ------------------------------------------------------------
 bitmap_boss_path_select:
     ld (boss_path_idx), a
+    ld (boss_path_pending), a     ; what is running is what was asked for
     or a
     jr nz, .bps_load
     ld (boss_path_fire_mode), a   ; no path -> the phase cadence fires again
+    ld (boss_path_once), a
     ret
 .bps_load:
     dec a
@@ -6723,23 +7484,82 @@ bitmap_boss_path_select:
     ld hl, bitmap_boss_path_mode_table
     add hl, de
     ld a, (hl)
+    ld e, a                       ; the index in E is spent; the mode byte is not
+    and #01
     ld (boss_path_fire_mode), a
+    ld a, e
+    and #02                       ; bit 1: walk it once instead of looping
+    ld (boss_path_once), a
     ret
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_path_sync
 ; ------------------------------------------------------------
-; PURPOSE: Switch route when the attack phase changed. Only rewinds when the
-;   wanted path is really a different one, so a boss that keeps its path keeps
-;   its position in the stream.
-; INPUT: boss state. OUTPUT: path state RAM. DESTROYS: AF, BC, DE, HL.
+; PURPOSE: QUEUE the route the current HP asks for. It is not applied here.
+;
+;   A baked path is a stream of RELATIVE deltas, so wherever it is started from
+;   becomes its anchor. Swapping route the instant the HP threshold was crossed
+;   therefore anchored the new one wherever the old one happened to have got to
+;   — a different pixel on every playthrough — and the route the author drew and
+;   checked ended up somewhere else entirely, often with half of it off screen.
+;
+;   So the swap waits for bitmap_boss_path_step to close the current lap, the
+;   one moment the boss is provably back where its route started. Everything
+;   else the phase escalates (cadence, laser rhythm, speed) still applies at
+;   once: only the geometry has a reason to wait.
+;
+;   A boss that is standing still has no lap to finish and switches immediately.
+; INPUT: boss state. OUTPUT: boss_path_pending. DESTROYS: AF, BC, DE, HL.
 ; ------------------------------------------------------------
 bitmap_boss_path_sync:
     call bitmap_boss_path_wanted
     ld hl, boss_path_idx
     cp (hl)
-    ret z
+    jr nz, .bpsy_queue
+    ld (boss_path_pending), a  ; already walking it: nothing is waiting
+    ret
+.bpsy_queue:
+    ld (boss_path_pending), a
+    ld a, (hl)
+    or a
+    ret nz                     ; a route is running: it closes its lap first
+    ld a, (boss_path_pending)
     jp bitmap_boss_path_select
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_path_clamp
+; ------------------------------------------------------------
+; PURPOSE: Seatbelt for the path branch. The patrol bounces off the min/max in
+;   its own record; a route has no bounds at all, so a shape that is bigger than
+;   the room -- or anchored too near a wall -- blitted the body half outside it.
+;   Pins the body to the same hard caps the placement already uses: 256-width
+;   across and 168-height down, i.e. the last position where the whole body
+;   still fits. A route drawn to fit never reaches this.
+;
+;   X is forced even: the body is HMMM-blitted from an even column.
+; INPUT: IX -> this boss's record. OUTPUT: boss_x/boss_y inside the room.
+; DESTROYS: AF, B.
+; ------------------------------------------------------------
+bitmap_boss_path_clamp:
+    xor a
+    sub (ix+13)                ; A = 256 - width
+    and #FE
+    ld b, a
+    ld a, (boss_x)
+    cp b
+    jr c, .bpc_y
+    ld a, b
+    ld (boss_x), a
+.bpc_y:
+    ld a, 168                  ; playable height, HUD band excluded
+    sub (ix+14)                ; A = 168 - height
+    ld b, a
+    ld a, (boss_y)
+    cp b
+    ret c
+    ld a, b
+    ld (boss_y), a
+    ret
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_path_step
@@ -6790,6 +7610,27 @@ ${hasLaser ? `    ld a, (boss_laser_mask)
 ` : ''}
     jr .bpt_next               ; a node may fire more than once
 .bpt_end:
+    ; The lap just closed, and this is the ONLY place a queued route may be
+    ; applied: a looping stream carries the leg back to node 0, so one pass sums
+    ; to a zero delta and the boss is provably standing where the route started.
+    ; Swapping here makes every route of every phase share that same anchor.
+    push hl                    ; the cursor, one byte past the terminator
+    ld a, (boss_path_pending)
+    ld hl, boss_path_idx
+    cp (hl)
+    pop hl                     ; POP HL leaves the flags from the CP alone
+    jr z, .bpt_lap_done
+    call bitmap_boss_path_select
+    ld hl, (boss_path_cur)     ; the route changed under us; reread the cursor
+    jr .bpt_next
+.bpt_lap_done:
+    ld a, (boss_path_once)
+    or a
+    jr z, .bpt_rewind
+    dec hl                     ; park the cursor ON the terminator: a walk-once
+    ld (boss_path_cur), hl     ; route holds its last node instead of replaying
+    ret                        ; the shape and marching off screen
+.bpt_rewind:
     ld hl, (boss_path_ptr)     ; loop back to the start
     jr .bpt_next
 .bpt_move:
@@ -6805,11 +7646,33 @@ ${hasLaser ? `    ld a, (boss_laser_mask)
     and #0F
     sub 8                      ; A = dx
     ld c, a
+    ; boss_x/boss_y are unsigned bytes, so a route that walks past the left or
+    ; top wall does not go negative: it WRAPS to ~255 and the body reappears on
+    ; the far side. Saturate here, where the sign of the step is still known --
+    ; BIT does not touch the carry, so the flag from the ADD survives the test.
     ld a, (boss_x)
     add a, c
+    bit 7, c
+    jr z, .bpt_x_up
+    jr c, .bpt_x_done          ; stepping left with a borrow: still above zero
+    xor a                      ; would have gone past the left wall
+    jr .bpt_x_done
+.bpt_x_up:
+    jr nc, .bpt_x_done         ; stepping right without a carry: still under 256
+    ld a, #FF                  ; the room cap below pulls this back to 256-width
+.bpt_x_done:
     ld (boss_x), a
     ld a, (boss_y)
     add a, b
+    bit 7, b
+    jr z, .bpt_y_up
+    jr c, .bpt_y_done
+    xor a
+    jr .bpt_y_done
+.bpt_y_up:
+    jr nc, .bpt_y_done
+    ld a, #FF
+.bpt_y_done:
     ld (boss_y), a
     ld (boss_path_cur), hl
     ret
@@ -6850,296 +7713,10 @@ ${hasShoots ? `    ld a, (boss_shoot_cnt)
 ` : ''}` : ''}.bpf_done:
     pop ix
     ret
-${hasShoots ? `
-; ------------------------------------------------------------
-; FUNCTION: bitmap_boss_shoot_record
-; ------------------------------------------------------------
-; PURPOSE: 1-based pattern index -> its ${MSX2_SHOOT_RECORD_BYTES}-byte record.
-; INPUT: A = index. OUTPUT: HL -> record. DESTROYS: AF, DE. Preserves BC, IX, IY.
-; ------------------------------------------------------------
-bitmap_boss_shoot_record:
-    dec a
-    ld l, a
-    ld h, 0
-    add hl, hl
-    add hl, hl
-    add hl, hl                 ; record index * ${MSX2_SHOOT_RECORD_BYTES}
-    ld de, bitmap_boss_shoot_table
-    add hl, de
-    ret
-
-; ------------------------------------------------------------
-; FUNCTION: bitmap_boss_shoot_fire
-; ------------------------------------------------------------
-; PURPOSE: Trigger one authored shot pattern: arm the burst, then send the first
-;   wave out on this very frame. A burst of 1 (the usual case) leaves
-;   boss_burst_idx at 0 and nothing ticks afterwards.
-; INPUT: boss_shoot_cnt = 1-based pattern index. OUTPUT: bullets in the pool.
-; DESTROYS: AF, BC, DE, HL. Preserves IX.
-; ------------------------------------------------------------
-bitmap_boss_shoot_fire:
-    ld a, (boss_shoot_cnt)
-    ld c, a                    ; C = pattern index, kept across the lookup
-    call bitmap_boss_shoot_record
-    ld de, 6
-    add hl, de                 ; HL -> burst count
-    ld a, (hl)
-    dec a                      ; waves still owed once this one has gone
-    ld (boss_burst_left), a
-    jr z, .bsf_single
-    inc hl
-    ld a, (hl)                 ; frames until the next wave
-    ld (boss_burst_cd), a
-    ld a, c
-    ld (boss_burst_idx), a
-    jr .bsf_wave
-.bsf_single:
-    xor a
-    ld (boss_burst_idx), a     ; single volley: nothing left to tick
-.bsf_wave:
-    ld a, c
-    jp bitmap_boss_shoot_wave
-
-; ------------------------------------------------------------
-; FUNCTION: bitmap_boss_burst_tick
-; ------------------------------------------------------------
-; PURPOSE: Release the remaining waves of a burst, one every burstInterval
-;   frames. Runs every frame while the boss lives; costs a load and a branch
-;   when no burst is in flight.
-; DESTROYS: AF, BC, DE, HL. Preserves IX. Must NOT run inside the pool loop:
-;   firing a wave rewrites IY.
-; ------------------------------------------------------------
-bitmap_boss_burst_tick:
-    ld a, (boss_burst_idx)
-    or a
-    ret z                      ; no burst in flight
-    ld hl, boss_burst_cd
-    dec (hl)
-    ret nz                     ; still counting down
-    ld c, a                    ; C = pattern index
-    call bitmap_boss_shoot_record
-    ld de, 7
-    add hl, de
-    ld a, (hl)
-    ld (boss_burst_cd), a      ; reload the gap for the wave after this one
-    ld hl, boss_burst_left
-    dec (hl)
-    jr nz, .bbt_fire
-    xor a
-    ld (boss_burst_idx), a     ; this is the last wave of the burst
-.bbt_fire:
-    ld a, c
-    jp bitmap_boss_shoot_wave
-
-; ------------------------------------------------------------
-; FUNCTION: bitmap_boss_shoot_wave
-; ------------------------------------------------------------
-; PURPOSE: Spawn ONE wave of a pattern. The record carries a bullet count, a
-;   base direction, a speed override and a signed start/stride pair in ring
-;   steps, so a fan and a full ring are the same loop: walk dir+start, add
-;   stride, look the 8.8 vector up. No angle, no multiply, no fan arithmetic.
-; INPUT: A = 1-based pattern index. OUTPUT: bullets in the pool.
-; DESTROYS: AF, BC, DE, HL. Preserves IX.
-; ------------------------------------------------------------
-bitmap_boss_shoot_wave:
-    call bitmap_boss_shoot_record
-    ld a, (hl)                 ; pattern: 0 aimed, 1 linear, 2 spread, 3 radial
-    inc hl
-    ld c, a                    ; C = pattern
-    ld a, (hl)
-    ld (boss_shoot_cnt), a     ; bullets in this wave
-    inc hl
-    ld a, (hl)
-    ld (boss_shoot_dir), a     ; authored ring direction
-    inc hl
-    ld a, (hl)                 ; speed override, 0 = phase speed
-    or a
-    jr nz, .bsw_speed
-    ld a, (boss_phase_speed)
-.bsw_speed:
-    ld (boss_shoot_spd), a
-    inc hl
-    ld a, (hl)                 ; signed ring offset of the first bullet
-    ld (boss_shoot_off), a
-    inc hl
-    ld a, (hl)                 ; signed ring step between bullets
-    ld (boss_shoot_step), a
-    ; Everything the loop needs is in RAM now, so the aim lookup is free to
-    ; clobber HL/DE/BC.
-    ld a, c
-    cp 1
-    jr z, .bsw_loop            ; linear keeps the authored direction
-    call bitmap_boss_aim_index ; aimed, spread and radial centre on the player
-    ld (boss_shoot_dir), a
-.bsw_loop:
-    ld a, (boss_shoot_off)
-    ld hl, boss_shoot_dir
-    add a, (hl)
-    and ${MSX2_SHOOT_RING - 1}                     ; wrap around the ring
-    call bitmap_boss_shoot_vector
-    call bitmap_boss_sbul_spawn_dir
-    ld a, (boss_shoot_off)
-    ld hl, boss_shoot_step
-    add a, (hl)
-    ld (boss_shoot_off), a
-    ld hl, boss_shoot_cnt
-    dec (hl)
-    jr nz, .bsw_loop
-    ret
-
-; Ring slot -> velocity. IN: A = slot 0..${MSX2_SHOOT_RING - 1}.
-; OUT: D = whole-pixel dx, E = whole-pixel dy, and the matching 8.8 fractions in
-;      boss_sbul_dxf / boss_sbul_dyf, which is the ABI bitmap_boss_sbul_spawn_dir
-;      expects. DESTROYS: AF, BC, DE, HL.
-bitmap_boss_shoot_vector:
-    add a, a
-    add a, a                   ; ring slot * 4 (two 8.8 words per slot)
-    ld l, a
-    ld h, 0
-    ld de, bitmap_boss_dir16_table
-    add hl, de                 ; HL -> dx low byte
-    ld e, (hl)
-    inc hl
-    ld d, (hl)                 ; DE = unit dx as 8.8
-    inc hl
-    push hl                    ; the dy pointer has to survive the scaling
-    call bitmap_boss_shoot_scale
-    ld a, e
-    ld (boss_sbul_dxf), a
-    ld b, d                    ; B = whole-pixel dx
-    pop hl
-    ld e, (hl)
-    inc hl
-    ld d, (hl)                 ; DE = unit dy as 8.8
-    call bitmap_boss_shoot_scale
-    ld a, e
-    ld (boss_sbul_dyf), a
-    ld e, d                    ; E = whole-pixel dy
-    ld d, b                    ; D = whole-pixel dx
-    ret
-
-; DE = DE * boss_shoot_spd, by repeated addition: speed tops out at 4, so the
-; loop beats any multiply routine and costs no table.
-; DESTROYS: AF, HL. Preserves BC, IX, IY.
-bitmap_boss_shoot_scale:
-    ld a, (boss_shoot_spd)
-    cp 2
-    ret c                      ; speed 0 or 1: DE already is the answer
-    push de
-    pop hl                     ; HL = accumulator, seeded with one unit
-.bss_add:
-    add hl, de
-    dec a
-    cp 1
-    jr nz, .bss_add
-    ex de, hl
-    ret
-
-; Which of the 8 compass directions points at the player, as a RING slot.
-; The compass is every other ring direction, so the sign lookup (which is all
-; aiming really needs) doubles into the finer ring the bullets fly on.
-; OUT: A = 0, 2, 4 ... 14. DESTROYS: AF, BC, DE, HL. Preserves IX.
-bitmap_boss_aim_index:
-    call bitmap_boss_table_ix_shadow   ; HL -> boss width
-    ld a, (hl)
-    srl a
-    ld b, a
-    ld a, (boss_x)
-    add a, b                   ; boss centre X
-    ld b, a
-    ld a, (player_x)
-    cp b
-    ld c, 1                    ; 1 = same column
-    jr z, .bai_y
-    jr nc, .bai_right
-    ld c, 0                    ; player to the left
-    jr .bai_y
-.bai_right:
-    ld c, 2
-.bai_y:
-    call bitmap_boss_table_ix_shadow
-    inc hl
-    ld a, (hl)                 ; boss height
-    srl a
-    ld b, a
-    ld a, (boss_y)
-    add a, b                   ; boss centre Y
-    ld b, a
-    ld a, (player_y)
-    cp b
-    ld e, 1                    ; 1 = same row
-    jr z, .bai_lookup
-    jr nc, .bai_below
-    ld e, 0                    ; player above
-    jr .bai_lookup
-.bai_below:
-    ld e, 2
-.bai_lookup:
-    ld a, e
-    add a, a
-    add a, e                   ; row * 3
-    add a, c                   ; + column
-    ld e, a
-    ld d, 0
-    ld hl, bitmap_boss_aim_ring
-    add hl, de
-    ld a, (hl)
-    ret
-
-; Spawn one sprite bullet from the boss centre.
-; IN: D = dx whole pixels, E = dy whole pixels,
-;     boss_sbul_dxf / boss_sbul_dyf = the matching 8.8 fractions.
-; Nothing happens when the pool is full, exactly like the cadence path.
-bitmap_boss_sbul_spawn_dir:
-    ld iy, boss_sbul_pool
-    ld b, ${spriteSlots}
-.bsd_find:
-    ld a, (iy+0)
-    or a
-    jr z, .bsd_found
-    push bc
-    ld bc, BOSS_SBUL_SLOT
-    add iy, bc
-    pop bc
-    djnz .bsd_find
-    ret
-.bsd_found:
-    push de
-    call bitmap_boss_table_ix_shadow   ; HL -> boss width (IX/IY preserved)
-    ld a, (hl)
-    srl a
-    ld b, a
-    ld a, (boss_x)
-    add a, b
-    sub 8                      ; centre the 16x16 sprite
-    ld (iy+1), a
-    inc hl
-    ld a, (hl)
-    srl a
-    ld b, a
-    ld a, (boss_y)
-    add a, b
-    sub 8
-    ld (iy+2), a
-    pop de
-    ld (iy+3), d
-    ld (iy+4), e
-    xor a
-    ld (iy+5), a               ; position starts on an exact pixel
-    ld (iy+6), a
-    ld a, (boss_sbul_dxf)      ; the caller parks the fractional velocity here:
-    ld (iy+7), a               ; B is the slot-search counter, so it cannot ride
-    ld a, (boss_sbul_dyf)      ; in a register
-    ld (iy+8), a
-${hasAnimatedSpriteBullet ? `    xor a
-    ld (iy+9), a               ; patterned volleys also start on frame 0
-    ld (iy+10), a
-` : ''}    ld (iy+0), 1
-    ret
-` : ''}` : `
+${shootRoutinesAsm}` : `
 bitmap_boss_path_fire:
     ret`}
-` : ''}`;
+` : ''}${hasPaths ? '' : shootRoutinesAsm}`;
 
   const dataAsm = `
 ; ---- bitmap BOSS per-room tables (stride ${BITMAP_BOSS_TABLE_STRIDE}) ----
@@ -7237,8 +7814,8 @@ ${data.projectileTables.map((table, index) => `bitmap_boss_projectile_room_${ind
     db ${table.map(value => asmByte(value)).join(', ')}`).join('\n')}
 bitmap_boss_projectile_ptr_table:
 ${data.projectileTables.map((_, index) => `    dw bitmap_boss_projectile_room_${index}`).join('\n')}
-
-; ---- boss attack phases per room: count, (hpAtOrBelow, interval, speed)* ----
+` : ''}${hasPhaseTables ? `
+; ---- boss attack phases per room: count, (hpAtOrBelow, interval, speed${phasesExtended ? ', shoot, laserInt, bodyInt, moveSteps' : ''})* ----
 ${(data.phaseTables || []).map((table, index) => `bitmap_boss_phase_room_${index}:
     db ${(table && table.length ? table : [0]).map(value => asmByte(value)).join(', ')}`).join('\n')}
 bitmap_boss_phase_ptr_table:

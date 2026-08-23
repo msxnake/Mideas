@@ -30,6 +30,8 @@
     "test:msx2-boss-death-fx": "node scripts/check_msx2_boss_death_fx_contract.mjs",
     "test:msx2-boss-phases": "node scripts/check_msx2_boss_phase_escalation.mjs",
     "test:msx2-boss-path-shapes": "node scripts/check_msx2_boss_path_shapes.mjs",
+    "test:msx2-boss-path-phase-switch": "node scripts/check_msx2_boss_path_phase_switch.mjs",
+    "smoke:msx2-boss-path-phase-switch": "node scripts/build_msx2_boss_path_phase_switch_smoke.mjs && python -B scripts/build_mideas_unified_rom.py --json test/msx2-boss/fixture_path_phase_switch.json --rom-mode megarom && node scripts/check_msx2_boss_path_phase_switch_openmsx.mjs",
     "test:msx2-boss-path-shapes-ui": "node scripts/check_msx2_boss_path_shapes_ui_playwright.cjs",
     "test:msx2-boss-phases-ui": "node scripts/check_msx2_boss_phases_ui_playwright.cjs",
     "test:msx2-boss-orphan-stamps": "node scripts/check_msx2_boss_orphan_stamps.mjs",

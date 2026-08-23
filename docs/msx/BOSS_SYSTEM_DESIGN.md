@@ -915,6 +915,54 @@ això és el que hi circula per dins.
 >   Només 2 bales alhora **perquè el pool d'aquell projecte en té 2**, i el generador ho
 >   avisa a build suggerint precisament partir la volea en ràfega.
 
+#### El canvi de ruta per fase espera a tancar la volta (2026-08-23)
+
+Bug que reportava Jordi: si una fase nova canviava de path, el nou recorregut
+començava "en un punt random" i el boss podia sortir-se de la sala.
+
+Causa: un path horneado és un **stream de deltes relatives**, o sigui que la
+posició on s'engega passa a ser l'àncora d'aquella ruta. `bitmap_boss_path_sync`
+canviava de ruta l'instant que es creuava el llindar d'HP, així que la nova
+quedava ancorada allà on hagués arribat l'anterior — un píxel diferent cada
+partida. Mesurat amb el baker: un rectangle de 80x48 ancorat en 4 moments
+diferents d'una volta circular se sortia de la sala entre **254 i 324 px**.
+
+Arreglat en tres peces:
+
+- **`boss_path_pending`**: `path_sync` només ENCUA la ruta que demana l'HP. El
+  canvi s'aplica a `.bpt_end`, quan el stream arriba al terminador — l'únic
+  moment en què el boss és demostrablement al punt on va començar la ruta,
+  perquè el baker afegeix la pota de tornada al node 0 i una volta suma delta
+  zero. Tot el que escala la fase (cadència, làser, velocitat) segueix aplicant-se
+  a l'instant; només la geometria té motiu per esperar. Un boss quiet no té cap
+  volta que tancar i canvia immediatament.
+- **`boss_path_once`**: el `loopMode` no arribava al runtime, que repetia tots
+  els streams per sempre. Una ruta `Walk it once` no té pota de tornada, així que
+  cada passada desplaçava el boss la forma sencera (un zigzag de 6 nodes deriva
+  **120 px per volta**) fins a sortir de pantalla. Ara es queda al darrer node.
+- **`bitmap_boss_path_clamp`**: la branca del patrol rebota contra els seus
+  min/max, la del path no en tenia cap. Es fixa el cos als topes durs (256-w,
+  168-h) i `.bpt_move` satura en comptes de donar la volta per sota de zero.
+
+> ⚠️ En afegir camps a l'estat per instància cal tocar DUES llistes:
+> `stateByteFields`/`stateWordFields` i el sumatori `INSTANCE_STATE_BYTES`. Quan
+> van deixar d'estar d'acord no va petar res: el bloc del slot 1 va començar dos
+> bytes dins del slot 0, i cada boss corrompia la cua de l'estat de l'altre —
+> el cursor del path, que és l'últim. El boss es quedava clavat. Ho guarda ara
+> `check_msx2_boss_path_phase_switch.mjs` comptant les còpies que emet el
+> generador.
+
+Verificat a OpenMSX (`-romtype KonamiSCC`), mateix fixture i mateixa ROM, amb i
+sense la línia que aplaça el canvi:
+
+| | canvi de ruta | àncora del barrido | forma |
+|---|---|---|---|
+| abans | frame +3 | (68,72) | x 68..158, y 72..96 — 40px avall |
+| ara | frame +66 (tanca la volta) | (64,32) = la del box | x 64..156, y 32..56 — la dibuixada |
+
+Contractes: `npm run test:msx2-boss-path-phase-switch` (estàtic) i
+`npm run smoke:msx2-boss-path-phase-switch` (fixture + ROM + sonda OpenMSX).
+
 #### Formes predefinides al Path Editor (2026-08-22)
 
 El panell **Shape** genera la ruta sencera a partir d'una forma: cercle, el·lipse,

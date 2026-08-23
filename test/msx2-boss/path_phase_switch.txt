@@ -1,0 +1,8 @@
+START x=102 y=32 hp=30 path=1
+POKE hp=10 frame=780 x=66 y=72 path=1
+AFTER1S path=1 pending=2 x=64 y=34
+BOX x 64 124 y 32 72
+SWEEP x 64 156 y 32 56
+POKED frame 780 at 66 72
+SWAPPED frame 846 at 66 32
+FINAL path=2 pending=2 hp=10

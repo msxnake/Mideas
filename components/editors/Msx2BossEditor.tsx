@@ -50,6 +50,59 @@ const LASER_DIRECTIONS = [
 /** MSX2 palette approximation, good enough for the zone-editor preview. */
 const MSX2_PREVIEW_BG = '#101018';
 
+/** What a boss is able to fire, as the generator will resolve it at build time. */
+interface BossAttackCapabilities {
+  /** A projectile back-end is configured, so cadence / bullet speed mean something. */
+  bullets: boolean;
+  /** Hardware-sprite bullets: the only back-end that can fire an authored pattern. */
+  spriteBullets: boolean;
+  /** Ceiling debris: aimed-shot wording (and shoot patterns) do not apply. */
+  fallingRocks: boolean;
+  /** A growing cardinal laser will be emitted for this boss. */
+  laser: boolean;
+}
+
+/**
+ * Mirror of the generator's `resolveProjectile` / `resolveLaser` decisions
+ * (utils/msxGenerator/generators/msx2/msx2BitmapBossGenerator.ts).
+ *
+ * Kept deliberately in step with them: the Attack Phases table uses this to
+ * decide which knobs to show, and a UI that offers a knob the build silently
+ * drops is worse than no knob at all.
+ */
+function resolveBossAttacks(
+  boss: Msx2BossDefinition,
+  atlasEntries: AtlasEntryRef[],
+  bodyW: number,
+  bodyH: number,
+): BossAttackCapabilities {
+  const fallingRocks = (boss.bossProjectilePattern || 'aimed') === 'fallingRocks';
+  const wantsBitmap = fallingRocks || (boss.bossProjectileKind || 'sprite') === 'bitmap';
+  const projectileId = String(boss.bossProjectileTileId || '').trim();
+  const projectileEntry = projectileId
+    ? atlasEntries.find(entry => entry.id === projectileId)
+    : undefined;
+  const projectileFits = !!projectileEntry
+    && projectileEntry.w >= 8 && projectileEntry.w <= 16
+    && projectileEntry.h >= 8 && projectileEntry.h <= 16;
+  // Sprite bullets need no atlas tile at all (the 16x16 blob is generated), so
+  // they are on as soon as the boss carries any projectile setting.
+  const spriteBullets = !wantsBitmap
+    && (!!projectileId || boss.bossShootInterval !== undefined || boss.bossProjectileKind !== undefined);
+  const bullets = spriteBullets || (wantsBitmap && projectileFits);
+
+  const laserId = String(boss.bossLaserTileId || '').trim();
+  const laserEntry = laserId ? atlasEntries.find(entry => entry.id === laserId) : undefined;
+  const explicitLaser = !!laserEntry && laserEntry.w === 16 && laserEntry.h === 16;
+  // Automatic fallback, in the generator's order: the projectile tile if it is
+  // 16x16, then the body when the whole boss is a single 16x16 cell.
+  const fallbackLaser = !laserId
+    && ((!!projectileEntry && projectileEntry.w === 16 && projectileEntry.h === 16)
+      || (bodyW === 16 && bodyH === 16));
+  const laser = (explicitLaser || fallbackLaser) && (boss.bossLaserDirectionMask ?? 0x0f) !== 0;
+  return { bullets, spriteBullets, fallingRocks, laser };
+}
+
 const card = 'bg-msx-panel border border-msx-border rounded p-3 mb-3';
 const label = 'block text-xs text-msx-textsecondary mb-1';
 const input = 'w-full bg-msx-bgcolor border border-msx-border rounded px-2 py-1 text-sm text-msx-textprimary';
@@ -344,6 +397,8 @@ interface BossEncounterRef {
   entityName: string;
   bossId: string;
   hpOverride: number | '';
+  /** Which node of the route this copy enters on. Blank = node 0. */
+  pathStartNode: number | '';
 }
 
 /** Every boss placed on a bitmap room, whichever definition it points at. */
@@ -364,6 +419,9 @@ function useBossEncounters(allAssets: ProjectAsset[]): BossEncounterRef[] {
           hpOverride: params.hpOverride === undefined || params.hpOverride === null || params.hpOverride === ''
             ? ''
             : Number(params.hpOverride),
+          pathStartNode: params.bossPathStartNode === undefined || params.bossPathStartNode === null || params.bossPathStartNode === ''
+            ? ''
+            : Number(params.bossPathStartNode),
         });
       }
     }
@@ -383,6 +441,7 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
   const encounters = useBossEncounters(allAssets);
   const spriteAssets = useMemo(() => allAssets.filter(a => a.type === 'msx2sprite'), [allAssets]);
   const pathAssets = useMemo(() => allAssets.filter(a => a.type === 'msx2bosspath'), [allAssets]);
+  const shootAssets = useMemo(() => allAssets.filter(a => a.type === 'msx2shoot'), [allAssets]);
   const dialogueAssets = useMemo(() => allAssets.filter(a => a.type === 'msx2dialogue'), [allAssets]);
   const soundAssets = useMemo(() => allAssets.filter(a => a.type === 'sound'), [allAssets]);
   const roomAssets = useMemo(() => allAssets.filter(a => a.type === 'msx2bitmaproom'), [allAssets]);
@@ -396,8 +455,24 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
   const bodyStamp = bodyStamps.find(s => s.id === boss.bossStampAssetId);
   const stampFrameCount = bodyStamp && bodyStamp.frameCount > 1 ? bodyStamp.frameCount : 0;
   const frames = stampFrameCount || Math.max(1, Number(boss.bossFrames) || 1);
-  const bodyW = bodyStamp ? (stampFrameCount ? bodyStamp.w : Math.floor(bodyStamp.w / frames)) : 64;
-  const bodyH = bodyStamp ? bodyStamp.h : 64;
+  // Pre-stamp bosses name a room atlas tile instead. The generator still
+  // supports them and takes the body rectangle from that entry, so the editor
+  // has to resolve it the same way -- otherwise the two disagree about how big
+  // the boss is, and every size rule downstream (death FX "must fit inside the
+  // body", the damage-zone canvas) is applied against a body that does not
+  // exist. See msx2BitmapBossGenerator resolveBossParams / buildEntry.
+  const bodyAtlasEntry = !boss.bossStampAssetId && boss.bossAtlasEntryId
+    ? atlasEntries.find(e => e.id === boss.bossAtlasEntryId)
+    : undefined;
+  const bodyW = bodyStamp
+    ? (stampFrameCount ? bodyStamp.w : Math.floor(bodyStamp.w / frames))
+    : bodyAtlasEntry
+      // Same clamps as the generator: even width, 16..128 per frame.
+      ? Math.max(16, Math.min(128, Math.floor(Math.floor(bodyAtlasEntry.w / frames) / 2) * 2))
+      : 64;
+  const bodyH = bodyStamp
+    ? bodyStamp.h
+    : bodyAtlasEntry ? Math.max(16, Math.min(96, bodyAtlasEntry.h)) : 64;
   const bodyPreviewScale = Math.max(1, Math.min(4, Math.floor(160 / Math.max(bodyW, 1))));
   const barrierEntry = atlasEntries.find(e => e.id === boss.bossBarrierTileId);
   const projectileEntry = atlasEntries.find(e => e.id === boss.bossProjectileTileId);
@@ -406,6 +481,14 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
   const laserMask = boss.bossLaserDirectionMask ?? 0x0f;
   const activePath = pathAssets.find(asset => asset.id === boss.bossPathId);
   const activePathFiring = (activePath?.data as any)?.firing;
+  // What this boss can actually DO, resolved exactly like the generator does
+  // (resolveProjectile / resolveLaser). The attack-phase table is driven by it:
+  // showing a bullet cadence to a boss that only fires a laser is not a small
+  // cosmetic problem -- those fields genuinely do nothing for it.
+  const attacks = useMemo(
+    () => resolveBossAttacks(boss, atlasEntries, bodyW, bodyH),
+    [boss, atlasEntries, bodyW, bodyH],
+  );
 
   const toggleLaserDirection = (bit: number) => {
     set('bossLaserDirectionMask', laserMask ^ (1 << bit));
@@ -536,7 +619,15 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
                       <div className="text-[10px] text-msx-textsecondary mt-1">frame {index}</div>
                     </div>
                   ))
-                  : <AtlasPreviewBox scale={1} emptyHint="Pick a Bitmap Stamp to see the boss." />}
+                  : bodyAtlasEntry
+                    ? Array.from({ length: frames }, (_, index) => (
+                      <div key={index} className="text-center">
+                        <AtlasPreviewBox entry={bodyAtlasEntry} scale={bodyPreviewScale} frames={frames} frameIndex={index}
+                          emptyHint="" />
+                        <div className="text-[10px] text-msx-textsecondary mt-1">frame {index}</div>
+                      </div>
+                    ))
+                    : <AtlasPreviewBox scale={1} emptyHint="Pick a Bitmap Stamp to see the boss." />}
               </div>
             </div>
 
@@ -889,12 +980,13 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
         )}
 
         {section === 'Attack Phases' && (
-          <PhasesPanel boss={boss} onUpdate={onUpdate} pathAssets={pathAssets} />
+          <PhasesPanel boss={boss} onUpdate={onUpdate} pathAssets={pathAssets}
+            shootAssets={shootAssets} attacks={attacks} activePathFiring={activePathFiring} />
         )}
 
         {section === 'Damage Zones' && (
           <ZonesPanel boss={boss} onUpdate={onUpdate} bodyW={bodyW} bodyH={bodyH}
-            bodyStamp={bodyStamp} frames={frames} soundAssets={soundAssets}
+            bodyStamp={bodyStamp} bodyAtlasEntry={bodyAtlasEntry} frames={frames} soundAssets={soundAssets}
             setStatusBarMessage={setStatusBarMessage} />
         )}
 
@@ -910,6 +1002,8 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
 
         {section === 'Encounters' && (
           <EncountersPanel boss={boss} encounters={encounters} allAssets={allAssets}
+            pathNodeCount={((activePath?.data as any)?.nodes || []).length}
+            pathLoops={String((activePath?.data as any)?.loopMode || '') === 'loop'}
             onUpdateAsset={onUpdateAsset} setStatusBarMessage={setStatusBarMessage} />
         )}
       </div>
@@ -1132,76 +1226,319 @@ const RoomLockSequencePanel: React.FC<{
   );
 };
 
-/** HP-threshold attack phases. */
+/** Steps a phase may take per body update, and what that means on screen. */
+const PHASE_MOVE_STEPS = [
+  { value: 1, label: 'Normal — one step per update' },
+  { value: 2, label: 'Fast — two steps at once' },
+  { value: 3, label: 'Frantic — three steps at once' },
+] as const;
+
+/**
+ * HP-threshold attack phases.
+ *
+ * A phase is the boss's escalation script: as its health drops it may fire a
+ * different PATTERN (not just faster), speed its laser up, move in longer jumps,
+ * redraw its body more often, or switch route. Everything except the threshold
+ * is optional, and an untouched phase generates exactly the bytes it did before
+ * those knobs existed.
+ *
+ * The table only offers what THIS boss can actually do (see
+ * {@link resolveBossAttacks}): a laser-only boss has no bullet cadence to tune,
+ * and showing it one was the fastest way to author a phase that does nothing.
+ */
 const PhasesPanel: React.FC<{
   boss: Msx2BossDefinition;
   onUpdate: (b: Msx2BossDefinition) => void;
   pathAssets: ProjectAsset[];
-}> = ({ boss, onUpdate, pathAssets }) => {
+  shootAssets: ProjectAsset[];
+  attacks: BossAttackCapabilities;
+  /** `'path'` means the node scripts fire and the phase cadence is ignored. */
+  activePathFiring?: string;
+}> = ({ boss, onUpdate, pathAssets, shootAssets, attacks, activePathFiring }) => {
   const phases = boss.bossPhases || [];
   const update = (next: Msx2BossPhase[]) => onUpdate({ ...boss, bossPhases: next });
-  const add = () => update([...phases, {
-    id: `phase_${phases.length + 1}`,
-    enterWhenHpBelowPercent: 100,
-    interval: boss.bossShootInterval || 90,
-    projectileSpeed: boss.bossProjectileSpeed || 2,
-  }]);
+  const patch = (index: number, changes: Partial<Msx2BossPhase>) =>
+    update(phases.map((phase, i) => i === index ? { ...phase, ...changes } : phase));
+
+  const maxHp = Math.max(1, Number(boss.bossHp) || 1);
+  const baseBodyInterval = Math.max(1, Number(boss.bossInterval) || 3);
+  const baseStepPx = Math.max(1, Math.min(2, Number(boss.bossSpeed) || 2));
+  const baseLaserInterval = Number(boss.bossLaserInterval ?? 90);
+  /** Same conversion the generator makes: a percentage becomes an absolute HP. */
+  const hpOf = (percent: number) =>
+    Math.max(1, Math.min(255, Math.ceil((maxHp * Math.max(1, Math.min(100, percent || 100))) / 100)));
+
+  // Fight order = the runtime's order: thresholds ascending, first match wins.
+  // Everything the panel says about "when is this phase active" is derived from
+  // it, so the editor cannot describe an order the ROM does not use.
+  const ranked = phases
+    .map((phase, index) => ({ phase, index, hp: hpOf(phase.enterWhenHpBelowPercent) }))
+    .sort((a, b) => a.hp - b.hp);
+  const bandOf = (index: number) => {
+    const at = ranked.findIndex(row => row.index === index);
+    if (at < 0) return null;
+    const upper = ranked[at].hp;
+    const lower = at > 0 ? ranked[at - 1].hp + 1 : 1;
+    // A duplicate threshold is dead code: the earlier entry already matched.
+    const shadowed = at > 0 && ranked[at - 1].hp >= upper;
+    return { upper, lower, shadowed, order: ranked.length - at };
+  };
+  const highest = ranked.length ? ranked[ranked.length - 1].hp : 0;
+
+  const add = () => {
+    // Suggest a threshold strictly BELOW the lowest one authored so far, in
+    // ABSOLUTE hit points: two phases that round to the same HP means the second
+    // can never run, and that is the commonest way to author a dead phase.
+    // A boss with very few hit points can run out of room, and the card then
+    // says so rather than the editor pretending otherwise.
+    const target = ranked.length ? Math.max(1, ranked[0].hp - 1) : maxHp;
+    const percent = phases.length === 0 ? 100 : Math.max(1, Math.min(100, Math.ceil((target * 100) / maxHp)));
+    update([...phases, {
+      id: `phase_${phases.length + 1}`,
+      enterWhenHpBelowPercent: percent,
+      interval: boss.bossShootInterval || 90,
+      projectileSpeed: boss.bossProjectileSpeed || 2,
+    }]);
+  };
+
+  const firesLabel = attacks.bullets && attacks.laser ? 'bullets and laser'
+    : attacks.laser ? 'laser only'
+      : attacks.fallingRocks ? 'falling rocks'
+        : attacks.bullets ? 'bullets'
+          : 'nothing yet';
 
   return (
     <div className={card}>
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-semibold">Attack Phases</h3>
         <button className={btn} onClick={add}>+ Add phase</button>
       </div>
-      {phases.length === 0 && (
-        <p className="text-xs text-msx-textsecondary">
-          No phases: the boss keeps a single firing rhythm for the whole fight.
+
+      <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
+        <span className="px-2 py-1 rounded border border-msx-border text-msx-textsecondary">
+          This boss fires: <strong className="text-msx-textprimary">{firesLabel}</strong>
+        </span>
+        <span className="px-2 py-1 rounded border border-msx-border text-msx-textsecondary">
+          Hit points: <strong className="text-msx-textprimary">{maxHp}</strong>
+        </span>
+        {!attacks.bullets && !attacks.laser && (
+          <span className="text-yellow-400">
+            No attack is configured, so a phase can still change route, body cadence and speed — but nothing will shoot.
+          </span>
+        )}
+      </div>
+
+      {activePathFiring === 'path' && (
+        <p className="text-xs mb-3" style={{ color: '#ffb454' }}>
+          The boss path is set to <strong>only the node scripts shoot</strong>, so the
+          firing cadence below is ignored while that path is active. Fire from the path
+          nodes, or switch the path to the automatic cadence.
         </p>
       )}
-      {phases.map((phase, index) => (
-        <div key={index} className="grid grid-cols-7 gap-2 items-end mb-2 pb-2 border-b border-msx-border">
-          <div>
-            <label className={label}>ID</label>
-            <input className={input} value={phase.id}
-              onChange={e => update(phases.map((p, i) => i === index ? { ...p, id: e.target.value } : p))} />
+
+      {phases.length === 0 && (
+        <p className="text-xs text-msx-textsecondary">
+          No phases: the boss keeps a single rhythm for the whole fight, the one
+          authored in Projectiles / Laser Attack.
+        </p>
+      )}
+
+      {phases.map((phase, index) => {
+        const band = bandOf(index);
+        const shootAsset = shootAssets.find(asset => asset.id === phase.shootId);
+        const moveSteps = Math.max(1, Math.min(3, Number(phase.moveStepMultiplier) || 1));
+        const bodyInterval = Number(phase.bodyInterval) || 0;
+        return (
+          <div key={index} className="border border-msx-border rounded p-2 mb-3">
+            {/* --- identity and the HP band this phase really covers --- */}
+            <div className="flex items-end gap-2 mb-2">
+              <div className="w-40">
+                <label className={label}>ID</label>
+                <input className={input} value={phase.id}
+                  onChange={e => patch(index, { id: e.target.value })} />
+              </div>
+              <div className="w-32">
+                <label className={label}>At or below HP %</label>
+                <input type="number" min={1} max={100} className={input} value={phase.enterWhenHpBelowPercent}
+                  onChange={e => patch(index, { enterWhenHpBelowPercent: Number(e.target.value) })} />
+              </div>
+              <div className="flex-1">
+                <label className={label}>Active while</label>
+                {/* Bar and caption sit side by side: printing the text over the
+                    bar made the overlap unreadable exactly where it matters. */}
+                <div className="flex items-center gap-2 h-6">
+                  <div className="flex-1 h-3 rounded border border-msx-border overflow-hidden relative"
+                    style={{ background: MSX2_PREVIEW_BG }}>
+                    {band && !band.shadowed && (
+                      <div className="absolute top-0 bottom-0 bg-msx-accent"
+                        style={{
+                          left: `${((band.lower - 1) / maxHp) * 100}%`,
+                          width: `${Math.max(2, ((band.upper - band.lower + 1) / maxHp) * 100)}%`,
+                        }} />
+                    )}
+                  </div>
+                  <span className="text-[10px] whitespace-nowrap"
+                    style={band && !band.shadowed ? undefined : { color: '#ffb454' }}>
+                    {band && !band.shadowed
+                      ? `HP ${band.upper} down to ${band.lower} — phase ${band.order} of the fight`
+                      : 'never: an earlier phase already covers this HP'}
+                  </span>
+                </div>
+              </div>
+              <button className={btn} onClick={() => update(phases.filter((_, i) => i !== index))}>Remove</button>
+            </div>
+
+            {/* --- what it shoots: only the back-ends this boss actually has --- */}
+            {attacks.bullets && (
+              <div className="grid grid-cols-4 gap-2 mb-2">
+                <div>
+                  <label className={label}>
+                    {attacks.fallingRocks ? 'Frames between rocks' : 'Frames between shots'}
+                  </label>
+                  <input type="number" min={10} max={255} className={input} value={phase.interval}
+                    onChange={e => patch(index, { interval: Number(e.target.value) })} />
+                </div>
+                <div>
+                  <label className={label}>Bullet speed (px/frame)</label>
+                  <input type="number" min={1} max={4} className={input} value={phase.projectileSpeed}
+                    onChange={e => patch(index, { projectileSpeed: Number(e.target.value) })} />
+                </div>
+                <div className="col-span-2">
+                  <label className={label}>Shot pattern — how MANY bullets go out</label>
+                  <select className={input} value={phase.shootId ?? ''}
+                    onChange={e => patch(index, { shootId: e.target.value })}>
+                    <option value="">One bullet, aimed at the player</option>
+                    {shootAssets.map(asset => (
+                      <option key={asset.id} value={asset.id}>{asset.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {attacks.bullets && phase.shootId && !attacks.spriteBullets && (
+              <p className="text-xs mb-2" style={{ color: '#ffb454' }}>
+                Shot patterns need hardware-sprite bullets. This boss uses the bitmap
+                blitter, which has one bullet in flight, so it will keep firing a single
+                aimed shot.
+              </p>
+            )}
+            {attacks.bullets && shootAsset && (
+              <p className="text-xs text-msx-textsecondary mb-2">
+                <strong>{shootAsset.name}</strong>: {describeShoot(shootAsset)}
+              </p>
+            )}
+            {phase.shootId && shootAssets.length > 0 && !shootAsset && (
+              <p className="text-xs mb-2" style={{ color: '#ffb454' }}>
+                That shot pattern no longer exists; the phase will fire one aimed bullet.
+              </p>
+            )}
+
+            {attacks.laser && (
+              <div className="grid grid-cols-4 gap-2 mb-2">
+                <div>
+                  <label className={label}>Frames between laser waves</label>
+                  <input type="number" min={0} max={255} className={input}
+                    value={phase.laserInterval ?? 0}
+                    onChange={e => patch(index, { laserInterval: Number(e.target.value) })} />
+                </div>
+                <div className="col-span-3 flex items-end">
+                  <p className="text-xs text-msx-textsecondary pb-1">
+                    0 keeps the boss default ({baseLaserInterval} frames). Lower = the beams
+                    come back sooner; the boss still stands still while a wave grows.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* --- how it moves: route, body cadence and step size --- */}
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className={label}>Path</label>
+                <select className={input} value={phase.pathId ?? ''}
+                  onChange={e => patch(index, { pathId: e.target.value })}>
+                  <option value="">Keep the boss default</option>
+                  <option value="none">None — stand still</option>
+                  {pathAssets.map(asset => (
+                    <option key={asset.id} value={asset.id}>{asset.name}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-msx-textsecondary mt-1">
+                  The route changes when the current one finishes its lap, not the instant
+                  the HP drops. A route is a relative shape, so switching mid-lap would anchor
+                  it wherever the boss happened to be; waiting means every route starts from
+                  the same spot. Everything else on this phase applies at once.
+                </p>
+              </div>
+              <div>
+                <label className={label}>Body update every (frames)</label>
+                <input type="number" min={0} max={16} className={input} value={bodyInterval}
+                  onChange={e => patch(index, { bodyInterval: Number(e.target.value) })} />
+                <p className="text-[10px] text-msx-textsecondary mt-1">
+                  0 = boss default ({baseBodyInterval}). {bodyInterval > 0 && bodyInterval < baseBodyInterval
+                    ? `${(60 / bodyInterval).toFixed(0)} updates/s instead of ${(60 / baseBodyInterval).toFixed(0)} — costs VDP time.`
+                    : 'Lower means more movement and animation, at a VDP cost.'}
+                </p>
+              </div>
+              <div>
+                <label className={label}>Movement speed</label>
+                <select className={input} value={moveSteps}
+                  onChange={e => patch(index, { moveStepMultiplier: Number(e.target.value) })}>
+                  {PHASE_MOVE_STEPS.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-msx-textsecondary mt-1">
+                  {moveSteps === 1
+                    ? `${baseStepPx}px per body update.`
+                    : `up to ${baseStepPx * moveSteps}px per body update — less smooth, but it costs no extra body redraw.`}
+                </p>
+              </div>
+            </div>
           </div>
-          <div>
-            <label className={label}>At or below HP %</label>
-            <input type="number" min={1} max={100} className={input} value={phase.enterWhenHpBelowPercent}
-              onChange={e => update(phases.map((p, i) => i === index ? { ...p, enterWhenHpBelowPercent: Number(e.target.value) } : p))} />
-          </div>
-          <div>
-            <label className={label}>Shot interval</label>
-            <input type="number" min={10} max={255} className={input} value={phase.interval}
-              onChange={e => update(phases.map((p, i) => i === index ? { ...p, interval: Number(e.target.value) } : p))} />
-          </div>
-          <div>
-            <label className={label}>Bullet speed</label>
-            <input type="number" min={1} max={4} className={input} value={phase.projectileSpeed}
-              onChange={e => update(phases.map((p, i) => i === index ? { ...p, projectileSpeed: Number(e.target.value) } : p))} />
-          </div>
-          <div className="col-span-2">
-            <label className={label}>Path</label>
-            <select className={input} value={phase.pathId ?? ''}
-              onChange={e => update(phases.map((p, i) => i === index ? { ...p, pathId: e.target.value } : p))}>
-              <option value="">Keep the boss default</option>
-              <option value="none">None — stand still</option>
-              {pathAssets.map(asset => (
-                <option key={asset.id} value={asset.id}>{asset.name}</option>
-              ))}
-            </select>
-          </div>
-          <button className={btn} onClick={() => update(phases.filter((_, i) => i !== index))}>Remove</button>
+        );
+      })}
+
+      {phases.length > 0 && (
+        <div className="text-xs text-msx-textsecondary mt-2 space-y-1">
+          <p>
+            The phase with the lowest matching threshold wins, so a boss naturally gets
+            angrier as it loses health. Order in this list does not matter — the HP band
+            on each card is what the ROM will do.
+          </p>
+          {highest > 0 && highest < maxHp && (
+            <p style={{ color: '#ffb454' }}>
+              Nothing covers HP {maxHp} down to {highest + 1}: the boss opens the fight on
+              its base settings. Add a phase at 100% if that is not what you want.
+            </p>
+          )}
+          <p>
+            One step of movement stays capped at 2px (the body's trail cleanup), so a
+            faster phase takes several steps per update instead. On a path, that also
+            makes the node pauses go by quicker.
+          </p>
         </div>
-      ))}
-      <p className="text-xs text-msx-textsecondary mt-2">
-        The phase with the lowest matching threshold wins, so a boss naturally gets
-        angrier as it loses health. Movement speed is not a phase knob: the body's
-        trail cleanup caps it at 2 px/frame.
-      </p>
+      )}
     </div>
   );
 };
+
+/** One-line summary of a `msx2shoot` asset, for the phase card. */
+function describeShoot(asset: ProjectAsset): string {
+  const shoot = ((asset.data as any)?.shoot ?? asset.data) as any;
+  if (!shoot) return 'pattern not readable';
+  const count = Math.max(1, Number(shoot.bulletCount) || 1);
+  const burst = Math.max(1, Number(shoot.burstCount) || 1);
+  const pattern = String(shoot.pattern || 'aimed');
+  const shape = pattern === 'radial' ? 'around the whole circle'
+    : pattern === 'spread' ? 'in a fan around the aim'
+      : pattern === 'linear' ? `always ${String(shoot.direction || 'down')}`
+        : 'aimed at the player';
+  const waves = burst > 1
+    ? `, ${burst} waves ${Math.max(1, Number(shoot.burstInterval) || 8)} frames apart`
+    : '';
+  return `${count} bullet${count === 1 ? '' : 's'} ${shape}${waves}.`;
+}
 
 /**
  * Visual damage-zone editor: drag rectangles straight onto the body instead of
@@ -1214,10 +1551,12 @@ const ZonesPanel: React.FC<{
   bodyW: number;
   bodyH: number;
   bodyStamp?: BodyStampRef;
+  /** Pre-stamp bosses draw their body from a room atlas tile instead. */
+  bodyAtlasEntry?: AtlasEntryRef;
   frames: number;
   soundAssets: ProjectAsset[];
   setStatusBarMessage?: (m: string) => void;
-}> = ({ boss, onUpdate, bodyW, bodyH, bodyStamp, frames, soundAssets, setStatusBarMessage }) => {
+}> = ({ boss, onUpdate, bodyW, bodyH, bodyStamp, bodyAtlasEntry, frames, soundAssets, setStatusBarMessage }) => {
   const zones = boss.damageZones || [];
   const update = (next: Msx2BossDamageZone[]) => onUpdate({ ...boss, damageZones: next });
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -1267,7 +1606,11 @@ const ZonesPanel: React.FC<{
           >
             {/* The body sits behind the zones and must not eat the drag events. */}
             <div className="absolute inset-0 pointer-events-none">
-              {bodyStamp && <StampCanvas stamp={bodyStamp} scale={scale} frames={frames} frameIndex={previewFrame} />}
+              {bodyStamp
+                ? <StampCanvas stamp={bodyStamp} scale={scale} frames={frames} frameIndex={previewFrame} />
+                : bodyAtlasEntry
+                  ? <AtlasEntryCanvas entry={bodyAtlasEntry} scale={scale} frames={frames} frameIndex={previewFrame} />
+                  : null}
             </div>
             {zones.map((zone, index) => (
               <div
@@ -1303,12 +1646,12 @@ const ZonesPanel: React.FC<{
             </div>
           )}
           <p className="text-xs text-msx-textsecondary mt-2" style={{ width: bodyW * scale }}>
-            {bodyStamp
+            {bodyStamp || bodyAtlasEntry
               ? <>Drag on the body to add a zone ({bodyW}×{bodyH} px, boss-local coordinates).
                 Red = weak point, grey = armour. Bullets pass THROUGH the bare body
                 between zones, so a boss with zones is only hittable on them.</>
-              : <>No body stamp picked yet, so this is an empty {bodyW}×{bodyH} placeholder.
-                Choose one in <strong>Body &amp; Graphics</strong> to draw zones over the real boss.</>}
+              : <>No body picked yet, so this is an empty {bodyW}×{bodyH} placeholder.
+                Choose a Bitmap Stamp in <strong>Body &amp; Graphics</strong> to draw zones over the real boss.</>}
           </p>
         </div>
 
@@ -1638,9 +1981,13 @@ const EncountersPanel: React.FC<{
   boss: Msx2BossDefinition;
   encounters: BossEncounterRef[];
   allAssets: ProjectAsset[];
+  /** Nodes in the route this boss walks, so the entry node can be bounded. */
+  pathNodeCount: number;
+  /** Only a closed ring can be entered anywhere; an open route cannot. */
+  pathLoops: boolean;
   onUpdateAsset?: (assetId: string, data: any) => void;
   setStatusBarMessage?: (m: string) => void;
-}> = ({ boss, encounters, allAssets, onUpdateAsset, setStatusBarMessage }) => {
+}> = ({ boss, encounters, allAssets, pathNodeCount, pathLoops, onUpdateAsset, setStatusBarMessage }) => {
   const patchEntity = (encounter: BossEncounterRef, patch: (params: any) => any) => {
     const room = allAssets.find(a => a.id === encounter.roomAssetId);
     const data = room?.data as any;
@@ -1673,6 +2020,16 @@ const EncountersPanel: React.FC<{
     });
   };
 
+  const setStartNode = (encounter: BossEncounterRef, value: string) => {
+    patchEntity(encounter, params => {
+      if (value === '' || Number(value) === 0) {
+        const { bossPathStartNode, ...rest } = params;
+        return rest;
+      }
+      return { ...params, bossPathStartNode: Number(value) };
+    });
+  };
+
   return (
     <div className={card}>
       <h3 className="text-sm font-semibold mb-3">Encounters</h3>
@@ -1700,6 +2057,16 @@ const EncountersPanel: React.FC<{
                 placeholder={String(boss.bossHp)} disabled={!usesThis || !onUpdateAsset}
                 onChange={e => setHpOverride(encounter, e.target.value)} />
             </div>
+            <div className="w-28">
+              <label className={label}>Start node</label>
+              <input type="number" min={0} max={Math.max(0, pathNodeCount - 1)} className={input}
+                value={encounter.pathStartNode} placeholder="0"
+                disabled={!usesThis || !onUpdateAsset || !pathLoops}
+                title={!pathLoops
+                  ? 'Only a looping route can be entered on another node.'
+                  : `This route has ${pathNodeCount} nodes (0..${Math.max(0, pathNodeCount - 1)}).`}
+                onChange={e => setStartNode(encounter, e.target.value)} />
+            </div>
             {usesThis
               ? <button className={btn} disabled={!onUpdateAsset} onClick={() => detach(encounter)}>Detach</button>
               : <button className={btn} disabled={!onUpdateAsset} onClick={() => assign(encounter)}>Use this boss</button>}
@@ -1709,9 +2076,15 @@ const EncountersPanel: React.FC<{
       <p className="text-xs text-msx-textsecondary mt-2">
         The definition supplies the defaults and the placed boss wins on anything it sets,
         so the same creature can appear in several rooms with a different HP or reward.
-        Two entries in the same room are allowed for the double-boss encounter; use a
-        different Boss definition when each entry needs its own Path. Leave the override
-        empty to inherit {boss.bossHp} HP.
+        Leave the override empty to inherit {boss.bossHp} HP.
+      </p>
+      <p className="text-xs text-msx-textsecondary mt-2">
+        Each boss starts <strong>where you placed it on the room</strong> and walks the route
+        from there, so two entries in the same room may share one Path without stacking on
+        top of each other. <strong>Start node</strong> additionally shifts a copy along the
+        route — put one boss on node 0 and the other half a lap ahead and they orbit in
+        opposition instead of in formation. It needs a looping route, because only a closed
+        ring can be entered anywhere.
       </p>
     </div>
   );

@@ -1687,7 +1687,14 @@ export type Msx2BossDefeatAction =
    */
   | { action: 'changeScreen'; target: string; entryX?: number; entryY?: number };
 
-/** An attack phase: the boss gets angrier as its HP drops. */
+/**
+ * An attack phase: the boss gets angrier as its HP drops.
+ *
+ * Everything past `pathId` is an OPT-IN override. Left empty (or 0) a phase
+ * behaves exactly as it did before those fields existed, and the generator
+ * emits the original 3-byte runtime entry, so a project that does not use them
+ * keeps a byte-identical ROM.
+ */
 export interface Msx2BossPhase {
   id: string;
   /** This phase is active at or below this percentage of the boss's HP. */
@@ -1700,6 +1707,34 @@ export interface Msx2BossPhase {
    * stand still, or empty to inherit the boss's default path.
    */
   pathId?: string;
+  /**
+   * `msx2shoot` asset fired by this phase's automatic cadence — that is how a
+   * phase fires MORE bullets (fan, ring, burst) rather than merely fires them
+   * faster. Empty = the historical single bullet aimed at the player.
+   *
+   * Needs hardware-sprite bullets (`bossProjectileKind: 'sprite'`): a single
+   * bitmap bullet has one slot and cannot fan out.
+   */
+  shootId?: string;
+  /**
+   * Frames between automatic laser waves while this phase is active.
+   * 0 / undefined = keep `bossLaserInterval`. This is the only phase knob a
+   * laser-only boss has, since intervals and bullet speeds never reach it.
+   */
+  laserInterval?: number;
+  /**
+   * Body update cadence in frames (the per-phase `bossInterval`). Lower = the
+   * body moves, animates and redraws more often, at a real VDP cost.
+   * 0 / undefined = keep the boss default.
+   */
+  bodyInterval?: number;
+  /**
+   * Movement steps applied per body update (1..3). The step itself stays capped
+   * at 2px by the restore strips, so this is how a phase moves FASTER: it takes
+   * two or three of them at once (less smooth, but it costs no extra body
+   * redraw — only a wider restore strip). 1 / undefined = the boss default.
+   */
+  moveStepMultiplier?: number;
 }
 
 /**
