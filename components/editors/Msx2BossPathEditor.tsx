@@ -16,6 +16,13 @@ import {
 } from './Msx2HudEditor';
 import { createDefaultScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 import { BITMAP_BOSS_PATH_LIMITS, PATH_OP_ARG_BYTES, PATH_OP_END, bakeBossPath } from '../../utils/msx2BossPath';
+import {
+  BossPathShapeKind,
+  BossPathShapeOptions,
+  BossPathShapeResult,
+  DEFAULT_BOSS_PATH_SHAPE,
+  buildBossPathShape,
+} from '../../utils/msx2BossPathShapes';
 
 /**
  * MSX2 SCREEN 5 boss path editor.
@@ -49,11 +56,35 @@ const HUD_H = 20;
 const ROOM_H = 192;
 const FULL_SCREEN_H = HUD_H + ROOM_H;
 const SCALE = 2;
+/** Frozen on purpose: the shape panel memoises on it, so a fresh literal per render would loop. */
+const ROOM_BOUNDS = { width: ROOM_W, height: ROOM_H };
 
 const card = 'bg-msx-panel border border-msx-border rounded p-3 mb-3';
 const label = 'block text-xs text-msx-textsecondary mb-1';
 const input = 'w-full bg-msx-bgcolor border border-msx-border rounded px-2 py-1 text-sm text-msx-textprimary';
 const btn = 'px-2 py-1 text-xs rounded border border-msx-border hover:bg-msx-hover';
+
+/**
+ * Replays a baked stream into the dots the MSX will actually walk, which is what
+ * both the route and the shape preview draw.
+ */
+const walkBakedSteps = (bytes: number[], startX: number, startY: number) => {
+  const out: Array<{ x: number; y: number }> = [];
+  let x = startX;
+  let y = startY;
+  for (let i = 0; i < bytes.length; i++) {
+    const byte = bytes[i];
+    if (byte === PATH_OP_END) break;
+    if (byte >= 0xf0) {
+      i += PATH_OP_ARG_BYTES;   // every opcode carries exactly one argument
+      continue;
+    }
+    x += ((byte >> 4) & 0x0f) - 8;
+    y += (byte & 0x0f) - 8;
+    out.push({ x, y });
+  }
+  return out;
+};
 
 export const Msx2BossPathEditor: React.FC<Msx2BossPathEditorProps> = ({ path, onUpdate, allAssets, setStatusBarMessage }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -64,6 +95,9 @@ export const Msx2BossPathEditor: React.FC<Msx2BossPathEditorProps> = ({ path, on
   // the walls and platforms the boss actually fights in.
   const [onionOn, setOnionOn] = useState(false);
   const [onionRoomId, setOnionRoomId] = useState('');
+  // What the shape panel is currently offering, drawn over the route until the
+  // author commits to it. Null while the preview is off.
+  const [shapeGhost, setShapeGhost] = useState<BossPathShapeResult | null>(null);
   const nodes = path.nodes || [];
 
   const rooms = useMemo(() => allAssets.filter(a => a.type === 'msx2bitmaproom'), [allAssets]);
@@ -121,24 +155,23 @@ export const Msx2BossPathEditor: React.FC<Msx2BossPathEditorProps> = ({ path, on
   // the ideal curve instead, the author would be looking at something the MSX
   // never walks.
   const baked = useMemo(() => bakeBossPath(path, BITMAP_BOSS_PATH_LIMITS), [path]);
-  const steps = useMemo(() => {
-    const out: Array<{ x: number; y: number }> = [];
-    if (!nodes.length) return out;
-    let x = nodes[0].x;
-    let y = nodes[0].y;
-    for (let i = 0; i < baked.bytes.length; i++) {
-      const byte = baked.bytes[i];
-      if (byte === PATH_OP_END) break;
-      if (byte >= 0xf0) {
-        i += PATH_OP_ARG_BYTES;   // every opcode carries exactly one argument
-        continue;
-      }
-      x += ((byte >> 4) & 0x0f) - 8;
-      y += (byte & 0x0f) - 8;
-      out.push({ x, y });
-    }
-    return out;
-  }, [baked, nodes]);
+  const steps = useMemo(
+    () => nodes.length ? walkBakedSteps(baked.bytes, nodes[0].x, nodes[0].y) : [],
+    [baked, nodes],
+  );
+
+  // The shape panel's live preview. It is baked too, not drawn as ideal geometry,
+  // so what the author judges before replacing the route is the same thing the
+  // MSX would walk afterwards.
+  const ghostSteps = useMemo(() => {
+    const ghostNodes = shapeGhost?.nodes || [];
+    if (ghostNodes.length < 2) return [];
+    const ghost = bakeBossPath(
+      { ...path, nodes: ghostNodes, loopMode: shapeGhost!.closed ? 'loop' : path.loopMode },
+      BITMAP_BOSS_PATH_LIMITS,
+    );
+    return walkBakedSteps(ghost.bytes, ghostNodes[0].x, ghostNodes[0].y);
+  }, [shapeGhost, path]);
 
   const toRoom = (event: React.MouseEvent) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -159,6 +192,27 @@ export const Msx2BossPathEditor: React.FC<Msx2BossPathEditorProps> = ({ path, on
 
   const moveNode = (index: number, point: { x: number; y: number }) =>
     setNodes(nodes.map((node, i) => i === index ? { ...node, x: point.x, y: point.y } : node));
+
+  /**
+   * Drops a generated shape on the route. Nodes and loop mode travel in ONE
+   * update: two calls would both derive from the same stale `path` prop and the
+   * second would undo the first.
+   */
+  const applyShape = (result: BossPathShapeResult) => {
+    if (!result.nodes.length) return;
+    const scripted = nodes.filter(item => (item.actions || []).length).length;
+    if (scripted && !window.confirm(
+      `Generating a shape replaces the whole route, and ${scripted} node(s) carry a script (pauses, shots). Continue?`,
+    )) return;
+    onUpdate({
+      ...path,
+      nodes: result.nodes,
+      // A circle walked once is an arc, so a closed shape forces the loop.
+      loopMode: result.closed ? 'loop' : path.loopMode,
+    });
+    setSelected(0);
+    setStatusBarMessage?.(`Route replaced with a generated shape: ${result.nodes.length} nodes.`);
+  };
 
   const node = nodes[selected];
   const laps = steps.length;
@@ -216,6 +270,18 @@ export const Msx2BossPathEditor: React.FC<Msx2BossPathEditorProps> = ({ path, on
               onMouseUp={() => setDragging(null)}
               onMouseLeave={() => setDragging(null)}
             >
+            {ghostSteps.map((step, index) => (
+              <div key={`ghost_${index}`} className="absolute rounded-full" style={{
+                left: step.x * SCALE - 1, top: step.y * SCALE - 1,
+                width: 2, height: 2, background: 'rgba(120,255,170,0.65)',
+              }} />
+            ))}
+            {(shapeGhost?.nodes || []).map((item, index) => (
+              <div key={`ghostnode_${index}`} className="absolute rounded-full" style={{
+                left: item.x * SCALE - 4, top: item.y * SCALE - 4,
+                width: 8, height: 8, border: '1px dashed rgba(120,255,170,0.9)',
+              }} />
+            ))}
             {steps.map((step, index) => (
               <div key={index} className="absolute rounded-full" style={{
                 left: step.x * SCALE - 1, top: step.y * SCALE - 1,
@@ -243,6 +309,12 @@ export const Msx2BossPathEditor: React.FC<Msx2BossPathEditorProps> = ({ path, on
             what the body's 4-pixel restore strips can clean. A filled node has a script.
             One lap is <strong>{laps} steps</strong> ≈ {seconds}s, {baked.bytes.length} bytes of ROM.
           </p>
+          {shapeGhost && (
+            <p className="text-xs mt-1" style={{ color: 'rgba(120,255,170,0.9)' }}>
+              The green trail is the shape waiting in the panel on the right. It only becomes the
+              route when you press <strong>Generate route</strong>.
+            </p>
+          )}
           {baked.warnings.map((warning, index) => (
             <p key={index} className="text-xs text-yellow-400 mt-1">{warning}</p>
           ))}
@@ -283,6 +355,8 @@ export const Msx2BossPathEditor: React.FC<Msx2BossPathEditorProps> = ({ path, on
             </p>
           </div>
         </div>
+
+        <ShapeGenerator onPreview={setShapeGhost} onApply={applyShape} />
 
         <div className={card}>
           <div className="flex items-center justify-between mb-2">
@@ -327,6 +401,153 @@ export const Msx2BossPathEditor: React.FC<Msx2BossPathEditorProps> = ({ path, on
           )}
         </div>
       </div>
+    </div>
+  );
+};
+
+/**
+ * Which fields each shape actually uses, and what to call them there: "radius Y"
+ * means the amplitude to a zigzag and half the height to a rectangle, and a
+ * rotated circle is still the same circle, so it has no rotation field at all.
+ */
+const SHAPE_FIELDS: Record<BossPathShapeKind, {
+  name: string;
+  radiusX: string;
+  radiusY?: string;
+  count?: { label: string; min: number; max: number };
+  rotation: boolean;
+  inner?: boolean;
+  axis?: boolean;
+  hint: string;
+}> = {
+  circle: {
+    name: 'Circle', radiusX: 'Radius (px)', rotation: false,
+    count: { label: 'Nodes', min: 3, max: 64 },
+    hint: 'A dozen nodes joined by smooth curves already read as round. More nodes cost editor clutter, not ROM: the stream length follows the perimeter, not the node count.',
+  },
+  ellipse: {
+    name: 'Ellipse', radiusX: 'Radius X (px)', radiusY: 'Radius Y (px)', rotation: true,
+    count: { label: 'Nodes', min: 3, max: 64 },
+    hint: 'Rotate it to sweep the long axis diagonally across the room.',
+  },
+  rectangle: {
+    name: 'Rectangle', radiusX: 'Half width (px)', radiusY: 'Half height (px)', rotation: true,
+    hint: 'Four corners and straight sides: the classic perimeter patrol. Rotate it for a tilted box.',
+  },
+  polygon: {
+    name: 'Polygon', radiusX: 'Radius X (px)', radiusY: 'Radius Y (px)', rotation: true,
+    count: { label: 'Sides', min: 3, max: 12 },
+    hint: 'A vertex sits on top, so a triangle or a pentagon comes out upright. Four sides give a diamond — use Rectangle for a straight box.',
+  },
+  star: {
+    name: 'Star', radiusX: 'Radius X (px)', radiusY: 'Radius Y (px)', rotation: true, inner: true,
+    count: { label: 'Points', min: 3, max: 12 },
+    hint: 'Every point is a dive out and back, so the boss keeps crossing its own middle. A lower inner radius makes the spikes sharper and the lap longer.',
+  },
+  zigzag: {
+    name: 'Zigzag', radiusX: 'Half length (px)', radiusY: 'Amplitude (px)', rotation: true, axis: true,
+    count: { label: 'Nodes', min: 2, max: 32 },
+    hint: 'An open run rather than a closed shape, so the loop mode above is left alone: keep Loop and the boss returns in a straight line, choose Walk it once and it stops at the far end.',
+  },
+  figure8: {
+    name: 'Figure 8 (∞)', radiusX: 'Radius X (px)', radiusY: 'Radius Y (px)', rotation: true,
+    count: { label: 'Nodes', min: 8, max: 64 },
+    hint: 'The lobes cross in the middle, so the boss passes over the centre of the room twice per lap.',
+  },
+};
+
+/**
+ * Builds a whole route out of one shape.
+ *
+ * The output is plain nodes, so nothing downstream changes: a generated circle
+ * bakes into the same byte stream as one drawn by hand, and every node stays
+ * draggable. The preset is a starting point, not an object the editor owns.
+ */
+const ShapeGenerator: React.FC<{
+  onPreview: (result: BossPathShapeResult | null) => void;
+  onApply: (result: BossPathShapeResult) => void;
+}> = ({ onPreview, onApply }) => {
+  const [options, setOptions] = useState<BossPathShapeOptions>(DEFAULT_BOSS_PATH_SHAPE);
+  const [previewOn, setPreviewOn] = useState(true);
+  const fields = SHAPE_FIELDS[options.kind];
+  const result = useMemo(() => buildBossPathShape({ ...options, bounds: ROOM_BOUNDS }), [options]);
+
+  useEffect(() => { onPreview(previewOn ? result : null); }, [result, previewOn, onPreview]);
+
+  const setOption = <K extends keyof BossPathShapeOptions>(key: K, value: BossPathShapeOptions[K]) =>
+    setOptions(prev => ({ ...prev, [key]: value }));
+  const numberField = (
+    text: string, value: number, min: number, max: number,
+    key: 'centerX' | 'centerY' | 'radiusX' | 'radiusY' | 'rotationDeg' | 'count' | 'innerPercent',
+  ) => (
+    <div>
+      <label className={label}>{text}</label>
+      <input type="number" min={min} max={max} className={input} value={value}
+        onChange={event => setOption(key, Number(event.target.value))} />
+    </div>
+  );
+
+  return (
+    <div className={card}>
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-semibold">Shape</h3>
+        <button
+          className={`${btn} ${previewOn ? 'bg-msx-accent text-white' : ''}`}
+          title="Draw the shape over the route before it replaces anything"
+          onClick={() => setPreviewOn(!previewOn)}
+        >
+          {previewOn ? '◉' : '○'} Preview
+        </button>
+      </div>
+
+      <select className={input} value={options.kind}
+        onChange={event => setOption('kind', event.target.value as BossPathShapeKind)}>
+        {(Object.keys(SHAPE_FIELDS) as BossPathShapeKind[]).map(kind => (
+          <option key={kind} value={kind}>{SHAPE_FIELDS[kind].name}</option>
+        ))}
+      </select>
+
+      <div className="grid grid-cols-2 gap-2 mt-2">
+        {numberField('Centre x', options.centerX, 0, ROOM_W - 1, 'centerX')}
+        {numberField('Centre y', options.centerY, 0, ROOM_H - 1, 'centerY')}
+        {numberField(fields.radiusX, options.radiusX, 1, ROOM_W, 'radiusX')}
+        {fields.radiusY && numberField(fields.radiusY, options.radiusY, 1, ROOM_H, 'radiusY')}
+        {fields.count && numberField(fields.count.label, options.count, fields.count.min, fields.count.max, 'count')}
+        {fields.inner && numberField('Inner radius (%)', options.innerPercent ?? 45, 10, 90, 'innerPercent')}
+        {fields.rotation && numberField('Rotation (°)', options.rotationDeg, -180, 180, 'rotationDeg')}
+        {fields.axis && (
+          <div>
+            <label className={label}>Run</label>
+            <select className={input} value={options.axis || 'horizontal'}
+              onChange={event => setOption('axis', event.target.value as BossPathShapeOptions['axis'])}>
+              <option value="horizontal">Left to right</option>
+              <option value="vertical">Top to bottom</option>
+            </select>
+          </div>
+        )}
+        <div>
+          <label className={label}>Direction</label>
+          <select className={input} value={options.clockwise === false ? 'ccw' : 'cw'}
+            onChange={event => setOption('clockwise', event.target.value === 'cw')}>
+            <option value="cw">Clockwise</option>
+            <option value="ccw">Counter-clockwise</option>
+          </select>
+        </div>
+      </div>
+
+      <button className={`${btn} w-full mt-2 bg-msx-accent text-white`} onClick={() => onApply(result)}>
+        Generate route ({result.nodes.length} nodes)
+      </button>
+
+      <p className="text-xs text-msx-textsecondary mt-2">{fields.hint}</p>
+      <p className="text-xs text-msx-textsecondary mt-1">
+        Generating <strong>replaces the whole route</strong>, scripts included. What you get is ordinary
+        nodes: drag them, retype a coordinate or change one segment afterwards. Round shapes arrive as
+        smooth curves and cornered ones as straight lines, and a closed shape switches the path to Loop.
+      </p>
+      {result.warnings.map((warning, index) => (
+        <p key={index} className="text-xs text-yellow-400 mt-1">{warning}</p>
+      ))}
     </div>
   );
 };

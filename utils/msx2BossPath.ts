@@ -44,6 +44,13 @@ export interface BossPathBakeResult {
   moveSteps: number;
   /** Path bounding box relative to the first node, for out-of-room warnings. */
   bounds: { minX: number; minY: number; maxX: number; maxY: number };
+  /**
+   * Byte offset into `bytes` where each authored node's own script begins, i.e.
+   * the point the stream has reached once the boss stands on that node. Used to
+   * rotate a looping route so two bosses can share it starting at different
+   * nodes instead of flying in formation.
+   */
+  nodeOffsets: number[];
   warnings: string[];
 }
 
@@ -228,7 +235,7 @@ export function bakeBossPath(
   const warnings: string[] = [];
   const nodes = (path?.nodes || []).filter(node => node && Number.isFinite(node.x) && Number.isFinite(node.y));
   if (nodes.length < 1) {
-    return { bytes: [PATH_OP_END], moveSteps: 0, bounds: { minX: 0, minY: 0, maxX: 0, maxY: 0 }, warnings };
+    return { bytes: [PATH_OP_END], moveSteps: 0, bounds: { minX: 0, minY: 0, maxX: 0, maxY: 0 }, nodeOffsets: [0], warnings };
   }
 
   const speed = clamp(Math.floor(Number(path.speedPxPerTick) || limits.maxDelta), 1, limits.maxDelta);
@@ -248,6 +255,9 @@ export function bakeBossPath(
     bounds.maxX = Math.max(bounds.maxX, point.x);
     bounds.maxY = Math.max(bounds.maxY, point.y);
   };
+
+  // Where each node's own script starts. Node 0 opens the stream.
+  const nodeOffsets: number[] = [0];
 
   // The first node's script runs before any movement.
   bytes.push(...bakeActions(snapped[0].actions, limits, warnings, resolveShootIndex));
@@ -291,14 +301,43 @@ export function bakeBossPath(
     cursor = moved.end;
     track(cursor);
     // The closing leg back to node 0 must not replay node 0's script.
-    if (i < nodes.length) bytes.push(...bakeActions(ordered[i].actions, limits, warnings, resolveShootIndex));
+    if (i < nodes.length) {
+      nodeOffsets.push(bytes.length);
+      bytes.push(...bakeActions(ordered[i].actions, limits, warnings, resolveShootIndex));
+    }
   }
 
   if (path.loopMode === 'pingpong') {
     warnings.push('pingpong paths are not baked yet; using loop instead');
   }
   bytes.push(PATH_OP_END);
-  return { bytes, moveSteps, bounds, warnings };
+  return { bytes, moveSteps, bounds, nodeOffsets, warnings };
+}
+
+/**
+ * Rotate a baked LOOPING stream so it starts on `startNode` instead of node 0.
+ *
+ * The stream is a closed ring — the last leg returns to node 0 — so cutting it
+ * at a node's script and stitching the head back on the tail yields the same
+ * lap entered at a different point. Everything stays relative, so the boss
+ * still departs from wherever it was placed; what changes is its PHASE. That is
+ * what lets two bosses share one route without flying in formation.
+ *
+ * Returns the stream unchanged when there is nothing to rotate.
+ */
+export function rotateBakedPath(baked: BossPathBakeResult, startNode: number): number[] {
+  const offsets = baked.nodeOffsets || [];
+  const index = Math.floor(Number(startNode) || 0);
+  if (index <= 0 || index >= offsets.length) return baked.bytes;
+  const cut = offsets[index];
+  if (!Number.isFinite(cut) || cut <= 0 || cut >= baked.bytes.length) return baked.bytes;
+  // The terminating opcode must stay terminating, so it is peeled off first and
+  // pushed back after the two halves are swapped.
+  const body = baked.bytes[baked.bytes.length - 1] === PATH_OP_END
+    ? baked.bytes.slice(0, -1)
+    : baked.bytes.slice();
+  if (cut >= body.length) return baked.bytes;
+  return [...body.slice(cut), ...body.slice(0, cut), PATH_OP_END];
 }
 
 /** A blank path with the defaults the runtime expects. */

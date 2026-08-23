@@ -604,9 +604,39 @@ Taula per room `[count, (hpAtOrBelow, interval, projSpeed) * count]` ordenada de
 malferit a menys; guanya la primera entrada amb `hpAtOrBelow >= boss_hp`. L'autoria fa
 servir `enterWhenHpBelowPercent` (§6), convertit a HP absolut a generació.
 
-> Les fases **no** retoquen la velocitat de moviment: la neteja del rastre del cos
-> restaura franges de 4px, cosa que limita la patrulla a ≤2px/frame — no hi ha marge útil.
-> La palanca interessant és l'atac (cadència i velocitat de bala).
+##### Escalada per fase (2026-08-22)
+
+Una fase que només pot dir "dispara més ràpid" es queda curta, i en un boss **només
+làser** no deia absolutament res: la cadència de bala no hi arriba mai. Cada entrada pot
+portar ara quatre bytes més — `[hpAtOrBelow, interval, projSpeed, shoot, laserInt,
+bodyInt, moveSteps]`, stride 7 en comptes de 3:
+
+| Byte | Camp autoria | 0 vol dir | Efecte |
+|---|---|---|---|
+| `shoot` | `shootId` (asset `msx2shoot`) | una bala apuntada | dispara un patró sencer (ventall, anell, ràfega) → **quantitat**, no només freqüència |
+| `laserInt` | `laserInterval` | `bossLaserInterval` | les onades de làser tornen abans |
+| `bodyInt` | `bodyInterval` | `bossInterval` | el cos s'actualitza més sovint (l'única palanca que costa VDP de veritat) |
+| `moveSteps` | `moveStepMultiplier` (neutre = 1) | — | aplica el pas 2 o 3 cops per update |
+
+**Byte-identitat**: `stripPhaseEscalation` retalla la taula als 3 bytes originals quan cap
+sala del projecte fa servir cap override, i el runtime tria el stride amb el mateix flag
+(`phaseTablesExtended`). Un projecte que no ho fa servir no paga ni un byte, i cap de les
+rutines noves s'emet. Ho verifica `npm run test:msx2-boss-phases`, que genera les dues
+variants i comprova que la variant "plana" **no conté** res de tot això.
+
+`bitmap_boss_phase_apply` resol la fase UN cop per update de boss i la deixa a RAM
+(`boss_phase_int/_spd/_shoot/_laser_int/_body_int/_move`). Es crida des de
+`bitmap_boss_update_one`, abans del làser i de la porta de cadència, perquè un boss sense
+config de projectils (i per tant sense IX) també pugui tenir fases.
+
+> El pas de moviment segueix limitat a 2px: la neteja del rastre restaura franges al
+> voltant del rectangle antic. `moveSteps` **no** aixeca aquest límit — repeteix el pas, i
+> `bitmap_boss_strip_width` eixampla la franja (4/6/8px) perquè no quedi rastre. En un
+> path, repetir el pas també escurça les pauses dels nodes.
+>
+> Les rutines de patró de tir (`bitmap_boss_shoot_*`) vivien dins del bloc de paths; ara
+> s'emeten pel seu compte, perquè una fase pot nomenar un patró sense que el projecte
+> tingui cap path. La posició dins d'un build amb paths no canvia (ROM idèntica).
 
 #### Estat detallat
 - `BossPhase[]` amb llindars de vida (`enterWhenHpBelowPercent`), patró de moviment i
@@ -647,7 +677,14 @@ l'asset `msx2boss` (la BossDefinition de la Fase C), amb navegació per seccions
 *General / Body & Graphics / Room Lock / Projectiles / Attack Phases / Damage Zones /
 Defeat Actions*. Enganxat a `Toolbar` → `useAssetHandlers` (`createMsx2BossDefinition`) →
 `EditorType.Msx2Boss` a `AppUI.tsx`. Inclou:
-- taula de **fases d'atac** i llista d'**accions de derrota** amb desplegables
+- **fases d'atac** (redissenyades el 2026-08-22): una targeta per fase amb la **banda
+  d'HP que cobreix de veritat** (calculada amb l'ordre del runtime, no amb l'ordre de la
+  llista), avís quan una fase queda tapada per una altra, avís quan hi ha un tram d'HP
+  sense fase, i avís quan el path està en mode "només disparen els nodes" i per tant la
+  cadència de la fase no s'aplica. La targeta **només mostra el que aquest boss pot fer**
+  (`resolveBossAttacks`, que replica `resolveProjectile`/`resolveLaser` del generador):
+  en un boss només-làser no hi ha cadència de bala perquè no en faria res,
+- llista d'**accions de derrota** amb desplegables
   (`setFlag` / `giveKey` / `openDoor`, que són les que el generador sap emetre; el
   desplegable de portes només llista entitats `kind:'door'` reals),
 - selector de sprite/tile per a la bala segons `bossProjectileKind`,
@@ -877,6 +914,30 @@ això és el que hi circula per dins.
 >   `-2.150,1.106`, que és −1,414/+1,414), ràfaga viva 348 frames amb `left` 2→1→fi.
 >   Només 2 bales alhora **perquè el pool d'aquell projecte en té 2**, i el generador ho
 >   avisa a build suggerint precisament partir la volea en ràfega.
+
+#### Formes predefinides al Path Editor (2026-08-22)
+
+El panell **Shape** genera la ruta sencera a partir d'una forma: cercle, el·lipse,
+rectangle, polígon regular (3–12 costats), estrella, zigzag i figura en 8 (∞).
+
+- **No hi ha cap mode de corba nou.** La forma surt com a **nodes normals**, o sigui que ni
+  `bakeBossPath`, ni el stream de bytes, ni el walker Z80 saben mai què és un "cercle". Un
+  cercle generat costa exactament el mateix que el mateix recorregut dibuixat a mà, i cada
+  node continua sent arrossegable i editable després.
+- Les rodones arriben amb segments `spline` i les cantelludes amb recta: un pentàgon
+  suavitzat ja no és un pentàgon.
+- El que marca el cost de ROM és el **perímetre**, no el nombre de nodes: el mateix cercle
+  amb 8 o amb 32 nodes ocupa els mateixos bytes.
+- Generar **substitueix tota la ruta**; si algun node porta script, pregunta abans.
+- Una forma tancada força `loopMode: 'loop'` (un cercle recorregut un sol cop és un arc).
+  El zigzag és obert i respecta el mode que ja hi hagi.
+- La previsualització verda sobre la ruta actual **passa pel baker**, així que el que es
+  jutja abans de substituir res és exactament el que caminarà l'MSX.
+
+Codi: `utils/msx2BossPathShapes.ts` (geometria pura, sense React) i el panell
+`ShapeGenerator` dins `components/editors/Msx2BossPathEditor.tsx`.
+Contractes: `npm run test:msx2-boss-path-shapes` (geometria + lap compilat) i
+`npm run test:msx2-boss-path-shapes-ui` (el panell, contra un dev server).
 
 **Pendent de la Fase G:** segments `bezier` amb punt de control, RLE del stream,
 `pingpong`, i el compilat per a onades d'enemics (el mateix asset de tir hi encaixa).
