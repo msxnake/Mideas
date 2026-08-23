@@ -87,6 +87,19 @@ const CASES = [
     covers: 'bitmap-room backend rendering its own Screen5Presentation intro',
   },
   {
+    id: 'bitmap-room-boss',
+    fixture: 'test/msx2-boss/fixture_boss_def.json',
+    // The boss fixture carries a full presentation intro, which does not fit a
+    // simple 32KB ROM; MegaROM is how this project is actually exported.
+    romMode: 'megarom',
+    // The boss generator is the biggest single emitter in the backend and had
+    // NO case here, so "byte-identical unless the feature is used" was an
+    // unverified claim for every boss subsystem. This fixture exercises the
+    // ones that share code: HP phases, a path with node scripts, sprite
+    // bullets, damage zones and the Room Lock chain.
+    covers: 'bitmap-room boss: attack phases, path, sprite bullets, damage zones, barrier',
+  },
+  {
     id: 'mixed-screen5-to-screen4',
     fixture: 'test/msx2-mixed/mixed_screen5_screen4_project.json',
     covers: 'SCREEN 5 presentation intro handing off to a SCREEN 4 tile runtime in one ROM',

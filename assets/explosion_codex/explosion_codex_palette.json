@@ -1,0 +1,87 @@
+{
+  "id": "area51_omega_library_palette",
+  "name": "Area51 Omega Library Palette",
+  "mode": "SCREEN5",
+  "slots": [
+    {
+      "slotIndex": 0,
+      "masterIndex": -1,
+      "hex": "rgba(0,0,0,0)"
+    },
+    {
+      "slotIndex": 1,
+      "masterIndex": 1,
+      "hex": "#000000"
+    },
+    {
+      "slotIndex": 2,
+      "masterIndex": 2,
+      "hex": "#002449"
+    },
+    {
+      "slotIndex": 3,
+      "masterIndex": 3,
+      "hex": "#00496D"
+    },
+    {
+      "slotIndex": 4,
+      "masterIndex": 4,
+      "hex": "#246D92"
+    },
+    {
+      "slotIndex": 5,
+      "masterIndex": 5,
+      "hex": "#496D92"
+    },
+    {
+      "slotIndex": 6,
+      "masterIndex": 6,
+      "hex": "#242424"
+    },
+    {
+      "slotIndex": 7,
+      "masterIndex": 7,
+      "hex": "#494949"
+    },
+    {
+      "slotIndex": 8,
+      "masterIndex": 8,
+      "hex": "#6D6D6D"
+    },
+    {
+      "slotIndex": 9,
+      "masterIndex": 9,
+      "hex": "#929292"
+    },
+    {
+      "slotIndex": 10,
+      "masterIndex": 10,
+      "hex": "#FF2400"
+    },
+    {
+      "slotIndex": 11,
+      "masterIndex": 11,
+      "hex": "#DBDB6D"
+    },
+    {
+      "slotIndex": 12,
+      "masterIndex": 12,
+      "hex": "#FF6D49"
+    },
+    {
+      "slotIndex": 13,
+      "masterIndex": 13,
+      "hex": "#B6DB00"
+    },
+    {
+      "slotIndex": 14,
+      "masterIndex": 14,
+      "hex": "#2492DB"
+    },
+    {
+      "slotIndex": 15,
+      "masterIndex": 15,
+      "hex": "#FFFFFF"
+    }
+  ]
+}

@@ -107,3 +107,25 @@ Cuando Jordi diga **"inicio cooperacion para ... tarea X"**:
   numeración/posiciones conocidas, no solo leer el tramo final. Marcar la
   colisión o duplicado en el siguiente mensaje propio; jamás renumerar,
   reordenar ni "arreglar" el fichero.
+- El re-escaneo de cabeceras debe ser COMPLETO, no del final de la lista:
+  un [041] insertado en la línea 26 pasó 6 horas inadvertido porque los
+  re-escaneos usaban `grep ... | tail -N` (lección pagada el 2026-08-22,
+  cazada por Claude en su [063]; el mensaje perdido contenía un visto
+  bueno que cerraba dos cabos que yo seguía reportando como abiertos).
+  Ante cualquier anomalía de numeración: `grep -n "^\[" exchange.txt`
+  completo y comparar longitudes de lista.
+- TÉCNICA DEL CURSOR (apunte de Jordi, 2026-08-22): como los mensajes
+  están numerados y las cabeceras son una por línea, el vigilante no
+  necesita medir bytes. Cursor = (número máximo leído, línea de la
+  última cabecera, recuento total de cabeceras), persistido en
+  `server/temp/walkie_cursor.txt`. Vigilar `grep -c "^\["` y la línea
+  de la última cabecera: cualquier mensaje nuevo —append arriba, abajo
+  o en medio— cambia el recuento o desplaza líneas. Al disparar, escaneo
+  completo de cabeceras y leer solo lo que haya más allá del cursor.
+  EXCEPCIÓN (matiz de Jordi): si el RECUENTO DECRECE, es una rotación
+  (clear del tema + tarea nueva): el cursor queda invalidado. Acción:
+  verificar que el historial viejo existe en su backup (exchange_N.txt
+  o exchange_backup_*), releer el fichero NUEVO completo (es una
+  presentación de cooperación distinta), resetear el cursor al estado
+  nuevo y seguir el procedimiento de inicio de cooperación (presentarse,
+  re-armar vigilancia, ESPERAR definición de tarea y turnos).

@@ -1,0 +1,36 @@
+{
+  "entry": "Codex",
+  "paletteId": "area51_omega_library_palette",
+  "tileSize": [
+    16,
+    16
+  ],
+  "frames": [
+    {
+      "frame": 1,
+      "id": "bitmap_tile_screen5_area51_codex_explosion_compact_20260822",
+      "file": "explosion_compact_16x16_tile.json",
+      "role": "compact detonation"
+    },
+    {
+      "frame": 2,
+      "id": "bitmap_tile_screen5_area51_codex_explosion_expanded_20260822",
+      "file": "explosion_expanded_16x16_tile.json",
+      "role": "expanded fragments"
+    }
+  ],
+  "usedSlots": [
+    0,
+    6,
+    7,
+    10,
+    11,
+    12,
+    15
+  ],
+  "validation": {
+    "eachFramePixels": 256,
+    "backgroundSlot": 0,
+    "previewBackdrop": "#002449"
+  }
+}
