@@ -1,0 +1,5 @@
+before fire: active=0 volC=0 mixer=184
+states seen after firing: {a=0 t=0 volC=0} {a=1 t=1 volC=14} {a=1 t=2 volC=10} {a=1 t=1 volC=10} {a=1 t=4 volC=6} {a=1 t=3 volC=6} {a=1 t=2 volC=6} {a=1 t=1 volC=6}
+distinct channel-C volumes: 0 14 10 6
+frames with the sequencer active: 7
+after it ends: active=0 volC=0 mixer=187

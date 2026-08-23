@@ -313,6 +313,13 @@ export const shootParameters: SkillParameterDef[] = [
     step: 1,
     help: 'Damage dealt to an enemy on impact. 0 = harmless bullet.',
   },
+  {
+    key: 'shootSound',
+    label: 'Shot sound (PSG)',
+    type: 'boolean',
+    default: true,
+    help: 'Play a PSG one-shot on every shot. Choose the Sound Editor asset below, or leave the built-in pew.',
+  },
 ];
 
 export const shoot: SkillDef = {

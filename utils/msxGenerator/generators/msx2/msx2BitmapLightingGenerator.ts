@@ -52,6 +52,7 @@
 
 import type { Msx2TorchConfig } from '../../../msx2PlatformPhysics';
 import type { PSGSoundData } from '../../../../types';
+import { compilePsgOneShot, type CompiledPsgOneShot } from './msx2PsgOneShot';
 
 export interface BitmapLightingOptions {
   /** First free byte of the linked-HUD RAM chain. */
@@ -422,75 +423,14 @@ const ringTableAsm = (label: string, entries: RingEntry[], comment: string) =>
   + entries.map(e => `    DB ${hex2(e.yOff)}, ${hex2(e.xOff)}, ${e.w}, ${e.h}`).join('\n')
   + '\n';
 
-interface CompiledEatSound {
-  dataAsm: string;
-  sourceChannel: 'A' | 'B' | 'C';
-  stepCount: number;
-}
-
 /**
- * The bitmap gameplay mixer reserves PSG channel C for SFX. A Sound Editor
- * asset may author A/B/C, so the first useful channel (preferring C) is remapped
- * to C and played once. Each record is consumed by bitmap_light_sfx_tick:
- * duration, R4, R5, R6, R10, R11, R12, R13, R7, mixer-shadow.
+ * The bitmap gameplay mixer reserves PSG channel C for SFX. The compiler that
+ * turns a Sound Editor asset into the records `bitmap_light_sfx_tick` walks now
+ * lives in msx2PsgOneShot.ts, so the shoot skill and anything after it use the
+ * same one instead of copying it.
  */
-function compileEatSound(sound: PSGSoundData | undefined): CompiledEatSound | undefined {
-  const channels = Array.isArray(sound?.channels) ? sound.channels : [];
-  const channel = [...channels].sort((a, b) => (a.id === 'C' ? -1 : b.id === 'C' ? 1 : 0))
-    .find(item => Array.isArray(item?.steps) && item.steps.length > 0);
-  if (!channel) return undefined;
-
-  const masterVolume = Number.isFinite(Number(sound?.masterVolume))
-    ? Math.max(0, Math.min(1, Number(sound?.masterVolume)))
-    : 1;
-  const noisePeriod = clampInt(sound?.noisePeriod, 0, 31, 0);
-  const envelopePeriod = clampInt(sound?.envelopePeriod, 0, 0xffff, 0);
-  const globalEnvelopeShape = clampInt(sound?.envelopeShape, 0, 15, 0);
-  const records: number[][] = [];
-
-  for (const step of channel.steps) {
-    const tonePeriod = clampInt(step?.tonePeriod, 0, 0x0fff, 0);
-    const volume = step?.useEnvelope
-      ? 0x10
-      : Math.round(clampInt(step?.volume, 0, 15, 0) * masterVolume);
-    const toneEnabled = step?.toneEnabled === true;
-    const noiseEnabled = step?.noiseEnabled === true;
-    const mixer = 0x3f
-      & (toneEnabled ? ~0x04 : 0xff)
-      & (noiseEnabled ? ~0x20 : 0xff);
-    const mixerShadow = mixer & 0x24;
-    const envelopeShape = clampInt(step?.envelopeShape, 0, 15, globalEnvelopeShape);
-    let frames = Math.max(1, Math.round(clampInt(step?.durationMs, 1, 60_000, 100) * 60 / 1000));
-    while (frames > 0) {
-      const duration = Math.min(255, frames);
-      records.push([
-        duration,
-        tonePeriod & 0xff,
-        (tonePeriod >> 8) & 0x0f,
-        noisePeriod,
-        volume,
-        envelopePeriod & 0xff,
-        (envelopePeriod >> 8) & 0xff,
-        envelopeShape,
-        mixer,
-        mixerShadow,
-      ]);
-      frames -= duration;
-    }
-  }
-  if (!records.length) return undefined;
-
-  const rows = records.map(record => `    DB ${record.map(hex2).join(',')}`).join('\n');
-  return {
-    sourceChannel: channel.id,
-    stepCount: records.length,
-    dataAsm: `bitmap_light_sfx_eat_data:
-    ; Sound Editor channel ${channel.id} remapped to gameplay SFX channel C.
-    ; frames, R4, R5, R6, R10, R11, R12, R13, R7, C mixer shadow
-${rows}
-    DB #00
-`,
-  };
+function compileEatSound(sound: PSGSoundData | undefined): CompiledPsgOneShot | undefined {
+  return compilePsgOneShot(sound, 'bitmap_light_sfx_eat_data');
 }
 
 export function buildBitmapLightingSystemAsm(

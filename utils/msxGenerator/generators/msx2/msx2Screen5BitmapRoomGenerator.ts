@@ -16208,6 +16208,17 @@ ${bossWindowRoomBlobIndices.map((indices, roomIndex) => (indices.length === 0
   // dynamically borrows one currently invisible player group instead of being
   // silently disabled.
   const shootConfig = getMsx2ShootConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
+  // Optional authored shot sound. Same rule as the torch's mushroom-eat sound:
+  // a missing asset is not fatal, it just leaves the built-in pew in place.
+  const shootSoundAsset = shootConfig.shootSoundAssetId
+    ? (analysis.assets || []).find(asset => asset.id === shootConfig.shootSoundAssetId && asset.type === 'sound')
+    : undefined;
+  if (shootConfig.shootSoundAssetId && !shootSoundAsset) {
+    console.warn(
+      `MSX2 SHOOT skill: shot sound "${shootConfig.shootSoundAssetId}" was not found; `
+      + 'the built-in PSG pew will be used.',
+    );
+  }
   const shootRamBase = powerStompShakeRamBase + (bitmapPowerStompEnabled(powerStompConfig) ? MSX2_BITMAP_SCREEN_SHAKE_RAM_BYTES : 0);
   const bulletSprite = resolveBitmapBulletSprite(analysis, resolveBitmapRoomPlayer(analysis, room));
   const playerPatternGroups = combinedFrameCount * spriteTables.layerCount * (spriteTables.mirror ? 2 : 1);
@@ -16642,6 +16653,7 @@ ${bossWindowRoomBlobIndices.map((indices, roomIndex) => (indices.length === 0
     enemyCollisionJumpLabel: bulletTargetLabel,
     ammoCounterLabel,
     borrowPlayerPatternGroups: borrowedPlayerPatternGroups,
+    shootSound: shootSoundAsset?.data as PSGSoundData | undefined,
   };
   const shootBulletInitUpload = buildBitmapBulletInitUploadAsm(shootConfig, shootRuntimeOptions);
   const shootBulletSatCall = buildBitmapBulletSatCallAsm(shootConfig);

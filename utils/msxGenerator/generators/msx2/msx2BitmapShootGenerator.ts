@@ -1,4 +1,6 @@
 import { Msx2BitmapKeyboardBinding, Msx2ShootConfig } from '../../../msx2PlatformPhysics';
+import type { PSGSoundData } from '../../../../types';
+import { PSG_ONE_SHOT_RAM_BYTES, buildPsgOneShotAsm, compilePsgOneShot } from './msx2PsgOneShot';
 
 /**
  * SCREEN 5 bitmap-room SHOOT skill.
@@ -107,11 +109,25 @@ export function bitmapShootEnabled(config: Msx2ShootConfig | undefined): boolean
   return Boolean(config?.enabled);
 }
 
+/**
+ * True when the shot plays an AUTHORED sound, which needs a frame sequencer and
+ * therefore RAM. Decided from the config alone — never from the asset's
+ * contents — so the RAM map does not move when someone edits the sound. An
+ * asset that turns out to be empty falls back to the built-in pew and simply
+ * leaves these four bytes unused.
+ */
+function bitmapShootSfxSequenced(config: Msx2ShootConfig | undefined): boolean {
+  return bitmapShootEnabled(config)
+    && config!.shootSound !== false
+    && Boolean(String(config!.shootSoundAssetId || '').trim());
+}
+
 /** Number of bytes the bullet pool + shared state occupies. */
 export function bitmapShootRamBytes(config: Msx2ShootConfig | undefined): number {
   if (!bitmapShootEnabled(config)) return 0;
   const maxBullets = Math.max(1, Math.min(8, Math.floor(config!.maxBullets) || 3));
-  return maxBullets * bitmapShootSlotStride(config) + 3;
+  return maxBullets * bitmapShootSlotStride(config) + 3
+    + (bitmapShootSfxSequenced(config) ? PSG_ONE_SHOT_RAM_BYTES : 0);
 }
 
 export interface BitmapShootRuntimeOptions {
@@ -141,6 +157,11 @@ export interface BitmapShootRuntimeOptions {
    * historical unlimited fire, so a project with no nuts placed is unaffected.
    */
   ammoCounterLabel?: string;
+  /**
+   * Sound Editor asset played on every shot, when the player picked one. Absent
+   * (or with no steps) keeps the built-in pew, which needs no sequencer at all.
+   */
+  shootSound?: PSGSoundData;
   /**
    * When no dedicated V9938 group remains, borrow one of two player pattern
    * groups. The runtime always chooses the group outside the currently visible
@@ -173,12 +194,17 @@ export function buildBitmapShootEquates(
   if (!bitmapShootEnabled(config)) return '';
   const maxBullets = Math.max(1, Math.min(8, Math.floor(config!.maxBullets) || 3));
   const poolBytes = maxBullets * bitmapShootSlotStride(config);
-  return `; --- SHOOT skill runtime state (${poolBytes + 3} bytes) ---
+  const sfxBase = ramBase + poolBytes + 3;
+  return `; --- SHOOT skill runtime state (${bitmapShootRamBytes(config)} bytes) ---
 bitmap_bullet_pool     EQU ${asmWord(ramBase)}
 bitmap_shoot_cooldown  EQU ${asmWord(ramBase + poolBytes)}
 bitmap_shoot_lock      EQU ${asmWord(ramBase + poolBytes + 1)}
 bitmap_bullet_borrow_group EQU ${asmWord(ramBase + poolBytes + 2)}
-`;
+${bitmapShootSfxSequenced(config) ? `; Authored shot sound: the sequencer's playing flag, frame countdown and cursor.
+bitmap_shoot_sfx_active EQU ${asmWord(sfxBase)}
+bitmap_shoot_sfx_timer EQU ${asmWord(sfxBase + 1)}
+bitmap_shoot_sfx_ptr   EQU ${asmWord(sfxBase + 2)}  ; word
+` : ''}`;
 }
 
 /** Clears the shoot state. Called from every WorldLink init, implemented once. */
@@ -196,7 +222,7 @@ export function buildBitmapShootGateAsm(config: Msx2ShootConfig | undefined): st
   if (!bitmapShootEnabled(config)) return '';
   return `    call bitmap_try_spawn_bullet
     call bitmap_step_bullets
-`;
+${bitmapShootSfxSequenced(config) ? '    call bitmap_shoot_sfx_tick     ; authored shot sound: one record per frame\n' : ''}`;
 }
 
 /** Call placed right after bitmap_update_sprite_sat to append bullet sprites. */
@@ -430,6 +456,61 @@ bitmap_prepare_bullet_pattern_body:
 `
     : '';
 
+  // ---- shot sound -----------------------------------------------------------
+  // Two shapes, one entry point. An authored asset is a list of steps, so it
+  // needs a sequencer ticked every frame; the built-in pew is a handful of PSG
+  // registers written once and forgotten. Both are called bitmap_shoot_sfx_start
+  // so the spawn site never has to know which one it got.
+  const sfxWanted = config.shootSound !== false;
+  const sequenced = bitmapShootSfxSequenced(config);
+  const compiledSfx = sequenced
+    ? compilePsgOneShot(opts.shootSound, 'bitmap_shoot_sfx_data')
+    : undefined;
+  if (sequenced && !compiledSfx) {
+    console.warn(
+      'MSX2 SHOOT skill: the chosen shot sound has no steps on any channel, so the built-in pew is used. '
+      + `Its ${PSG_ONE_SHOT_RAM_BYTES} bytes of sequencer RAM stay reserved.`,
+    );
+  }
+  const sfxCall = sfxWanted
+    ? `    call bitmap_shoot_sfx_start
+`
+    : '';
+  const sfxRoutineAsm = !sfxWanted ? '' : compiledSfx
+    ? `${buildPsgOneShotAsm('bitmap_shoot_sfx', 'bitmap_shoot_sfx_data')}
+${compiledSfx.dataAsm}`
+    : `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_shoot_sfx_start
+; ------------------------------------------------------------
+; PURPOSE: The built-in pew. Writes the register pairs below straight to the
+;   PSG and forgets about them: the envelope shape does the decay in hardware,
+;   so there is nothing to tick and no RAM to own.
+;   Channel C is the gameplay SFX channel by convention; the shadow byte tells
+;   the music driver to merge it into the mixer.
+; INPUT: none. OUTPUT: none.
+; DESTROYS: AF, B, HL. PRESERVES: C, DE, IX, IY.
+; ------------------------------------------------------------
+bitmap_shoot_sfx_start:
+    ld hl, bitmap_shoot_sfx_data
+    ld b, 7
+.shoot_sfx_loop:
+    ld a, (hl)
+    out (#A0), a
+    inc hl
+    ld a, (hl)
+    out (#A1), a
+    inc hl
+    djnz .shoot_sfx_loop
+    ld a, #20               ; shadow: tone C on, noise C off (music merges it)
+    ld (psg_sfx_r7_c_bits), a
+    ret
+
+bitmap_shoot_sfx_data:
+    ; reg,value pairs: mixer, tone period C, envelope period, volume=envelope, shape
+    db 7,#3B,4,#60,5,#00,11,#18,12,#00,10,#10,13,#09
+`;
+
   const initClearRoutineAsm = `
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_shoot_init_clear
@@ -445,12 +526,13 @@ bitmap_shoot_init_clear:
     ld (hl), a
     inc hl
     djnz .shoot_init_clear_loop
-    dec a
+${sequenced ? `    ld (bitmap_shoot_sfx_active), a    ; A is still 0: nothing playing
+` : ''}    dec a
     ld (bitmap_bullet_borrow_group), a ; #FF = no borrowed player group yet
     ret
 `;
 
-  return `${initClearRoutineAsm}
+  return `${initClearRoutineAsm}${sfxRoutineAsm}
 ${borrowedPatternRuntime}${shootPressedRoutine}
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_tick_shoot_cooldown
@@ -567,7 +649,7 @@ ${allowUpShot ? '.spawn_life:\n' : ''}${ranged ? `    ; The step routine spends 
     ld (ix+4), ${asmByte(Math.min(255, lifeSteps + 1))}     ; ${lifeSteps} moves = ${config.bulletRange} px of range
 ` : ''}${ammoSpend}    ld a, ${shootCooldown}
     ld (bitmap_shoot_cooldown), a
-${armLock}.spawn_done:
+${sfxCall}${armLock}.spawn_done:
     ret
 
 ; ------------------------------------------------------------

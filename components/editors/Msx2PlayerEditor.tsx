@@ -3334,6 +3334,31 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                     Uses a Sound Editor asset as a one-shot on PSG channel C. Disable “Eat sound” above to mute it.
                   </span>
                 </label>
+              ) : skill.id === 'shoot' ? (
+                <label className="mt-3 block rounded border border-slate-700 bg-[#111821] px-3 py-2.5 text-xs text-slate-100">
+                  <span className="block font-medium">Shot sound (PSG)</span>
+                  <select
+                    aria-label="Shot sound (PSG asset)"
+                    className={`${selectClass} mt-2`}
+                    value={normalized.soundAssetIds?.onShoot || ''}
+                    onChange={event => onUpdate({
+                      soundAssetIds: {
+                        ...(normalized.soundAssetIds || {}),
+                        onShoot: event.target.value || undefined,
+                      },
+                    })}
+                  >
+                    <option value="">Built-in PSG pew</option>
+                    {soundAssetOptions.map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                  <span className="mt-1 block text-[10px] leading-relaxed text-slate-400">
+                    Uses a Sound Editor asset as a one-shot on PSG channel C, the channel the music
+                    driver leaves free. An authored sound is stepped once per frame and costs 4 bytes
+                    of RAM; the built-in pew costs none. Disable “Shot sound” above to mute it.
+                  </span>
+                </label>
               ) : undefined}
               onClose={() => setOpenSkillDialogId(null)}
             />

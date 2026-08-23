@@ -87,6 +87,10 @@ export interface Msx2ShootConfig {
   allowUpShot: boolean;
   /** The bullet drags a small halo through dark rooms (needs glowing mushrooms). */
   bulletLantern: boolean;
+  /** A PSG one-shot on every shot: the built-in pew, or the asset below. */
+  shootSound: boolean;
+  /** Optional PSG Sound Editor asset played instead of the built-in pew. */
+  shootSoundAssetId?: string;
   primaryControl: Msx2PlayerControlId;
   secondaryControl: Msx2PlayerControlId | 'none';
   primaryKeyboard?: Msx2BitmapKeyboardBinding;
@@ -778,6 +782,10 @@ export function getMsx2ShootConfigFromPlayerEntity(player: any | undefined): Msx
   // 0 keeps the historical behaviour (the bullet only dies on a wall, an enemy
   // or the screen edge), so projects that never author a range are unaffected.
   const bulletRange = pickSkillNumberParam(params, 'shoot', ['bulletRange'], 0);
+  // Same shape as the torch's mushroom-eat sound: the skill parameter is the
+  // on/off switch and the slot names an optional Sound Editor asset. Empty means
+  // the built-in pew, so a project that never picks one keeps working.
+  const shootSoundAssetId = String(player?.soundAssetIds?.onShoot || '').trim();
   return {
     enabled,
     bulletSpeed: Math.max(1, Math.min(16, bulletSpeed || 4)),
@@ -788,6 +796,8 @@ export function getMsx2ShootConfigFromPlayerEntity(player: any | undefined): Msx
     bulletRange: Math.max(0, Math.min(255, Math.floor(bulletRange) || 0)),
     allowUpShot: params.allowUpShot === true,
     bulletLantern: params.bulletLantern === true,
+    shootSound: params.shootSound !== false,
+    shootSoundAssetId: shootSoundAssetId || undefined,
     primaryControl: binding.primary,
     secondaryControl: binding.secondary,
     primaryKeyboard: resolveMsx2BitmapKeyboardBinding(player, binding.primary),

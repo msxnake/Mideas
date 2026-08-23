@@ -1,0 +1,2 @@
+before fire R7=B8 R4=00 R5=00 R10=00 R11=00 R13=00
+after fire  R7=BB R4=60 R5=00 R10=10 R11=18 R13=09
