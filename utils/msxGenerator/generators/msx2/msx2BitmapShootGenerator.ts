@@ -148,6 +148,8 @@ export interface BitmapShootRuntimeOptions {
   carrySlotCount?: number;
   /** destroy_tile debris SAT slots reserved between carry and the bullets. */
   destroySlotCount?: number;
+  /** Scripted enemy FIRE SAT slots reserved immediately before player bullets. */
+  enemyBulletSlotCount?: number;
   /** Label the bullet-vs-enemy stub jumps to (e.g. the bitmap boss hit check).
    *  The target must preserve BC and IX (bullet loop counter + slot pointer). */
   enemyCollisionJumpLabel?: string;
@@ -255,7 +257,8 @@ export function buildBitmapBulletInitUploadAsm(
   // first slot left the 2nd+ simultaneous bullets with an uninitialised (black)
   // colour table.
   const colorUploads = Array.from({ length: maxBullets }, (_unused, i) => {
-    const colorVram = opts.colorBase + (opts.playerLayerCount + (opts.enemySlotCount || 0) + (opts.platformSlotCount || 0) + (opts.carrySlotCount || 0) + (opts.destroySlotCount || 0) + i) * 16;
+    const colorSlot = opts.playerLayerCount + (opts.enemySlotCount || 0) + (opts.platformSlotCount || 0) + (opts.carrySlotCount || 0) + (opts.destroySlotCount || 0) + (opts.enemyBulletSlotCount || 0) + i;
+    const colorVram = opts.colorBase + colorSlot * 16;
     return `    ; bullet colour -> sprite slot ${opts.playerLayerCount + i} (VRAM ${asmWord(colorVram)})
     ld hl, bitmap_bullet_color_data
     ld de, ${asmWord(colorVram)}
@@ -308,7 +311,7 @@ export function buildBitmapShootRuntimeAsm(
   // IX walks the pool one slot at a time; the stride grew with the life byte.
   const advanceSlot = Array.from({ length: stride }, () => '    inc ix').join('\n');
   const patternNumber = asmByte(opts.bulletPatternNumber);
-  const satStart = opts.satBase + ((opts.foregroundSlotCount || 0) + opts.playerLayerCount + (opts.enemySlotCount || 0) + (opts.platformSlotCount || 0) + (opts.carrySlotCount || 0) + (opts.destroySlotCount || 0)) * 4;
+  const satStart = opts.satBase + ((opts.foregroundSlotCount || 0) + opts.playerLayerCount + (opts.enemySlotCount || 0) + (opts.platformSlotCount || 0) + (opts.carrySlotCount || 0) + (opts.destroySlotCount || 0) + (opts.enemyBulletSlotCount || 0)) * 4;
   const gameYOffset = asmByte(opts.gameYOffset);
   const shootPressedRoutine = buildBitmapShootPressedRoutine(config);
   const borrowed = opts.borrowPlayerPatternGroups;

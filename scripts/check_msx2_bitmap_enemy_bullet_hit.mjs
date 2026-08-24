@@ -26,10 +26,12 @@ const read = (...parts) => readFileSync(join(root, ...parts), 'utf8').replace(/\
 const enemyGen = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2BitmapEnemyGenerator.ts');
 const shootGen = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2BitmapShootGenerator.ts');
 const roomGen = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen5BitmapRoomGenerator.ts');
+const enemyRuntime = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2EnemyBehaviorRuntime.ts');
 
 const hitBody = enemyGen.split('bitmap_enemy_bullet_hit:')[1]?.split('\n`;')[0] || '';
 const killBody = hitBody.split('.ebh_kill_layers:')[1] || '';
 const searchBody = hitBody.split('.ebh_kill_layers:')[0] || '';
+const shieldBody = hitBody.split('.ebh_shielded:')[1]?.split('.ebh_next:')[0] || '';
 
 const checks = [
   ['The shoot stub still jumps to whatever target label it is given',
@@ -59,6 +61,14 @@ const checks = [
     && (searchBody.match(/cp 16/g) || []).length === 2],
   ['A hit consumes the bullet',
     searchBody.includes('ld (ix+0), a              ; the bullet is spent on this enemy')],
+  ['Scripted hits stamp the enemy hit window before the shield gate',
+    searchBody.includes('ld a, bitmap_enemy_script_hit_stamp')
+    && searchBody.includes('ld (iy+bitmap_enemy_script_hit_ofs), a')
+    && searchBody.includes('ld a, (iy+bitmap_enemy_script_shield_ofs)')
+    && searchBody.includes('jp nz, .ebh_shielded')],
+  ['A scripted shield consumes the bullet without killing the enemy',
+    shieldBody.includes('ld (ix+0), a              ; the shield also consumes the bullet')
+    && !shieldBody.includes('call .ebh_kill_layers')],
   ['Death is the movement-mode #FF the rest of the runtime already honours',
     killBody.includes('ld (iy+13), #FF')
     && enemyGen.includes('ld a, (ix+13)             ; #FF = killed by a thrown object')
@@ -78,6 +88,27 @@ const checks = [
     (hitBody.match(/\n {4}dec b\b/g) || []).length === 2
     && (hitBody.match(/\n {4}jp nz, \.ebh_(kill_)?loop\b/g) || []).length === 2
     && !/\n {4}djnz\b/.test(hitBody)],
+  ['Authored FIRE opts the enemy runtime into its own two-slot pool',
+    enemyGen.includes('const programsUseFire = scripted && data.scriptedProgramsUseFire === true;')
+    && enemyGen.includes('playerHurtLabel: \'bitmap_enemy_hurt_player\'')
+    && enemyGen.includes('bulletSatCallAsm: programsUseFire ?')],
+  ['Enemy FIRE updates immediately after enemy motion and before touch damage',
+    /updateCallAsm: `    call bitmap_update_enemies\n\$\{programsUseFire \? '    call bitmap_enemy_bullet_update\\n' : ''\}    call bitmap_check_enemy_touch/.test(enemyGen)],
+  ['Enemy FIRE SAT slots are chained immediately before player bullets',
+    roomGen.includes('${enemySystem.bulletSatCallAsm}${shootBulletSatCall}')
+    && roomGen.includes('enemyBulletFollowedByPlayerBullets: shootConfig.enabled')],
+  ['Player bullet SAT and colour allocations skip the reserved enemy FIRE slots',
+    shootGen.includes('enemyBulletSlotCount')
+    && shootGen.includes('+ (opts.enemyBulletSlotCount || 0)')],
+  ['Enemy FIRE has resident pattern/colour data and a standalone player hurt helper',
+    enemyGen.includes('bitmap_enemy_bullet_pattern_data')
+    && enemyGen.includes('bitmap_enemy_bullet_color_data')
+    && enemyGen.includes('bitmap_enemy_bullet_pattern_data_end')
+    && enemyGen.includes('bitmap_enemy_bullet_color_data_end')
+    && enemyGen.includes('bitmap_enemy_hurt_player')],
+  ['Enemy FIRE respects the shared player i-frame state before applying damage',
+    enemyRuntime.includes('ld a, (player_invuln)')
+    && enemyRuntime.includes('jp nz, .ebul_next                    ; i-frames keep the shot alive')],
 ];
 
 let failed = 0;

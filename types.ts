@@ -2051,7 +2051,13 @@ export interface EnemyDefinition {
   behaviorGroup: string;
   category: EnemyCategory;
   scope: EnemyLibraryScope;
-  behavior: { type: EnemyBehaviorType; customRoutine?: string; stateTransitions?: EnemyBehaviorStateTransition[] };
+  behavior: {
+    type: EnemyBehaviorType;
+    customRoutine?: string;
+    /** Linked `msx2enemybehavior` asset used by SCREEN 5 CustomBehavior. */
+    behaviorAssetId?: string;
+    stateTransitions?: EnemyBehaviorStateTransition[];
+  };
   attack: {
     type: EnemyAttackType;
     projectileType?: string;
@@ -4100,6 +4106,7 @@ export enum EditorType {
   Msx2Player = "Msx2Player",
   Msx2Enemy = "Msx2Enemy",
   Msx2Boss = "Msx2Boss",
+  Msx2EnemyBehavior = "Msx2EnemyBehavior",
   Msx2BossPath = "Msx2BossPath",
   Msx2Shoot = "Msx2Shoot",
   Msx2HudFont = "Msx2HudFont",
@@ -4118,7 +4125,7 @@ export interface ProjectAsset {
   /** The name of the asset. */
   name: string;
   /** The type of the asset. */
-  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2bitmaptile' | 'msx2bitmapstamp' | 'msx2bitmapterrain' | 'msx2screen' | 'msx2bitmaproom' | 'msx2player' | 'msx2enemy' | 'msx2boss' | 'msx2bosspath' | 'msx2shoot' | 'msx2hudfont' | 'msx2hud' | 'msx2presentation' | 'msx2gameflow' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'msx2dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
+  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2bitmaptile' | 'msx2bitmapstamp' | 'msx2bitmapterrain' | 'msx2screen' | 'msx2bitmaproom' | 'msx2player' | 'msx2enemy' | 'msx2enemybehavior' | 'msx2boss' | 'msx2bosspath' | 'msx2shoot' | 'msx2hudfont' | 'msx2hud' | 'msx2presentation' | 'msx2gameflow' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'msx2dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
   /** The data associated with the asset, which varies by type. */
   data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | BitmapTileScreen5 | Msx2BitmapStampAsset | Msx2BitmapTerrainAsset | Msx2Screen4TileScreen | Msx2Screen5BitmapRoom | Msx2PlayerDefinition | EnemyDefinition | Msx2BossDefinition | Msx2BossPath | Msx2ShootDefinition | Msx2HudFontAsset | Msx2HudAsset | Msx2Screen5PresentationConfig | Msx2GameFlowGraph | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | Msx2DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
 }

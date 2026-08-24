@@ -34,6 +34,8 @@ import { Msx2PlayerEditor } from './editors/Msx2PlayerEditor';
 import { Msx2EnemyEditor } from './editors/Msx2EnemyEditor';
 import { Msx2BossEditor } from './editors/Msx2BossEditor';
 import { Msx2BossPathEditor } from './editors/Msx2BossPathEditor';
+import { Msx2EnemyBehaviorEditor } from './editors/Msx2EnemyBehaviorEditor';
+import { Msx2EnemyBehaviorAsset } from '../utils/msx2EnemyBehavior';
 import { Msx2ShootEditor } from './editors/Msx2ShootEditor';
 import { buildDetailedMsx2PlayerDocument, mergeMsx2PlayerUpdate } from '../utils/msx2PlayerDocument';
 import { Msx2HudFontEditor } from './editors/Msx2HudFontEditor';
@@ -1522,6 +1524,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           {currentEditor === EditorType.Msx2Enemy && activeAsset?.type === 'msx2enemy' && ( <Msx2EnemyEditor enemy={activeAsset.data as EnemyDefinition} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} allAssets={assets} setStatusBarMessage={setStatusBarMessage} />)}
           {currentEditor === EditorType.Msx2Boss && activeAsset?.type === 'msx2boss' && ( <Msx2BossEditor boss={activeAsset.data as Msx2BossDefinition} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} allAssets={assets} onUpdateAsset={handleUpdateAsset} onDuplicateAsset={handleDuplicateAsset} setStatusBarMessage={setStatusBarMessage} />)}
           {currentEditor === EditorType.Msx2BossPath && activeAsset?.type === 'msx2bosspath' && ( <Msx2BossPathEditor path={activeAsset.data as Msx2BossPath} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} allAssets={assets} setStatusBarMessage={setStatusBarMessage} />)}
+          {currentEditor === EditorType.Msx2EnemyBehavior && activeAsset?.type === 'msx2enemybehavior' && ( <Msx2EnemyBehaviorEditor behavior={activeAsset.data as Msx2EnemyBehaviorAsset} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} setStatusBarMessage={setStatusBarMessage} />)}
           {currentEditor === EditorType.Msx2Shoot && activeAsset?.type === 'msx2shoot' && ( <Msx2ShootEditor shoot={activeAsset.data as Msx2ShootDefinition} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} />)}
           {currentEditor === EditorType.Msx2HudFont && activeAsset?.type === 'msx2hudfont' && (
             <Msx2HudFontEditor

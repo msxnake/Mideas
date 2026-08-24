@@ -20,6 +20,8 @@ export const MSX2_ENEMY_MOVEMENT_GEAR_WHEEL = 12;
  * screen edges and re-rolls its direction every `turnPx` pixels flown.
  */
 export const MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8 = 13;
+/** Declarative SCREEN 5 enemy behaviour interpreted by one shared Z80 routine. */
+export const MSX2_ENEMY_MOVEMENT_SCRIPTED = 14;
 
 /** Default horizontal distance (px) a slime crawls before hopping floor<->ceiling. */
 export const MSX2_SLIME_CEILING_DEFAULT_TRAVEL_PX = 48;
@@ -119,6 +121,7 @@ const movementModeToRuntimeByte = (movement: string): number => {
   if (normalized === 'slimeceiling' || normalized === 'ceilingslime' || normalized === 'slime' || normalized === 'gravityflipslime') return MSX2_ENEMY_MOVEMENT_SLIME_CEILING;
   if (normalized === 'gearwheel' || normalized === 'gear' || normalized === 'wheel' || normalized === 'ruedadentada' || normalized === 'rueda') return MSX2_ENEMY_MOVEMENT_GEAR_WHEEL;
   if (normalized === 'flybounce8' || normalized === 'flyrandom8' || normalized === 'batflight' || normalized === 'bat' || normalized === 'murcielago') return MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8;
+  if (normalized === 'scripted' || normalized === 'custombehavior' || normalized === 'custommovement' || normalized === 'enemybehavior') return MSX2_ENEMY_MOVEMENT_SCRIPTED;
   if (normalized === 'patrolchasex' || normalized === 'patrolchase' || normalized === 'chasepatrolx' || normalized === 'chasepatrol') return MSX2_ENEMY_MOVEMENT_PATROL_CHASE_X;
   if (normalized === 'chaseh' || normalized === 'chasehorizontal' || normalized === 'chasex' || normalized === 'followx') return MSX2_ENEMY_MOVEMENT_CHASE_H;
   if (normalized === 'ghostmaze' || normalized === 'mazeghost' || normalized === 'ghost' || normalized === 'pacmanghost' || normalized === 'puckghost' || normalized === 'chase') return MSX2_ENEMY_MOVEMENT_GHOST_MAZE;
@@ -208,6 +211,10 @@ export function getMsx2EnemyHazardRuntimeSlots(
         || movement === 'batflight'
         || movement === 'bat'
         || movement === 'murcielago';
+      // Keep the slot-mode selector on the same source of truth as the
+      // public movement aliases (scripted/customBehavior/customMovement/
+      // enemyBehavior), rather than duplicating that alias list here.
+      const hasScripted = movementModeToRuntimeByte(movement) === MSX2_ENEMY_MOVEMENT_SCRIPTED;
       // NOTE: 'chase' alone is already ghost-maze; ChaseHorizontal uses explicit names.
       const hasChaseH = movement === 'chaseh'
         || movement === 'chasehorizontal'
@@ -277,11 +284,11 @@ export function getMsx2EnemyHazardRuntimeSlots(
       const fly8TurnPx = Math.max(1, Math.min(255, Math.floor(Number(
         getComponentValue(entity, 'msx2_movement', 'turnPx', entity.params?.turnPx ?? MSX2_FLY_BOUNCE_8_DEFAULT_TURN_PX)
       ) || MSX2_FLY_BOUNCE_8_DEFAULT_TURN_PX)));
-      const usesHorizontalBounds = hasPatrolX || hasBallBounce || hasFlyerSine || hasWalkerEdge || hasWalkerGravity || hasSlimeCeiling || hasGearWheel || hasChaseH || hasPatrolChaseX || stateSwitch;
+      const usesHorizontalBounds = hasPatrolX || hasBallBounce || hasFlyerSine || hasWalkerEdge || hasWalkerGravity || hasSlimeCeiling || hasGearWheel || hasChaseH || hasPatrolChaseX || hasScripted || stateSwitch;
       const minX = usesHorizontalBounds ? getMovementBoundPixel(entity, 'minX', 0, 15, clampHardwareSpriteX) : clampHardwareSpriteX(xTile * 16);
       const maxX = usesHorizontalBounds ? getMovementBoundPixel(entity, 'maxX', 15, 15, clampHardwareSpriteX) : clampHardwareSpriteX(xTile * 16);
-      const minY = hasFlyerSine ? sineMinY : hasJumper ? jumperMinY : hasPatrolY || hasBallBounce ? getMovementBoundPixel(entity, 'minY', 0, 11, clampHardwareSpriteY) : clampHardwareSpriteY(yTile * 16);
-      const maxY = hasFlyerSine ? sineMaxY : hasJumper ? jumperMaxY : hasPatrolY || hasBallBounce ? getMovementBoundPixel(entity, 'maxY', 11, 11, clampHardwareSpriteY) : clampHardwareSpriteY(yTile * 16);
+      const minY = hasFlyerSine ? sineMinY : hasJumper ? jumperMinY : hasPatrolY || hasBallBounce || hasScripted ? getMovementBoundPixel(entity, 'minY', 0, 11, clampHardwareSpriteY) : clampHardwareSpriteY(yTile * 16);
+      const maxY = hasFlyerSine ? sineMaxY : hasJumper ? jumperMaxY : hasPatrolY || hasBallBounce || hasScripted ? getMovementBoundPixel(entity, 'maxY', 11, 11, clampHardwareSpriteY) : clampHardwareSpriteY(yTile * 16);
       const ballSpeed = Math.max(1, Math.min(6, Math.floor(Number(
         getComponentValue(entity, 'msx2_movement', 'speed', entity.params?.speed ?? 2)
       ) || 2)));
@@ -328,7 +335,7 @@ export function getMsx2EnemyHazardRuntimeSlots(
         // Gear keeps its initial direction in dy so a respawn restores it.
         // Bats start on a diagonal so the first heading already reads as flight.
         dy: hasFlyBounce8 ? 1 : hasGearWheel ? signedByte(direction) : hasBallBounce ? signedByte(ballSpeedY) : hasFlyerSine ? signedByte(flyerPhase >= 16 ? -flyerFrequency : flyerFrequency) : hasJumper ? signedByte(-jumperSpeedY) : hasGhostMaze ? ghostDy : hasPatrolY ? direction : 0,
-        mode: hasFlyBounce8 ? MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8 : hasGearWheel ? MSX2_ENEMY_MOVEMENT_GEAR_WHEEL : hasBallBounce ? MSX2_ENEMY_MOVEMENT_BALL_BOUNCE : hasDiveAttack ? MSX2_ENEMY_MOVEMENT_DIVE : hasGhostMaze ? MSX2_ENEMY_MOVEMENT_GHOST_MAZE : hasFlyerSine ? MSX2_ENEMY_MOVEMENT_FLYER_SINE : hasJumper ? MSX2_ENEMY_MOVEMENT_JUMPER : hasWalkerEdge ? MSX2_ENEMY_MOVEMENT_WALKER_EDGE : hasWalkerGravity ? MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY : hasSlimeCeiling ? MSX2_ENEMY_MOVEMENT_SLIME_CEILING : hasPatrolChaseX ? MSX2_ENEMY_MOVEMENT_PATROL_CHASE_X : hasChaseH ? MSX2_ENEMY_MOVEMENT_CHASE_H : MSX2_ENEMY_MOVEMENT_PATROL,
+        mode: hasFlyBounce8 ? MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8 : hasGearWheel ? MSX2_ENEMY_MOVEMENT_GEAR_WHEEL : hasBallBounce ? MSX2_ENEMY_MOVEMENT_BALL_BOUNCE : hasDiveAttack ? MSX2_ENEMY_MOVEMENT_DIVE : hasGhostMaze ? MSX2_ENEMY_MOVEMENT_GHOST_MAZE : hasFlyerSine ? MSX2_ENEMY_MOVEMENT_FLYER_SINE : hasJumper ? MSX2_ENEMY_MOVEMENT_JUMPER : hasWalkerEdge ? MSX2_ENEMY_MOVEMENT_WALKER_EDGE : hasWalkerGravity ? MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY : hasSlimeCeiling ? MSX2_ENEMY_MOVEMENT_SLIME_CEILING : hasScripted ? MSX2_ENEMY_MOVEMENT_SCRIPTED : hasPatrolChaseX ? MSX2_ENEMY_MOVEMENT_PATROL_CHASE_X : hasChaseH ? MSX2_ENEMY_MOVEMENT_CHASE_H : MSX2_ENEMY_MOVEMENT_PATROL,
         speed,
         logicUpdateIntervalFrames,
         score,

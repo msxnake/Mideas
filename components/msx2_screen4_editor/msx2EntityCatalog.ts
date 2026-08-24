@@ -54,7 +54,7 @@ export interface Msx2ComponentDefinition {
   defaults: Record<string, any>;
 }
 
-export type Msx2ComponentFieldEditorKind = 'boolean' | 'number' | 'string' | 'select' | 'tileIndex' | 'msx2SpriteAsset';
+export type Msx2ComponentFieldEditorKind = 'boolean' | 'number' | 'string' | 'select' | 'tileIndex' | 'msx2SpriteAsset' | 'msx2EnemyBehaviorAsset';
 
 export interface Msx2ComponentFieldEditorConfig {
   kind?: Msx2ComponentFieldEditorKind;
@@ -111,7 +111,7 @@ export const MSX2_COMPONENT_FIELD_EDITORS: Partial<Record<Msx2ComponentId, Recor
     paletteSlot: { label: 'Box palette', min: 1, max: 15, ariaLabel: 'MSX2 PushBox palette slot' },
   },
   msx2_movement: {
-    mode: { kind: 'select', options: ['static', 'patrolX', 'patrolChaseX', 'walkerGravity', 'slimeCeiling', 'gearWheel', 'flyBounce8', 'patrolY', 'ghostMaze', 'ballBounce', 'maze'] },
+    mode: { kind: 'select', options: ['static', 'patrolX', 'patrolChaseX', 'walkerGravity', 'slimeCeiling', 'gearWheel', 'flyBounce8', 'patrolY', 'ghostMaze', 'ballBounce', 'maze', 'scripted'] },
     speed: { label: 'Speed', min: 0, max: 15 },
     direction: { label: 'Direction', min: -1, max: 1 },
     minX: { label: 'Min X', min: 0, max: 255 },
@@ -177,6 +177,10 @@ export const MSX2_COMPONENT_FIELD_EDITORS: Partial<Record<Msx2ComponentId, Recor
     instantDeath: { kind: 'boolean', label: 'Instant death' },
   },
   msx2_ai: {
+    // Only meaningful with msx2_movement.mode = 'scripted'. Both halves have to
+    // agree: the mode is what hands the slot to the interpreter, and this is
+    // the program it runs.
+    behaviorAssetId: { kind: 'msx2EnemyBehaviorAsset', label: 'Behavior asset (scripted)' },
     engine: { kind: 'select', options: ['patrol', 'ghostMaze'] },
     initialDirection: { kind: 'select', options: ['right', 'left', 'up', 'down'] },
     turnPolicy: { kind: 'select', options: ['reverse', 'random', 'towardPlayer'] },
@@ -1443,7 +1447,10 @@ export const DEFAULT_MSX2_ENTITY_CREATE_PRESETS = MSX2_ENTITY_REPERTOIRE;
  * name into the entity's msx2_movement.mode, so the generator path is unchanged.
  * Behaviors without a runtime movement implementation map to 'static' (a
  * stationary enemy that still damages the player on contact); `implemented:false`
- * lets the UI warn the user.
+ * lets the UI warn the user. CustomBehavior is resolved by the SCREEN 5 bitmap
+ * room normalizer from the linked enemy asset; the generic SCREEN 4 resolver
+ * deliberately keeps it as a static fallback because that runtime has no mode
+ * 14 interpreter handler.
  */
 export function mapEnemyBehaviorToMovementMode(
   behavior: EnemyBehaviorType | undefined,
@@ -1460,7 +1467,7 @@ export function mapEnemyBehaviorToMovementMode(
     case 'TurretAim': return { movementName: 'static', implemented: true };
     case 'None': return { movementName: 'static', implemented: true };
     // HopperTowardsPlayer / DropFromCeiling / EmergeFromGround / ShooterStatic /
-    // CustomBehavior: no runtime movement yet -> stationary fallback.
+    // CustomBehavior: no generic SCREEN 4 runtime movement -> stationary fallback.
     default: return { movementName: 'static', implemented: false };
   }
 }
@@ -1562,7 +1569,10 @@ export function buildMsx2EnemyEntityFromAsset(
       msx2_transform: { tileX: x, tileY: y, pixelX: x * 16, pixelY: y * 16, spawnX: x * 16, spawnY: y * 16 },
       msx2_movement: { mode: movementName, direction: authoredDirection, speed: gearWheel || flyBounce8 ? authoredSpeed : 2, ...(gearWheel ? { respawnSeconds: authoredRespawnSeconds } : {}), ...(flyBounce8 ? { turnPx: authoredTurnPx } : {}) },
       msx2_hardware_sprite: { msx2SpriteAssetId: spriteId, frame: 0, paletteSlot: 10, visible: Boolean(spriteId) },
-      msx2_ai: aiComponent,
+      msx2_ai: {
+        ...aiComponent,
+        ...(def.behavior?.behaviorAssetId ? { behaviorAssetId: def.behavior.behaviorAssetId } : {}),
+      },
       msx2_animation: {
         animation: renderRole?.animation || renderRole?.id || 'enemy',
         frameStart: roleFrames[0] || 0,

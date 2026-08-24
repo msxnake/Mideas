@@ -39,6 +39,7 @@ const {
   buildBitmapBossSystemAsm,
   bossHitBlastFrames,
   BITMAP_BOSS_TABLE_STRIDE,
+  BITMAP_BOSS_MAX_INSTANCES,
   BOSS_ZONE_RECORD_BYTES,
 } = await import(pathToFileURL(out).href);
 
@@ -102,8 +103,10 @@ check('The borrowed Death FX rect is copied into the boss table',
   && t[OFF_BLAST_SX + 2] === (FX_VRAM_SY & 0xff) && t[OFF_BLAST_SX + 3] === (FX_VRAM_SY >> 8)
   && t[OFF_BLAST_NX] === FX_W && t[OFF_BLAST_NX + 1] === FX_H);
 check('The body itself is untouched by the blast', t[OFF_W] === BODY_W && t[OFF_H] === BODY_H);
-check('Boss table is 27 bytes and the record fills it',
-  BITMAP_BOSS_TABLE_STRIDE === 27 && t.length === 27);
+// The room table is one record per boss slot, so the Z80's stride walk reads
+// exactly the records the compiler emitted and never runs past the table.
+check('Boss table is exactly max instances x stride',
+  t.length === BITMAP_BOSS_MAX_INSTANCES * BITMAP_BOSS_TABLE_STRIDE);
 
 // ---- THE failure this guards: no stamp to borrow ---------------------------
 const orphan = compile({ bossHp: 4, damageZones: [WEAK], bossHitBlastEnabled: true });

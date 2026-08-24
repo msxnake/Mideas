@@ -714,6 +714,29 @@ const Msx2ComponentFieldsEditor: React.FC<Msx2ComponentFieldsEditorProps> = ({
           );
         }
 
+        if (kind === 'msx2EnemyBehaviorAsset') {
+          // A plain select, not the sprite picker modal: the list is short and
+          // the whole point of this field is that a typo cannot silently leave
+          // the enemy standing still.
+          const behaviorAssets = allAssets.filter(asset => asset.type === 'msx2enemybehavior');
+          return (
+            <label key={fieldKey} className="col-span-2 space-y-1">
+              <span className="text-msx-textsecondary">{label}</span>
+              <select
+                value={String(currentValue ?? defaultValue ?? '')}
+                onChange={event => onPatchField(fieldKey, event.target.value, config?.paramKey)}
+                className={inputClassName}
+                aria-label={ariaLabel}
+              >
+                <option value="">None (stands still)</option>
+                {behaviorAssets.map(asset => (
+                  <option key={asset.id} value={asset.id}>{asset.name}</option>
+                ))}
+              </select>
+            </label>
+          );
+        }
+
         if (kind === 'tileIndex') {
           const tileIndex = Math.max(0, Math.min(Math.max(tiles.length - 1, 0), Number(currentValue) || 0));
           return (

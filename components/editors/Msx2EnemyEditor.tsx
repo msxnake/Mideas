@@ -294,6 +294,12 @@ export const Msx2EnemyEditor: React.FC<Msx2EnemyEditorProps> = ({
   );
   const spriteAssets = allAssets.filter(asset => asset.type === 'msx2sprite' || asset.type === 'sprite');
   const soundAssets = allAssets.filter(asset => asset.type === 'sound');
+  const behaviorAssets = allAssets.filter(asset => asset.type === 'msx2enemybehavior');
+  // 'CustomBehavior' is the movement that hands the enemy to the scripted
+  // interpreter. Anything else ignores the asset, and the asset is what the
+  // interpreter runs — so either half on its own does nothing, silently.
+  const usesAuthoredBehavior = enemy.behavior.type === 'CustomBehavior';
+  const selectedBehaviorId = enemy.behavior.behaviorAssetId || '';
   const issues = validateEnemy(enemy, allAssets);
   const animationEntries = Object.entries(enemy.render.animations || {});
   const renderRoles = buildRenderRoles(enemy);
@@ -699,6 +705,35 @@ export const Msx2EnemyEditor: React.FC<Msx2EnemyEditorProps> = ({
                   {BEHAVIOR_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
                 </select>
               </Field>
+              <Field label="Behavior asset">
+                <select
+                  className={selectClass}
+                  value={selectedBehaviorId}
+                  onChange={event => patch({ behavior: { ...enemy.behavior, behaviorAssetId: event.target.value } })}
+                >
+                  <option value="">None</option>
+                  {behaviorAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+                </select>
+              </Field>
+              {/* Both halves have to agree. Each one alone is a no-op in the ROM,
+                  and a no-op the author cannot see is the worst kind. */}
+              {usesAuthoredBehavior && !selectedBehaviorId && (
+                <div className="rounded border border-amber-600/60 bg-amber-950/30 p-3 text-[11px] text-amber-200">
+                  Movement is <strong>CustomBehavior</strong> but no behavior asset is picked, so this enemy will just stand there.
+                  Choose one above, or create it with <strong>New MSX2 Enemy Behavior</strong>.
+                </div>
+              )}
+              {!usesAuthoredBehavior && selectedBehaviorId && (
+                <div className="rounded border border-amber-600/60 bg-amber-950/30 p-3 text-[11px] text-amber-200">
+                  A behavior asset is picked but Movement is <strong>{enemy.behavior.type}</strong>, so the asset is ignored.
+                  Set Movement to <strong>CustomBehavior</strong> to run it.
+                </div>
+              )}
+              {selectedBehaviorId && !behaviorAssets.some(asset => asset.id === selectedBehaviorId) && (
+                <div className="rounded border border-amber-600/60 bg-amber-950/30 p-3 text-[11px] text-amber-200">
+                  The picked behavior asset is not in this project any more. The enemy falls back to standing still.
+                </div>
+              )}
               <Field label="Logic interval" suffix="frames/update">
                 <SmallNumber
                   value={logicUpdateIntervalFramesValue(enemy.logicUpdateIntervalFrames ?? (enemy as any).logicUpdateEveryFrames)}

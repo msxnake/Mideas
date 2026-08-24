@@ -100,6 +100,42 @@ const CASES = [
     covers: 'bitmap-room boss: attack phases, path, sprite bullets, damage zones, barrier',
   },
   {
+    id: 'bitmap-room-enemies',
+    fixture: 'test/msx2-shoot/shoot_verify.json',
+    romMode: 'megarom',
+    // Guards the BASE pool/table stride (24) — the path every project runs
+    // when it uses no optional engine, and where a mode-14 opt-in leak would
+    // bite first. Verified: emits the bitmap enemy system with ONLY the
+    // patrol handler (no slime/gear/fly8/scripted). Until this case existed,
+    // stride-24 coverage was accidental (the boss fixture's plain enemies,
+    // never stated in its covers). The destroy/base fixture Claude first
+    // suggested does not build here: its player animation exhausts the V9938
+    // sprite pattern groups the enemy slots need.
+    covers: 'bitmap-room simple enemies: base pool stride 24, no optional engine',
+  },
+  {
+    id: 'bitmap-room-enemies-slime',
+    fixture: 'test/msx2-slime/fixture_slime_mix.json',
+    romMode: 'megarom',
+    // Same byte-identical contract one opt-in engine wide: slimeEnabled widens
+    // the pool stride to 27 and doubles the sprite variants.
+    covers: 'bitmap-room simple enemies: slime opt-in, pool stride 27',
+  },
+  {
+    id: 'bitmap-room-enemies-scripted',
+    fixture: 'test/msx2-behavior/fixture_scripted_enemy.json',
+    romMode: 'megarom',
+    // The third leg of the mode-14 contract. The other two are already here by
+    // omission: every case above must stay byte-identical with the behaviour
+    // engine OFF, which is what proves the opt-in does not leak. That is only
+    // half a contract — nothing pinned the output with the engine ON, so a
+    // change to the interpreter or the baker could move the emitted bytes
+    // unnoticed. This fixture is a mixed room (one patrol enemy + one scripted
+    // enemy), so it also pins the widened pool stride (24 base + 4 script) and
+    // the 23-byte ROM table stride they share.
+    covers: 'bitmap-room simple enemies: scripted opt-in (mode 14), pool stride 28, mixed with patrol',
+  },
+  {
     id: 'mixed-screen5-to-screen4',
     fixture: 'test/msx2-mixed/mixed_screen5_screen4_project.json',
     covers: 'SCREEN 5 presentation intro handing off to a SCREEN 4 tile runtime in one ROM',

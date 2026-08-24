@@ -59,6 +59,28 @@ export interface Msx2AirDashConfig {
   secondaryKeyboard?: Msx2BitmapKeyboardBinding;
 }
 
+/**
+ * Step down through a one-way platform.
+ *
+ * The room paints which cells are one-way (the "Platform" brush); this decides
+ * whether the PLAYER may leave one on purpose, and with which key. Enemies do
+ * not need it: their DROP_THROUGH is an authored behaviour rule, not an input.
+ */
+export interface Msx2PlatformDropConfig {
+  enabled: boolean;
+  /**
+   * Frames the drop keeps ignoring one-way platforms. It only has to outlast the
+   * fall through one 16px cell; too long and the player sails past the platform
+   * below as well, which reads as the drop "not stopping".
+   */
+  dropFrames: number;
+  requireKeyRelease: boolean;
+  primaryControl: Msx2PlayerControlId;
+  secondaryControl: Msx2PlayerControlId | 'none';
+  primaryKeyboard?: Msx2BitmapKeyboardBinding;
+  secondaryKeyboard?: Msx2BitmapKeyboardBinding;
+}
+
 export interface Msx2BitmapKeyboardBinding {
   label: string;
   row: number;
@@ -730,6 +752,23 @@ export function getMsx2DashConfigFromPlayerEntity(player: any | undefined): Msx2
     invulnerable: params.invulnerable !== false,
     primaryControl: binding.primary,
     secondaryControl: binding.secondary,
+  };
+}
+
+export function getMsx2PlatformDropConfigFromPlayerEntity(player: any | undefined): Msx2PlatformDropConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('platform_drop');
+  const params = (player?.skillParameters?.platform_drop || {}) as Record<string, number | boolean>;
+  const binding = resolveMsx2SkillBinding(player, 'platform_drop');
+  const dropFrames = pickSkillNumberParam(params, 'platform_drop', ['dropFrames'], 10);
+  return {
+    enabled,
+    dropFrames: Math.max(2, Math.min(60, dropFrames || 10)),
+    requireKeyRelease: params.requireKeyRelease !== false,
+    primaryControl: binding.primary,
+    secondaryControl: binding.secondary,
+    primaryKeyboard: resolveMsx2BitmapKeyboardBinding(player, binding.primary),
+    secondaryKeyboard: resolveMsx2BitmapKeyboardBinding(player, binding.secondary),
   };
 }
 

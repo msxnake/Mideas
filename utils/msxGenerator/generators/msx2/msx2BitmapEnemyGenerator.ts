@@ -5,6 +5,13 @@ import {
   MSX2_ENEMY_MOVEMENT_GEAR_WHEEL,
   MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8,
 } from './msx2EntityRuntimeGenerator';
+import {
+  MSX2_ENEMY_MOVEMENT_SCRIPTED,
+  MSX2_ENEMY_SCRIPT_SCRATCH_BYTES,
+  MSX2_ENEMY_SCRIPT_POOL_BYTES,
+  buildEnemyBehaviorRuntimeAsm,
+  buildEnemyBehaviorProgramAsm,
+} from './msx2EnemyBehaviorRuntime';
 
 /**
  * SCREEN 5 bitmap-room ENEMY runtime — patrol MVP.
@@ -63,6 +70,20 @@ export const BITMAP_ENEMY_POOL_STRIDE_GEAR = 29;
 export const BITMAP_ENEMY_POOL_STRIDE_SLIME_GEAR = 32;
 /** FlyBounce8 builds append flyLeft/flyTurnPx to every pool slot. */
 export const BITMAP_ENEMY_POOL_STRIDE_FLY8_BYTES = 2;
+/** Scripted builds append program/state/timer/vertical-velocity to every slot. */
+export const BITMAP_ENEMY_POOL_STRIDE_SCRIPTED = MSX2_ENEMY_SCRIPT_POOL_BYTES;
+/** FIRE uses a deliberately small pool, independent from player/boss bullets. */
+export const BITMAP_ENEMY_BULLET_SLOTS = 2;
+/** First-cut enemy projectile speed, in logical pixels per video frame. */
+export const BITMAP_ENEMY_BULLET_SPEED = 3;
+/** Built-in 16x16 mode-2 projectile: a small centred diamond in four quadrants. */
+const ENEMY_BULLET_PATTERN_BYTES = [
+  0x00, 0x00, 0x00, 0x00, 0x18, 0x00, 0x3C, 0x00,
+  0x7E, 0x00, 0x3C, 0x00, 0x18, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const ENEMY_BULLET_COLOR_BYTES = Array.from({ length: 16 }, () => 0xF1);
 
 /** RAM pool stride actually used by the generated runtime for this project.
  *  One term per optional movement engine: enumerating the combinations instead
@@ -71,7 +92,8 @@ export function bitmapEnemyPoolStride(data: BitmapEnemyRoomData | undefined): nu
   return BITMAP_ENEMY_POOL_STRIDE
     + (data?.slimeEnabled ? 3 : 0)
     + (data?.gearEnabled ? 5 : 0)
-    + (data?.fly8Enabled ? BITMAP_ENEMY_POOL_STRIDE_FLY8_BYTES : 0);
+    + (data?.fly8Enabled ? BITMAP_ENEMY_POOL_STRIDE_FLY8_BYTES : 0)
+    + (data?.scriptedEnabled ? BITMAP_ENEMY_POOL_STRIDE_SCRIPTED : 0);
 }
 
 /** Sprite pattern variants emitted per animation frame ([right,left] or
@@ -97,7 +119,7 @@ export interface BitmapEnemyRoomData {
   maxSlots: number;
   /** Max animation frames across the unique enemy sprites (>= 1). */
   maxFrames: number;
-  /** Per-room table bytes: [count] + maxSlots * table stride (22 base, +1 slime, +2 gear). */
+  /** Per-room table bytes: [count] + maxSlots * table stride (22 base plus opt-in extensions). */
   roomTables: number[][];
   /** frames * variants x 32 bytes per unique enemy sprite ([right, left] per frame,
    *  plus [ceilRight, ceilLeft] vertical flips when slimeEnabled). */
@@ -114,6 +136,12 @@ export interface BitmapEnemyRoomData {
   /** True when any room places a FlyBounce8 bat (mode 13): adds the direction
    *  table, the shared per-frame PRNG seed and 2 pool bytes per slot. */
   fly8Enabled?: boolean;
+  /** True when any room uses the declarative mode 14 interpreter. */
+  scriptedEnabled?: boolean;
+  /** Baked scripted programs, excluding the implicit index-0 fallback. */
+  scriptedBehaviorPrograms?: Array<{ id: string; name: string; bytes: number[] }>;
+  /** True only when a baked authored program actually contains FIRE. */
+  scriptedProgramsUseFire?: boolean;
   /**
    * True when any placed enemy opts into the dark-room "eyes only" look. Every
    * unique sprite then carries a SECOND set of line-colour blocks after the
@@ -147,6 +175,8 @@ export interface BitmapEnemyRuntimeOptions {
   /** Optional per-slot variant counts (2 for normal, 4 for slime-capable slots). */
   patternVariantCounts?: number[];
   /** HUD band offset added to logical Y before the SAT write. */
+  /** Shared floor probe; undefined keeps the historical bitmap_probe_solid. */
+  floorProbeLabel?: string;
   gameYOffset: number;
   /** Player body hitbox in local player coordinates. */
   playerHitbox: { x: number; y: number; w: number; h: number };
@@ -164,6 +194,14 @@ export interface BitmapEnemyRuntimeOptions {
    *  spawn) when health hits 0, mirroring the deadly system. Defaults to false
    *  (legacy behaviour: health saturates at 0, no respawn). */
   respawnOnDeath?: boolean;
+  /** First SAT entry reserved for the optional scripted enemy bullet pool. */
+  enemyBulletSatBase?: number;
+  /** First 16-byte colour block reserved for the optional enemy bullets. */
+  enemyBulletColorBase?: number;
+  /** Pattern number (not group number) written by the enemy bullet SAT writer. */
+  enemyBulletPatternNumber?: number;
+  /** True when the player bullet writer follows the enemy bullet writer. */
+  enemyBulletFollowedByPlayerBullets?: boolean;
   /** Early-return gate prepended to bitmap_update_enemies (e.g. the NPC
    * dialogue pause). Empty when no pausing system exists in this ROM. */
   pauseGateAsm?: string;
@@ -225,6 +263,8 @@ export interface BitmapEnemySystemAsm {
   satCallAsm: string;
   /** Deferred per-frame colour-table refresh; must run after every SAT writer. */
   colorCallAsm: string;
+  /** `call bitmap_update_enemy_bullet_sat` — before the player bullet writer. */
+  bulletSatCallAsm: string;
   routinesAsm: string;
   dataAsm: string;
   /**
@@ -244,13 +284,16 @@ export function buildBitmapEnemySystemAsm(
   opts: BitmapEnemyRuntimeOptions,
 ): BitmapEnemySystemAsm {
   if (!bitmapEnemySystemEnabled(data)) {
-    return { enabled: false, ramBytes: 0, equates: '', loadCallAsm: '', updateCallAsm: '', satCallAsm: '', colorCallAsm: '', routinesAsm: '', dataAsm: '', bankedBlocks: [] };
+    return { enabled: false, ramBytes: 0, equates: '', loadCallAsm: '', updateCallAsm: '', satCallAsm: '', colorCallAsm: '', bulletSatCallAsm: '', routinesAsm: '', dataAsm: '', bankedBlocks: [] };
   }
   const maxSlots = data.maxSlots;
   const maxFrames = Math.max(1, data.maxFrames);
   const slime = Boolean(data.slimeEnabled);
   const gear = Boolean(data.gearEnabled);
   const fly8 = Boolean(data.fly8Enabled);
+  const scripted = Boolean(data.scriptedEnabled);
+  const programsUseFire = scripted && data.scriptedProgramsUseFire === true;
+  const enemyBulletSlotCount = programsUseFire ? BITMAP_ENEMY_BULLET_SLOTS : 0;
   // MegaROM: the sprite art lives in a data bank, so every copy goes through the
   // below-#8000 helper that owns the swap (these routines sit in #8000-#9FFF).
   const bankedArt = opts.bankedSpriteData === true;
@@ -264,6 +307,7 @@ export function buildBitmapEnemySystemAsm(
   const darkEyes = data.darkEyesEnabled && opts.darkEyes ? opts.darkEyes : undefined;
   const POOL_STRIDE = bitmapEnemyPoolStride(data);
   const TABLE_STRIDE = 22 + (slime ? 1 : 0) + (gear ? 2 : 0) + (fly8 ? 1 : 0); // ROM bytes per slot
+  const SCRIPTED_TABLE_STRIDE = TABLE_STRIDE + (scripted ? 1 : 0);
   const GEAR_STATE_OFFSET = 24 + (slime ? 3 : 0);
   const GEAR_COOLDOWN_LO_OFFSET = GEAR_STATE_OFFSET + 1;
   const GEAR_COOLDOWN_HI_OFFSET = GEAR_STATE_OFFSET + 2;
@@ -274,6 +318,12 @@ export function buildBitmapEnemySystemAsm(
   const FLY8_TURN_OFFSET = FLY8_LEFT_OFFSET + 1;                    // authored turn distance
   // ROM index of the turnPx byte, which sits behind the other engines' bytes.
   const FLY8_TABLE_INDEX = 22 + (slime ? 1 : 0) + (gear ? 2 : 0);
+  // Scripted state follows every optional movement extension in the pool/table.
+  const SCRIPTED_PROGRAM_OFFSET = 24 + (slime ? 3 : 0) + (gear ? 5 : 0) + (fly8 ? BITMAP_ENEMY_POOL_STRIDE_FLY8_BYTES : 0);
+  const SCRIPTED_STATE_OFFSET = SCRIPTED_PROGRAM_OFFSET + 1;
+  const SCRIPTED_TIMER_OFFSET = SCRIPTED_PROGRAM_OFFSET + 2;
+  const SCRIPTED_VELOCITY_OFFSET = SCRIPTED_PROGRAM_OFFSET + 3;
+  const SCRIPTED_TABLE_INDEX = 22 + (slime ? 1 : 0) + (gear ? 2 : 0) + (fly8 ? 1 : 0);
   const variantsPerFrame = bitmapEnemyVariantsPerFrame(data);
   const groupsPerSlot = maxFrames * variantsPerFrame;
   const slotPatternVariants = Array.from({ length: maxSlots }, (_unused, i) =>
@@ -288,21 +338,62 @@ export function buildBitmapEnemySystemAsm(
   // Banked room tables are staged through RAM: bitmap_load_enemies walks the
   // record field by field and lives inside the #8000-#9FFF window, so it cannot
   // read straight out of the mapped bank.
-  const TABLE_BYTES = 1 + maxSlots * TABLE_STRIDE;
-  const ramBytes = 1 + maxSlots * POOL_STRIDE + (fly8 ? 1 : 0) + (bankedArt ? TABLE_BYTES : 0);
+  const TABLE_BYTES = 1 + maxSlots * SCRIPTED_TABLE_STRIDE;
+  const ramBytes = 1 + maxSlots * POOL_STRIDE + (fly8 ? 1 : 0);
+  const baseRamBytes = ramBytes + (bankedArt ? TABLE_BYTES : 0);
   const countAddr = opts.ramBase;
   const poolAddr = opts.ramBase + 1;
   const randSeedAddr = poolAddr + maxSlots * POOL_STRIDE;
   const tableBufAddr = randSeedAddr + (fly8 ? 1 : 0);
+  const scriptedScratchAddr = tableBufAddr + (bankedArt ? TABLE_BYTES : 0);
+  if (programsUseFire && (
+    opts.enemyBulletSatBase === undefined
+    || opts.enemyBulletColorBase === undefined
+    || opts.enemyBulletPatternNumber === undefined
+  )) {
+    throw new Error(
+      'SCREEN 5 scripted FIRE needs enemy bullet SAT, colour and pattern reservations '
+      + 'from buildBitmapEnemySystemAsm.',
+    );
+  }
+  const enemyBulletRamBase = scriptedScratchAddr + MSX2_ENEMY_SCRIPT_SCRATCH_BYTES;
+  const scriptedRuntime = scripted
+    ? buildEnemyBehaviorRuntimeAsm({
+      ramBase: scriptedScratchAddr,
+      poolProgramOffset: SCRIPTED_PROGRAM_OFFSET,
+      poolStateOffset: SCRIPTED_STATE_OFFSET,
+      poolTimerOffset: SCRIPTED_TIMER_OFFSET,
+      poolVelocityOffset: SCRIPTED_VELOCITY_OFFSET,
+      poolVisualXOffset: 14,
+      poolVisualYOffset: 15,
+      poolSpeedOffset: 21,
+      poolAnimFrameOffset: 9,
+      poolFrameCountOffset: 10,
+      floorProbeLabel: opts.floorProbeLabel,
+      poolStride: POOL_STRIDE,
+      maxSlots,
+      programsUseFire,
+      enemyBullets: programsUseFire ? {
+        ramBase: enemyBulletRamBase,
+        slotCount: enemyBulletSlotCount,
+        speedPx: BITMAP_ENEMY_BULLET_SPEED,
+        playerHurtLabel: 'bitmap_enemy_hurt_player',
+        damageHearts: 1,
+      } : undefined,
+    })
+    : undefined;
+  const totalRamBytes = baseRamBytes
+    + (scriptedRuntime?.ramBytes || 0)
+    + (scriptedRuntime?.bulletRamBytes || 0);
 
-  const equates = `; --- ENEMY runtime state (${ramBytes} bytes): count + ${maxSlots} slot(s) x ${POOL_STRIDE}${fly8 ? ' + PRNG seed' : ''}
-; (x,y,dx,dy,minX,maxX,minY,maxY,animTick,animFrame,frameCount,animDelay,colorOff,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,logicInterval,logicCountdown${slime ? ',travelPx,travelCount,phase' : ''}${gear ? ',gearState,gearCooldownLo,gearCooldownHi,gearDelayLo,gearDelayHi' : ''}${fly8 ? ',flyLeft,flyTurnPx' : ''}) ---
+  const equates = `; --- ENEMY runtime state (${totalRamBytes} bytes): count + ${maxSlots} slot(s) x ${POOL_STRIDE}${fly8 ? ' + PRNG seed' : ''}
+; (x,y,dx,dy,minX,maxX,minY,maxY,animTick,animFrame,frameCount,animDelay,colorOff,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,logicInterval,logicCountdown${slime ? ',travelPx,travelCount,phase' : ''}${gear ? ',gearState,gearCooldownLo,gearCooldownHi,gearDelayLo,gearDelayHi' : ''}${fly8 ? ',flyLeft,flyTurnPx' : ''}${scripted ? ',scriptProgram,scriptState,scriptTimer,scriptVelocity' : ''}) ---
 bitmap_enemy_count EQU ${asmWord(countAddr)}
 bitmap_enemy_pool  EQU ${asmWord(poolAddr)}
 ${fly8 ? `bitmap_enemy_rand_seed EQU ${asmWord(randSeedAddr)}
 ` : ''}${bankedArt ? `; Room record staged out of its data bank (${TABLE_BYTES} bytes) before it is walked.
 bitmap_enemy_table_buf EQU ${asmWord(tableBufAddr)}
-` : ''}`;
+` : ''}${scriptedRuntime?.equates || ''}`;
 
   // ---- bitmap_load_enemies: per-room table -> RAM pool + VRAM uploads ----
   const loadSlotBlocks = Array.from({ length: maxSlots }, (_unused, i) => {
@@ -374,6 +465,13 @@ ${slime ? `    ld a, (ix+22)             ; slime hop distance in px (0 on non-sl
     ld a, (ix+${FLY8_TABLE_INDEX})          ; turnPx (0 on non-bat slots)
     ld (${poolBase} + ${FLY8_TURN_OFFSET}), a
     ld (${poolBase} + ${FLY8_LEFT_OFFSET}), a
+` : ''}${scripted ? `    ; Scripted mode: table byte selects the resident program; state/timer/vy start clear.
+    ld a, (ix+${SCRIPTED_TABLE_INDEX})
+    ld (${poolBase} + ${SCRIPTED_PROGRAM_OFFSET}), a
+    xor a
+    ld (${poolBase} + ${SCRIPTED_STATE_OFFSET}), a
+    ld (${poolBase} + ${SCRIPTED_TIMER_OFFSET}), a
+    ld (${poolBase} + ${SCRIPTED_VELOCITY_OFFSET}), a
 ` : ''}${slime && slotVariants < 4 ? `    ; --- upload frameCount x [right,left] pairs -> VRAM ${asmWord(patternVram)} (group ${patternGroup}+) ---
     ; Slime builds store 4 variants per frame in ROM ([R,L,ceilR,ceilL]) for
     ; EVERY sprite, but this slot only reserves the facing pair: copy 64 of
@@ -424,9 +522,22 @@ ${copyArt('bitmap_enemy_sprite_patterns')}`}
     ld bc, 16
 ${copyArt('bitmap_enemy_sprite_colors')}
 .benemy_slot_${i}_done:
-    ld de, ${TABLE_STRIDE}
+    ld de, ${SCRIPTED_TABLE_STRIDE}
     add ix, de`;
   }).join('\n');
+
+  const enemyBulletColorUploads = Array.from({ length: enemyBulletSlotCount }, (_unused, i) => `    ld hl, bitmap_enemy_bullet_color_data
+    ld de, ${asmWord((opts.enemyBulletColorBase as number) + i * 16)}
+    ld bc, bitmap_enemy_bullet_color_data_end - bitmap_enemy_bullet_color_data
+    call copy_to_vram_ext
+`).join('');
+  const enemyBulletLoadAsm = programsUseFire ? `
+    ; --- upload the shared FIRE projectile pattern and its SAT colour blocks ---
+    ld hl, bitmap_enemy_bullet_pattern_data
+    ld de, ${asmWord((opts.enemyBulletPatternNumber as number) * 8 + 0xF800)}
+    ld bc, bitmap_enemy_bullet_pattern_data_end - bitmap_enemy_bullet_pattern_data
+    call copy_to_vram_ext
+${enemyBulletColorUploads}` : '';
 
   const playerHitbox = opts.playerHitbox;
   const playerLeft = Math.max(0, Math.min(31, Math.floor(playerHitbox.x) || 0));
@@ -512,6 +623,8 @@ ${slime ? `    cp ${MSX2_ENEMY_MOVEMENT_SLIME_CEILING}
     jp z, .enemy_step_gear
 ` : ''}${fly8 ? `    cp ${MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8}
     jp z, .enemy_step_fly8
+` : ''}${scripted ? `    cp ${MSX2_ENEMY_MOVEMENT_SCRIPTED}
+    jp z, .enemy_step_scripted
 ` : ''}    ; --- X axis ---
 .enemy_step_patrol:
     ld a, (ix+2)              ; dx
@@ -1315,6 +1428,10 @@ ${gear ? `    jp .enemy_anim
     ld (ix+2), #01
     scf
     ret
+` : ''}${scripted ? `    jp .enemy_anim
+.enemy_step_scripted:
+    call bitmap_enemy_script_step
+    jp .enemy_anim
 ` : ''}.enemy_anim:
     ; --- frame animation: every animDelay frames, frame = (frame+1) % frameCount ---
     ld a, (ix+10)             ; frameCount
@@ -1483,6 +1600,60 @@ ${respawnOnDeath ? `
     ret
 `;
 
+  const enemyBulletHurtAsm = !programsUseFire ? '' : `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_enemy_hurt_player
+; ------------------------------------------------------------
+; PURPOSE: Apply A hearts of damage for an authored enemy bullet. This copy is
+;   emitted with the enemy bullet opt-in so FIRE never depends on a boss block.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+; ------------------------------------------------------------
+bitmap_enemy_hurt_player:
+    ld b, a
+    ld a, (player_health)
+    sub b
+    jr z, .ebhp_zero
+    jr c, .ebhp_zero
+    ld (player_health), a
+    jr .ebhp_arm
+.ebhp_zero:
+    xor a
+    ld (player_health), a
+${respawnOnDeath ? `    ld hl, player_lives
+    dec (hl)
+    ld a, (hl)
+    or a
+    jr z, .ebhp_gameover
+    ld a, ${maxHealthByte}
+    ld (player_health), a
+    xor a
+    ld (player_vy), a
+    ld (player_vy_frac), a
+    ld (player_vx), a
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_spawn_x_table
+    add hl, de
+    ld a, (hl)
+    ld (player_x), a
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_spawn_y_table
+    add hl, de
+    ld a, (hl)
+    ld (player_y), a
+    jr .ebhp_arm
+.ebhp_gameover:
+    ld a, 1
+    ld (bitmap_game_over_flag), a
+` : ''}.ebhp_arm:
+    ld a, ${enemyInvulnFrames}
+    ld (player_invuln), a
+    ret
+`;
+
   // ---- player bullets vs enemies (shoot skill) ----
   const bulletHitAsm = !opts.bulletHit ? '' : `
 ${!opts.bulletHit.chainFromBossLabel ? '' : `; ------------------------------------------------------------
@@ -1565,10 +1736,21 @@ bitmap_enemy_bullet_hit:
 .ebh_dy_abs:
     cp 16
     jp nc, .ebh_next
-    xor a
+${scripted ? `    ; Scripted enemies record the impact before checking their guard. A
+    ; shield consumes the bullet but prevents the normal kill/damage path.
+    ld a, bitmap_enemy_script_hit_stamp
+    ld (iy+bitmap_enemy_script_hit_ofs), a
+    ld a, (iy+bitmap_enemy_script_shield_ofs)
+    or a
+    jp nz, .ebh_shielded
+` : ''}    xor a
     ld (ix+0), a              ; the bullet is spent on this enemy
     call .ebh_kill_layers
-    jp .ebh_done
+    jp .ebh_done${scripted ? `
+.ebh_shielded:
+    xor a
+    ld (ix+0), a              ; the shield also consumes the bullet
+    jp .ebh_done` : ''}
 .ebh_next:
     ld de, ${POOL_STRIDE}
     add iy, de
@@ -1822,6 +2004,77 @@ bitmap_enemy_light_half_widths:
 ${darkEyes.halfWidths.map(row => `    DB ${row.map(value => asmByte(value)).join(',')}`).join('\n')}
 `;
 
+  const enemyBulletSatTerminator = opts.enemyBulletFollowedByPlayerBullets ? '' : `    ld a, #D8
+    out (VDP_DATA_PORT), a
+    xor a
+    out (VDP_DATA_PORT), a
+    out (VDP_DATA_PORT), a
+    out (VDP_DATA_PORT), a
+`;
+  const enemyBulletSatAsm = !programsUseFire ? '' : `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_update_enemy_bullet_sat
+; ------------------------------------------------------------
+; PURPOSE: Publish the fixed FIRE pool before the player bullet writer.
+;   Inactive entries are parked off-screen so the reserved SAT range is stable.
+; ------------------------------------------------------------
+bitmap_update_enemy_bullet_sat:
+    push bc
+    push hl
+    ld de, ${asmWord(opts.enemyBulletSatBase as number)}
+    push de
+    ld a, d
+    and #C0
+    rlca
+    rlca
+    ld e, a
+    ld a, #0E
+    call vdp_write_register
+    pop de
+    ld a, e
+    out (VDP_CTRL_PORT), a
+    ld a, d
+    and #3F
+    or #40
+    out (VDP_CTRL_PORT), a
+    ld ix, bitmap_enemy_bullet_pool
+    ld b, ${asmByte(enemyBulletSlotCount)}
+.ebs_slot:
+    ld a, (ix+0)
+    or a
+    jp z, .ebs_hidden
+    ld a, (ix+2)
+    add a, ${asmByte(opts.gameYOffset)}
+    out (VDP_DATA_PORT), a
+    ld a, (ix+1)
+    out (VDP_DATA_PORT), a
+    ld a, ${asmByte(opts.enemyBulletPatternNumber as number)}
+    out (VDP_DATA_PORT), a
+    xor a
+    out (VDP_DATA_PORT), a
+    jp .ebs_next
+.ebs_hidden:
+    ld a, ${asmByte(ENEMY_EMPTY_SPRITE_Y)}
+    out (VDP_DATA_PORT), a
+    xor a
+    out (VDP_DATA_PORT), a
+    out (VDP_DATA_PORT), a
+    out (VDP_DATA_PORT), a
+.ebs_next:
+    inc ix
+    inc ix
+    inc ix
+    inc ix
+    djnz .ebs_slot
+${enemyBulletSatTerminator}    xor a
+    ld e, a
+    ld a, #0E
+    call vdp_write_register
+    pop hl
+    pop bc
+    ret
+`;
+
   const routinesAsm = `
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_load_enemies
@@ -1874,9 +2127,8 @@ ${bankedArt ? `    ; The room record lives in a data bank. Resolve its bank, LDI
     ld (bitmap_enemy_count), a
     inc hl
     push hl
-    pop ix                    ; IX -> slot 0 (${TABLE_STRIDE} bytes/slot)
-${loadSlotBlocks}
-    pop ix
+    pop ix                    ; IX -> slot 0 (${SCRIPTED_TABLE_STRIDE} bytes/slot)
+${loadSlotBlocks}${enemyBulletLoadAsm ? `\n${enemyBulletLoadAsm}` : '\n'}    pop ix
     ret
 
 ; HL = bitmap_enemy_sprite_patterns + A*32 (A = pattern group offset).
@@ -1904,7 +2156,7 @@ bitmap_enemy_colors_offset:
     add hl, de
     ret
 ${darkEyesAsm}${updateAsm}
-${touchDamageAsm}${bulletHitAsm}
+${touchDamageAsm}${enemyBulletHurtAsm}${bulletHitAsm}
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_update_enemy_sat
 ; ------------------------------------------------------------
@@ -1955,7 +2207,7 @@ ${satSlotBlocks}
     pop bc
     ret
 
-; ------------------------------------------------------------
+${enemyBulletSatAsm ? `${enemyBulletSatAsm}\n` : ''}; ------------------------------------------------------------
 ; FUNCTION: bitmap_update_enemy_colors
 ; ------------------------------------------------------------
 ; PURPOSE: Refreshes each active enemy hardware layer's 16-byte line-colour
@@ -1974,18 +2226,30 @@ bitmap_update_enemy_colors:
 ${colorUploadSlotBlocks}
     pop hl
     pop bc
-    ret
+    ret${scriptedRuntime ? `\n${scriptedRuntime.routinesAsm}` : ''}
 `;
 
-  const emitBytes = (label: string, bytes: number[], comment: string): string => {
+  const emitBytes = (label: string, bytes: number[], comment: string, endLabel?: string): string => {
     const lines: string[] = [`; ${comment}`, `${label}:`];
     for (let i = 0; i < bytes.length; i += 16) {
       lines.push(`    DB ${bytes.slice(i, i + 16).map(b => asmByte(b & 0xff)).join(',')}`);
     }
+    if (endLabel) lines.push(`${endLabel}:`);
     return lines.join('\n') + '\n';
   };
+  // Scripted programs stay resident: bitmap_enemy_script_step reads them with
+  // HL directly and deliberately does not own mapper state. Keeping this
+  // block resident also makes the runtime call safe in both simple32k and
+  // Konami MegaROM builds; the cold sprite art remains banked as before.
+  const scriptedProgramAsm = scripted
+    ? buildEnemyBehaviorProgramAsm(data.scriptedBehaviorPrograms || []).asm
+      : '';
+  const enemyBulletDataAsm = programsUseFire
+    ? emitBytes('bitmap_enemy_bullet_pattern_data', ENEMY_BULLET_PATTERN_BYTES, 'Scripted enemy FIRE: shared 16x16 pattern', 'bitmap_enemy_bullet_pattern_data_end')
+      + emitBytes('bitmap_enemy_bullet_color_data', ENEMY_BULLET_COLOR_BYTES, 'Scripted enemy FIRE: one 16-byte line-colour block per SAT slot', 'bitmap_enemy_bullet_color_data_end')
+    : '';
   const dataAsm = data.roomTables.map((table, index) =>
-    (bankedArt ? '' : emitBytes(`bitmap_room_enemy_table_${index}`, table, `Room ${index} enemies: count + ${maxSlots} slot(s) x ${TABLE_STRIDE} (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,logicInterval${slime ? ',travelPx' : ''}${gear ? ',respawnFramesLo,respawnFramesHi' : ''}${fly8 ? ',turnPx' : ''})`))
+    (bankedArt ? '' : emitBytes(`bitmap_room_enemy_table_${index}`, table, `Room ${index} enemies: count + ${maxSlots} slot(s) x ${SCRIPTED_TABLE_STRIDE} (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,logicInterval${slime ? ',travelPx' : ''}${gear ? ',respawnFramesLo,respawnFramesHi' : ''}${fly8 ? ',turnPx' : ''}${scripted ? ',scriptProgram' : ''})`))
   ).join('')
     + (bankedArt
       ? `; Room enemy records are emitted in Konami MegaROM data banks below.
@@ -2002,7 +2266,9 @@ ${colorUploadSlotBlocks}
     + (bankedArt
       ? '; Enemy sprite pattern/colour art is emitted in a Konami MegaROM data bank below.\n'
       : emitBytes('bitmap_enemy_sprite_patterns', data.patternBytes, `Enemy sprites: ${data.patternBytes.length / 32} pattern group(s), ${slime ? '[right, left, ceilRight, ceilLeft] variants' : '[right, left] variant pair'} per frame (mode 2 quadrants)`)
-        + emitBytes('bitmap_enemy_sprite_colors', data.colorBytes, `Enemy sprites: 16-byte line colour tables per unique sprite layer frame${slime ? ' (normal tables then vertical flips)' : ''}`));
+        + emitBytes('bitmap_enemy_sprite_colors', data.colorBytes, `Enemy sprites: 16-byte line colour tables per unique sprite layer frame${slime ? ' (normal tables then vertical flips)' : ''}`))
+    + scriptedProgramAsm
+    + enemyBulletDataAsm;
 
   const bankedBlocks = bankedArt
     ? [
@@ -2018,12 +2284,15 @@ ${colorUploadSlotBlocks}
 
   return {
     enabled: true,
-    ramBytes,
+    ramBytes: totalRamBytes,
     equates,
     loadCallAsm: '    call bitmap_load_enemies\n',
-    updateCallAsm: '    call bitmap_update_enemies\n    call bitmap_check_enemy_touch\n',
+    updateCallAsm: `    call bitmap_update_enemies
+${programsUseFire ? '    call bitmap_enemy_bullet_update\n' : ''}    call bitmap_check_enemy_touch
+`,
     satCallAsm: '    call bitmap_update_enemy_sat\n',
     colorCallAsm: '    call bitmap_update_enemy_colors\n',
+    bulletSatCallAsm: programsUseFire ? '    call bitmap_update_enemy_bullet_sat\n' : '',
     routinesAsm,
     dataAsm,
     bankedBlocks,

@@ -11,7 +11,7 @@ import { SCREEN5_TRANSITION_EFFECTS } from './screen5TransitionEffects';
 import { bitmapStampToPixelGrid, bitmapTileScreen5ToAtlasTile } from '../../../msx2Screen5BitmapTileLibrary';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
-import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity, getMsx2PowerStompConfigFromPlayerEntity, getMsx2ShootConfigFromPlayerEntity, getMsx2TeleportABConfigFromPlayerEntity, getMsx2SlashConfigFromPlayerEntity, getMsx2GrabConfigFromPlayerEntity, getMsx2HighJumpConfigFromPlayerEntity, getMsx2WallBreakConfigFromPlayerEntity, getMsx2SpinAttackConfigFromPlayerEntity, getMsx2IceSlideConfigFromPlayerEntity, getMsx2CrouchConfigFromPlayerEntity, getMsx2DestroyTileConfigFromPlayerEntity, getMsx2CollectorGemsConfigFromPlayerEntity, getMsx2PerceptionConfigFromPlayerEntity, getMsx2TorchConfigFromPlayerEntity, getMsx2CarryAndThrowConfigFromPlayerEntity, resolveMsx2BitmapKeyboardBinding } from '../../../msx2PlatformPhysics';
+import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity, getMsx2PowerStompConfigFromPlayerEntity, getMsx2ShootConfigFromPlayerEntity, getMsx2TeleportABConfigFromPlayerEntity, getMsx2SlashConfigFromPlayerEntity, getMsx2GrabConfigFromPlayerEntity, getMsx2HighJumpConfigFromPlayerEntity, getMsx2WallBreakConfigFromPlayerEntity, getMsx2SpinAttackConfigFromPlayerEntity, getMsx2IceSlideConfigFromPlayerEntity, getMsx2CrouchConfigFromPlayerEntity, getMsx2DestroyTileConfigFromPlayerEntity, getMsx2CollectorGemsConfigFromPlayerEntity, getMsx2PerceptionConfigFromPlayerEntity, getMsx2TorchConfigFromPlayerEntity, getMsx2CarryAndThrowConfigFromPlayerEntity, getMsx2PlatformDropConfigFromPlayerEntity, resolveMsx2BitmapKeyboardBinding } from '../../../msx2PlatformPhysics';
 import { normalizeStateMachineInput } from '../../../stateMachineInputs';
 import type { Msx2CollectorGemsConfig } from '../../../msx2PlatformPhysics';
 import { buildBitmapPerceptionSystemAsm, bitmapPerceptionWindowNeeded } from './msx2BitmapPerceptionGenerator';
@@ -24,6 +24,14 @@ import {
   buildBitmapAirDashRuntimeAsm,
   MSX2_BITMAP_AIR_DASH_RAM_BYTES,
 } from './msx2BitmapAirDashGenerator';
+import {
+  MSX2_BITMAP_PLATFORM_DROP_RAM_BYTES,
+  bitmapPlatformDropEnabled,
+  buildBitmapPlatformDropEquates,
+  buildBitmapPlatformDropGateAsm,
+  buildBitmapPlatformDropInitClearAsm,
+  buildBitmapPlatformDropRuntimeAsm,
+} from './msx2BitmapPlatformDropGenerator';
 import {
   buildBitmapDashEquates,
   buildBitmapDashGateAsm,
@@ -211,6 +219,7 @@ import {
 import {
   BITMAP_MAX_ENEMY_FRAMES,
   BITMAP_MAX_ENEMY_SLOTS,
+  BITMAP_ENEMY_BULLET_SLOTS,
   BITMAP_ENEMY_POOL_STRIDE,
   BitmapEnemyRoomData,
   bitmapEnemyPoolStride,
@@ -247,8 +256,10 @@ import {
   MSX2_ENEMY_MOVEMENT_SLIME_CEILING,
   MSX2_ENEMY_MOVEMENT_GEAR_WHEEL,
   MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8,
+  MSX2_ENEMY_MOVEMENT_SCRIPTED,
   type Msx2EnemyHazardRuntimeSlot,
 } from './msx2EntityRuntimeGenerator';
+import { bakeEnemyBehavior, MSX2_ENEMY_ACT, type Msx2EnemyBehaviorAsset } from '../../../msx2EnemyBehavior';
 import { isMsx2CarryableEntity } from './msx2CarryObjectGenerator';
 import {
   collectSccTracks,
@@ -3403,6 +3414,9 @@ function buildRuntimeAsm(
     bankedRle: boolean;
     sccMusicTick?: boolean;
     subCellShapes?: boolean;
+    platformCells?: boolean;
+    /** The player may step down through one-way platforms (skill enabled). */
+    platformDrop?: boolean;
     shaftOverride?: boolean;
     multiWorld?: boolean;
     /** Pre-dimmed twin of the atlas: VRAM rows [baseY, baseY + rows). */
@@ -5581,9 +5595,17 @@ bitmap_try_move_y:
     push af
     bit 7, b
     jp nz, .y_up_edge
-${addAImmediate(hbBottom)}    jp .y_have_edge
+${addAImmediate(hbBottom)}${options.platformDrop ? `    push af
+    ld a, 1                 ; going DOWN: one-way platforms count as ground
+    ld (bitmap_platform_probe_mode), a
+    pop af
+` : ''}    jp .y_have_edge
 .y_up_edge:
-${addAImmediate(hbTop)}.y_have_edge:
+${addAImmediate(hbTop)}${options.platformDrop ? `    push af
+    xor a                   ; going UP: pass straight through them
+    ld (bitmap_platform_probe_mode), a
+    pop af
+` : ''}.y_have_edge:
     ld c, a                 ; C = probe Y (hitbox leading edge; preserved by probe_solid)
 ${probeColOffsets.map((col, index) => `    ld a, c
     cp 192
@@ -5595,7 +5617,7 @@ ${probeColOffsets.map((col, index) => `    ld a, c
 .y_probe_${index}_visible:
     ld a, (player_x)
 ${addAImmediate(col)}    ld b, a                 ; B = probe X (+${col})
-    call bitmap_probe_solid
+    call ${options.platformDrop ? 'bitmap_probe_player_vertical' : (options.platformCells ? 'bitmap_probe_floor' : 'bitmap_probe_solid')}
     jp nz, .y_blocked
 .y_probe_${index}_skip:
 `).join('')}    pop af                  ; A = candidate Y
@@ -5676,7 +5698,7 @@ bitmap_probe_solid:
     add hl, de
     ld a, (hl)              ; A = cell value (returned intact to honour the contract)
     ld e, a                 ; E = copy of cell value
-${options.subCellShapes ? `    and #BE                 ; mask out Deadly (#40) + HAS_SHAPE (#01); Z when nothing solid is left
+${options.subCellShapes ? `    and ${options.platformCells ? '#9E' : '#BE'}                 ; mask out Deadly (#40)${options.platformCells ? ' + Platform (#20)' : ''} + HAS_SHAPE (#01); Z when nothing solid is left
     jp z, .probe_cell_passable
     bit 0, e                ; HAS_SHAPE: cell carries an 8x8 quadrant mask?
     jp z, .probe_return_map_solid
@@ -5685,7 +5707,7 @@ ${options.subCellShapes ? `    and #BE                 ; mask out Deadly (#40) +
     pop de
     jp nz, .probe_return_map_solid
 .probe_cell_passable:
-` : `    and #BF                 ; mask out Deadly bit (#BF = ~#40); Z when empty or deadly-only
+` : `    and ${options.platformCells ? '#9F' : '#BF'}                 ; mask out Deadly${options.platformCells ? ' (#40) and one-way Platform (#20)' : ' bit (#BF = ~#40)'}; Z when empty or deadly-only
     jp nz, .probe_return_map_solid
 `}${doorSolidProbeCallAsm}    ld a, e                 ; restore A = original cell value
     cp e                    ; keep Z set: empty/deadly-only map cells are passable
@@ -5694,7 +5716,40 @@ ${options.subCellShapes ? `    and #BE                 ; mask out Deadly (#40) +
     ld a, e                 ; restore A = original solid cell value
     or a
     ret
-${options.subCellShapes ? `
+${options.platformCells ? `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_probe_floor
+; ------------------------------------------------------------
+; PURPOSE: "Can I stand here?", which is NOT the same question as "does this
+;   block me?" once a room has one-way platforms. Everything that lands on the
+;   ground goes through here — player and enemies alike, one rule for both.
+; INPUT: B = pixel X, C = pixel Y of the row under the feet.
+; OUTPUT: NZ = something to stand on, Z = nothing. Clobbers AF/DE/HL; keeps BC.
+;
+; A one-way platform only catches you when your feet are in the TOP #04 pixels of
+; its cell. That band IS the whole trick: deeper in the cell it lets you through,
+; which is what makes jumping up from below work, and what lets a deliberate
+; step-down keep going instead of snapping straight back on top.
+;
+; The band must stay >= the largest fall step, or a body at full speed jumps over
+; it between two ticks and drops through a platform that should have held it.
+; ------------------------------------------------------------
+bitmap_probe_floor:
+    call bitmap_probe_solid
+    ret nz                  ; real solid: floor for everybody, nothing to decide
+    bit 5, a                ; probe_solid hands back the raw cell, so no second read
+    ret z                   ; not a platform, and Z already says "nothing here"
+    ld a, c
+    and #0F
+    cp #04
+    jp c, .probe_floor_stand
+    xor a                   ; below the band: fall through
+    ret
+.probe_floor_stand:
+    ld a, #20             ; NZ, and the caller can tell it was a platform
+    or a
+    ret
+` : ''}${options.subCellShapes ? `
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_cell_shape_hit
 ; ------------------------------------------------------------
@@ -13642,19 +13697,22 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     offset: EnemySpriteCell;
     logicUpdateIntervalFrames: number;
     contact: { damage: number; hitX: number; hitY: number; hitW: number; hitH: number };
+    scriptedProgramIndex: number;
   }
   const spriteRecords = new Map<string, EnemySpriteRecord>();
   const spriteGrids = new Map<string, EnemySpriteGrid>();
   const patternBytes: number[] = [];
   const colorBytes: number[] = [];
   let maxFrames = 1;
-  const isBitmapEnemyMovementSupported = (mode: number): boolean =>
+  const isLegacyBitmapEnemyMovementSupported = (mode: number): boolean =>
     mode === MSX2_ENEMY_MOVEMENT_PATROL
     || mode === MSX2_ENEMY_MOVEMENT_PATROL_CHASE_X
     || mode === MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY
     || mode === MSX2_ENEMY_MOVEMENT_SLIME_CEILING
     || mode === MSX2_ENEMY_MOVEMENT_GEAR_WHEEL
     || mode === MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8;
+  const isBitmapEnemyMovementSupported = (mode: number): boolean =>
+    isLegacyBitmapEnemyMovementSupported(mode) || mode === MSX2_ENEMY_MOVEMENT_SCRIPTED;
   // Enemy placements intentionally keep a snapshot of their movement fields,
   // but that snapshot can predate a later change in the linked Enemy Library
   // asset.  Special bitmap enemies must use the linked asset as the source of
@@ -13665,6 +13723,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
   const behaviorMovementOverride: Record<string, string> = {
     GearWheel: 'gearWheel',
     FlyBounce8: 'flyBounce8',
+    CustomBehavior: 'scripted',
   };
   const normalizeBitmapEnemyEntity = (entity: any): any => {
     const def = resolveBitmapEnemyAssetForEntity(analysis, entity);
@@ -13686,7 +13745,35 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
   let slimeEnabled = false;
   let gearEnabled = false;
   let fly8Enabled = false;
+  let scriptedEnabled = false;
+  let scriptedProgramsUseFire = false;
   let darkEyesEnabled = false;
+  const scriptedProgramIndexById = new Map<string, number>();
+  const scriptedBehaviorPrograms: Array<{ id: string; name: string; bytes: number[] }> = [];
+  const scriptedProgramIndexForEntity = (entity: any): number => {
+    const asset = behaviorAssetForEntity(entity);
+    if (!asset) return 0; // the runtime's index-0 standing fallback
+    const id = String(asset.id || (asset as any).assetId || asset.name || '').trim();
+    if (!id) return 0;
+    const existing = scriptedProgramIndexById.get(id);
+    if (existing !== undefined) return existing;
+    const baked = bakeEnemyBehavior(asset);
+    for (const error of baked.errors) {
+      console.warn(`MSX2 bitmap scripted enemy "${asset.name || id}": ${error}`);
+    }
+    for (const warning of baked.warnings) {
+      console.warn(`MSX2 bitmap scripted enemy "${asset.name || id}": ${warning}`);
+    }
+    if (baked.usedActions.includes(MSX2_ENEMY_ACT.FIRE)) scriptedProgramsUseFire = true;
+    const index = scriptedBehaviorPrograms.length + 1; // index 0 is the fallback
+    scriptedProgramIndexById.set(id, index);
+    scriptedBehaviorPrograms.push({
+      id,
+      name: String(asset.name || id),
+      bytes: baked.bytes.map(byte => byte & 0xff),
+    });
+    return index;
+  };
   const emptyPattern = Array(32).fill(0);
   const enemyAssetForEntity = (entity: any): any | undefined => {
     const enemyId = String(entity?.params?.enemyAssetId || entity?.enemyAssetId || '').trim();
@@ -13701,6 +13788,28 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       )
     );
     return asset?.data;
+  };
+  const behaviorAssetForEntity = (entity: any): Msx2EnemyBehaviorAsset | undefined => {
+    const enemyAsset = enemyAssetForEntity(entity);
+    const behaviorId = String(
+      entity?.components?.msx2_ai?.behaviorAssetId
+      || entity?.params?.behaviorAssetId
+      || entity?.params?.enemyBehaviorAssetId
+      || enemyAsset?.behavior?.behaviorAssetId
+      || enemyAsset?.behaviorAssetId
+      || ''
+    ).trim();
+    if (!behaviorId) return undefined;
+    const asset = (analysis.assets || []).find(candidate =>
+      String(candidate?.type || '').toLowerCase() === 'msx2enemybehavior'
+      && (
+        candidate.id === behaviorId
+        || candidate.name === behaviorId
+        || String((candidate.data as any)?.id || '').trim() === behaviorId
+        || String((candidate.data as any)?.assetId || '').trim() === behaviorId
+      )
+    );
+    return asset?.data as unknown as Msx2EnemyBehaviorAsset | undefined;
   };
   const logicUpdateIntervalFramesForEntity = (entity: any): number => {
     const enemyAsset = enemyAssetForEntity(entity);
@@ -14012,6 +14121,10 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       if (pair.slot.mode === MSX2_ENEMY_MOVEMENT_SLIME_CEILING) slimeEnabled = true;
       if (pair.slot.mode === MSX2_ENEMY_MOVEMENT_GEAR_WHEEL) gearEnabled = true;
       if (pair.slot.mode === MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8) fly8Enabled = true;
+      const scriptedProgramIndex = pair.slot.mode === MSX2_ENEMY_MOVEMENT_SCRIPTED
+        ? scriptedProgramIndexForEntity(pair.entity)
+        : 0;
+      if (pair.slot.mode === MSX2_ENEMY_MOVEMENT_SCRIPTED) scriptedEnabled = true;
       const render = renderSelectionForEntity(pair.entity);
       // Only worth a second colour bank where there is darkness to hide in: a
       // project with no lamp room has no light state to test against, and the
@@ -14044,6 +14157,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
           offset: hardwareSlots[spriteLayerIndex],
           logicUpdateIntervalFrames,
           contact,
+          scriptedProgramIndex,
         });
       }
     }
@@ -14061,6 +14175,9 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     colorBytes: [],
     slimeEnabled: false,
     gearEnabled: false,
+    scriptedEnabled: false,
+    scriptedProgramsUseFire: false,
+    scriptedBehaviorPrograms: [],
     patternGroupOffsets: [],
     patternVariantCounts: [],
     patternGroupCount: 0,
@@ -14091,9 +14208,10 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
         if (slimeEnabled) table.push(0);
         if (gearEnabled) table.push(0, 0);
         if (fly8Enabled) table.push(0);
+        if (scriptedEnabled) table.push(0);
         continue;
       }
-      const { slot, render, spriteLayerIndex, offset, logicUpdateIntervalFrames, contact } = pair;
+      const { slot, render, spriteLayerIndex, offset, logicUpdateIntervalFrames, contact, scriptedProgramIndex } = pair;
       const spriteRecord = resolveSpriteRecord(render, spriteLayerIndex);
       table.push(
         slot.x & 0xff,
@@ -14126,6 +14244,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       if (fly8Enabled) {
         table.push(slot.mode === MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8 ? Math.max(1, slot.turnPx & 0xff) : 0);
       }
+      if (scriptedEnabled) table.push(scriptedProgramIndex & 0xff);
     }
     return table;
   });
@@ -14138,6 +14257,9 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     slimeEnabled,
     gearEnabled,
     fly8Enabled,
+    scriptedEnabled,
+    scriptedProgramsUseFire,
+    scriptedBehaviorPrograms,
     darkEyesEnabled,
     patternGroupOffsets,
     patternVariantCounts,
@@ -14762,6 +14884,37 @@ const CELL_HAS_SHAPE = 0x01;
 // sub-cell mode an authored bit0 is converted into a real Solid bit below.
 const CELL_LEGACY_BREAKABLE = 0x01;
 const CELL_SOLID = 0x10;
+/**
+ * One-way platform: you jump up THROUGH it and land on top on the way down, and
+ * you can step down through it on purpose.
+ *
+ * The bit has been paintable in the room editor as "Platform" for a long time
+ * (PROP_BIT.platform) but no generator ever read it, and because it survived the
+ * probe's mask a Platform cell simply behaved as solid — the label promised
+ * something the runtime never delivered. Reading it is what makes it true.
+ *
+ * Everything about it is gated on a room actually painting one, so a project
+ * that has never used the brush emits exactly the bytes it did before.
+ */
+const CELL_PLATFORM = 0x20;
+/**
+ * Pixels into a platform cell where the feet still land on it. Shared with the
+ * enemy interpreter's DROP_THROUGH, which steps exactly this far to escape it.
+ */
+const SCREEN5_PLATFORM_LAND_BAND = 4;
+
+/** True when any room paints a one-way platform cell. */
+function roomsUsePlatformCells(rooms: Msx2Screen5BitmapRoom[]): boolean {
+  return rooms.some(room => {
+    for (let y = 0; y < COLLISION_ROWS; y++) {
+      for (let x = 0; x < COLLISION_COLS; x++) {
+        const cell = clampByte(room.collision?.[y]?.[x], 0);
+        if ((cell & CELL_PLATFORM) !== 0 && (cell & CELL_SOLID) === 0) return true;
+      }
+    }
+    return false;
+  });
+}
 
 /** Authored 0..15 quadrant mask for one cell; 0 when the cell is fully solid. */
 function readCellShape(room: Msx2Screen5BitmapRoom, x: number, y: number): number {
@@ -15782,6 +15935,9 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   // shape the collision/behavior bytes, the probe routines and the probe spacing
   // are all emitted exactly like before (byte-identical ROM).
   const subCellShapes = roomsUseSubCellShapes(rooms);
+  // Same whole-build switch discipline as sub-cell shapes: no Platform cell
+  // anywhere means the probes, the masks and the ROM are untouched.
+  const platformCells = roomsUsePlatformCells(rooms);
   const roomTables = rooms.map((roomData, index) => {
     // A dark room composes from the dimmed twin of the atlas; a lit one never does,
     // even in the same world.
@@ -16553,6 +16709,22 @@ ${bossWindowRoomBlobIndices.map((indices, roomIndex) => (indices.length === 0
   }
   const crumbleSatBase = shaftSatBase + shaftHardwareSlots * 4;
   const crumbleColorBase = shaftColorBase + shaftHardwareSlots * 16;
+  // SCRIPTED FIRE: two fixed SAT/colour slots after every intermediate sprite
+  // system and before the player bullet writer. The built-in projectile owns
+  // one pattern group and is reserved only when an authored program uses FIRE.
+  const enemyBulletSlots = enemyData.scriptedProgramsUseFire ? BITMAP_ENEMY_BULLET_SLOTS : 0;
+  const enemyBulletPatternGroup = allocatePatternRange(enemyBulletSlots > 0 ? 1 : 0, allRoomsActive);
+  if (enemyBulletSlots > 0) {
+    patternRanges.push({ base: enemyBulletPatternGroup, count: 1, active: allRoomsActive });
+  }
+  if (enemyBulletSlots > 0 && enemyBulletPatternGroup + 1 > 64) {
+    throw new Error(
+      `SCREEN 5 scripted enemy FIRE needs sprite pattern group ${enemyBulletPatternGroup}, `
+      + 'but the V9938 sprite pattern table only holds 64 groups. Reduce player/enemy/platform animation or disable FIRE.',
+    );
+  }
+  const enemyBulletSatBase = crumbleSatBase + crumbleDebrisSlots * 4;
+  const enemyBulletColorBase = crumbleColorBase + crumbleDebrisSlots * 16;
   // Boss sprite bullets are part of the authored room content, so they take
   // priority over the player's optional SHOOT pattern. They reuse idle enemy
   // SAT/color slots but need an independently allocated pattern range.
@@ -16650,6 +16822,7 @@ ${bossWindowRoomBlobIndices.map((indices, roomIndex) => (indices.length === 0
     // cabins are last in the SAT chain, so they must be counted here too or the
     // bullet writer would start on top of them.
     destroySlotCount: destroyDebrisSlots + turretHardwareSlotCount + shaftHardwareSlots + crumbleDebrisSlots,
+    enemyBulletSlotCount: enemyBulletSlots,
     enemyCollisionJumpLabel: bulletTargetLabel,
     ammoCounterLabel,
     borrowPlayerPatternGroups: borrowedPlayerPatternGroups,
@@ -16816,9 +16989,18 @@ ${bossWindowRoomBlobIndices.map((indices, roomIndex) => (indices.length === 0
   // workspace above #F380.
   const HUD_LINKED_RAM_BASE = 0xD000;
   const HUD_LINKED_RAM_CEILING = 0xF000;
+  // Appended at the END of the skill RAM chain on purpose: slotting a new skill
+  // in the middle would shift every skill after it and change the ROM of every
+  // project that uses one, for a feature it does not have.
+  const platformDropConfig = getMsx2PlatformDropConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
+  const platformDropRamBase = crouchRamBase + (crouchConfig.enabled ? MSX2_BITMAP_CROUCH_RAM_BYTES : 0);
+  const platformDropEquates = buildBitmapPlatformDropEquates(platformDropConfig, platformDropRamBase);
+  const platformDropInitClear = buildBitmapPlatformDropInitClearAsm(platformDropConfig);
+  const platformDropGate = buildBitmapPlatformDropGateAsm(platformDropConfig);
+  const platformDropRuntime = buildBitmapPlatformDropRuntimeAsm(platformDropConfig);
   const linkedHudRamBase = Math.max(
     HUD_LINKED_RAM_BASE,
-    crouchRamBase + (crouchConfig.enabled ? MSX2_BITMAP_CROUCH_RAM_BYTES : 0),
+    platformDropRamBase + (bitmapPlatformDropEnabled(platformDropConfig) ? MSX2_BITMAP_PLATFORM_DROP_RAM_BYTES : 0),
   );
   let hudLinkedRamCursor = linkedHudRamBase;
   const experienceElement = linkedHudDynamicSources
@@ -17094,6 +17276,10 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
     ? { halfWidth: BITMAP_LANTERN_HALF_WIDTH, halfHeight: BITMAP_LANTERN_HALF_HEIGHT }
     : undefined;
   const enemySystem = buildBitmapEnemySystemAsm(enemyData, {
+    // One collision model for everybody: when the project has one-way platforms,
+    // the enemy interpreter asks the same "can I stand here" routine the player
+    // does, instead of the plain "does this block me".
+    floorProbeLabel: platformCells ? 'bitmap_probe_floor' : undefined,
     ramBase: hudLinkedRamCursor,
     bankedSpriteData: isKonamiMegaRom,
     satBase: enemySatBase,
@@ -17107,6 +17293,10 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
     maxHealth: playerVitals.maxHealth,
     lives: playerVitals.lives,
     respawnOnDeath: true,
+    enemyBulletSatBase: enemyBulletSatBase,
+    enemyBulletColorBase: enemyBulletColorBase,
+    enemyBulletPatternNumber: enemyBulletPatternGroup * 4,
+    enemyBulletFollowedByPlayerBullets: shootConfig.enabled,
     bulletHit: bulletHitsEnemies
       ? { chainFromBossLabel: bossData.enabled ? 'bitmap_boss_bullet_hit' : undefined }
       : undefined,
@@ -17583,6 +17773,8 @@ ${vramFree.map(gap => `;   rows ${String(gap.from).padStart(4)}..${String(gap.to
     bankedRle: isKonamiMegaRom,
     sccMusicTick: sccMusicTickEnabled,
     subCellShapes,
+    platformCells,
+    platformDrop: bitmapPlatformDropEnabled(platformDropConfig),
     shaftOverride: shaftEnabled,
     multiWorld,
     darkAtlas: darkAtlasEnabled ? { baseY: darkAtlasBaseY, rows: darkTwinRows } : undefined,
@@ -17784,7 +17976,7 @@ ${hasStateAnimations ? `    xor a
     ld (player_anim_abs_frame), a
     dec a
     ld (player_anim_state_prev), a    ; #FF forces a clean clip reset on frame 1
-` : ''}${dashInitClear}${doubleJumpInitClear}${coyoteBufferInitClear}${airDashInitClear}${glideInitClear}${wallJumpInitClear}${powerStompInitClear}${shootInitClear}${teleportInitClear}${slashInitClear}${grabInitClear}${highJumpInitClear}${wallBreakInitClear}${spinAttackInitClear}${iceSlideInitClear}${crouchInitClear}${destroyTileInitClear}`;
+` : ''}${dashInitClear}${doubleJumpInitClear}${coyoteBufferInitClear}${airDashInitClear}${glideInitClear}${wallJumpInitClear}${powerStompInitClear}${shootInitClear}${teleportInitClear}${slashInitClear}${grabInitClear}${highJumpInitClear}${wallBreakInitClear}${spinAttackInitClear}${iceSlideInitClear}${crouchInitClear}${platformDropInitClear}${destroyTileInitClear}`;
 
   // ---- SCC music (Fase 5): full tracker playback in the bitmap route ----
   // Emitted only when the project has SCC tracks AND the Konami SCC mapper is
@@ -18079,7 +18271,7 @@ ${wallBreakEquates}
 ${spinAttackEquates}
 ${iceSlideEquates}
 ${crouchEquates}
-; Active room behavior map copied here by load_room (16x12 = 192 bytes).
+${platformDropEquates}; Active room behavior map copied here by load_room (16x12 = 192 bytes).
 ; Used by surface skills such as ice_slide. Kept away from the compact player
 ; state/skill chain so future optional skills do not overlap it.
 bitmap_room_behavior_map EQU #C200
@@ -18139,12 +18331,12 @@ ${musicBootCall}${gameFlowEnabled ? '    ; Game Flow graph present: the dispatch
     ; delay the complete SAT chain: otherwise a late terminator/partial slot can
     ; be sampled by the raster as a one-frame ghost at the upper-left.
 ${playerAnimationUpdateCall}    call bitmap_update_sprite_sat
-${enemySystem.satCallAsm}${bossSystem.satCallAsm}${platformSystem.satCallAsm}${carryAndThrowSystem.satCallAsm}${destroyTileSatCall}${turretSystem.satCallAsm}${shaftSystem.satCallAsm}${crumbleSystem.satCallAsm}${shootBulletSatCall}    ; Deferred dirty/variable-cost sprite VRAM copies. A late copy can affect
+${enemySystem.satCallAsm}${bossSystem.satCallAsm}${platformSystem.satCallAsm}${carryAndThrowSystem.satCallAsm}${destroyTileSatCall}${turretSystem.satCallAsm}${shaftSystem.satCallAsm}${crumbleSystem.satCallAsm}${enemySystem.bulletSatCallAsm}${shootBulletSatCall}    ; Deferred dirty/variable-cost sprite VRAM copies. A late copy can affect
     ; colours/pixels for one frame, but can no longer expose partial SAT state.
 ${playerColorsUpdateCall}${enemySystem.colorCallAsm}${shootPatternPrepareCall}    ; ---- logic phase: safe during active display ----
     call step_room_composition
     jp c, .skip_player_movement
-${platformSystem.updateCallAsm}${shaftSystem.updateCallAsm}${bossSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${bossSystem.playerGateAsm}${perceptionSystem.inventoryGateAsm}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
+${platformSystem.updateCallAsm}${shaftSystem.updateCallAsm}${bossSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${bossSystem.playerGateAsm}${perceptionSystem.inventoryGateAsm}${platformDropGate}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
 ${playerStateMachine.mainLoopCall}${playerAirAnimCall}${dashGate}${shootGate}${lightingSystem.bulletLanternCall}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}${destroyTileGate}${platformSystem.detectCallAsm}${shaftSystem.detectCallAsm}.skip_player_movement:
 ${worldExitSystem.mainLoopCall}${perceptionSystem.mainLoopCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${turretSystem.updateCallAsm}${carryAndThrowSystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}${carryAndThrowSystem.bitmapDrawCallAsm}${lightingSystem.mainLoopCall}${musicUpdateCall}    jp bitmap_enter_game_loop
@@ -18196,7 +18388,7 @@ ${wallBreakRuntime}
 ${spinAttackRuntime}
 ${iceSlideRuntime}
 ${crouchRuntime}
-${destroyTileRuntime}
+${platformDropRuntime}${destroyTileRuntime}
 ${deadlySystem.routineAsm}
 ${heartsHud.routinesAsm}
 ${linkedHudRoutinesAsm}

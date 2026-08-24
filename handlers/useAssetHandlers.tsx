@@ -1,5 +1,6 @@
 import { createMsx2BossDefinition } from '../components/editors/Msx2BossEditor';
 import { createMsx2BossPath } from '../utils/msx2BossPath';
+import { createMsx2EnemyBehavior } from '../utils/msx2EnemyBehavior';
 import { createMsx2ShootDefinition } from '../components/editors/Msx2ShootEditor';
 import { useCallback } from 'react';
 import {
@@ -727,6 +728,11 @@ export const useAssetHandlers = ({
         newAssetData = createMsx2BossDefinition(id, defaultName);
         newEditorType = EditorType.Msx2Boss;
         break;
+      case 'msx2enemybehavior':
+        defaultName = 'New Enemy Behaviour';
+        newAssetData = createMsx2EnemyBehavior(id, defaultName);
+        newEditorType = EditorType.Msx2EnemyBehavior;
+        break;
       case 'msx2bosspath':
         defaultName = 'New Boss Path';
         newAssetData = createMsx2BossPath(id, defaultName);
@@ -1225,6 +1231,7 @@ export const useAssetHandlers = ({
       case 'msx2player': return EditorType.Msx2Player;
       case 'msx2enemy': return EditorType.Msx2Enemy;
       case 'msx2boss': return EditorType.Msx2Boss;
+      case 'msx2enemybehavior': return EditorType.Msx2EnemyBehavior;
       case 'msx2bosspath': return EditorType.Msx2BossPath;
       case 'msx2shoot': return EditorType.Msx2Shoot;
       case 'msx2hudfont': return EditorType.Msx2HudFont;
