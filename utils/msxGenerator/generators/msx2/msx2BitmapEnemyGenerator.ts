@@ -8,10 +8,11 @@ import {
 } from './msx2EntityRuntimeGenerator';
 import {
   MSX2_ENEMY_MOVEMENT_SCRIPTED,
-  MSX2_ENEMY_SCRIPT_SCRATCH_BYTES,
+  enemyScriptScratchBytes,
   MSX2_ENEMY_SCRIPT_POOL_BYTES,
   buildEnemyBehaviorRuntimeAsm,
   buildEnemyBehaviorProgramAsm,
+  enemyProgramsUseGravity,
 } from './msx2EnemyBehaviorRuntime';
 
 /**
@@ -147,7 +148,7 @@ export interface BitmapEnemyRoomData {
    */
   layeredEnemies?: boolean;
   /** Baked scripted programs, excluding the implicit index-0 fallback. */
-  scriptedBehaviorPrograms?: Array<{ id: string; name: string; bytes: number[] }>;
+  scriptedBehaviorPrograms?: Array<{ id: string; name: string; bytes: number[]; gravity?: boolean }>;
   /** True only when a baked authored program actually contains FIRE. */
   scriptedProgramsUseFire?: boolean;
   /**
@@ -304,6 +305,9 @@ export function buildBitmapEnemySystemAsm(
   // path: without one, not a single byte of the update loop moves.
   const layered = Boolean(data.layeredEnemies);
   const programsUseFire = scripted && data.scriptedProgramsUseFire === true;
+  // Gravity is the default for an authored behaviour, so this is normally true;
+  // a project whose enemies all fly gets neither the hook nor the table.
+  const programsUseGravity = scripted && enemyProgramsUseGravity(data.scriptedBehaviorPrograms || []);
   const enemyBulletSlotCount = programsUseFire ? BITMAP_ENEMY_BULLET_SLOTS : 0;
   // MegaROM: the sprite art lives in a data bank, so every copy goes through the
   // below-#8000 helper that owns the swap (these routines sit in #8000-#9FFF).
@@ -367,7 +371,7 @@ export function buildBitmapEnemySystemAsm(
       + 'from buildBitmapEnemySystemAsm.',
     );
   }
-  const enemyBulletRamBase = scriptedScratchAddr + MSX2_ENEMY_SCRIPT_SCRATCH_BYTES;
+  const enemyBulletRamBase = scriptedScratchAddr + enemyScriptScratchBytes(programsUseGravity);
   const scriptedRuntime = scripted
     ? buildEnemyBehaviorRuntimeAsm({
       ramBase: scriptedScratchAddr,
@@ -384,6 +388,7 @@ export function buildBitmapEnemySystemAsm(
       poolStride: POOL_STRIDE,
       maxSlots,
       programsUseFire,
+      programsUseGravity,
       enemyBullets: programsUseFire ? {
         ramBase: enemyBulletRamBase,
         slotCount: enemyBulletSlotCount,

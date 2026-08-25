@@ -207,6 +207,23 @@ export const Msx2EnemyBehaviorEditor: React.FC<Msx2EnemyBehaviorEditorProps> = (
               cheapest way to buy back CPU when a room is busy.
             </p>
 
+            <label className="flex items-start gap-2 mt-3 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={behavior.gravity !== false}
+                onChange={event => patch({ gravity: event.target.checked })}
+              />
+              <span>
+                <span className="text-xs">Falls with gravity</span>
+                <span className="block text-[11px] text-msx-textsecondary">
+                  On by default: with nothing under it the enemy drops, with no rule needed for it.
+                  Turn it off for anything that flies. JUMP, FALL, RISE, DESCEND and DROP_THROUGH
+                  still take over the vertical axis on the tick they run.
+                </span>
+              </span>
+            </label>
+
             <div className="mt-3 pt-3 border-t border-msx-border">
               <label className={label}>Start from a preset</label>
               <div className="flex gap-2 items-start">

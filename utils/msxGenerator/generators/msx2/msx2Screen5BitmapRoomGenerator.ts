@@ -13758,7 +13758,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
   // Set while expanding: at least one body needs more than one hardware sprite.
   let layeredEnemies = false;
   const scriptedProgramIndexById = new Map<string, number>();
-  const scriptedBehaviorPrograms: Array<{ id: string; name: string; bytes: number[] }> = [];
+  const scriptedBehaviorPrograms: Array<{ id: string; name: string; bytes: number[]; gravity: boolean }> = [];
   const scriptedProgramIndexForEntity = (entity: any): number => {
     const asset = behaviorAssetForEntity(entity);
     if (!asset) return 0; // the runtime's index-0 standing fallback
@@ -13780,6 +13780,9 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       id,
       name: String(asset.name || id),
       bytes: baked.bytes.map(byte => byte & 0xff),
+      // Absent means yes: an authored enemy falls unless it says otherwise, so
+      // an asset saved before this field existed keeps behaving like a body.
+      gravity: (asset as any).gravity !== false,
     });
     return index;
   };

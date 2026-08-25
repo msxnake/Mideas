@@ -55,6 +55,16 @@ export const MSX2_ENEMY_SCRIPT_POOL_BYTES = 6;
 /** Shared scratch, one copy for the whole engine rather than one per slot. */
 export const MSX2_ENEMY_SCRIPT_SCRATCH_BYTES = 9;
 
+/**
+ * The scratch actually reserved for a build. Automatic gravity needs one more
+ * byte, and it is conditional rather than always-on because everything chained
+ * after this block moves with it: a project that does not use gravity would get
+ * a whole ROM of shifted addresses for a byte it never reads.
+ */
+export function enemyScriptScratchBytes(programsUseGravity: boolean): number {
+  return MSX2_ENEMY_SCRIPT_SCRATCH_BYTES + (programsUseGravity ? 1 : 0);
+}
+
 /** Value the damage path stamps on a slot when a player bullet connects. */
 export const MSX2_ENEMY_SCRIPT_HIT_STAMP = 0xff;
 
@@ -123,6 +133,13 @@ export interface EnemyBehaviorRuntimeOptions {
    */
   programsUseFire?: boolean;
   /**
+   * Set when at least one baked program is subject to gravity, which is the
+   * default for an authored behaviour: an enemy with nothing under it falls.
+   * Off for a project whose enemies all fly, and then not one byte of the
+   * integrator hook or its per-program table reaches the ROM.
+   */
+  programsUseGravity?: boolean;
+  /**
    * The enemy bullet pool. Omitted entirely when no authored program fires, so
    * turning the behaviour engine on costs no RAM, no SAT slots and no code for
    * a project whose enemies never shoot.
@@ -183,6 +200,7 @@ export function buildEnemyBehaviorRuntimeAsm(options: EnemyBehaviorRuntimeOption
     );
   }
   const bullets = options.enemyBullets;
+  const gravity = options.programsUseGravity === true;
   const BULLET_SLOTS = bullets ? Math.max(1, Math.min(8, Math.floor(bullets.slotCount) || 2)) : 0;
   const BULLET_SPEED = bullets ? Math.max(1, Math.min(8, Math.floor(bullets.speedPx) || 3)) : 0;
   const BULLET_DAMAGE = bullets ? Math.max(1, Math.min(8, Math.floor(bullets.damageHearts) || 1)) : 0;
@@ -218,9 +236,10 @@ export function buildEnemyBehaviorRuntimeAsm(options: EnemyBehaviorRuntimeOption
     next: base + 6,
     seed: base + 7,
     aheadMode: base + 8,
+    verticalMoved: base + 9,
   };
 
-  const equates = `; --- scripted ENEMY behaviour engine (${MSX2_ENEMY_SCRIPT_SCRATCH_BYTES} shared bytes) ---
+  const equates = `; --- scripted ENEMY behaviour engine (${enemyScriptScratchBytes(gravity)} shared bytes) ---
 ; Shared, not per slot: only one enemy is ever mid-interpretation at a time.
 bitmap_enemy_script_base   EQU ${asmWord(addr.programBase)}
 bitmap_enemy_script_cursor EQU ${asmWord(addr.cursor)}
@@ -229,6 +248,9 @@ bitmap_enemy_script_arg    EQU ${asmWord(addr.arg)}
 bitmap_enemy_script_next   EQU ${asmWord(addr.next)}
 bitmap_enemy_script_seed   EQU ${asmWord(addr.seed)}
 bitmap_enemy_script_ahead_mode EQU ${asmWord(addr.aheadMode)}
+${gravity ? `; Set by any action that moved the body vertically, so automatic gravity does
+; not integrate the same tick twice. Cleared at the top of every step.
+bitmap_enemy_script_vmoved EQU ${asmWord(addr.verticalMoved)}` : ''}
 ; Slot offsets the DAMAGE path needs, published as symbols so the shooting code
 ; never has to hardcode a number that moves when the pool grows:
 ;   on impact          ld (ix+bitmap_enemy_script_hit_ofs), bitmap_enemy_script_hit_stamp
@@ -259,6 +281,9 @@ bitmap_enemy_bullet_slots EQU ${BULLET_SLOTS}
 ; ------------------------------------------------------------
 bitmap_enemy_script_step:
     push bc                        ; the update loop's slot counter lives in B
+${gravity ? `    xor a
+    ld (bitmap_enemy_script_vmoved), a     ; nothing has moved this body yet
+` : ''}
     ; ONE PRNG STEP PER FRAME, NOT PER SLOT.
     ; A placed enemy occupies one pool slot per colour layer, and the interpreter
     ; runs on each of them. Advancing the seed inside RANDOM meant the two layers
@@ -381,7 +406,31 @@ bitmap_enemy_script_tick:
     jp z, bitmap_enemy_script_done         ; saturate at 255 instead of wrapping
     ld (ix+${TIMER}), a
 bitmap_enemy_script_done:
-    ; Per-tick housekeeping. It lives HERE and not in _tick because _tick is
+${gravity ? `    ; AUTOMATIC GRAVITY. An enemy with nothing under it falls, without the
+    ; author having to write a rule for it. It runs on the single exit, so it
+    ; applies whichever rule fired — including the ones that never touch the
+    ; vertical axis, which is exactly the case that used to leave a walker
+    ; hovering over the hole it had just walked into.
+    ;
+    ; Two ways out of it. An action that already moved the body vertically sets
+    ; the flag, because integrating twice in one tick doubles the fall speed and
+    ; makes JUMP look like it barely leaves the ground. And a program may opt out
+    ; entirely: floaters exist, and gravity is a property of the behaviour, not
+    ; of the room.
+    ld a, (bitmap_enemy_script_vmoved)
+    or a
+    jp nz, .gravity_done
+    ld a, (ix+${PROG})
+    ld l, a
+    ld h, 0                        ; BYTE table: the index is NOT doubled here
+    ld de, bitmap_enemy_script_gravity_table
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .gravity_done
+    call bitmap_enemy_script_integrate_vy
+.gravity_done:
+` : ''}    ; Per-tick housekeeping. It lives HERE and not in _tick because _tick is
     ; skipped whenever the rule switched state, and a shield that stopped
     ; running down on the tick it was raised would never expire.
     ld a, (ix+${SHIELD})
@@ -813,8 +862,24 @@ bitmap_enemy_script_act_jump:
     ld (ix+${VY}), a
     jp bitmap_enemy_script_act_fall
 bitmap_enemy_script_act_fall:
-    ; One signed byte of vertical velocity: positive rises, negative falls, and
-    ; gravity subtracts one per tick down to terminal velocity.
+${gravity ? `    ld a, 1
+    ld (bitmap_enemy_script_vmoved), a  ; this tick's vertical move is authored
+` : ''}    call bitmap_enemy_script_integrate_vy
+    jp bitmap_enemy_script_apply
+; ------------------------------------------------------------
+; FUNCTION: bitmap_enemy_script_integrate_vy
+; ------------------------------------------------------------
+; PURPOSE: One tick of vertical motion for the slot in IX. One signed byte of
+;   velocity: positive rises, negative falls, and gravity subtracts one per tick
+;   down to terminal velocity. Landing and bonking both zero the velocity.
+; INPUT: IX = pool slot. OUTPUT: (ix+1) and (ix+${VY}) updated.
+; DESTROYS: AF, DE. PRESERVES: BC, HL, IX, IY.
+; CALLS: the head/below probes, and through them ${FLOOR_PROBE}.
+; ------------------------------------------------------------
+; A subroutine and not a fall-through because AUTOMATIC gravity runs it from the
+; step's exit, where there is no action to fall out of. Duplicating it there
+; instead would leave two integrators to keep in agreement.
+bitmap_enemy_script_integrate_vy:
     ld a, (ix+${VY})
     or a
     jp z, .fall_down_1
@@ -835,7 +900,7 @@ bitmap_enemy_script_act_fall:
     jp .fall_gravity
 .fall_bonk:
     ld (ix+${VY}), 0               ; hit the ceiling: start falling next tick
-    jp bitmap_enemy_script_apply
+    ret
 .fall_down_1:
     ld d, 1                        ; velocity zero still falls a pixel
     jp .fall_down_px
@@ -853,18 +918,20 @@ bitmap_enemy_script_act_fall:
     jp .fall_gravity
 .fall_land:
     ld (ix+${VY}), 0
-    jp bitmap_enemy_script_apply
+    ret
 .fall_gravity:
     ld a, (ix+${VY})
     cp ${asmByte(TERMINAL_VELOCITY)}
-    jp z, bitmap_enemy_script_apply
+    ret z
     dec a
     ld (ix+${VY}), a
-    jp bitmap_enemy_script_apply
+    ret
 bitmap_enemy_script_act_rise:
     ; Climb ignoring gravity, for floaters. It still probes: a floater that
     ; embeds itself in the ceiling looks broken, and costs nothing to prevent.
-    ld d, (ix+${SPEED})
+${gravity ? `    ld a, 1
+    ld (bitmap_enemy_script_vmoved), a  ; "ignoring gravity" has to mean it
+` : ''}    ld d, (ix+${SPEED})
 .rise_px:
     ld a, (ix+1)
     or a
@@ -930,7 +997,9 @@ bitmap_enemy_script_act_walk_back:
     jp bitmap_enemy_script_apply
 bitmap_enemy_script_act_descend:
     ; The mirror of RISE: sink ignoring gravity, but stop on solid ground.
-    ld d, (ix+${SPEED})
+${gravity ? `    ld a, 1
+    ld (bitmap_enemy_script_vmoved), a
+` : ''}    ld d, (ix+${SPEED})
 .descend_px:
     push de
     call bitmap_enemy_script_probe_below
@@ -970,7 +1039,9 @@ bitmap_enemy_script_act_drop_through:
     add a, ${PLATFORM_LAND_BAND}
     ld (ix+1), a
     ld (ix+${VY}), 0               ; start the fall from rest, like leaving a ledge
-    jp bitmap_enemy_script_apply
+${gravity ? `    ld a, 1
+    ld (bitmap_enemy_script_vmoved), a  ; the step past the band IS this tick's fall
+` : ''}    jp bitmap_enemy_script_apply
 bitmap_enemy_script_act_chase:
     ; Face and step on the same tick. Falls into WALK rather than duplicating
     ; it, so the patrol bounds keep applying to a chase exactly as they do to a
@@ -1174,7 +1245,7 @@ bitmap_enemy_script_act_table:
   return {
     equates,
     routinesAsm,
-    ramBytes: MSX2_ENEMY_SCRIPT_SCRATCH_BYTES,
+    ramBytes: enemyScriptScratchBytes(gravity),
     // Reported separately because it sits at its own ramBase, which the caller
     // chose: this is how much of it is actually in use.
     bulletRamBytes: BULLET_SLOTS * 4,
@@ -1188,10 +1259,21 @@ bitmap_enemy_script_act_table:
  * missing points at a real program instead of at whatever byte pair sits at the
  * head of the table.
  */
+/**
+ * True when at least one AUTHORED program falls. The index-0 fallback is left
+ * out of the vote on purpose: it is always gravity-bound, and counting it would
+ * make the answer "yes" for every project, including one whose enemies all fly.
+ */
+export function enemyProgramsUseGravity(
+  programs: Array<{ gravity?: boolean }>,
+): boolean {
+  return programs.some(program => program.gravity !== false);
+}
+
 export function buildEnemyBehaviorProgramAsm(
-  programs: Array<{ id: string; name: string; bytes: number[] }>,
+  programs: Array<{ id: string; name: string; bytes: number[]; gravity?: boolean }>,
 ): { asm: string; indexById: Record<string, number> } {
-  const fallback = { id: '__fallback__', name: 'standing fallback', bytes: [1, 3, 0, 1, 0, 0, 0, 0, 0xff] };
+  const fallback = { id: '__fallback__', name: 'standing fallback', bytes: [1, 3, 0, 1, 0, 0, 0, 0, 0xff], gravity: true };
   const all = [fallback, ...programs];
   const indexById: Record<string, number> = {};
   all.forEach((program, index) => { indexById[program.id] = index; });
@@ -1204,6 +1286,18 @@ export function buildEnemyBehaviorProgramAsm(
     ...all.map((program, index) => `    dw bitmap_enemy_script_program_${index}   ; ${program.name}`),
     '',
   ];
+  if (enemyProgramsUseGravity(programs)) {
+    // One BYTE per program, indexed by the same number as the pointer table
+    // above but NOT doubled. Kept as a table rather than a pool byte because
+    // gravity belongs to the behaviour, and a slot already carries its program.
+    lines.push(
+      '; ---- does this behaviour fall? ----',
+      'bitmap_enemy_script_gravity_table:',
+      ...all.map((program, index) =>
+        `    db ${program.gravity === false ? '#00' : '#01'}   ; ${index}: ${program.name}`),
+      '',
+    );
+  }
   all.forEach((program, index) => {
     lines.push(`bitmap_enemy_script_program_${index}:   ; ${program.name} (${program.bytes.length} bytes)`);
     for (let at = 0; at < program.bytes.length; at += 16) {

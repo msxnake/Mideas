@@ -67,6 +67,19 @@ const runtime = buildEnemyBehaviorRuntimeAsm({
   poolStride: 30,
   maxSlots: 4,
 });
+/** Same engine with automatic gravity armed, which is the normal case for a
+ *  project: every authored behaviour falls unless it opts out. */
+const gravityRuntime = buildEnemyBehaviorRuntimeAsm({
+  ramBase: 0xc300,
+  poolProgramOffset: 24,
+  poolStateOffset: 25,
+  poolTimerOffset: 26,
+  poolVelocityOffset: 27,
+  poolStride: 30,
+  maxSlots: 4,
+  programsUseGravity: true,
+});
+const gravityCode = gravityRuntime.routinesAsm.replace(/;[^\n]*/g, '').replace(/[ \t]+$/gm, '');
 const asm = runtime.routinesAsm;
 /** Structural matches run against the instructions alone: a trailing comment is
  *  not a difference, and making the checks depend on one makes them brittle. */
@@ -262,6 +275,46 @@ const bulletLocals = [...bulletSection.matchAll(/^(\.[A-Za-z0-9_]+):/gm)].map(m 
 check('THE BUG THIS GUARDS: every local label in the bullet code is prefixed, so it cannot collide with another generator',
   bulletLocals.length >= 8 && bulletLocals.every(label => label.startsWith('.ebul_')));
 
+// ---- automatic gravity ------------------------------------------------------
+// THE BUG THIS GUARDS: before this existed, an enemy whose rules never touched
+// the vertical axis simply hovered over the hole it had walked into, and every
+// authored behaviour needed a FALL rule that authors kept forgetting.
+check('Default OFF: no gravity hook and no table read without an authored faller',
+  !code.includes('bitmap_enemy_script_gravity_table')
+  && !code.includes('bitmap_enemy_script_vmoved'));
+check('Gravity runs on the single exit, so it applies whichever rule fired',
+  /bitmap_enemy_script_done:[\s\S]{0,400}?call bitmap_enemy_script_integrate_vy/.test(gravityCode));
+// THE BUG THIS GUARDS: integrating twice in one tick doubles the fall speed and
+// makes JUMP look like it barely leaves the ground.
+check('An action that already moved the body vertically suppresses gravity for that tick',
+  /ld a, \(bitmap_enemy_script_vmoved\)\s*\n\s*or a\s*\n\s*jp nz, \.gravity_done/.test(gravityCode)
+  && /bitmap_enemy_script_act_fall:\s*\n\s*ld a, 1\s*\n\s*ld \(bitmap_enemy_script_vmoved\), a/.test(gravityCode)
+  && /bitmap_enemy_script_act_rise:\s*\n\s*ld a, 1/.test(gravityCode)
+  && /bitmap_enemy_script_act_descend:\s*\n\s*ld a, 1/.test(gravityCode));
+check('The flag is cleared at the top of every step, not left over from the last slot',
+  /bitmap_enemy_script_step:\s*\n\s*push bc\s*\n\s*xor a\s*\n\s*ld \(bitmap_enemy_script_vmoved\), a/.test(gravityCode));
+// THE BUG THIS GUARDS: the boss word tables cost a day when (room*2+slot) was
+// used as a byte offset. This one is a db table, so the index must NOT be
+// doubled — the mirror-image mistake, and just as silent.
+check('The gravity table is indexed as bytes, not doubled like the word tables',
+  /ld a, \(ix\+24\)\s*\n\s*ld l, a\s*\n\s*ld h, 0\s*\n\s*ld de, bitmap_enemy_script_gravity_table\s*\n\s*add hl, de/.test(gravityCode));
+check('One integrator, called by both FALL and gravity, so they cannot drift apart',
+  (gravityCode.match(/bitmap_enemy_script_integrate_vy:/g) || []).length === 1
+  && (gravityCode.match(/call bitmap_enemy_script_integrate_vy/g) || []).length === 2);
+check('A program can opt out: gravity 0 in the table skips the integrator',
+  /ld de, bitmap_enemy_script_gravity_table[\s\S]{0,80}?or a\s*\n\s*jp z, \.gravity_done/.test(gravityCode));
+
+const gravityPrograms = buildEnemyBehaviorProgramAsm([
+  { id: 'walker', name: 'Walker', bytes: [1, 3, 0, 1, 0, 0, 0, 0, 0xff] },
+  { id: 'floater', name: 'Floater', bytes: [1, 3, 0, 1, 0, 0, 0, 0, 0xff], gravity: false },
+]);
+check('The gravity table carries one byte per program, fallback included',
+  /bitmap_enemy_script_gravity_table:\s*\n\s*db #01[\s\S]*?db #01[\s\S]*?db #00/.test(gravityPrograms.asm));
+check('A project whose behaviours all fly emits no gravity table at all',
+  !buildEnemyBehaviorProgramAsm([
+    { id: 'floater', name: 'Floater', bytes: [1, 3, 0, 1, 0, 0, 0, 0, 0xff], gravity: false },
+  ]).asm.includes('bitmap_enemy_script_gravity_table'));
+
 // ---- program emission -------------------------------------------------------
 const preset = bakeEnemyBehavior(createMsx2EnemyBehavior('walker', 'Walker'));
 const programs = buildEnemyBehaviorProgramAsm([{ id: 'walker', name: 'Walker', bytes: preset.bytes }]);
@@ -283,6 +336,7 @@ if (!existsSync(glass)) {
   const variants = [
     { label: 'interpreter', build: runtime, body: asm },
     { label: 'interpreter with the enemy bullet pool', build: armed, body: armed.routinesAsm },
+    { label: 'interpreter with automatic gravity', build: gravityRuntime, body: gravityRuntime.routinesAsm },
   ];
   for (const variant of variants) {
     const source = join(workDir, `runtime_probe_${variant.label.replace(/\W+/g, '_')}.asm`);

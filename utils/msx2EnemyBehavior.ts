@@ -317,6 +317,17 @@ export interface Msx2EnemyBehaviorAsset {
   speedPxPerTick?: number;
   /** Video frames between logic ticks, mirroring the existing cadence gate. */
   logicIntervalFrames?: number;
+  /**
+   * Does this enemy fall when there is nothing under it? Defaults to TRUE: a
+   * body standing on air is the surprising case, not the ordinary one, and
+   * before this existed every ground enemy needed an explicit FALL rule that
+   * authors kept forgetting — the enemy simply hovered over the hole.
+   *
+   * Set false for anything that flies. The vertical actions (JUMP, FALL, RISE,
+   * DESCEND, DROP_THROUGH) always win for the tick they run in, so a program
+   * can still take the axis over whenever it wants.
+   */
+  gravity?: boolean;
   notes?: string;
 }
 
@@ -663,7 +674,9 @@ export const MSX2_ENEMY_BEHAVIOR_PRESETS: Msx2EnemyBehaviorPreset[] = [
     label: 'Floater',
     summary: 'Drifts up and down between its authored Y bounds, ignoring gravity, and turns at walls.',
     build: () => ({
-      target: 'MSX2', initialState: 0, speedPxPerTick: 1, logicIntervalFrames: 3,
+      // The one preset that opts out of automatic gravity. Everything else here
+      // is a ground creature and falls when the floor runs out.
+      target: 'MSX2', initialState: 0, speedPxPerTick: 1, logicIntervalFrames: 3, gravity: false,
       states: [
         {
           id: 'state_up', name: 'Rise',
@@ -688,7 +701,7 @@ export const MSX2_ENEMY_BEHAVIOR_PRESETS: Msx2EnemyBehaviorPreset[] = [
   {
     key: 'hopper',
     label: 'Hopper',
-    summary: 'Waits on the ground, then hops forward. The arc needs two air states because only one action runs per tick.',
+    summary: 'Waits on the ground, then hops forward in an arc.',
     build: () => ({
       target: 'MSX2', initialState: 0, speedPxPerTick: 2, logicIntervalFrames: 2,
       states: [
@@ -700,22 +713,16 @@ export const MSX2_ENEMY_BEHAVIOR_PRESETS: Msx2EnemyBehaviorPreset[] = [
           ],
         },
         {
-          // A diagonal hop is NOT expressible in one tick: the interpreter runs
-          // exactly one action, so gravity and forward motion have to take turns.
-          // These two states are that alternation, and each axis therefore
-          // advances every other tick.
-          id: 'state_hop_fall', name: 'Hop (gravity)',
+          // A diagonal hop used to need TWO air states taking turns, because the
+          // interpreter runs exactly one action per tick and the fall had to be
+          // one of them. Automatic gravity moves the vertical axis off the rule
+          // list entirely, so the air state now does nothing but keep going
+          // forward and the arc comes out of the engine.
+          id: 'state_hop', name: 'Hop',
           rules: [
             rule('ON_GROUND', 'IDLE', { nextState: 0 }),
-            rule('ALWAYS', 'FALL', { nextState: 2 }),
-          ],
-        },
-        {
-          id: 'state_hop_move', name: 'Hop (forward)',
-          rules: [
-            rule('ON_GROUND', 'IDLE', { nextState: 0 }),
-            rule('WALL_AHEAD', 'TURN', { nextState: 1 }),
-            rule('ALWAYS', 'WALK', { nextState: 1 }),
+            rule('WALL_AHEAD', 'TURN'),
+            rule('ALWAYS', 'WALK'),
           ],
         },
       ],
