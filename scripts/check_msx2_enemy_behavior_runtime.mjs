@@ -173,6 +173,17 @@ check('THE BUG THIS GUARDS: RANDOM only READS the seed, so every layer of an ene
   && !/bitmap_enemy_script_cond_random:[\s\S]{0,200}?ld \(bitmap_enemy_script_seed\), a/.test(code));
 check('The seed advances once per FRAME, gated on being the first slot of the sweep',
   /ld a, \(bitmap_enemy_count\)\s*\n\s*cp b\s*\n\s*jp nz, \.escript_seed_done[\s\S]*?ld \(bitmap_enemy_script_seed\), a/.test(code));
+// THE BUG THIS GUARDS, measured on hardware before the leader/follower change:
+// ENEMY_AHEAD skipped only its own slot ADDRESS, so the second layer of a body
+// saw the first one a pixel ahead — the leader had already moved that frame —
+// and turned away from it. The two layers fled each other from the first frames
+// and settled 20px apart. Address equality is never the right identity for a
+// body that owns several slots; the logical origin is.
+check('THE BUG THIS GUARDS: ENEMY_AHEAD skips every slot of MY OWN body, not just my own slot',
+  /bitmap_enemy_script_cond_enemy_ahead:[\s\S]*?call bitmap_enemy_script_origin[\s\S]*?\.ea_slot:[\s\S]*?cp d\s*\n\s*jp nz, \.ea_test[\s\S]*?cp e\s*\n\s*jp z, \.ea_next/.test(code)
+  && !/bitmap_enemy_script_cond_enemy_ahead:[\s\S]{0,400}?push ix\s*\n\s*pop de/.test(code));
+check('ENEMY_AHEAD keeps its slot counter across the origin arithmetic',
+  /\.ea_slot:\s*\n\s*push hl\s*\n\s*push bc[\s\S]*?pop bc\s*\n\s*pop hl/.test(code));
 
 // ---- one-way platforms ------------------------------------------------------
 // THE BUG THIS GUARDS: the landing band and the DROP_THROUGH nudge are the same

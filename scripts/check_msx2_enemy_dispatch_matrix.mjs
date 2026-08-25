@@ -130,6 +130,42 @@ for (const combo of COMBOS) {
   }
 }
 
+// ---- layer followers -------------------------------------------------------
+// One placed enemy becomes one pool slot per cell x colour layer, and the extra
+// slots carry mode 15 so they copy the slot before them instead of running the
+// behaviour again. The saving is real (measured: the interpreter drops from 60
+// to 30 calls/second on a two-layer enemy) but it must not exist at all in a
+// project whose enemies are single-layer, or every such ROM moves for nothing.
+for (const scripted of [false, true]) {
+  const name = `layered${scripted ? '+scripted' : ''}`;
+  const plain = buildBitmapEnemySystemAsm(makeData({ slime: false, gear: false, fly8: false, scripted }), OPTS);
+  check(`no follower path without layered enemies: ${name}`,
+    !plain.routinesAsm.includes('.enemy_step_follow')
+    && !/cp 15\b/.test(plain.routinesAsm));
+
+  const layered = buildBitmapEnemySystemAsm(
+    { ...makeData({ slime: false, gear: false, fly8: false, scripted }), layeredEnemies: true },
+    OPTS,
+  );
+  check(`follower dispatch emitted when layered: ${name}`,
+    /cp 15\s*\n\s*jp z, \.enemy_step_follow\b/.test(layered.routinesAsm));
+  // The handler is deliberately parked behind the loop's own `ret`: every other
+  // block in this routine chains by physical adjacency, and that is exactly how
+  // two dispatch borders were opened by accident before.
+  const lines = layered.routinesAsm.split('\n');
+  let idx = lines.findIndex((l) => l.startsWith('.enemy_step_follow:'));
+  let j = idx - 1;
+  while (j >= 0 && (lines[j].trim() === '' || lines[j].trim().startsWith(';'))) j--;
+  const prev = j >= 0 ? lines[j].trim() : '';
+  const t = transferOf(prev);
+  check(`border closed before .enemy_step_follow: ${name}`,
+    Boolean(t && !t.conditional), t ? '' : `preceding line: "${prev}"`);
+  // A follower rebuilds its position from the body origin. Reading the leader's
+  // raw x instead would stack every cell of a wide sprite on one point.
+  check(`follower rebuilds position from the body origin: ${name}`,
+    /ld a, \(iy\+0\)[^\n]*\n\s*sub \(iy\+14\)[^\n]*\n\s*add a, \(ix\+14\)/.test(layered.routinesAsm));
+}
+
 let failed = 0;
 for (const [label, ok, detail] of checks) {
   console.log(`${ok ? 'OK  ' : 'FAIL'}: ${label}${!ok && detail ? ` -> ${detail}` : ''}`);

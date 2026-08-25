@@ -257,6 +257,7 @@ import {
   MSX2_ENEMY_MOVEMENT_GEAR_WHEEL,
   MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8,
   MSX2_ENEMY_MOVEMENT_SCRIPTED,
+  MSX2_ENEMY_MOVEMENT_LAYER_FOLLOWER,
   type Msx2EnemyHazardRuntimeSlot,
 } from './msx2EntityRuntimeGenerator';
 import { bakeEnemyBehavior, MSX2_ENEMY_ACT, type Msx2EnemyBehaviorAsset } from '../../../msx2EnemyBehavior';
@@ -13698,6 +13699,12 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     logicUpdateIntervalFrames: number;
     contact: { damage: number; hitX: number; hitY: number; hitW: number; hitH: number };
     scriptedProgramIndex: number;
+    /** Extra hardware layer of a body already represented by an earlier slot:
+     *  it copies that slot instead of running the behaviour a second time. */
+    isFollower: boolean;
+    /** Follower that shares its leader's exact position (a second colour layer
+     *  of the same cell, not a second cell), so its touch hitbox is a duplicate. */
+    isColorDuplicate: boolean;
   }
   const spriteRecords = new Map<string, EnemySpriteRecord>();
   const spriteGrids = new Map<string, EnemySpriteGrid>();
@@ -13748,6 +13755,8 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
   let scriptedEnabled = false;
   let scriptedProgramsUseFire = false;
   let darkEyesEnabled = false;
+  // Set while expanding: at least one body needs more than one hardware sprite.
+  let layeredEnemies = false;
   const scriptedProgramIndexById = new Map<string, number>();
   const scriptedBehaviorPrograms: Array<{ id: string; name: string; bytes: number[] }> = [];
   const scriptedProgramIndexForEntity = (entity: any): number => {
@@ -14149,6 +14158,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
         if (pair.slot.mode === MSX2_ENEMY_MOVEMENT_SLIME_CEILING) {
           slotNeedsCeilingVariants[slotIndex] = true;
         }
+        if (spriteLayerIndex > 0) layeredEnemies = true;
         expanded.push({
           slot: offsetRuntimeSlot(pair.slot, hardwareSlots[spriteLayerIndex]),
           entity: pair.entity,
@@ -14158,6 +14168,8 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
           logicUpdateIntervalFrames,
           contact,
           scriptedProgramIndex,
+          isFollower: spriteLayerIndex > 0,
+          isColorDuplicate: spriteLayerIndex % Math.max(1, grid.colorLayerCount) !== 0,
         });
       }
     }
@@ -14213,6 +14225,14 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       }
       const { slot, render, spriteLayerIndex, offset, logicUpdateIntervalFrames, contact, scriptedProgramIndex } = pair;
       const spriteRecord = resolveSpriteRecord(render, spriteLayerIndex);
+      // Extra layers carry the follower marker instead of the body's movement
+      // mode: the runtime dispatches on this byte, so this is what keeps the
+      // behaviour from being run once per hardware sprite.
+      const modeByte = pair.isFollower ? MSX2_ENEMY_MOVEMENT_LAYER_FOLLOWER : slot.mode;
+      // A second colour layer of the same cell sits exactly where its leader
+      // does, so its DamageOnTouch box is the leader's box tested twice. The
+      // touch loop skips slots with damage 0, which makes the duplicate free.
+      const damageByte = pair.isColorDuplicate ? 0 : contact.damage;
       table.push(
         slot.x & 0xff,
         slot.y & 0xff,
@@ -14226,10 +14246,10 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
         spriteRecord.colorOff & 0xff,
         spriteRecord.frameCount & 0xff,
         Math.max(1, spriteRecord.delay) & 0xff,
-        slot.mode & 0xff,
+        modeByte & 0xff,
         offset.x & 0xff,
         offset.y & 0xff,
-        contact.damage & 0xff,
+        damageByte & 0xff,
         contact.hitX & 0xff,
         contact.hitY & 0xff,
         contact.hitW & 0xff,
@@ -14261,6 +14281,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     scriptedProgramsUseFire,
     scriptedBehaviorPrograms,
     darkEyesEnabled,
+    layeredEnemies,
     patternGroupOffsets,
     patternVariantCounts,
     patternGroupCount,

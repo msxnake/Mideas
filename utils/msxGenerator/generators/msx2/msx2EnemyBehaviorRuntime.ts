@@ -690,16 +690,34 @@ bitmap_enemy_script_cond_enemy_ahead:
     or a
     jp z, bitmap_enemy_script_false
 ${slotClampAsm}    ld b, a                        ; B = slots left to test
-    push ix
-    pop de                         ; DE = my own slot address, to skip myself
+    ; Skipping my own SLOT is not enough: a body wider than one cell, or drawn
+    ; in more than one colour, owns several slots, and the ones beside me would
+    ; read as a neighbour standing 16px away. Skip everything sharing my logical
+    ; origin instead, which is the same key the kill and damage code uses.
+    call bitmap_enemy_script_origin ; DE = my logical origin
     ld hl, bitmap_enemy_pool
 .ea_slot:
-    ld a, h
+    push hl
+    push bc
+    ld a, (hl)                     ; their x
+    ld bc, ${VXOFF}
+    add hl, bc
+    sub (hl)                       ; - their cell offset = their origin X
+    pop bc
+    pop hl
     cp d
     jp nz, .ea_test
-    ld a, l
+    push hl
+    push bc
+    inc hl
+    ld a, (hl)                     ; their y
+    ld bc, ${VYOFF - 1}
+    add hl, bc
+    sub (hl)                       ; - their cell offset = their origin Y
+    pop bc
+    pop hl
     cp e
-    jp z, .ea_next                 ; same address: that is me
+    jp z, .ea_next                 ; same origin: another layer of me
 .ea_test:
     ld a, (hl)                     ; their x
     sub (ix+0)

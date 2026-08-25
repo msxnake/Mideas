@@ -22,6 +22,16 @@ export const MSX2_ENEMY_MOVEMENT_GEAR_WHEEL = 12;
 export const MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8 = 13;
 /** Declarative SCREEN 5 enemy behaviour interpreted by one shared Z80 routine. */
 export const MSX2_ENEMY_MOVEMENT_SCRIPTED = 14;
+/**
+ * Not a behaviour: the marker a SCREEN 5 bitmap-room hardware sprite layer
+ * carries when it is NOT the one that thinks. One placed enemy becomes as many
+ * pool slots as it has cells x colour layers, and running the behaviour once per
+ * slot is both wasteful and fragile — every slot owning its own state means
+ * nothing forces the layers to agree. Marked slots copy the slot before them
+ * instead, so the first layer of the first cell decides for the whole body.
+ * Bitmap-room only; the SCREEN 4 runtime never emits it.
+ */
+export const MSX2_ENEMY_MOVEMENT_LAYER_FOLLOWER = 15;
 
 /** Default horizontal distance (px) a slime crawls before hopping floor<->ceiling. */
 export const MSX2_SLIME_CEILING_DEFAULT_TRAVEL_PX = 48;

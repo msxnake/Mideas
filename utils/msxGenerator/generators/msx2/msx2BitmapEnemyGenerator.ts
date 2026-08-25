@@ -4,6 +4,7 @@ import {
   MSX2_ENEMY_MOVEMENT_SLIME_CEILING,
   MSX2_ENEMY_MOVEMENT_GEAR_WHEEL,
   MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8,
+  MSX2_ENEMY_MOVEMENT_LAYER_FOLLOWER,
 } from './msx2EntityRuntimeGenerator';
 import {
   MSX2_ENEMY_MOVEMENT_SCRIPTED,
@@ -138,6 +139,13 @@ export interface BitmapEnemyRoomData {
   fly8Enabled?: boolean;
   /** True when any room uses the declarative mode 14 interpreter. */
   scriptedEnabled?: boolean;
+  /**
+   * True when at least one placed enemy occupies more than one hardware sprite
+   * layer (extra cells, extra colour layers, or both). Those extra slots carry
+   * MSX2_ENEMY_MOVEMENT_LAYER_FOLLOWER and copy the slot before them instead of
+   * running the behaviour again. Off, the follower path is not emitted at all.
+   */
+  layeredEnemies?: boolean;
   /** Baked scripted programs, excluding the implicit index-0 fallback. */
   scriptedBehaviorPrograms?: Array<{ id: string; name: string; bytes: number[] }>;
   /** True only when a baked authored program actually contains FIRE. */
@@ -292,6 +300,9 @@ export function buildBitmapEnemySystemAsm(
   const gear = Boolean(data.gearEnabled);
   const fly8 = Boolean(data.fly8Enabled);
   const scripted = Boolean(data.scriptedEnabled);
+  // Only projects that actually place a multi-layer enemy pay for the follower
+  // path: without one, not a single byte of the update loop moves.
+  const layered = Boolean(data.layeredEnemies);
   const programsUseFire = scripted && data.scriptedProgramsUseFire === true;
   const enemyBulletSlotCount = programsUseFire ? BITMAP_ENEMY_BULLET_SLOTS : 0;
   // MegaROM: the sprite art lives in a data bank, so every copy goes through the
@@ -552,6 +563,72 @@ ${enemyBulletColorUploads}` : '';
   const maxHealthByte = asmByte(opts.maxHealth ?? 5);
   void opts.lives; // lives are seeded by the deadly system init; the touch handler only decrements.
 
+  // ---- follower layers: one body, one decision ----
+  // A placed enemy occupies cells x colour layers hardware sprites, and every one
+  // of them is a pool slot. Running the behaviour once per slot costs as many
+  // probes, PRNG draws and script steps as there are layers, and — worse — gives
+  // each layer its own state, so nothing MAKES them agree: a random turn taken by
+  // the body and not by its eyes tears the sprite in two on screen.
+  //
+  // So only the first layer thinks. The rest copy the slot immediately before
+  // them, which the sweep has already brought up to date, and rebuild their own
+  // position from the body's logical origin:
+  //     x = (leader.x - leader.xOff) + own xOff
+  // That is the same origin key the kill/damage code already uses, so multi-CELL
+  // sprites keep their real geometry instead of being stacked on one point.
+  // Copying the whole optional-engine tail (slime phase, gear state, script
+  // state) keeps the SAT and colour writers working unchanged: they read those
+  // bytes per slot and now find the leader's values there.
+  const followerCopyOffsets: number[] = [];
+  for (let offset = 24; offset < POOL_STRIDE; offset++) {
+    // The program index never changes, and the hit stamp is per-layer evidence
+    // that this layer took a bullet — copying it back down would replay the hit.
+    if (scripted && (offset === SCRIPTED_PROGRAM_OFFSET || offset === SCRIPTED_PROGRAM_OFFSET + 5)) continue;
+    followerCopyOffsets.push(offset);
+  }
+  const followerStepAsm = `
+.enemy_step_follow:
+    push iy
+    push ix
+    pop iy
+    ld de, ${asmWord(0x10000 - POOL_STRIDE)}
+    add iy, de                ; IY = previous slot = this layer's leader
+    ld a, (iy+13)
+    cp #FF
+    jp z, .enemy_step_follow_died
+${scripted ? `    ld a, (ix+bitmap_enemy_script_hit_ofs)
+    or a
+    jp z, .enemy_step_follow_body
+    ld (iy+bitmap_enemy_script_hit_ofs), a  ; a bullet in any layer hits the body
+    xor a
+    ld (ix+bitmap_enemy_script_hit_ofs), a  ; ... and is reported exactly once
+.enemy_step_follow_body:
+` : ''}    ld a, (iy+0)
+    sub (iy+14)               ; logical body origin X
+    add a, (ix+14)            ; + this layer's own cell offset
+    ld (ix+0), a
+    ld a, (iy+1)
+    sub (iy+15)
+    add a, (ix+15)
+    ld (ix+1), a
+    ld a, (iy+2)
+    ld (ix+2), a              ; facing: the SAT writer mirrors on dx bit 7
+    ld a, (iy+3)
+    ld (ix+3), a
+    ld a, (iy+8)
+    ld (ix+8), a              ; animTick
+    ld a, (iy+9)
+    ld (ix+9), a              ; animFrame
+${followerCopyOffsets.map(offset => `    ld a, (iy+${offset})
+    ld (ix+${offset}), a`).join('\n')}${followerCopyOffsets.length ? '\n' : ''}    pop iy
+    jp .enemy_step_next
+.enemy_step_follow_died:
+    ; A body dies whole, however few of its layers the killer actually touched.
+    ld (ix+13), #FF
+    pop iy
+    jp .enemy_step_next
+`;
+
   // ---- bitmap_update_enemies: per-enemy configurable logic cadence ----
   // Check-then-move like the SCREEN 4 slot handler: at the bound the enemy
   // turns without moving, so positions can never overshoot minX/maxX.
@@ -588,7 +665,9 @@ ${fly8 ? `    ; One PRNG step per FRAME, not per draw: every hardware layer of t
     ld a, (ix+13)             ; #FF = killed by a thrown object
     cp #FF
     jp z, .enemy_step_next
-.enemy_step_cadence_gate:
+${layered ? `    cp ${MSX2_ENEMY_MOVEMENT_LAYER_FOLLOWER}
+    jp z, .enemy_step_follow  ; extra layer of a body: copies, never thinks
+` : ''}.enemy_step_cadence_gate:
 ${gear ? `    ; Gear cooldowns are real video-frame seconds, independent of the
     ; configured logic cadence. Once active, movement obeys the cadence gate.
     ld a, (ix+13)
@@ -1455,7 +1534,7 @@ ${gear ? `    jp .enemy_anim
     jp nz, .enemy_step_loop
     pop bc
     ret
-`;
+${layered ? followerStepAsm : ''}`;
 
   const touchDamageAsm = `
 ; ------------------------------------------------------------
