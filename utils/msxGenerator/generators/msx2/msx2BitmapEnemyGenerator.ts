@@ -10,6 +10,7 @@ import {
   MSX2_ENEMY_MOVEMENT_SCRIPTED,
   enemyScriptScratchBytes,
   MSX2_ENEMY_SCRIPT_POOL_BYTES,
+  MSX2_ENEMY_PATH_POOL_BYTES,
   buildEnemyBehaviorRuntimeAsm,
   buildEnemyBehaviorProgramAsm,
   enemyProgramsUseGravity,
@@ -74,6 +75,14 @@ export const BITMAP_ENEMY_POOL_STRIDE_SLIME_GEAR = 32;
 export const BITMAP_ENEMY_POOL_STRIDE_FLY8_BYTES = 2;
 /** Scripted builds append program/state/timer/vertical-velocity to every slot. */
 export const BITMAP_ENEMY_POOL_STRIDE_SCRIPTED = MSX2_ENEMY_SCRIPT_POOL_BYTES;
+/** PATH FOLLOW builds append node-index and branch-mask bytes after scripted state. */
+export const BITMAP_ENEMY_POOL_STRIDE_PATH = MSX2_ENEMY_PATH_POOL_BYTES;
+/**
+ * Authored behaviour programs are read by bitmap_enemy_script_step on every
+ * logic tick. They therefore stay in the resident ROM window; only the per-room
+ * placement tables may be cold/banked and staged during bitmap_load_enemies.
+ */
+export const MSX2_ENEMY_BEHAVIOR_RUNTIME_STORAGE = 'resident' as const;
 /** FIRE uses a deliberately small pool, independent from player/boss bullets. */
 export const BITMAP_ENEMY_BULLET_SLOTS = 2;
 /** First-cut enemy projectile speed, in logical pixels per video frame. */
@@ -91,11 +100,14 @@ const ENEMY_BULLET_COLOR_BYTES = Array.from({ length: 16 }, () => 0xF1);
  *  One term per optional movement engine: enumerating the combinations instead
  *  needs a constant per subset, and three engines already means eight. */
 export function bitmapEnemyPoolStride(data: BitmapEnemyRoomData | undefined): number {
+  const programsUsePath = data?.scriptedEnabled === true
+    && data.scriptedBehaviorPrograms?.some(program => program.kind === 'path_follow') === true;
   return BITMAP_ENEMY_POOL_STRIDE
     + (data?.slimeEnabled ? 3 : 0)
     + (data?.gearEnabled ? 5 : 0)
     + (data?.fly8Enabled ? BITMAP_ENEMY_POOL_STRIDE_FLY8_BYTES : 0)
-    + (data?.scriptedEnabled ? BITMAP_ENEMY_POOL_STRIDE_SCRIPTED : 0);
+    + (data?.scriptedEnabled ? BITMAP_ENEMY_POOL_STRIDE_SCRIPTED : 0)
+    + (programsUsePath ? BITMAP_ENEMY_POOL_STRIDE_PATH : 0);
 }
 
 /** Sprite pattern variants emitted per animation frame ([right,left] or
@@ -121,7 +133,12 @@ export interface BitmapEnemyRoomData {
   maxSlots: number;
   /** Max animation frames across the unique enemy sprites (>= 1). */
   maxFrames: number;
-  /** Per-room table bytes: [count] + maxSlots * table stride (22 base plus opt-in extensions). */
+  /**
+   * Per-room table bytes: [count] + maxSlots * table stride (22 base plus
+   * opt-in extensions). In MegaROM these placement tables are cold/banked and
+   * staged by bitmap_load_enemies; the reusable scripted programs are separate
+   * resident data.
+   */
   roomTables: number[][];
   /** frames * variants x 32 bytes per unique enemy sprite ([right, left] per frame,
    *  plus [ceilRight, ceilLeft] vertical flips when slimeEnabled). */
@@ -148,9 +165,17 @@ export interface BitmapEnemyRoomData {
    */
   layeredEnemies?: boolean;
   /** Baked scripted programs, excluding the implicit index-0 fallback. */
-  scriptedBehaviorPrograms?: Array<{ id: string; name: string; bytes: number[]; gravity?: boolean }>;
+  scriptedBehaviorPrograms?: Array<{
+    id: string;
+    name: string;
+    bytes: number[];
+    gravity?: boolean;
+    kind?: 'rules' | 'path_follow';
+  }>;
   /** True only when a baked authored program actually contains FIRE. */
   scriptedProgramsUseFire?: boolean;
+  /** True only when a baked authored program actually tests PLAYER_BULLET_INCOMING. */
+  scriptedProgramsUsePlayerBulletSense?: boolean;
   /**
    * True when any placed enemy opts into the dark-room "eyes only" look. Every
    * unique sprite then carries a SECOND set of line-colour blocks after the
@@ -245,6 +270,12 @@ export interface BitmapEnemyRuntimeOptions {
     lantern?: { halfWidth: number; halfHeight: number };
   };
   /**
+   * The SHOOT skill's player bullet pool, read-only. Passed straight through
+   * to buildEnemyBehaviorRuntimeAsm so PLAYER_BULLET_INCOMING can scan it by
+   * label. Absent when the project has no SHOOT skill.
+   */
+  playerBullets?: { poolLabel?: string; slotCount: number; slotStride: number };
+  /**
    * Konami MegaROM: move the enemy sprite pattern/colour art out of the 32KB
    * resident window into a data bank. The art is cold (uploaded to VRAM on room
    * load, plus one 16-byte colour table per slot per frame change) but it is the
@@ -305,9 +336,12 @@ export function buildBitmapEnemySystemAsm(
   // path: without one, not a single byte of the update loop moves.
   const layered = Boolean(data.layeredEnemies);
   const programsUseFire = scripted && data.scriptedProgramsUseFire === true;
+  const programsUsePlayerBulletSense = scripted && data.scriptedProgramsUsePlayerBulletSense === true;
   // Gravity is the default for an authored behaviour, so this is normally true;
   // a project whose enemies all fly gets neither the hook nor the table.
   const programsUseGravity = scripted && enemyProgramsUseGravity(data.scriptedBehaviorPrograms || []);
+  const programsUsePath = scripted
+    && data.scriptedBehaviorPrograms?.some(program => program.kind === 'path_follow') === true;
   const enemyBulletSlotCount = programsUseFire ? BITMAP_ENEMY_BULLET_SLOTS : 0;
   // MegaROM: the sprite art lives in a data bank, so every copy goes through the
   // below-#8000 helper that owns the swap (these routines sit in #8000-#9FFF).
@@ -338,6 +372,10 @@ export function buildBitmapEnemySystemAsm(
   const SCRIPTED_STATE_OFFSET = SCRIPTED_PROGRAM_OFFSET + 1;
   const SCRIPTED_TIMER_OFFSET = SCRIPTED_PROGRAM_OFFSET + 2;
   const SCRIPTED_VELOCITY_OFFSET = SCRIPTED_PROGRAM_OFFSET + 3;
+  // The runtime's defaults place path state after the six-byte scripted block:
+  // program, state, timer, velocity, shield and hit stamp.
+  const SCRIPTED_PATH_NODE_OFFSET = SCRIPTED_PROGRAM_OFFSET + MSX2_ENEMY_SCRIPT_POOL_BYTES;
+  const SCRIPTED_PATH_BRANCH_OFFSET = SCRIPTED_PATH_NODE_OFFSET + 1;
   const SCRIPTED_TABLE_INDEX = 22 + (slime ? 1 : 0) + (gear ? 2 : 0) + (fly8 ? 1 : 0);
   const variantsPerFrame = bitmapEnemyVariantsPerFrame(data);
   const groupsPerSlot = maxFrames * variantsPerFrame;
@@ -389,6 +427,9 @@ export function buildBitmapEnemySystemAsm(
       maxSlots,
       programsUseFire,
       programsUseGravity,
+      programsUsePath,
+      poolPathNodeOffset: SCRIPTED_PATH_NODE_OFFSET,
+      poolPathBranchOffset: SCRIPTED_PATH_BRANCH_OFFSET,
       enemyBullets: programsUseFire ? {
         ramBase: enemyBulletRamBase,
         slotCount: enemyBulletSlotCount,
@@ -396,6 +437,8 @@ export function buildBitmapEnemySystemAsm(
         playerHurtLabel: 'bitmap_enemy_hurt_player',
         damageHearts: 1,
       } : undefined,
+      programsUsePlayerBulletSense,
+      playerBulletPool: opts.playerBullets,
     })
     : undefined;
   const totalRamBytes = baseRamBytes
@@ -403,7 +446,7 @@ export function buildBitmapEnemySystemAsm(
     + (scriptedRuntime?.bulletRamBytes || 0);
 
   const equates = `; --- ENEMY runtime state (${totalRamBytes} bytes): count + ${maxSlots} slot(s) x ${POOL_STRIDE}${fly8 ? ' + PRNG seed' : ''}
-; (x,y,dx,dy,minX,maxX,minY,maxY,animTick,animFrame,frameCount,animDelay,colorOff,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,logicInterval,logicCountdown${slime ? ',travelPx,travelCount,phase' : ''}${gear ? ',gearState,gearCooldownLo,gearCooldownHi,gearDelayLo,gearDelayHi' : ''}${fly8 ? ',flyLeft,flyTurnPx' : ''}${scripted ? ',scriptProgram,scriptState,scriptTimer,scriptVelocity' : ''}) ---
+; (x,y,dx,dy,minX,maxX,minY,maxY,animTick,animFrame,frameCount,animDelay,colorOff,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,logicInterval,logicCountdown${slime ? ',travelPx,travelCount,phase' : ''}${gear ? ',gearState,gearCooldownLo,gearCooldownHi,gearDelayLo,gearDelayHi' : ''}${fly8 ? ',flyLeft,flyTurnPx' : ''}${scripted ? ',scriptProgram,scriptState,scriptTimer,scriptVelocity,scriptShield,scriptHit' : ''}${programsUsePath ? ',pathNode,pathBranchMask' : ''}) ---
 bitmap_enemy_count EQU ${asmWord(countAddr)}
 bitmap_enemy_pool  EQU ${asmWord(poolAddr)}
 ${fly8 ? `bitmap_enemy_rand_seed EQU ${asmWord(randSeedAddr)}
@@ -488,6 +531,10 @@ ${slime ? `    ld a, (ix+22)             ; slime hop distance in px (0 on non-sl
     ld (${poolBase} + ${SCRIPTED_STATE_OFFSET}), a
     ld (${poolBase} + ${SCRIPTED_TIMER_OFFSET}), a
     ld (${poolBase} + ${SCRIPTED_VELOCITY_OFFSET}), a
+${programsUsePath ? `    xor a
+    ld (${poolBase} + ${SCRIPTED_PATH_NODE_OFFSET}), a
+    ld (${poolBase} + ${SCRIPTED_PATH_BRANCH_OFFSET}), a
+` : ''}
 ` : ''}${slime && slotVariants < 4 ? `    ; --- upload frameCount x [right,left] pairs -> VRAM ${asmWord(patternVram)} (group ${patternGroup}+) ---
     ; Slime builds store 4 variants per frame in ROM ([R,L,ceilR,ceilL]) for
     ; EVERY sprite, but this slot only reserves the facing pair: copy 64 of
@@ -582,8 +629,8 @@ ${enemyBulletColorUploads}` : '';
   // That is the same origin key the kill/damage code already uses, so multi-CELL
   // sprites keep their real geometry instead of being stacked on one point.
   // Copying the whole optional-engine tail (slime phase, gear state, script
-  // state) keeps the SAT and colour writers working unchanged: they read those
-  // bytes per slot and now find the leader's values there.
+  // state and path cursor) keeps the SAT and colour writers working unchanged:
+  // they read those bytes per slot and now find the leader's values there.
   const followerCopyOffsets: number[] = [];
   for (let offset = 24; offset < POOL_STRIDE; offset++) {
     // The program index never changes, and the hit stamp is per-layer evidence

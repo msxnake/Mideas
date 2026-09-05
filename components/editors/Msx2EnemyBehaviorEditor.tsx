@@ -1,4 +1,9 @@
 import React, { useMemo, useState } from 'react';
+import { BugIcon, EyeIcon, PaletteIcon, PathRouteIcon } from '../icons/MsxIcons';
+import { Msx2PathFollowEditor } from './Msx2PathFollowEditor';
+import { Msx2PathFollowProgram, createMsx2PathFollow } from '../../utils/msx2PathFollow';
+import { canvasTilePainter, onionCollisionCells, onionTileUrls } from '../../utils/msx2OnionRoom';
+import { resolveWorldPalettes } from '../../utils/msx2WorldPalette';
 import {
   MSX2_ENEMY_ACT_INFO,
   MSX2_ENEMY_BEHAVIOR_MAX_RULES,
@@ -34,6 +39,8 @@ interface Msx2EnemyBehaviorEditorProps {
   behavior: Msx2EnemyBehaviorAsset;
   onUpdate: (behavior: Msx2EnemyBehaviorAsset) => void;
   setStatusBarMessage?: (message: string) => void;
+  /** Every project asset, so the Onion can pick a screen to draw the path over. */
+  allAssets?: Array<{ id: string; name: string; type: string; data: any }>;
 }
 
 const card = 'bg-msx-panel border border-msx-border rounded p-3 mb-3';
@@ -56,7 +63,7 @@ const newState = (index: number): Msx2EnemyBehaviorState => ({
 });
 
 export const Msx2EnemyBehaviorEditor: React.FC<Msx2EnemyBehaviorEditorProps> = ({
-  behavior, onUpdate, setStatusBarMessage,
+  behavior, onUpdate, setStatusBarMessage, allAssets = [],
 }) => {
   const states = behavior.states || [];
   const [selected, setSelected] = useState(0);
@@ -92,7 +99,8 @@ export const Msx2EnemyBehaviorEditor: React.FC<Msx2EnemyBehaviorEditorProps> = (
       `Replace this behaviour with "${preset.label}"?\n\nEvery state and rule you have authored here is discarded.`
     );
     if (!confirmed) return;
-    onUpdate({ ...behavior, ...preset.build() });
+    const replacement = preset.build();
+    onUpdate({ ...behavior, ...replacement, gravity: replacement.gravity !== false });
     setSelected(0);
     setStatusBarMessage?.(`Loaded the "${preset.label}" preset.`);
   };
@@ -176,8 +184,137 @@ export const Msx2EnemyBehaviorEditor: React.FC<Msx2EnemyBehaviorEditorProps> = (
     />
   );
 
+  const kind = behavior.kind || 'rules';
+
+  /**
+   * Screens the Onion can draw the path over. A path is an asset and belongs to
+   * no room, so this list is every screen in the project and the choice is the
+   * author's — that IS the feature: try the route on each screen and see.
+   */
+  const onionScreens = useMemo(
+    () => allAssets.filter(asset => asset.type === 'msx2screen' || asset.type === 'msx2bitmaproom'),
+    [allAssets],
+  );
+  const pathProgram = (behavior.path as Msx2PathFollowProgram) || createMsx2PathFollow();
+  const onionScreen = onionScreens.find(asset => asset.id === pathProgram.screenId);
+  /**
+   * Flattened to the same row*16+col order the cell byte uses, so a node index
+   * and a grid index are the same number on both sides.
+   *
+   * THE BUG THIS FIXES: this used to read `data.layers.collision` only. That is
+   * the SCREEN 4 TILE SCREEN shape (Msx2Screen4TileScreen.layers). A SCREEN 5
+   * BITMAP ROOM keeps its grid at `data.collision`, top level — a different
+   * asset type with a different shape, both offered in the same picker. Against
+   * a bitmap room the lookup returned undefined, so the overlay shaded nothing
+   * AND `buriedNodes` came back empty: the Onion silently approved every node,
+   * including ones buried in a wall. A validator that always says "fine" is
+   * worse than no validator, which is exactly what the 0x10-vs-truthy fix in
+   * the path editor was about. Same trap, one asset type over.
+   */
+  const onionCells = useMemo(() => onionCollisionCells(onionScreen?.data), [onionScreen]);
+
+  /** Every shared palette in the project, for the override picker. */
+  const paletteAssets = useMemo(
+    () => allAssets.filter(asset => asset.type === 'palette' && (asset.data?.slots || []).length),
+    [allAssets],
+  );
+
+  /**
+   * The palette the Onion draws with.
+   *
+   * AUTO is not "the room's own copy". A room belongs to a world, and the
+   * world's shared palette asset is what the generator bakes into the ROM, so
+   * that one wins — rooms keep an older private palette long after the world
+   * moved on, and previewing with it shows colours the game never displays.
+   * utils/msx2WorldPalette.ts exists because atlas previews already made this
+   * mistake once; this one had made it again.
+   */
+  const worldPalettes = useMemo(
+    () => kind === 'path_follow' ? resolveWorldPalettes(allAssets as any) : undefined,
+    [allAssets, kind],
+  );
+  const chosenPalette = paletteAssets.find(asset => asset.id === pathProgram.palettePreviewId);
+  const autoPalette = onionScreen ? worldPalettes?.byRoom.get(onionScreen.id) : undefined;
+  const onionPalette = chosenPalette?.data?.slots || autoPalette;
+  /** What AUTO actually landed on, so the label is not a guess. */
+  const autoLabel = autoPalette ? 'del mundo' : 'de la sala';
+
+  const onionTiles = useMemo(
+    () => kind === 'path_follow' ? onionTileUrls(onionScreen?.data, canvasTilePainter, onionPalette) : undefined,
+    [onionScreen, onionPalette, kind],
+  );
+
   return (
     <div className="p-3 h-full overflow-auto text-msx-textprimary">
+      {/* ---- how this behaviour is authored ----
+          Two ways of saying the same thing to the same interpreter: ordered
+          rules, or numbered nodes on the room grid. The switch lives at the top
+          because it changes the whole editor below it. */}
+      <div className="flex items-center gap-2 mb-3">
+        <button
+          className={`px-2 py-1 text-xs rounded border flex items-center gap-1 ${kind === 'rules'
+            ? 'bg-msx-accent text-msx-bgcolor border-msx-accent'
+            : 'border-msx-border text-msx-textsecondary hover:bg-msx-hover'}`}
+          onClick={() => patch({ kind: 'rules' })}
+          title="States of ordered condition to action rules"
+        >
+          <BugIcon className="w-4 h-4" />Rules
+        </button>
+        <button
+          className={`px-2 py-1 text-xs rounded border flex items-center gap-1 ${kind === 'path_follow'
+            ? 'bg-msx-accent text-msx-bgcolor border-msx-accent'
+            : 'border-msx-border text-msx-textsecondary hover:bg-msx-hover'}`}
+          onClick={() => patch({ kind: 'path_follow', path: behavior.path || createMsx2PathFollow() })}
+          title="Numbered nodes on room cells; entering a node triggers its action"
+        >
+          <PathRouteIcon className="w-4 h-4" />Path
+        </button>
+      </div>
+
+      {kind === 'path_follow' ? (
+        <div>
+          <div className="flex items-center gap-2 mb-2 text-xs">
+            <EyeIcon className="w-4 h-4 text-cyan-300" />
+            <select
+              className={`${input} w-56`}
+              value={pathProgram.screenId || ''}
+              onChange={event => patch({ path: { ...pathProgram, screenId: event.target.value || undefined } })}
+            >
+              <option value="">No screen</option>
+              {onionScreens.map(asset => (
+                <option key={asset.id} value={asset.id}>{asset.name}</option>
+              ))}
+            </select>
+            {/* Palette override. Only worth showing when there is art to recolour
+                and something to choose between. */}
+            {onionScreen && paletteAssets.length > 0 ? (
+              <>
+                <PaletteIcon className="w-4 h-4 text-cyan-300" />
+                <select
+                  className={`${input} w-56`}
+                  value={pathProgram.palettePreviewId || ''}
+                  onChange={event => patch({
+                    path: { ...pathProgram, palettePreviewId: event.target.value || undefined },
+                  })}
+                  title="Palette the preview is drawn with. Auto uses the world's shared palette, which is the one the ROM gets."
+                >
+                  <option value="">Paleta: auto ({autoLabel})</option>
+                  {paletteAssets.map(asset => (
+                    <option key={asset.id} value={asset.id}>{asset.name}</option>
+                  ))}
+                </select>
+              </>
+            ) : null}
+          </div>
+          <Msx2PathFollowEditor
+            program={pathProgram}
+            onUpdate={path => patch({ path })}
+            onionCells={onionCells}
+            onionTiles={onionTiles}
+            onionName={onionScreen?.name}
+          />
+        </div>
+      ) : (
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-3">
         <div>
           {/* ---- asset-level settings ---- */}
@@ -278,8 +415,10 @@ export const Msx2EnemyBehaviorEditor: React.FC<Msx2EnemyBehaviorEditorProps> = (
 
               <div className="space-y-2">
                 {state.rules.map((rule, i) => {
-                  const condInfo = MSX2_ENEMY_COND_INFO[rule.condition];
-                  const actInfo = MSX2_ENEMY_ACT_INFO[rule.action];
+                  const condInfo = Object.prototype.hasOwnProperty.call(MSX2_ENEMY_COND_INFO, rule.condition)
+                    ? MSX2_ENEMY_COND_INFO[rule.condition] : undefined;
+                  const actInfo = Object.prototype.hasOwnProperty.call(MSX2_ENEMY_ACT_INFO, rule.action)
+                    ? MSX2_ENEMY_ACT_INFO[rule.action] : undefined;
                   const isLast = i === state.rules.length - 1;
                   const unreachable = !isLast && rule.condition === 'ALWAYS';
                   return (
@@ -291,20 +430,22 @@ export const Msx2EnemyBehaviorEditor: React.FC<Msx2EnemyBehaviorEditorProps> = (
                           className={`${input} max-w-[12rem]`} value={rule.condition}
                           onChange={event => patchRule(i, { condition: event.target.value as Msx2EnemyBehaviorConditionName })}
                         >
+                          {!condInfo && <option value={rule.condition}>Unknown: {rule.condition}</option>}
                           {CONDITION_NAMES.map(name => <option key={name} value={name}>{MSX2_ENEMY_COND_INFO[name].label}</option>)}
                         </select>
-                        {condInfo.arg && numberField(rule.conditionArg, condInfo.arg, v => patchRule(i, { conditionArg: v }))}
-                        {condInfo.arg && <span className="text-[11px] text-msx-textsecondary">{condInfo.arg.unit}</span>}
+                        {condInfo?.arg && numberField(rule.conditionArg, condInfo.arg, v => patchRule(i, { conditionArg: v }))}
+                        {condInfo?.arg && <span className="text-[11px] text-msx-textsecondary">{condInfo.arg.unit}</span>}
 
                         <span className="text-xs text-msx-textsecondary">then</span>
                         <select
                           className={`${input} max-w-[12rem]`} value={rule.action}
                           onChange={event => patchRule(i, { action: event.target.value as Msx2EnemyBehaviorActionName })}
                         >
+                          {!actInfo && <option value={rule.action}>Unknown: {rule.action}</option>}
                           {ACTION_NAMES.map(name => <option key={name} value={name}>{MSX2_ENEMY_ACT_INFO[name].label}</option>)}
                         </select>
-                        {actInfo.arg && numberField(rule.actionArg, actInfo.arg, v => patchRule(i, { actionArg: v }))}
-                        {actInfo.arg && <span className="text-[11px] text-msx-textsecondary">{actInfo.arg.unit}</span>}
+                        {actInfo?.arg && numberField(rule.actionArg, actInfo.arg, v => patchRule(i, { actionArg: v }))}
+                        {actInfo?.arg && <span className="text-[11px] text-msx-textsecondary">{actInfo.arg.unit}</span>}
 
                         <span className="text-xs text-msx-textsecondary">go to</span>
                         <select
@@ -323,7 +464,7 @@ export const Msx2EnemyBehaviorEditor: React.FC<Msx2EnemyBehaviorEditorProps> = (
                         </div>
                       </div>
                       <p className="text-[11px] text-msx-textsecondary mt-1">
-                        {condInfo.help} {actInfo.help}
+                        {condInfo?.help} {actInfo?.help}
                       </p>
                       {unreachable && (
                         <p className="text-[11px] text-msx-warning mt-1">
@@ -384,6 +525,7 @@ export const Msx2EnemyBehaviorEditor: React.FC<Msx2EnemyBehaviorEditorProps> = (
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };

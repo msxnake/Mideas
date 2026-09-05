@@ -124,6 +124,22 @@ export const MSX2_ENEMY_COND = {
    * maybe go down a floor".
    */
   ON_PLATFORM_TILE: 0x1b,
+  /**
+   * The sentry test: the player is roughly level (within one tile vertically)
+   * AND on the side the enemy already faces AND nothing solid stands between
+   * them. Unlike PLAYER_IN_FRONT, a wall blocks this one — a guard behind
+   * glass does not spot you through it.
+   */
+  PLAYER_IN_SIGHT: 0x1c,
+  /**
+   * arg = pixels. A live player bullet (SHOOT skill) within that vertical
+   * band and travelling horizontally TOWARD the enemy — a bullet already past
+   * it, or headed the other way, does not count. An up-shot never counts:
+   * dodging straight-up fire needs a different sensor, not built yet.
+   * Requires the project's SHOOT skill; a program using this without it
+   * fails the build rather than silently never firing true.
+   */
+  PLAYER_BULLET_INCOMING: 0x1d,
 } as const;
 
 /** Actions. Exactly one runs per logic tick. */
@@ -189,6 +205,16 @@ export const MSX2_ENEMY_ACT = {
    * than a way to walk through the world.
    */
   DROP_THROUGH: 0x10,
+  /**
+   * arg = 0 face left, 1 face right. ABSOLUTE, unlike TURN which only flips.
+   *
+   * Rule programs never needed it: a rule reacts to what it just sensed, so
+   * "turn" is the natural verb. A path node is the opposite — it says "at this
+   * cell, go right", with no idea which way the body happened to be facing.
+   * Expressing that with TURN means conditioning on the current facing, which
+   * is exactly the bookkeeping a node editor should remove.
+   */
+  SET_DIR: 0x11,
 } as const;
 
 export type Msx2EnemyBehaviorConditionName = keyof typeof MSX2_ENEMY_COND;
@@ -246,6 +272,8 @@ export const MSX2_ENEMY_COND_INFO: Record<Msx2EnemyBehaviorConditionName, Msx2En
   SHIELD_ACTIVE: { label: 'Shield up', help: 'Guard ticks still on the clock. Keeps a shield state from re-arming itself every tick.' },
   ENEMY_AHEAD: { label: 'Enemy ahead', arg: { min: 1, max: 255, unit: 'px' }, help: 'Another live enemy is within N pixels ahead, in the same 16px band. Both see each other, so both turn.' },
   ON_PLATFORM_TILE: { label: 'On a one-way platform', help: 'Standing on a cell painted Platform, the kind you can drop through. False on ordinary solid ground.' },
+  PLAYER_IN_SIGHT: { label: 'Player in sight', help: 'The player is roughly level, on the side the enemy already faces, and nothing solid stands between them. A wall blocks it, unlike Player in front.' },
+  PLAYER_BULLET_INCOMING: { label: 'Bullet incoming', arg: { min: 1, max: 255, unit: 'px' }, help: 'A player bullet is within N pixels vertically and flying toward the enemy. Needs the SHOOT skill; an up-shot never counts.' },
 };
 
 export const MSX2_ENEMY_ACT_INFO: Record<Msx2EnemyBehaviorActionName, Msx2EnemyBehaviorOpcodeInfo> = {
@@ -267,6 +295,7 @@ export const MSX2_ENEMY_ACT_INFO: Record<Msx2EnemyBehaviorActionName, Msx2EnemyB
   SHIELD: { label: 'Raise shield', arg: { min: 1, max: 255, unit: 'ticks' }, help: 'Invulnerable for N ticks. The shot still hits and is spent, it just does no damage.' },
   CHASE: { label: 'Chase the player', help: 'Turns towards the player and steps in the same tick. The one-opcode chase.' },
   DROP_THROUGH: { label: 'Drop through platform', help: 'Steps down through the one-way platform underfoot and falls to the next one. Does nothing on solid ground.' },
+  SET_DIR: { label: 'Face a direction', arg: { min: 0, max: 1, unit: '0 left / 1 right' }, help: 'Absolute, unlike Turn around: it sets the facing instead of flipping it. What a path node needs.' },
 };
 
 const CONDITIONS_WITH_ARG: ReadonlySet<Msx2EnemyBehaviorConditionName> = new Set(
@@ -305,11 +334,25 @@ export interface Msx2EnemyBehaviorState {
  * (or by an enemy definition as its default), never owned by one — the same
  * asset drives every enemy that opts into it, in any room.
  */
+/**
+ * How the behaviour is authored. Absent means `rules`, so every asset saved
+ * before path routes existed keeps working untouched.
+ *
+ *   rules        states of ordered condition -> action rules (the original)
+ *   path_follow  numbered nodes on room cells; entering a node's cell triggers
+ *                its action. Same runtime, same opcodes, different authoring.
+ */
+export type Msx2EnemyBehaviorKind = 'rules' | 'path_follow';
+
 export interface Msx2EnemyBehaviorAsset {
   id: string;
   name: string;
   /** Fixed target; the interpreter is a SCREEN 5 bitmap-room system. */
   target?: 'MSX2';
+  kind?: Msx2EnemyBehaviorKind;
+  /** Only read when kind is 'path_follow'. Typed as unknown here to keep this
+   *  module free of a dependency on the path model, which imports from it. */
+  path?: unknown;
   states: Msx2EnemyBehaviorState[];
   /** Index into `states` the enemy starts in. Defaults to 0. */
   initialState?: number;
@@ -354,6 +397,13 @@ export interface Msx2EnemyBehaviorBakeResult {
    * never shoot.
    */
   usedActions: number[];
+  /**
+   * Condition opcodes this program actually contains, sorted and deduplicated.
+   * Same purpose as usedActions but for the condition side: PLAYER_BULLET_INCOMING
+   * only earns the generator's read of the SHOOT skill's bullet pool if some
+   * authored program really tests it.
+   */
+  usedConditions: number[];
 }
 
 /**
@@ -372,6 +422,21 @@ export function enemyProgramUsedActions(bytes: number[]): number[] {
     for (let rule = 0; rule < ruleCount; rule += 1) {
       const at = offset + 1 + rule * MSX2_ENEMY_BEHAVIOR_RULE_BYTES;
       if (at + 2 < bytes.length) used.add(bytes[at + 2]);
+    }
+  }
+  return [...used].sort((a, b) => a - b);
+}
+
+/** Same walk as enemyProgramUsedActions, but collects condition opcodes. */
+export function enemyProgramUsedConditions(bytes: number[]): number[] {
+  const used = new Set<number>();
+  const stateCount = bytes[0] ?? 0;
+  for (let state = 0; state < stateCount; state += 1) {
+    const offset = (bytes[1 + state * 2] ?? 0) | ((bytes[2 + state * 2] ?? 0) << 8);
+    const ruleCount = bytes[offset] ?? 0;
+    for (let rule = 0; rule < ruleCount; rule += 1) {
+      const at = offset + 1 + rule * MSX2_ENEMY_BEHAVIOR_RULE_BYTES;
+      if (at < bytes.length) used.add(bytes[at]);
     }
   }
   return [...used].sort((a, b) => a - b);
@@ -434,11 +499,18 @@ export function bakeEnemyBehavior(asset: Msx2EnemyBehaviorAsset | undefined): Ms
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  const authored = (asset?.states || []).filter(state => state && Array.isArray(state.rules));
+  // State indices are authored references: filtering invalid entries would
+  // silently redirect transitions to whichever state slides into the gap.
+  const authored = Array.isArray(asset?.states) ? asset.states : [];
+  if (Array.from(authored).some(state => !state || !Array.isArray(state.rules))) {
+    errors.push('behaviour contains a malformed state; baked a standing enemy without renumbering states');
+    const fallback = fallbackProgram();
+    return { ...fallback, initialState: 0, errors, warnings, usedActions: enemyProgramUsedActions(fallback.bytes), usedConditions: enemyProgramUsedConditions(fallback.bytes) };
+  }
   if (!authored.length) {
     errors.push('behaviour has no states; baked a standing enemy');
     const fallback = fallbackProgram();
-    return { ...fallback, initialState: 0, errors, warnings, usedActions: enemyProgramUsedActions(fallback.bytes) };
+    return { ...fallback, initialState: 0, errors, warnings, usedActions: enemyProgramUsedActions(fallback.bytes), usedConditions: enemyProgramUsedConditions(fallback.bytes) };
   }
 
   const states = authored.slice(0, MSX2_ENEMY_BEHAVIOR_MAX_STATES);
@@ -459,10 +531,10 @@ export function bakeEnemyBehavior(asset: Msx2EnemyBehaviorAsset | undefined): Ms
     for (let i = 0; i < rules.length; i++) {
       const rule = rules[i];
       const where = `${label}, rule ${i + 1}`;
-      const condition = (rule?.condition && rule.condition in MSX2_ENEMY_COND)
+      const condition = (rule?.condition && Object.prototype.hasOwnProperty.call(MSX2_ENEMY_COND, rule.condition))
         ? rule.condition
         : null;
-      const action = (rule?.action && rule.action in MSX2_ENEMY_ACT)
+      const action = (rule?.action && Object.prototype.hasOwnProperty.call(MSX2_ENEMY_ACT, rule.action))
         ? rule.action
         : null;
       if (!condition) {
@@ -496,6 +568,14 @@ export function bakeEnemyBehavior(asset: Msx2EnemyBehaviorAsset | undefined): Ms
         bakeArg(action, rule.actionArg, ACTIONS_WITH_ARG.has(action), where, warnings),
         nextState,
       );
+      // First match wins. Keep the authored rules in the editor, but do not
+      // let unreachable FIRE/sensors allocate optional engines in the ROM.
+      if (condition === 'ALWAYS') {
+        if (i < state.rules.length - 1) {
+          warnings.push(`${where}: rules after ALWAYS are unreachable and were not baked`);
+        }
+        break;
+      }
     }
 
     // The interpreter walks ruleCount rules and never checks for running off the
@@ -523,7 +603,7 @@ export function bakeEnemyBehavior(asset: Msx2EnemyBehaviorAsset | undefined): Ms
 
   if (errors.length) {
     const fallback = fallbackProgram();
-    return { ...fallback, initialState: 0, errors, warnings, usedActions: enemyProgramUsedActions(fallback.bytes) };
+    return { ...fallback, initialState: 0, errors, warnings, usedActions: enemyProgramUsedActions(fallback.bytes), usedConditions: enemyProgramUsedConditions(fallback.bytes) };
   }
 
   const headerBytes = 1 + states.length * 2;
@@ -544,7 +624,7 @@ export function bakeEnemyBehavior(asset: Msx2EnemyBehaviorAsset | undefined): Ms
     warnings.push(`initial state ${initialRaw} does not exist; starting in state ${initialState}`);
   }
 
-  return { bytes, stateOffsets, initialState, errors, warnings, usedActions: enemyProgramUsedActions(bytes) };
+  return { bytes, stateOffsets, initialState, errors, warnings, usedActions: enemyProgramUsedActions(bytes), usedConditions: enemyProgramUsedConditions(bytes) };
 }
 
 /**
@@ -883,6 +963,69 @@ export const MSX2_ENEMY_BEHAVIOR_PRESETS: Msx2EnemyBehaviorPreset[] = [
           rules: [
             // SHIELD_ACTIVE is what stops this state from raising the shield
             // again every tick, which would make it permanent.
+            rule('SHIELD_ACTIVE', 'SET_ANIM', { actionArg: 1 }),
+            rule('ALWAYS', 'SET_ANIM', { actionArg: 0, nextState: 0 }),
+          ],
+        },
+      ],
+    }),
+  },
+  {
+    key: 'sentry_sightshooter',
+    label: 'Shoots when it sees you',
+    summary: 'Patrols, and when it has a clear, unblocked line of sight to the player, stops, shoots, and waits before shooting again. A wall breaks the line.',
+    build: () => ({
+      target: 'MSX2', initialState: 0, speedPxPerTick: 1, logicIntervalFrames: 2,
+      states: [
+        {
+          id: 'state_patrol', name: 'Patrol',
+          rules: [
+            // Unlike sentry_shooter's PLAYER_NEAR_Y, PLAYER_IN_SIGHT already
+            // requires facing the player's side with nothing solid between
+            // them, so there is no separate FACE_PLAYER step: reaching this
+            // rule true means the enemy is already looking the right way.
+            // Turning during patrol is what lets it look the other way.
+            rule('PLAYER_IN_SIGHT', 'FIRE', { actionArg: 0, nextState: 1 }),
+            rule('NO_FLOOR_AHEAD', 'TURN_AND_WALK'),
+            rule('WALL_AHEAD', 'TURN_AND_WALK'),
+            rule('ALWAYS', 'WALK'),
+          ],
+        },
+        {
+          // FIRE has no cooldown byte of its own, so the cadence lives here,
+          // same reasoning as sentry_shooter's Reload state.
+          id: 'state_reload', name: 'Reload',
+          rules: [
+            rule('TIMER_ELAPSED', 'IDLE', { conditionArg: 30, nextState: 0 }),
+            rule('ALWAYS', 'IDLE'),
+          ],
+        },
+      ],
+    }),
+  },
+  {
+    key: 'bullet_dodger',
+    label: 'Shields from incoming fire',
+    summary: 'Patrols, and the instant a player bullet is flying its way, raises a guard that eats the shot instead of taking damage.',
+    build: () => ({
+      target: 'MSX2', initialState: 0, speedPxPerTick: 1, logicIntervalFrames: 2,
+      states: [
+        {
+          id: 'state_patrol', name: 'Patrol',
+          rules: [
+            // 12px vertical band, same as sentry_shooter's "lined up" margin:
+            // a shot that would actually connect is what should be dodged.
+            rule('PLAYER_BULLET_INCOMING', 'SHIELD', { conditionArg: 12, actionArg: 20, nextState: 1 }),
+            rule('NO_FLOOR_AHEAD', 'TURN_AND_WALK'),
+            rule('WALL_AHEAD', 'TURN_AND_WALK'),
+            rule('ALWAYS', 'WALK'),
+          ],
+        },
+        {
+          // Same guard-hold shape as "shielded": SHIELD_ACTIVE is what stops
+          // this state from raising the shield again every tick.
+          id: 'state_guard', name: 'Guard',
+          rules: [
             rule('SHIELD_ACTIVE', 'SET_ANIM', { actionArg: 1 }),
             rule('ALWAYS', 'SET_ANIM', { actionArg: 0, nextState: 0 }),
           ],

@@ -247,6 +247,32 @@ for (const preset of MSX2_ENEMY_BEHAVIOR_PRESETS) {
   check(`Preset "${preset.key}": every state ends in a catch-all and every jump lands inside the table`, wellFormed);
 }
 
+// Imported data must not renumber states or admit Object.prototype as opcodes.
+for (const malformedStates of [{}, [null, state('live', [{ condition: 'ALWAYS', action: 'WALK', nextState: 0 }])], [state('live', [{ condition: 'ALWAYS', action: 'WALK' }]), { id: 'broken' }]]) {
+  let result;
+  try { result = bakeEnemyBehavior(asset(malformedStates)); } catch { /* asserted below */ }
+  check('Malformed states produce a diagnostic and a standing fallback without throwing',
+    Boolean(result?.errors.length) && readState(result.bytes, 0).rules[0].action === MSX2_ENEMY_ACT.IDLE);
+}
+for (const badRule of [
+  { condition: 'constructor', action: 'WALK' },
+  { condition: 'ALWAYS', action: 'toString' },
+]) {
+  const result = bakeEnemyBehavior(asset([state('bad opcode', [badRule])]));
+  check('Inherited object properties cannot become opcodes', result.errors.length > 0
+    && result.bytes.every(byte => Number.isInteger(byte) && byte >= 0 && byte <= 255));
+}
+const shadowed = bakeEnemyBehavior(asset([state('shadowed', [
+  { condition: 'ALWAYS', action: 'WALK' },
+  { condition: 'PLAYER_BULLET_INCOMING', conditionArg: 12, action: 'FIRE' },
+  { condition: 'ALWAYS', action: 'IDLE' },
+])]));
+check('Unreachable rules do not allocate optional bullet engines or consume program bytes',
+  shadowed.errors.length === 0 && shadowed.bytes.length === 9
+  && !shadowed.usedActions.includes(MSX2_ENEMY_ACT.FIRE)
+  && !shadowed.usedConditions.includes(MSX2_ENEMY_COND.PLAYER_BULLET_INCOMING)
+  && shadowed.warnings.some(w => w.includes('unreachable')));
+
 console.log(failed
   ? `\n${failed} enemy-behaviour check(s) failed.`
   : '\nAll enemy-behaviour checks passed.');

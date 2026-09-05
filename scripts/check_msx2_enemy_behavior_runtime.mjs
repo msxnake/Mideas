@@ -50,6 +50,13 @@ await build({
 const { MSX2_ENEMY_COND, MSX2_ENEMY_ACT, bakeEnemyBehavior, createMsx2EnemyBehavior } =
   await import(pathToFileURL(bakerOut).href);
 
+const pathOut = join(workDir, 'path.mjs');
+await build({
+  entryPoints: [join(repoRoot, 'utils', 'msx2PathFollow.ts')],
+  bundle: true, format: 'esm', platform: 'node', outfile: pathOut, logLevel: 'silent',
+});
+const { bakePathFollow, pathNodeLabels } = await import(pathToFileURL(pathOut).href);
+
 let failed = 0;
 const check = (label, condition) => {
   console.log(`${condition ? 'OK  ' : 'FAIL'}: ${label}`);
@@ -80,6 +87,19 @@ const gravityRuntime = buildEnemyBehaviorRuntimeAsm({
   programsUseGravity: true,
 });
 const gravityCode = gravityRuntime.routinesAsm.replace(/;[^\n]*/g, '').replace(/[ \t]+$/gm, '');
+
+/** Same engine with the PATH FOLLOW walker armed. */
+const pathRuntime = buildEnemyBehaviorRuntimeAsm({
+  ramBase: 0xc300,
+  poolProgramOffset: 24,
+  poolStateOffset: 25,
+  poolTimerOffset: 26,
+  poolVelocityOffset: 27,
+  poolStride: 32,
+  maxSlots: 4,
+  programsUsePath: true,
+});
+const pathCode = pathRuntime.routinesAsm.replace(/;[^\n]*/g, '').replace(/[ \t]+$/gm, '');
 const asm = runtime.routinesAsm;
 /** Structural matches run against the instructions alone: a trailing comment is
  *  not a difference, and making the checks depend on one makes them brittle. */
@@ -186,6 +206,72 @@ check('THE BUG THIS GUARDS: RANDOM only READS the seed, so every layer of an ene
   && !/bitmap_enemy_script_cond_random:[\s\S]{0,200}?ld \(bitmap_enemy_script_seed\), a/.test(code));
 check('The seed advances once per FRAME, gated on being the first slot of the sweep',
   /ld a, \(bitmap_enemy_count\)\s*\n\s*cp b\s*\n\s*jp nz, \.escript_seed_done[\s\S]*?ld \(bitmap_enemy_script_seed\), a/.test(code));
+
+// THE BUG THIS GUARDS: the step used to be `rlca / xor #1D`, which LOOKS like an
+// LFSR and behaves like a metronome. Every regex I could write about its spelling
+// passed on it, so this check does the only thing that would have failed: it RUNS
+// the emitted instructions over all 256 seeds and measures the orbits. The old
+// step gives 36 orbits whose longest is 8, plus two fixed points; from a zeroed
+// RAM byte it loops 00 1D 27 53 BB 6A C9 8E for ever, and a branch reached on a
+// frame-periodic schedule locks onto one phase and stops varying.
+const seedBlock = (code.match(/jp nz, \.escript_seed_done\n([\s\S]*?)\.escript_seed_done:/) || [])[1];
+const stepSeed = (() => {
+  if (!seedBlock) return null;
+  const lines = seedBlock.split('\n').map(line => line.replace(/;.*$/, '').trim()).filter(Boolean);
+  const labels = new Map();
+  lines.forEach((line, index) => { if (line.endsWith(':')) labels.set(line.slice(0, -1), index); });
+  const at = name => {
+    if (!labels.has(name)) throw new Error(`jump to a label the block does not define: ${name}`);
+    return labels.get(name);
+  };
+  return seed => {
+    let a = seed, carry = 0, zero = 0, pc = 0, guard = 0;
+    while (pc < lines.length) {
+      if (++guard > 200) throw new Error('the seed step does not terminate');
+      const line = lines[pc++];
+      let m;
+      if (line.endsWith(':')) continue;
+      if (line === 'ld a, (bitmap_enemy_script_seed)') { a = seed; continue; }
+      if (line === 'ld (bitmap_enemy_script_seed), a') return a;
+      if (line === 'or a') { carry = 0; zero = a === 0 ? 1 : 0; continue; }
+      if (line === 'add a, a') { carry = a >> 7; a = (a << 1) & 0xff; zero = a === 0 ? 1 : 0; continue; }
+      if (line === 'rlca') { carry = a >> 7; a = ((a << 1) | (a >> 7)) & 0xff; continue; }
+      if (line === 'rrca') { carry = a & 1; a = ((a >> 1) | (a << 7)) & 0xff; continue; }
+      if ((m = line.match(/^xor #([0-9A-F]{2})$/))) { a ^= parseInt(m[1], 16); carry = 0; zero = a === 0 ? 1 : 0; continue; }
+      if ((m = line.match(/^ld a, #([0-9A-F]{2})$/))) { a = parseInt(m[1], 16); continue; }
+      if ((m = line.match(/^jp (nz|z|nc|c), (\S+)$/))) {
+        const take = { nz: !zero, z: zero, nc: !carry, c: carry }[m[1]];
+        if (take) pc = at(m[2]);
+        continue;
+      }
+      if ((m = line.match(/^jp (\S+)$/))) { pc = at(m[1]); continue; }
+      // An instruction this model does not know must FAIL the guard, never pass
+      // it: a silent skip is how a check starts agreeing with everything.
+      throw new Error(`unmodelled instruction in the seed step: ${line}`);
+    }
+    throw new Error('the seed step never stores a value');
+  };
+})();
+let longestOrbit = 0;
+let orbitError = '';
+try {
+  const seen = new Set();
+  for (let start = 0; start < 256; start++) {
+    if (seen.has(start)) continue;
+    const order = new Map();
+    let value = start;
+    while (!order.has(value)) { order.set(value, order.size); value = stepSeed(value); }
+    const length = order.size - order.get(value);
+    for (const v of order.keys()) seen.add(v);
+    longestOrbit = Math.max(longestOrbit, length);
+  }
+} catch (error) { orbitError = error.message; }
+check(`THE BUG THIS GUARDS: the seed step is a maximal LFSR, not a short cycle dressed as one (longest orbit ${longestOrbit}${orbitError ? `, ${orbitError}` : ''})`,
+  !orbitError && longestOrbit === 255);
+// And the dead value has a way back, or a maximal LFSR is strictly worse than
+// the short cycle it replaced: 0 shifts to 0 for ever, and RAM boots to 0.
+check('THE BUG THIS GUARDS: a zero seed re-enters the cycle instead of locking there',
+  !!stepSeed && stepSeed(0) !== 0);
 // THE BUG THIS GUARDS, measured on hardware before the leader/follower change:
 // ENEMY_AHEAD skipped only its own slot ADDRESS, so the second layer of a body
 // saw the first one a pixel ahead — the leader had already moved that frame —
@@ -315,6 +401,67 @@ check('A project whose behaviours all fly emits no gravity table at all',
     { id: 'floater', name: 'Floater', bytes: [1, 3, 0, 1, 0, 0, 0, 0, 0xff], gravity: false },
   ]).asm.includes('bitmap_enemy_script_gravity_table'));
 
+// ---- PATH FOLLOW ------------------------------------------------------------
+check('Default OFF: no path walker without an authored route',
+  !code.includes('bitmap_enemy_script_path_step')
+  && !code.includes('bitmap_enemy_script_kind_table'));
+// THE BUG THIS GUARDS: the walker is entered by JP from inside the step, AFTER
+// its push bc. A RET anywhere in it would return with that bc still stacked and
+// unbalance the caller's loop counter — the same class of bug as the probe that
+// ate the slot counter.
+check('THE BUG THIS GUARDS: the path walker never RETs; every exit goes through _done',
+  /bitmap_enemy_script_path_step:[\s\S]*?bitmap_enemy_script_step:/.test(pathCode)
+  && !/bitmap_enemy_script_path_step:[\s\S]*?\n\s{4}ret\s*\n[\s\S]*?bitmap_enemy_script_step:/.test(pathCode));
+check('A route walks the body before deciding anything',
+  /bitmap_enemy_script_path_step:\s*\n\s*call bitmap_enemy_script_walk_body/.test(pathCode));
+// THE BUG THIS GUARDS: one BYTE per program, indexed undoubled. The boss word
+// tables cost a day by doubling; this is the same mistake mirrored.
+check('The kind table is indexed as bytes, not doubled',
+  /ld de, bitmap_enemy_script_kind_table\s*\n\s*add hl, de\s*\n\s*ld a, \(hl\)/.test(pathCode));
+check('Walking is a callable body, so the route and the WALK action share one copy',
+  (pathCode.match(/bitmap_enemy_script_walk_body:/g) || []).length === 1
+  && /bitmap_enemy_script_act_walk:\s*\n\s*call bitmap_enemy_script_walk_body/.test(pathCode));
+// THE BUG THIS GUARDS, and it crashed a real MSX inside one second: turning the
+// WALK action into a callable body meant replacing its exits with RET. A search
+// for "jp bitmap_enemy_script_apply" converted the UNCONDITIONAL ones and left
+// `jp nc,` / `jp z,` / `jp c,` untouched — so three paths still left through
+// _apply with the CALL's return address stranded on the stack. It grew every
+// tick until the RAM was gone; the probe read #FF from the whole enemy pool.
+// A callable routine must not contain a single jump out of it, conditional or not.
+{
+  const bodyStart = pathCode.indexOf('bitmap_enemy_script_walk_body:');
+  const bodyEnd = pathCode.indexOf('bitmap_enemy_script_act_turn:');
+  const body = bodyStart >= 0 && bodyEnd > bodyStart ? pathCode.slice(bodyStart, bodyEnd) : '';
+  check('THE BUG THIS GUARDS: the callable walk body leaves only by RET, conditional exits included',
+    body.length > 0 && !/\bjp\b[^\n]*bitmap_enemy_script_(apply|tick|done)/.test(body));
+}
+check('Node addressing multiplies by 5 without a multiply instruction',
+  /add hl, hl\s*\n\s*add hl, hl\s*\n\s*add hl, de/.test(pathCode));
+check('The alternate policy keeps one bit PER NODE, not one flag per body',
+  /\.pth_alternate:[\s\S]{0,200}?and #07/.test(pathCode));
+
+const pathBaked = bakePathFollow({
+  nodes: [
+    { id: 'a', cellX: 2, cellY: 6, action: 'SET_DIR', arg: 1, next: 'b' },
+    { id: 'b', cellX: 9, cellY: 6, action: 'FALL', next: 'c', nextAlt: 'd', policy: 'random' },
+    { id: 'c', cellX: 12, cellY: 4, action: 'JUMP', arg: 4 },
+    { id: 'd', cellX: 12, cellY: 9, action: 'DESCEND' },
+  ],
+});
+check('A baked route is one count byte plus five per node',
+  pathBaked.bytes.length === 1 + 4 * 5 && pathBaked.bytes[0] === 4 && !pathBaked.errors.length);
+check('The branch policy rides in the spare bits of the action byte, costing nothing',
+  (pathBaked.bytes[1 + 5 + 1] >> 5) === 4 && (pathBaked.bytes[1 + 5 + 1] & 0x1f) === MSX2_ENEMY_ACT.FALL);
+check('A node with one exit stores no policy, whatever the author left on it',
+  (pathBaked.bytes[1 + 1] >> 5) === 0);
+
+const pathPrograms = buildEnemyBehaviorProgramAsm([
+  { id: 'rules', name: 'Rules', bytes: bakeEnemyBehavior(createMsx2EnemyBehavior('walker', 'Walker')).bytes },
+  { id: 'route', name: 'Route', bytes: pathBaked.bytes, kind: 'path_follow' },
+]);
+check('The kind table marks the route and leaves the rules alone',
+  /bitmap_enemy_script_kind_table:\s*\n\s*db #00[\s\S]*?db #00[\s\S]*?db #01/.test(pathPrograms.asm));
+
 // ---- program emission -------------------------------------------------------
 const preset = bakeEnemyBehavior(createMsx2EnemyBehavior('walker', 'Walker'));
 const programs = buildEnemyBehaviorProgramAsm([{ id: 'walker', name: 'Walker', bytes: preset.bytes }]);
@@ -337,6 +484,11 @@ if (!existsSync(glass)) {
     { label: 'interpreter', build: runtime, body: asm },
     { label: 'interpreter with the enemy bullet pool', build: armed, body: armed.routinesAsm },
     { label: 'interpreter with automatic gravity', build: gravityRuntime, body: gravityRuntime.routinesAsm },
+    // The path variant carries its OWN program blob: the walker reads
+    // bitmap_enemy_script_kind_table, which only exists when a route is baked.
+    // Assembling it against the rules-only blob would fail on a missing symbol
+    // and tell us nothing about the walker itself.
+    { label: 'interpreter with the path walker', build: pathRuntime, body: pathRuntime.routinesAsm, programs: pathPrograms.asm },
   ];
   for (const variant of variants) {
     const source = join(workDir, `runtime_probe_${variant.label.replace(/\W+/g, '_')}.asm`);
@@ -360,7 +512,7 @@ if (!existsSync(glass)) {
       'bitmap_boss_hurt_player:',
       '    ret',
       variant.body,
-      programs.asm,
+      variant.programs || programs.asm,
       '    db 0',
     ].join('\n'), 'latin1');
     let assembled = true;

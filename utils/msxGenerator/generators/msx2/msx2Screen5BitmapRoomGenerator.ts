@@ -260,7 +260,8 @@ import {
   MSX2_ENEMY_MOVEMENT_LAYER_FOLLOWER,
   type Msx2EnemyHazardRuntimeSlot,
 } from './msx2EntityRuntimeGenerator';
-import { bakeEnemyBehavior, MSX2_ENEMY_ACT, type Msx2EnemyBehaviorAsset } from '../../../msx2EnemyBehavior';
+import { bakeEnemyBehavior, MSX2_ENEMY_ACT, MSX2_ENEMY_COND, type Msx2EnemyBehaviorAsset } from '../../../msx2EnemyBehavior';
+import { bakePathFollow, type Msx2PathFollowProgram } from '../../../msx2PathFollow';
 import { isMsx2CarryableEntity } from './msx2CarryObjectGenerator';
 import {
   collectSccTracks,
@@ -13754,11 +13755,12 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
   let fly8Enabled = false;
   let scriptedEnabled = false;
   let scriptedProgramsUseFire = false;
+  let scriptedProgramsUsePlayerBulletSense = false;
   let darkEyesEnabled = false;
   // Set while expanding: at least one body needs more than one hardware sprite.
   let layeredEnemies = false;
   const scriptedProgramIndexById = new Map<string, number>();
-  const scriptedBehaviorPrograms: Array<{ id: string; name: string; bytes: number[]; gravity: boolean }> = [];
+  const scriptedBehaviorPrograms: Array<{ id: string; name: string; bytes: number[]; gravity: boolean; kind: 'rules' | 'path_follow' }> = [];
   const scriptedProgramIndexForEntity = (entity: any): number => {
     const asset = behaviorAssetForEntity(entity);
     if (!asset) return 0; // the runtime's index-0 standing fallback
@@ -13766,23 +13768,39 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     if (!id) return 0;
     const existing = scriptedProgramIndexById.get(id);
     if (existing !== undefined) return existing;
-    const baked = bakeEnemyBehavior(asset);
+    // A behaviour asset is authored one of two ways, and the SAME interpreter
+    // runs both: ordered rules, or numbered nodes on room cells. Which baker
+    // produced the bytes has to travel with them, or the runtime walks a node
+    // table as if it were a rule block.
+    const isPath = (asset as any).kind === 'path_follow';
+    const baked = isPath
+      ? bakePathFollow(((asset as any).path || { nodes: [] }) as Msx2PathFollowProgram)
+      : bakeEnemyBehavior(asset);
     for (const error of baked.errors) {
       console.warn(`MSX2 bitmap scripted enemy "${asset.name || id}": ${error}`);
     }
     for (const warning of baked.warnings) {
       console.warn(`MSX2 bitmap scripted enemy "${asset.name || id}": ${warning}`);
     }
-    if (baked.usedActions.includes(MSX2_ENEMY_ACT.FIRE)) scriptedProgramsUseFire = true;
+    // A route that baked with errors would still emit bytes, and those bytes
+    // would be walked as a route. Falling back to the standing program is the
+    // same promise the rules path already makes: a broken asset stands still,
+    // it does not run something else.
+    if (isPath && baked.errors.length) return 0;
+    if (!isPath && (baked as any).usedActions?.includes(MSX2_ENEMY_ACT.FIRE)) scriptedProgramsUseFire = true;
+    if (!isPath && (baked as any).usedConditions?.includes(MSX2_ENEMY_COND.PLAYER_BULLET_INCOMING)) scriptedProgramsUsePlayerBulletSense = true;
     const index = scriptedBehaviorPrograms.length + 1; // index 0 is the fallback
     scriptedProgramIndexById.set(id, index);
     scriptedBehaviorPrograms.push({
       id,
       name: String(asset.name || id),
       bytes: baked.bytes.map(byte => byte & 0xff),
+      kind: isPath ? 'path_follow' : 'rules',
       // Absent means yes: an authored enemy falls unless it says otherwise, so
       // an asset saved before this field existed keeps behaving like a body.
-      gravity: (asset as any).gravity !== false,
+      // A route is kinematic: the drawn path must be the path executed, so it
+      // never falls on its own.
+      gravity: isPath ? false : (asset as any).gravity !== false,
     });
     return index;
   };
@@ -14192,6 +14210,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     gearEnabled: false,
     scriptedEnabled: false,
     scriptedProgramsUseFire: false,
+    scriptedProgramsUsePlayerBulletSense: false,
     scriptedBehaviorPrograms: [],
     patternGroupOffsets: [],
     patternVariantCounts: [],
@@ -14282,6 +14301,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     fly8Enabled,
     scriptedEnabled,
     scriptedProgramsUseFire,
+    scriptedProgramsUsePlayerBulletSense,
     scriptedBehaviorPrograms,
     darkEyesEnabled,
     layeredEnemies,
@@ -17321,6 +17341,16 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
     enemyBulletColorBase: enemyBulletColorBase,
     enemyBulletPatternNumber: enemyBulletPatternGroup * 4,
     enemyBulletFollowedByPlayerBullets: shootConfig.enabled,
+    // PLAYER_BULLET_INCOMING reads the SHOOT skill's own pool by label, same
+    // as the travelling lantern below: absent when the project has no SHOOT
+    // skill, which keeps the scan out of a ROM that never needs it.
+    playerBullets: bitmapShootEnabled(shootConfig)
+      ? {
+          poolLabel: 'bitmap_bullet_pool',
+          slotCount: Math.max(1, Math.min(8, Math.floor(shootConfig.maxBullets) || 3)),
+          slotStride: bitmapShootSlotStride(shootConfig),
+        }
+      : undefined,
     bulletHit: bulletHitsEnemies
       ? { chainFromBossLabel: bossData.enabled ? 'bitmap_boss_bullet_hit' : undefined }
       : undefined,

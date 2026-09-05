@@ -95,3 +95,36 @@ export const StampIcon = wrapIcon(Lucide.Stamp);
 export const DropletIcon = wrapIcon(Lucide.Droplet);
 export const BlendIcon = wrapIcon(Lucide.Blend);
 export const WaveformIcon = wrapIcon(Lucide.Activity);
+
+// --- PATH FOLLOW: one icon per node action and per branch policy. Jordi asked
+// for identifiable icons and less text, so these ARE the labels in that editor;
+// the words only appear in tooltips.
+export const PathRouteIcon = wrapIcon(Lucide.Route, "w-4 h-4");
+export const PathNodeIcon = wrapIcon(Lucide.MapPin, "w-4 h-4");
+export const PathBranchIcon = wrapIcon(Lucide.GitBranch, "w-4 h-4");
+export const ActWalkIcon = wrapIcon(Lucide.Footprints, "w-4 h-4");
+export const ActIdleIcon = wrapIcon(Lucide.Pause, "w-4 h-4");
+export const ActJumpIcon = wrapIcon(Lucide.ChevronsUp, "w-4 h-4");
+export const ActFallIcon = wrapIcon(Lucide.ChevronsDown, "w-4 h-4");
+export const ActRiseIcon = wrapIcon(Lucide.ArrowUpToLine, "w-4 h-4");
+export const ActDescendIcon = wrapIcon(Lucide.ArrowDownToLine, "w-4 h-4");
+export const ActTurnIcon = wrapIcon(Lucide.FlipHorizontal2, "w-4 h-4");
+export const ActFireIcon = wrapIcon(Lucide.Zap, "w-4 h-4");
+export const ActShieldIcon = wrapIcon(Lucide.Shield, "w-4 h-4");
+export const ActChaseIcon = wrapIcon(Lucide.Crosshair, "w-4 h-4");
+export const ActTimerIcon = wrapIcon(Lucide.Timer, "w-4 h-4");
+export const ActFaceLeftIcon = wrapIcon(Lucide.MoveLeft, "w-4 h-4");
+export const ActFaceRightIcon = wrapIcon(Lucide.MoveRight, "w-4 h-4");
+export const PolicyFixedIcon = wrapIcon(Lucide.CornerDownRight, "w-4 h-4");
+export const PolicyAlternateIcon = wrapIcon(Lucide.Repeat, "w-4 h-4");
+export const PolicyPlayerSideIcon = wrapIcon(Lucide.User, "w-4 h-4");
+export const PolicyFlagIcon = wrapIcon(Lucide.Flag, "w-4 h-4");
+export const PolicyRandomIcon = wrapIcon(Lucide.Dices, "w-4 h-4");
+/** Path node: step down through a one-way platform. */
+export const ActDropThroughIcon = wrapIcon(Lucide.ArrowDownFromLine, "w-4 h-4");
+/** Path node: turn to face the player without moving. */
+export const ActFacePlayerIcon = wrapIcon(Lucide.Eye, "w-4 h-4");
+/** Path node: change how fast the body walks from here on. */
+export const ActSetSpeedIcon = wrapIcon(Lucide.Gauge, "w-4 h-4");
+/** Palette the Onion preview is drawn with. */
+export const PaletteIcon = wrapIcon(Lucide.Palette, "w-4 h-4");

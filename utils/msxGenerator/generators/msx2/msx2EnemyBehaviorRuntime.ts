@@ -52,6 +52,19 @@ export const MSX2_ENEMY_MOVEMENT_SCRIPTED = 14;
  */
 export const MSX2_ENEMY_SCRIPT_POOL_BYTES = 6;
 
+/**
+ * Pool bytes a PATH FOLLOW build adds on top: the node the body is heading for,
+ * and one bit per branching node for the `alternate` policy.
+ *
+ * They could have shared the rules engine's `state` and `timer`, which a path
+ * program never uses — until you follow the exit path. Every action handler
+ * leaves through bitmap_enemy_script_apply, which WRITES state, and _tick, which
+ * increments the timer. Reusing them would mean the first action a node fires
+ * silently overwrites the node index with a state number. Two honest bytes beat
+ * a clever alias the shared exit quietly corrupts.
+ */
+export const MSX2_ENEMY_PATH_POOL_BYTES = 2;
+
 /** Shared scratch, one copy for the whole engine rather than one per slot. */
 export const MSX2_ENEMY_SCRIPT_SCRATCH_BYTES = 9;
 
@@ -69,9 +82,9 @@ export function enemyScriptScratchBytes(programsUseGravity: boolean): number {
 export const MSX2_ENEMY_SCRIPT_HIT_STAMP = 0xff;
 
 /** Number of condition opcodes, i.e. the size of the condition jump table. */
-export const MSX2_ENEMY_SCRIPT_COND_COUNT = 28;
+export const MSX2_ENEMY_SCRIPT_COND_COUNT = 30;
 /** Number of action opcodes. */
-export const MSX2_ENEMY_SCRIPT_ACT_COUNT = 17;
+export const MSX2_ENEMY_SCRIPT_ACT_COUNT = 18;
 
 /** Downward velocity the fall integrator will not exceed, as a signed byte. */
 const TERMINAL_VELOCITY = 0xfc;   // -4 px per logic tick
@@ -140,11 +153,43 @@ export interface EnemyBehaviorRuntimeOptions {
    */
   programsUseGravity?: boolean;
   /**
+   * Set when at least one baked program is a PATH FOLLOW route rather than a
+   * rule table. Off, neither the walker nor the per-program kind table is
+   * emitted, so a project that authors no route keeps its ROM byte for byte.
+   */
+  programsUsePath?: boolean;
+  /** Pool offsets of the two path bytes; defaulted next to the scripted block. */
+  poolPathNodeOffset?: number;
+  poolPathBranchOffset?: number;
+  /**
    * The enemy bullet pool. Omitted entirely when no authored program fires, so
    * turning the behaviour engine on costs no RAM, no SAT slots and no code for
    * a project whose enemies never shoot.
    */
   enemyBullets?: EnemyBulletPoolOptions;
+  /**
+   * Set when at least one baked program tests PLAYER_BULLET_INCOMING. Separate
+   * from playerBulletPool below on purpose, same reasoning as programsUseFire:
+   * it is what makes a missing pool a BUILD ERROR instead of a condition that
+   * quietly always answers false.
+   */
+  programsUsePlayerBulletSense?: boolean;
+  /**
+   * The SHOOT skill's own bullet pool, read-only: PLAYER_BULLET_INCOMING scans
+   * it by label rather than by numeric address, the same way the lighting
+   * generator's travelling lantern already does. Absent when the project has
+   * no SHOOT skill, which keeps the whole scan out of a ROM that never needs it.
+   */
+  playerBulletPool?: PlayerBulletPoolOptions;
+}
+
+/** Read-only view of the player's own bullet pool (SHOOT skill). */
+export interface PlayerBulletPoolOptions {
+  /** Defaults to 'bitmap_bullet_pool', the SHOOT skill's fixed label. */
+  poolLabel?: string;
+  slotCount: number;
+  /** 4 bytes (active,x,y,dir) or 5 when the project authors a bullet range. */
+  slotStride: number;
 }
 
 export interface EnemyBulletPoolOptions {
@@ -199,8 +244,20 @@ export function buildEnemyBehaviorRuntimeAsm(options: EnemyBehaviorRuntimeOption
       + 'buildEnemyBehaviorRuntimeAsm. Emitting FIRE without its runtime would be a silent no-op in the ROM.'
     );
   }
+  // Same failure shape as FIRE above: a condition that silently always reads
+  // false because the project has no SHOOT skill is worse than a build error.
+  if (options.programsUsePlayerBulletSense && !options.playerBulletPool) {
+    throw new Error(
+      'An authored behaviour uses PLAYER_BULLET_INCOMING but no playerBulletPool was passed to '
+      + 'buildEnemyBehaviorRuntimeAsm. The project needs the SHOOT skill enabled for enemies to sense its bullets.'
+    );
+  }
   const bullets = options.enemyBullets;
+  const playerBullets = options.playerBulletPool;
   const gravity = options.programsUseGravity === true;
+  const path = options.programsUsePath === true;
+  const PNODE = options.poolPathNodeOffset ?? (options.poolVelocityOffset + 3);
+  const PBRANCH = options.poolPathBranchOffset ?? (options.poolVelocityOffset + 4);
   const BULLET_SLOTS = bullets ? Math.max(1, Math.min(8, Math.floor(bullets.slotCount) || 2)) : 0;
   const BULLET_SPEED = bullets ? Math.max(1, Math.min(8, Math.floor(bullets.speedPx) || 3)) : 0;
   const BULLET_DAMAGE = bullets ? Math.max(1, Math.min(8, Math.floor(bullets.damageHearts) || 1)) : 0;
@@ -279,7 +336,142 @@ bitmap_enemy_bullet_slots EQU ${BULLET_SLOTS}
 ;   Clobbers AF/DE/HL. Preserves BC and IX.
 ; CALLS: bitmap_probe_solid.
 ; ------------------------------------------------------------
-bitmap_enemy_script_step:
+${path ? `; ------------------------------------------------------------
+; FUNCTION: bitmap_enemy_script_path_step
+; ------------------------------------------------------------
+; PURPOSE: One tick of a PATH FOLLOW route. The body keeps walking the way it
+;   faces; when it enters the cell of the node it is heading for, that node's
+;   action fires and the route advances to the next node.
+; INPUT: IX = pool slot. bitmap_enemy_script_base -> the program (count first).
+;        Entered by JP from bitmap_enemy_script_step, AFTER its push bc.
+; OUTPUT: position moved; (ix+${PNODE}) advanced when a node fired.
+; EXIT: always through bitmap_enemy_script_done, which pops that bc. Never RET.
+; ------------------------------------------------------------
+; NO "last cell fired" byte, and that is worth saying because the obvious design
+; has one. Firing a node ADVANCES the target to the next, whose cell is
+; elsewhere, so a node cannot fire twice on one pass. The editor refusing to
+; stack two nodes on a cell is what makes that argument hold.
+bitmap_enemy_script_path_step:
+    call bitmap_enemy_script_walk_body     ; the body never stops on its own
+    ld a, (ix+${PNODE})
+    cp #FF
+    jp z, bitmap_enemy_script_done         ; route finished: just keep walking
+    ; --- HL -> node record: base + 1 (count) + index * 5
+    ld l, a
+    ld h, 0
+    ld e, a
+    ld d, 0
+    add hl, hl
+    add hl, hl                             ; index * 4
+    add hl, de                             ; index * 5
+    ld de, (bitmap_enemy_script_base)
+    add hl, de
+    inc hl                                 ; step over the node count byte
+    ; --- am I standing in that node's cell? (row * 16 + column)
+    push hl
+    call bitmap_enemy_script_origin
+    ld a, e
+    and #F0
+    ld c, a
+    ld a, d
+    rrca
+    rrca
+    rrca
+    rrca
+    and #0F
+    add a, c                               ; A = my cell index
+    pop hl
+    cp (hl)
+    jp nz, bitmap_enemy_script_done        ; not there yet
+    ; --- the node fires -------------------------------------------------
+    inc hl
+    ld c, (hl)                             ; C = action | policy<<5
+    inc hl
+    ld a, (hl)
+    ld (bitmap_enemy_script_arg), a        ; the action's argument
+    inc hl
+    ld e, (hl)                             ; next
+    inc hl
+    ld d, (hl)                             ; nextAlt
+    ; --- pick the exit BEFORE dispatching: the action handler leaves through
+    ;     _apply and never comes back here.
+    ld a, d
+    cp #FF
+    jp z, .pth_take_next                   ; single exit: nothing to decide
+    ld a, c
+    rlca
+    rlca
+    rlca
+    and #07                                ; A = policy
+    or a
+    jp z, .pth_take_next                   ; 0 fixed
+    dec a
+    jp z, .pth_alternate                   ; 1 alternate
+    dec a
+    jp z, .pth_player_side                 ; 2 playerSide
+    dec a
+    jp z, .pth_take_next                   ; 3 flag: no flag source wired yet
+    ; 4 random. The seed advances ONCE PER FRAME, not per read, so every layer
+    ; of one body would see the same number even if more than one asked.
+    ld a, (bitmap_enemy_script_seed)
+    and #01
+    jp z, .pth_take_next
+    jp .pth_take_alt
+.pth_alternate:
+    ; One bit per node, so two different forks on one route alternate
+    ; independently instead of sharing a single flip-flop.
+    ld a, (ix+${PNODE})
+    and #07
+    inc a
+    ld b, a
+    ld a, #01
+.pth_alt_shift:
+    dec b
+    jp z, .pth_alt_ready
+    add a, a
+    jp .pth_alt_shift
+.pth_alt_ready:
+    ld b, a                                ; B = this node's bit
+    ld a, (ix+${PBRANCH})
+    xor b
+    ld (ix+${PBRANCH}), a
+    and b
+    jp z, .pth_take_next
+    jp .pth_take_alt
+.pth_player_side:
+    ; The player is to the left -> take the alternate exit. "Which side" only
+    ; has to be consistent; the author sees which exit is which in the editor.
+    push de
+    call bitmap_enemy_script_origin
+    ld a, (player_x)
+    cp d
+    pop de
+    jp nc, .pth_take_next
+.pth_take_alt:
+    ld a, d
+    jp .pth_store
+.pth_take_next:
+    ld a, e
+.pth_store:
+    ld (ix+${PNODE}), a
+    ; --- run the action, which exits through _apply for us ---------------
+    ld a, ${asmByte(MSX2_ENEMY_BEHAVIOR_NEXT_STATE_STAY)}
+    ld (bitmap_enemy_script_next), a       ; a route has no states to switch
+    ld a, c
+    and #1F                                ; opcode without the policy bits
+    cp ${MSX2_ENEMY_SCRIPT_ACT_COUNT}
+    jp nc, bitmap_enemy_script_done        ; unknown opcode: walk on, do nothing
+    ld l, a
+    ld h, 0
+    add hl, hl                             ; WORD table
+    ld de, bitmap_enemy_script_act_table
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    jp (hl)
+` : ''}bitmap_enemy_script_step:
     push bc                        ; the update loop's slot counter lives in B
 ${gravity ? `    xor a
     ld (bitmap_enemy_script_vmoved), a     ; nothing has moved this body yet
@@ -296,9 +488,26 @@ ${gravity ? `    xor a
     ld a, (bitmap_enemy_count)
     cp b
     jp nz, .escript_seed_done
+    ; MAXIMAL LFSR, NOT "rotate and xor".
+    ; The previous step was "rlca / xor #1D", which reads like an LFSR and is
+    ; not one: rotating feeds bit7 back into bit0 AND the xor is unconditional,
+    ; so the map is affine with tiny order. Enumerated over all 256 seeds it
+    ; breaks into 36 orbits whose LONGEST IS 8, plus two fixed points (#0B
+    ; always odd, #F4 always even). From a zeroed RAM byte the whole sequence
+    ; is the 8-frame loop 00 1D 27 53 BB 6A C9 8E, for ever. A body that
+    ; reaches a branch on a frame-periodic schedule then locks onto one phase
+    ; and takes the SAME exit every lap: "random" that never varies.
+    ; Shifting instead of rotating, and xoring only when bit7 fell out, is the
+    ; Galois LFSR for x^8+x^4+x^3+x^2+1: 2 orbits, one of length 255.
     ld a, (bitmap_enemy_script_seed)
-    rlca
+    or a
+    jp nz, .escript_seed_step
+    ld a, #1D                              ; 0 is the LFSR's dead value: re-enter the cycle
+.escript_seed_step:
+    add a, a
+    jp nc, .escript_seed_store
     xor #1D
+.escript_seed_store:
     ld (bitmap_enemy_script_seed), a
 .escript_seed_done:
     ; --- resolve this slot's program ---
@@ -313,7 +522,19 @@ ${gravity ? `    xor a
     ld h, (hl)
     ld l, a                        ; HL -> program base
     ld (bitmap_enemy_script_base), hl
-    ; --- resolve the current state block ---
+${path ? `    ; --- rules or route? One byte per program says which ---
+    ; HL is reloaded before the test because the rules path below still walks
+    ; from the program base, and ld hl,(nn) leaves the flags alone.
+    ld a, (ix+${PROG})
+    ld l, a
+    ld h, 0
+    ld de, bitmap_enemy_script_kind_table
+    add hl, de
+    ld a, (hl)
+    ld hl, (bitmap_enemy_script_base)
+    or a
+    jp nz, bitmap_enemy_script_path_step
+` : ''}    ; --- resolve the current state block ---
     ld a, (ix+${STATE})
     and ${asmByte(MASK)}           ; a corrupt byte costs a masked read, not a wild one
     add a, a                       ; WORD table again: state * 2
@@ -717,7 +938,127 @@ bitmap_enemy_script_cond_on_platform_tile:
     bit 5, a
     jp nz, bitmap_enemy_script_true
     jp bitmap_enemy_script_false
-bitmap_enemy_script_cond_was_hit:
+bitmap_enemy_script_cond_player_in_sight:
+    ; The sentry test. Level band first (cheap, no probing), then the facing
+    ; side PLAYER_IN_FRONT already tests, then a ray in 16px steps that must
+    ; reach the player's column before bitmap_probe_solid answers solid.
+    ; bitmap_probe_solid keeps BC across the call, so B can walk as the ray.
+    call bitmap_enemy_script_origin      ; D = origin X, E = origin Y
+    ld a, (player_y)
+    sub e
+    jp nc, .sight_dy_abs
+    neg
+.sight_dy_abs:
+    cp 16
+    jp nc, bitmap_enemy_script_false
+    ld a, e
+    add a, 8
+    ld c, a                              ; C = probe Y, fixed for the whole ray
+    ld a, (ix+2)
+    bit 7, a
+    jp nz, .sight_left
+    ld a, (player_x)
+    cp d
+    jp z, bitmap_enemy_script_false      ; same column: nothing to trace
+    jp c, bitmap_enemy_script_false      ; player behind a right-facing guard
+    ld b, d
+.sight_step_right:
+    ld a, b
+    add a, 16
+    jp c, bitmap_enemy_script_false      ; off the right wall before the player
+    ld b, a
+    call bitmap_probe_solid
+    jp nz, bitmap_enemy_script_false
+    ld a, (player_x)
+    cp b
+    ; A GROWING ray needs C-or-Z, not NC: "nc" (player_x >= b) is true on every
+    ; step until the ray actually reaches the player, so the very first clear
+    ; cell beyond an already-passed player read as a hit and skipped every
+    ; wall further out. [CONFIRMADO-HW por ZCode, 2026-08-30]: rayo derecho
+    ; atravesaba muros a 2+ pasos. C = player_x < b (ray already passed); Z =
+    ; exact column match. The left branch's "nc" is correct as is: there the
+    ; ray SHRINKS, so nc (player_x >= b) is exactly "reached or passed".
+    jp c, bitmap_enemy_script_true
+    jp z, bitmap_enemy_script_true
+    jp .sight_step_right
+.sight_left:
+    ld a, (player_x)
+    cp d
+    jp nc, bitmap_enemy_script_false     ; player behind a left-facing guard
+    ld b, d
+.sight_step_left:
+    ld a, b
+    or a
+    jp z, bitmap_enemy_script_false      ; x-1 at x=0 would wrap to column 15
+    sub 16
+    ld b, a
+    call bitmap_probe_solid
+    jp nz, bitmap_enemy_script_false
+    ld a, (player_x)
+    cp b
+    jp nc, bitmap_enemy_script_true
+    jp .sight_step_left
+${playerBullets ? `bitmap_enemy_script_cond_player_bullet_incoming:
+    ; A live player bullet within the vertical band (arg px), travelling
+    ; horizontally TOWARD the enemy. ${playerBullets.poolLabel || 'bitmap_bullet_pool'}
+    ; layout (SHOOT skill): active, x, y, dir[, life] per slot; dir shares the
+    ; enemy pool's own convention, 0 left / 1 right. An up-shot (dir 2, only
+    ; reachable with allowUpShot) never counts: a ceiling sentry dodging
+    ; straight-up fire needs a different sensor, not built yet.
+    call bitmap_enemy_script_origin      ; D = origin X, E = origin Y
+    ld hl, ${playerBullets.poolLabel || 'bitmap_bullet_pool'}
+    ld b, ${asmByte(Math.max(1, Math.min(8, Math.floor(playerBullets.slotCount) || 1)))}
+.pbi_slot:
+    push hl                              ; remember this slot's base
+    ld a, (hl)
+    or a
+    jp z, .pbi_skip                      ; empty slot
+    inc hl
+    ld a, (hl)
+    ld c, a                              ; C = bullet X
+    inc hl
+    ld a, (hl)
+    sub e
+    jp nc, .pbi_dy_abs
+    neg
+.pbi_dy_abs:
+    push de                              ; D = origin X, about to be reused as scratch
+    ld d, a
+    ld a, (bitmap_enemy_script_arg)
+    cp d
+    pop de                               ; D = origin X again
+    jp c, .pbi_skip                      ; |dy| > tolerance
+    inc hl
+    ld a, (hl)                           ; dir
+    cp 2
+    jp z, .pbi_skip                      ; up-shots out of scope for v1
+    or a
+    jp nz, .pbi_dir_right
+    ld a, c
+    cp d
+    jp c, .pbi_skip                      ; already left of me, moving further left: away
+    jp z, .pbi_skip
+    jp .pbi_hit
+.pbi_dir_right:
+    ld a, c
+    cp d
+    jp nc, .pbi_skip                     ; at or right of me, moving further right: away
+.pbi_hit:
+    pop hl
+    jp bitmap_enemy_script_true
+.pbi_skip:
+    pop hl                               ; restore this slot's base
+    ld de, ${Math.max(4, Math.floor(playerBullets.slotStride) || 4)}
+    add hl, de
+    djnz .pbi_slot
+    jp bitmap_enemy_script_false
+` : `bitmap_enemy_script_cond_player_bullet_incoming:
+    ; No SHOOT skill / no program uses this: the label must still exist
+    ; because the condition table always lists every opcode, but there is no
+    ; pool to scan. programsUsePlayerBulletSense guards the dangerous case
+    ; (a program authors this without SHOOT) by failing the build instead.
+    jp bitmap_enemy_script_false
+`}bitmap_enemy_script_cond_was_hit:
     ; The stamp counts DOWN from ${asmByte(MSX2_ENEMY_SCRIPT_HIT_STAMP)}, so "hit within the last N ticks"
     ; is "stamp is still above ${asmByte(MSX2_ENEMY_SCRIPT_HIT_STAMP)} - N". With the stamp at its maximum,
     ; 256 - N is exactly NEG N, which is one instruction instead of a subtract.
@@ -807,6 +1148,18 @@ ${slotClampAsm}    ld b, a                        ; B = slots left to test
 bitmap_enemy_script_act_idle:
     jp bitmap_enemy_script_apply
 bitmap_enemy_script_act_walk:
+    call bitmap_enemy_script_walk_body
+    jp bitmap_enemy_script_apply
+; ------------------------------------------------------------
+; FUNCTION: bitmap_enemy_script_walk_body
+; ------------------------------------------------------------
+; PURPOSE: Step "speed" pixels in the facing direction, stopping at the authored
+;   patrol bounds. Callable, because a PATH FOLLOW tick walks the body BEFORE it
+;   knows whether a node is about to fire — the same reason the fall integrator
+;   had to become a subroutine.
+; DESTROYS: AF, D. PRESERVES: BC, E, HL, IX, IY.
+; ------------------------------------------------------------
+bitmap_enemy_script_walk_body:
     ; Deliberately blind: walls and ledges are the rules' business, not the
     ; action's. Only the authored patrol bounds stop it.
     ld a, (ix+2)
@@ -821,20 +1174,20 @@ bitmap_enemy_script_act_walk:
     jp nz, .walk_left
     ld a, (ix+0)
     cp (ix+5)                      ; x vs maxX
-    jp nc, bitmap_enemy_script_apply
+    ret nc
     inc (ix+0)
     dec d
     jp nz, .walk_px
-    jp bitmap_enemy_script_apply
+    ret
 .walk_left:
     ld a, (ix+0)
     cp (ix+4)                      ; x vs minX
-    jp z, bitmap_enemy_script_apply
-    jp c, bitmap_enemy_script_apply
+    ret z
+    ret c
     dec (ix+0)
     dec d
     jp nz, .walk_px
-    jp bitmap_enemy_script_apply
+    ret
 bitmap_enemy_script_act_turn:
     ld a, (ix+2)
     bit 7, a
@@ -1042,6 +1395,23 @@ bitmap_enemy_script_act_drop_through:
 ${gravity ? `    ld a, 1
     ld (bitmap_enemy_script_vmoved), a  ; the step past the band IS this tick's fall
 ` : ''}    jp bitmap_enemy_script_apply
+bitmap_enemy_script_act_set_dir:
+    ; ABSOLUTE facing, unlike TURN which only flips. arg 0 = left, 1 = right.
+    ; A path node says "at this cell, go right" and has no idea which way the
+    ; body was pointing; expressing that with TURN would mean the author
+    ; reasoning about the current facing, which is the bookkeeping a node editor
+    ; exists to remove.
+    ;
+    ; The SAT writer mirrors on bit 7 of dx, so writing dx IS turning the sprite
+    ; around. Nothing else to do.
+    ld a, (bitmap_enemy_script_arg)
+    or a
+    jp z, .sdir_left
+    ld (ix+2), #01
+    jp bitmap_enemy_script_apply
+.sdir_left:
+    ld (ix+2), #FF
+    jp bitmap_enemy_script_apply
 bitmap_enemy_script_act_chase:
     ; Face and step on the same tick. Falls into WALK rather than duplicating
     ; it, so the patrol bounds keep applying to a chase exactly as they do to a
@@ -1222,6 +1592,8 @@ bitmap_enemy_script_cond_table:
     dw bitmap_enemy_script_cond_shield_active   ; 19 SHIELD_ACTIVE
     dw bitmap_enemy_script_cond_enemy_ahead     ; 1A ENEMY_AHEAD
     dw bitmap_enemy_script_cond_on_platform_tile ; 1B ON_PLATFORM_TILE
+    dw bitmap_enemy_script_cond_player_in_sight ; 1C PLAYER_IN_SIGHT
+    dw bitmap_enemy_script_cond_player_bullet_incoming ; 1D PLAYER_BULLET_INCOMING
 bitmap_enemy_script_act_table:
     dw bitmap_enemy_script_act_idle             ; 00 IDLE
     dw bitmap_enemy_script_act_walk             ; 01 WALK
@@ -1240,6 +1612,7 @@ bitmap_enemy_script_act_table:
     dw bitmap_enemy_script_act_shield           ; 0E SHIELD
     dw bitmap_enemy_script_act_chase            ; 0F CHASE
     dw bitmap_enemy_script_act_drop_through     ; 10 DROP_THROUGH
+    dw bitmap_enemy_script_act_set_dir          ; 11 SET_DIR
 `;
 
   return {
@@ -1271,9 +1644,9 @@ export function enemyProgramsUseGravity(
 }
 
 export function buildEnemyBehaviorProgramAsm(
-  programs: Array<{ id: string; name: string; bytes: number[]; gravity?: boolean }>,
+  programs: Array<{ id: string; name: string; bytes: number[]; gravity?: boolean; kind?: string }>,
 ): { asm: string; indexById: Record<string, number> } {
-  const fallback = { id: '__fallback__', name: 'standing fallback', bytes: [1, 3, 0, 1, 0, 0, 0, 0, 0xff], gravity: true };
+  const fallback = { id: '__fallback__', name: 'standing fallback', bytes: [1, 3, 0, 1, 0, 0, 0, 0, 0xff], gravity: true, kind: 'rules' };
   const all = [fallback, ...programs];
   const indexById: Record<string, number> = {};
   all.forEach((program, index) => { indexById[program.id] = index; });
@@ -1286,6 +1659,17 @@ export function buildEnemyBehaviorProgramAsm(
     ...all.map((program, index) => `    dw bitmap_enemy_script_program_${index}   ; ${program.name}`),
     '',
   ];
+  if (programs.some(program => program.kind === 'path_follow')) {
+    // Which engine walks each program. One byte, indexed like the pointer table
+    // above and NOT doubled: the mirror image of the boss word-table bug.
+    lines.push(
+      '; ---- rules (0) or path route (1)? ----',
+      'bitmap_enemy_script_kind_table:',
+      ...all.map((program, index) =>
+        `    db ${program.kind === 'path_follow' ? '#01' : '#00'}   ; ${index}: ${program.name}`),
+      '',
+    );
+  }
   if (enemyProgramsUseGravity(programs)) {
     // One BYTE per program, indexed by the same number as the pointer table
     // above but NOT doubled. Kept as a table rather than a pool byte because
