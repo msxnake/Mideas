@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Msx2PathTimingEditor } from './Msx2PathTimingEditor';
 import {
   Msx2BossPath,
   Msx2BossPathAction,
@@ -15,7 +16,16 @@ import {
   resolveBitmapRoomPreviewPalette,
 } from './Msx2HudEditor';
 import { createDefaultScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
-import { BITMAP_BOSS_PATH_LIMITS, PATH_OP_ARG_BYTES, PATH_OP_END, bakeBossPath } from '../../utils/msx2BossPath';
+import {
+  BITMAP_BOSS_PATH_LIMITS,
+  FIXED_TABLE_ENTRY_BYTES,
+  PATH_OP_ARG_BYTES,
+  PATH_OP_END,
+  SCREEN5_HUD_BAND_ROWS,
+  SPRITE_Y_BIAS,
+  bakeBossPath,
+  bakeBossPathFixed,
+} from '../../utils/msx2BossPath';
 import {
   BossPathShapeKind,
   BossPathShapeOptions,
@@ -25,12 +35,12 @@ import {
 } from '../../utils/msx2BossPathShapes';
 
 /**
- * MSX2 SCREEN 5 boss path editor.
+ * MSX2 SCREEN 5 path editor ("MSX2 Paths" in the UI).
  *
  * A path is a reusable movement recipe: nodes joined by segments, each node
  * carrying a small script (pause, fire, carry on). It is authored in room
  * pixels but baked as deltas, so the same shape can be dropped on any boss —
- * and later on shoot'em up enemy waves — wherever it spawns.
+ * or, with a fixed bake, on a plain enemy Konami table — wherever it spawns.
  *
  * The preview shows the BAKED steps, not the ideal line: that is exactly what
  * the MSX will walk, one dot per body update.
@@ -86,11 +96,29 @@ const walkBakedSteps = (bytes: number[], startX: number, startY: number) => {
   return out;
 };
 
+/**
+ * The same walk for a FIXED table, where there is nothing to add up: every entry
+ * already holds the frame's absolute Y and X. The Y byte carries the HUD band
+ * and the VDP's one-line bias, so it is unwound back to game-area pixels — the
+ * preview draws what the author drew, not what the hardware reads.
+ */
+const walkFixedTable = (bytes: number[], hudRows: number) => {
+  const out: Array<{ x: number; y: number }> = [];
+  for (let i = 0; i + 3 < bytes.length; i += FIXED_TABLE_ENTRY_BYTES) {
+    out.push({ x: bytes[i + 1], y: bytes[i] - hudRows - SPRITE_Y_BIAS });
+  }
+  return out;
+};
+
 export const Msx2BossPathEditor: React.FC<Msx2BossPathEditorProps> = ({ path, onUpdate, allAssets, setStatusBarMessage }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const onionRef = useRef<HTMLCanvasElement>(null);
   const [selected, setSelected] = useState(0);
   const [dragging, setDragging] = useState<number | null>(null);
+  const [editFrames, setEditFrames] = useState(false);
+  const [dragFrame, setDragFrame] = useState<number | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [previewFrame, setPreviewFrame] = useState(0);
   // Onion skin: a real screen behind the route, so a path can be drawn against
   // the walls and platforms the boss actually fights in.
   const [onionOn, setOnionOn] = useState(false);
@@ -155,9 +183,34 @@ export const Msx2BossPathEditor: React.FC<Msx2BossPathEditorProps> = ({ path, on
   // the ideal curve instead, the author would be looking at something the MSX
   // never walks.
   const baked = useMemo(() => bakeBossPath(path, BITMAP_BOSS_PATH_LIMITS), [path]);
+  // The fixed table is baked alongside, always: the byte budget below compares
+  // the two, and an author choosing between them wants both numbers at once.
+  const fixed = useMemo(() => bakeBossPathFixed(path), [path]);
+  const isFixed = path.bakeMode === 'fixed';
+  useEffect(() => {
+    if (!playing || !isFixed || !fixed.frames) return;
+    let start: number | undefined;
+    let request = 0;
+    const tick = (now: number) => {
+      start ??= now;
+      const frame = Math.floor((now - start) * 60 / 1000);
+      if (path.loopMode === 'once' && frame >= fixed.frames) {
+        setPreviewFrame(fixed.frames - 1); setPlaying(false); return;
+      }
+      setPreviewFrame(frame % fixed.frames);
+      request = requestAnimationFrame(tick);
+    };
+    request = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(request);
+  }, [playing, isFixed, fixed.frames, path.loopMode]);
   const steps = useMemo(
-    () => nodes.length ? walkBakedSteps(baked.bytes, nodes[0].x, nodes[0].y) : [],
-    [baked, nodes],
+    () => {
+      if (!nodes.length) return [];
+      return isFixed
+        ? walkFixedTable(fixed.bytes, SCREEN5_HUD_BAND_ROWS)
+        : walkBakedSteps(baked.bytes, nodes[0].x, nodes[0].y);
+    },
+    [baked, fixed, isFixed, nodes],
   );
 
   // The shape panel's live preview. It is baked too, not drawn as ideal geometry,
@@ -266,9 +319,12 @@ export const Msx2BossPathEditor: React.FC<Msx2BossPathEditorProps> = ({ path, on
                 width: ROOM_W * SCALE, height: ROOM_H * SCALE,
               }}
               onMouseDown={event => { if (event.target === canvasRef.current) addNode(event); }}
-              onMouseMove={event => { if (dragging !== null) moveNode(dragging, toRoom(event)); }}
-              onMouseUp={() => setDragging(null)}
-              onMouseLeave={() => setDragging(null)}
+              onMouseMove={event => {
+                if (dragging !== null) moveNode(dragging, toRoom(event));
+                if (dragFrame !== null) set('fixedFramePositions', { ...path.fixedFramePositions, [dragFrame]: toRoom(event) });
+              }}
+              onMouseUp={() => { setDragging(null); setDragFrame(null); }}
+              onMouseLeave={() => { setDragging(null); setDragFrame(null); }}
             >
             {ghostSteps.map((step, index) => (
               <div key={`ghost_${index}`} className="absolute rounded-full" style={{
@@ -283,9 +339,17 @@ export const Msx2BossPathEditor: React.FC<Msx2BossPathEditorProps> = ({ path, on
               }} />
             ))}
             {steps.map((step, index) => (
-              <div key={index} className="absolute rounded-full" style={{
+              <div key={index} className="absolute rounded-full"
+                title={`Frame ${index}: (${step.x}, ${step.y})`}
+                onMouseDown={event => {
+                  if (!isFixed || !editFrames) return;
+                  event.stopPropagation(); setDragFrame(index);
+                }} style={{
                 left: step.x * SCALE - 1, top: step.y * SCALE - 1,
-                width: 3, height: 3, background: 'rgba(120,200,255,0.75)',
+                width: editFrames && isFixed ? 7 : 3, height: editFrames && isFixed ? 7 : 3,
+                zIndex: editFrames && isFixed ? 2 : undefined,
+                cursor: editFrames && isFixed ? 'move' : undefined,
+                background: path.fixedFramePositions?.[index] && isFixed ? '#ffcc55' : 'rgba(120,200,255,0.75)',
               }} />
             ))}
             {nodes.map((item, index) => (
@@ -302,20 +366,46 @@ export const Msx2BossPathEditor: React.FC<Msx2BossPathEditorProps> = ({ path, on
                 }}
                 />
               ))}
+            {isFixed && steps[previewFrame] && <div className="absolute pointer-events-none" style={{
+              left: steps[previewFrame].x * SCALE, top: steps[previewFrame].y * SCALE,
+              width: 16 * SCALE, height: 16 * SCALE, border: '2px solid #ffcc55', zIndex: 3,
+            }} />}
             </div>
           </div>
-          <p className="text-xs text-msx-textsecondary mt-2">
-            Dots are the baked steps — one per body update, at most 2 px apart, which is
-            what the body's 4-pixel restore strips can clean. A filled node has a script.
-            One lap is <strong>{laps} steps</strong> ≈ {seconds}s, {baked.bytes.length} bytes of ROM.
-          </p>
+          {isFixed ? (
+            <p className="text-xs text-msx-textsecondary mt-2">
+              Dots are the baked frames — one sprite attribute entry each, so the sprite is
+              wherever the table says with no arithmetic in between. A filled node has a script.
+              One lap is <strong>{fixed.frames} frames</strong> ≈ {(fixed.frames / 60).toFixed(1)}s,
+              {' '}{fixed.bytes.length} bytes of ROM — {(fixed.bytes.length / Math.max(1, baked.bytes.length)).toFixed(1)}×
+              what the same shape costs as deltas ({baked.bytes.length} B).
+            </p>
+          ) : (
+            <p className="text-xs text-msx-textsecondary mt-2">
+              Dots are the baked steps — one per body update, at most 2 px apart, which is
+              what the body's 4-pixel restore strips can clean. A filled node has a script.
+              One lap is <strong>{laps} steps</strong> ≈ {seconds}s, {baked.bytes.length} bytes of ROM.
+            </p>
+          )}
+          {isFixed && <div className="mt-2 text-xs">
+            <button className={btn} onClick={() => setPlaying(!playing)}>{playing ? 'Pause' : 'Play path (60 Hz)'}</button>
+            <input aria-label="Preview frame" type="range" min={0} max={Math.max(0, fixed.frames - 1)}
+              value={Math.min(previewFrame, Math.max(0, fixed.frames - 1))}
+              onChange={event => { setPlaying(false); setPreviewFrame(Number(event.target.value)); }} />
+            <button className={btn} onClick={() => setEditFrames(!editFrames)}>
+              {editFrames ? 'Edit nodes' : 'Edit frame positions'}
+            </button>
+            <button className={btn} onClick={() => set('fixedFramePositions', undefined)}>Reset frame edits</button>
+            <p>Drag blue frame dots to space positions: further apart = faster. Yellow dots are manual edits.
+              Edits stay attached to frame numbers; reset them after changing the route or timing.</p>
+          </div>}
           {shapeGhost && (
             <p className="text-xs mt-1" style={{ color: 'rgba(120,255,170,0.9)' }}>
               The green trail is the shape waiting in the panel on the right. It only becomes the
               route when you press <strong>Generate route</strong>.
             </p>
           )}
-          {baked.warnings.map((warning, index) => (
+          {(isFixed ? fixed.warnings : baked.warnings).map((warning, index) => (
             <p key={index} className="text-xs text-yellow-400 mt-1">{warning}</p>
           ))}
         </div>
@@ -329,7 +419,9 @@ export const Msx2BossPathEditor: React.FC<Msx2BossPathEditorProps> = ({ path, on
           <div className="grid grid-cols-2 gap-2 mt-2">
             <div>
               <label className={label}>Speed (px/step)</label>
-              <input type="number" min={1} max={2} className={input} value={path.speedPxPerTick}
+              {/* The 2px ceiling is the bitmap body's restore strips, not a rule of the
+                  universe: a sprite leaves nothing to clean, so a fixed table may dive. */}
+              <input type="number" min={1} max={isFixed ? 16 : 2} className={input} value={path.speedPxPerTick}
                 onChange={e => set('speedPxPerTick', Number(e.target.value))} />
             </div>
             <div>
@@ -341,6 +433,51 @@ export const Msx2BossPathEditor: React.FC<Msx2BossPathEditorProps> = ({ path, on
               </select>
             </div>
           </div>
+          <div className="mt-2">
+            <label className={label}>How it is compiled</label>
+            <select className={input} value={path.bakeMode || 'delta'}
+              onChange={e => set('bakeMode', e.target.value as Msx2BossPath['bakeMode'])}>
+              <option value="delta">Steps the runtime adds up (bitmap boss body)</option>
+              <option value="fixed">One sprite entry per frame (Konami table)</option>
+            </select>
+            <p className="text-xs text-msx-textsecondary mt-2">
+              {isFixed ? (
+                <>
+                  Every frame is a ready-made sprite attribute entry — <strong>Y, X, pattern, colour</strong> —
+                  so one LDIR of 4 bytes places AND animates the sprite, and nothing is computed at
+                  runtime. It costs 4 bytes per frame and pins the route to the pixels you drew it on,
+                  which is why it fits short choreographed waves rather than a bitmap boss body.
+                </>
+              ) : (
+                <>
+                  One byte per body update, relative to wherever the route starts, so the same shape
+                  can be dropped anywhere. This is what the bitmap boss body walks.
+                </>
+              )}
+            </p>
+          </div>
+          {isFixed && (
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <div>
+                <label className={label}>Sprite pattern (frame 0)</label>
+                <input type="number" min={0} max={255} className={input}
+                  value={path.spriteBasePattern ?? 0}
+                  onChange={e => set('spriteBasePattern', Number(e.target.value))} />
+              </div>
+              <div>
+                <label className={label}>Colour (MSX 0-15)</label>
+                <input type="number" min={0} max={15} className={input}
+                  value={path.spriteColour ?? 15}
+                  onChange={e => set('spriteColour', Number(e.target.value))} />
+              </div>
+              <p className="text-xs text-msx-textsecondary col-span-2">
+                A node's <strong>Set anim frame</strong> steps the pattern byte by 4, because a 16×16
+                sprite is four 8×8 patterns. A <strong>Wait</strong> becomes that many repeated
+                entries, and a <strong>Fire</strong> cannot live in a position table at all — it is
+                reported as a frame event for the runtime to schedule.
+              </p>
+            </div>
+          )}
           <div className="mt-2">
             <label className={label}>Firing — laser and projectile timing</label>
             <select className={input} value={path.firing}
@@ -389,6 +526,10 @@ export const Msx2BossPathEditor: React.FC<Msx2BossPathEditorProps> = ({ path, on
               {(path.loopMode === 'loop' || selected < nodes.length - 1) && (
                 <SegmentControls
                   segment={node.segment}
+                  fixed={isFixed}
+                  nodes={nodes}
+                  startIndex={selected}
+                  loop={path.loopMode === 'loop'}
                   onChange={next => setNodes(nodes.map((item, i) => i === selected ? { ...item, segment: next } : item))}
                 />
               )}
@@ -559,17 +700,32 @@ const ShapeGenerator: React.FC<{
  */
 const SegmentControls: React.FC<{
   segment?: Msx2BossPathSegment;
+  fixed?: boolean;
+  nodes: Msx2BossPathNode[];
+  startIndex: number;
+  loop: boolean;
   onChange: (segment: Msx2BossPathSegment | undefined) => void;
-}> = ({ segment, onChange }) => {
+}> = ({ segment, fixed, onChange, nodes, startIndex, loop }) => {
   const mode = segment?.mode || 'linear';
+  let owner: number | undefined;
+  for (let index = 0; index < startIndex; index++) {
+    const timing = nodes[index].segment?.timing;
+    if (!timing) continue;
+    const end = timing.endNodeId === nodes[0]?.id && loop ? nodes.length
+      : timing.endNodeId ? nodes.findIndex((node, i) => i > index && node.id === timing.endNodeId) : index + 1;
+    if (end > startIndex) { owner = index; break; }
+    if (end > index) index = end - 1;
+  }
+  const destinations = nodes.map((node, index) => ({ id: node.id, label: `Nodo ${index + 1}` })).slice(startIndex + 1);
+  if (loop && nodes.length > 1) destinations.push({ id: nodes[0].id, label: 'Nodo 1 (cierre del recorrido)' });
   return (
     <div className="mt-3 pt-3 border-t border-msx-border">
+      <h4 className="text-sm font-semibold mb-2">Capa 1 · Forma del recorrido</h4>
       <label className={label}>Travel to the next node</label>
       <select className={input} value={mode}
         onChange={e => onChange(
-          e.target.value === 'sine' ? { mode: 'sine', amplitude: segment?.amplitude ?? 16, frequency: segment?.frequency ?? 1 }
-            : e.target.value === 'spline' ? { mode: 'spline' }
-              : undefined)}>
+          { ...segment, mode: e.target.value as Msx2BossPathSegment['mode'],
+            amplitude: segment?.amplitude ?? 16, frequency: segment?.frequency ?? 1 })}>
         <option value="linear">Straight line</option>
         <option value="sine">Sine wave</option>
         <option value="spline">Smooth curve</option>
@@ -586,22 +742,35 @@ const SegmentControls: React.FC<{
           <div>
             <label className={label}>Amplitude (px)</label>
             <input type="number" min={1} max={64} className={input} value={segment?.amplitude ?? 16}
-              onChange={e => onChange({ mode: 'sine', amplitude: Number(e.target.value), frequency: segment?.frequency ?? 1 })} />
+              onChange={e => onChange({ ...segment, mode: 'sine', amplitude: Number(e.target.value), frequency: segment?.frequency ?? 1 })} />
           </div>
           <div>
             <label className={label}>Waves along it</label>
             <input type="number" min={1} max={8} step={1} className={input} value={segment?.frequency ?? 1}
-              onChange={e => onChange({ mode: 'sine', amplitude: segment?.amplitude ?? 16, frequency: Number(e.target.value) })} />
+              onChange={e => onChange({ ...segment, mode: 'sine', amplitude: segment?.amplitude ?? 16, frequency: Number(e.target.value) })} />
           </div>
         </div>
       )}
       {mode === 'sine' && (
         <p className="text-xs text-msx-textsecondary mt-2">
           The wave is measured perpendicular to the segment, so it bends whichever way the
-          segment points. It also makes the trip longer: the boss keeps the same speed, so
-          it takes more steps and more ROM.
+          segment points. Its geometry is independent of the timing curve: the timing
+          layer controls how fast the sprite advances along this shape.
         </p>
       )}
+      {fixed && owner !== undefined && <p className="text-xs mt-3 text-msx-textsecondary">Capa 2: este tramo está incluido en el ritmo del nodo {owner + 1}. Selecciona ese nodo para editar el intervalo completo. Aquí puedes modificar la forma.</p>}
+      {fixed && owner === undefined && <Msx2PathTimingEditor timing={segment?.timing}
+        startLabel={`nodo ${startIndex + 1}`} destinations={destinations}
+        onChange={timing => onChange({ ...segment, mode, timing })} />}
+      {fixed && owner === undefined && !segment?.timing && <div className="grid grid-cols-2 gap-2 mt-2">
+        {(['speedStart', 'speedEnd'] as const).map(key => <label key={key} className={label}>
+          {key === 'speedStart' ? 'Start spacing' : 'End spacing'} (px/frame)
+          <input type="number" min={0.25} max={16} step={0.25} className={input}
+            placeholder="Inherit" value={segment?.[key] ?? ''}
+            onChange={e => onChange({ ...segment, mode, [key]: e.target.value === '' ? undefined : Number(e.target.value) })} />
+        </label>)}
+        <p className="col-span-2 text-xs text-msx-textsecondary">Increase spacing to accelerate; decrease it to brake. Applied along the curve before export.</p>
+      </div>}
     </div>
   );
 };

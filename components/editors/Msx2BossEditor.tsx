@@ -656,7 +656,7 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
               </select>
               <p className="text-xs text-msx-textsecondary mt-2">
                 A path wins over the simple movement, and each attack phase can switch to a
-                different one. Author routes in <strong>MSX2 Boss Paths</strong>.
+                different one. Author routes in <strong>MSX2 Paths</strong>.
               </p>
             </div>
 
@@ -969,7 +969,7 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
                   <p>Select a path in <strong>Movement</strong> to place laser shots on route nodes.</p>
                 )}
                 <p className="mt-2">
-                  To fire at a node: open the selected asset in <strong>MSX2 Boss Paths</strong>,
+                  To fire at a node: open the selected asset in <strong>MSX2 Paths</strong>,
                   choose <strong>Only the node scripts shoot</strong>, select a node and press
                   <strong> + Fire</strong>. The laser wave starts on arrival; while it grows,
                   that Boss is held in place.

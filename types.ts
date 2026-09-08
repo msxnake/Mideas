@@ -1822,9 +1822,36 @@ export interface Msx2ShootDefinition {
   burstInterval?: number;
 }
 
+export type Msx2PathEasing = 'linear' | 'quadIn' | 'quadOut' | 'cubicIn' | 'cubicOut' | 'sineIn' | 'sineOut' | 'sineInOut' | 'smoothstep';
+
+export interface Msx2PathTimingKey {
+  /** Normalised elapsed time and distance along the geometric segment (0..1). */
+  time: number;
+  distance: number;
+  /** Formula applied from this key to the next. */
+  easing: Msx2PathEasing;
+  /** @deprecated Legacy per-key intensity; migrated from the first key to timing.intensity. */
+  intensity?: number;
+}
+
+export interface Msx2PathTiming {
+  /** Shared intensity for all formulas between the selected spatial nodes. */
+  intensity?: number;
+  /** Inclusive destination node ID; absent means the next node. */
+  endNodeId?: string;
+  /** Number of video-frame transitions from the segment's origin to its end. */
+  durationFrames: number;
+  keys: Msx2PathTimingKey[];
+}
+
 /** How the boss travels along one segment of the path. */
 export interface Msx2BossPathSegment {
   mode: 'linear' | 'sine' | 'spline';
+  /** Konami table: distance between frames at the beginning/end of this segment. */
+  speedStart?: number;
+  speedEnd?: number;
+  /** Konami table only: time-distance curve, taking precedence over spacing. */
+  timing?: Msx2PathTiming;
   /** Sine only: peak excursion perpendicular to the segment, in pixels. */
   amplitude?: number;
   /** Sine only: full waves fitted along the segment. */
@@ -1858,6 +1885,32 @@ export interface Msx2BossPath {
    * scripts shoot; 'auto' keeps the cadence and ignores `fire` nodes.
    */
   firing: 'auto' | 'path';
+  /**
+   * How the route is compiled for the ROM. The authored shape is the same in
+   * both; what changes is what the hardware is handed.
+   *
+   * 'delta' (the default, and what the bitmap boss body walks) emits the
+   * per-tick step stream: relative, so one shape serves wherever it spawns, and
+   * about one byte per body update.
+   *
+   * 'fixed' emits one absolute SPRITE ATTRIBUTE entry per frame — Y, X, pattern,
+   * colour — the arrangement Konami used. A single LDIR then resolves a whole
+   * frame, so moving and animating cost the same, and no arithmetic runs at all.
+   * The price is 4 bytes per frame and a route pinned to the pixels it was drawn
+   * on, which is why it suits short choreographed sprite waves and not a boss
+   * that must replay from wherever it happens to stand.
+   */
+  bakeMode?: 'delta' | 'fixed';
+  /** Optional hand-edited game-area positions, indexed by baked video frame. */
+  fixedFramePositions?: Record<number, { x: number; y: number }>;
+  /**
+   * 'fixed' only: the sprite attribute's pattern byte for animation frame 0.
+   * A `setAnimFrame` node adds 4 per frame, because a 16x16 sprite consumes four
+   * 8x8 patterns and the VDP ignores the low two bits of this byte.
+   */
+  spriteBasePattern?: number;
+  /** 'fixed' only: MSX colour code 0-15 written into the entry's fourth byte. */
+  spriteColour?: number;
 }
 
 /**

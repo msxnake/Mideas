@@ -734,7 +734,7 @@ export const useAssetHandlers = ({
         newEditorType = EditorType.Msx2EnemyBehavior;
         break;
       case 'msx2bosspath':
-        defaultName = 'New Boss Path';
+        defaultName = 'New Path';
         newAssetData = createMsx2BossPath(id, defaultName);
         newEditorType = EditorType.Msx2BossPath;
         break;

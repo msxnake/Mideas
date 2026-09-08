@@ -107,7 +107,8 @@ export function bitmapEnemyPoolStride(data: BitmapEnemyRoomData | undefined): nu
     + (data?.gearEnabled ? 5 : 0)
     + (data?.fly8Enabled ? BITMAP_ENEMY_POOL_STRIDE_FLY8_BYTES : 0)
     + (data?.scriptedEnabled ? BITMAP_ENEMY_POOL_STRIDE_SCRIPTED : 0)
-    + (programsUsePath ? BITMAP_ENEMY_POOL_STRIDE_PATH : 0);
+    + (programsUsePath ? BITMAP_ENEMY_POOL_STRIDE_PATH : 0)
+    + (data?.konamiPaths?.length ? 8 : 0);
 }
 
 /** Sprite pattern variants emitted per animation frame ([right,left] or
@@ -129,6 +130,9 @@ function asmWord(value: number): string {
 }
 
 export interface BitmapEnemyRoomData {
+  /** Shared resident position tables and per-room hardware-slot references (-1 = none). */
+  konamiPaths?: Array<{ bytes: number[]; loop: boolean }>;
+  konamiRoomPaths?: number[][];
   /** Max enemy slots used by any room (0 disables the whole system). */
   maxSlots: number;
   /** Max animation frames across the unique enemy sprites (>= 1). */
@@ -355,6 +359,59 @@ export function buildBitmapEnemySystemAsm(
   // the feature — and every byte of it — out of the ROM.
   const darkEyes = data.darkEyesEnabled && opts.darkEyes ? opts.darkEyes : undefined;
   const POOL_STRIDE = bitmapEnemyPoolStride(data);
+  const konami = Boolean(data.konamiPaths?.length);
+  const konamiOffset = POOL_STRIDE - 8;
+  // Each optional slot extension is current/start/end/restart, four words.
+  // Load contract: destroys AF/BC/DE/HL, preserves IX/IY. Called inside load's IX save.
+  const konamiLoadAsm = konami ? `
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_enemy_konami_rooms
+    add hl, de
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ex de, hl
+${Array.from({ length: maxSlots }, (_, i) => `    ld de, bitmap_enemy_pool+${i * POOL_STRIDE + konamiOffset}
+    ld bc, 8
+    ldir`).join('\n')}` : '';
+  // Step contract: IX=enemy; carry=set when table owns movement, clear otherwise.
+  // Preserves BC/HL/IX/IY, destroys AF/DE; stack balanced on both exits.
+  const konamiStepAsm = konami ? `
+bitmap_enemy_konami_step:
+    ld e, (ix+${konamiOffset})
+    ld d, (ix+${konamiOffset + 1})
+    ld a, d
+    or e
+    ret z
+    push hl
+    push bc
+    ex de, hl
+    ld e, (ix+${konamiOffset + 4})
+    ld d, (ix+${konamiOffset + 5})
+    or a
+    sbc hl, de
+    add hl, de
+    jp nz, .read
+    ld l, (ix+${konamiOffset + 6})
+    ld h, (ix+${konamiOffset + 7})
+.read:
+    ld a, (hl)
+    ld (ix+1), a
+    inc hl
+    ld a, (hl)
+    ld (ix+0), a
+    inc hl
+    inc hl
+    inc hl
+    ld (ix+${konamiOffset}), l
+    ld (ix+${konamiOffset + 1}), h
+    pop bc
+    pop hl
+    scf
+    ret` : '';
   const TABLE_STRIDE = 22 + (slime ? 1 : 0) + (gear ? 2 : 0) + (fly8 ? 1 : 0); // ROM bytes per slot
   const SCRIPTED_TABLE_STRIDE = TABLE_STRIDE + (scripted ? 1 : 0);
   const GEAR_STATE_OFFSET = 24 + (slime ? 3 : 0);
@@ -719,6 +776,8 @@ ${fly8 ? `    ; One PRNG step per FRAME, not per draw: every hardware layer of t
     jp z, .enemy_step_next
 ${layered ? `    cp ${MSX2_ENEMY_MOVEMENT_LAYER_FOLLOWER}
     jp z, .enemy_step_follow  ; extra layer of a body: copies, never thinks
+` : ''}${konami ? `    call bitmap_enemy_konami_step
+    jp c, .enemy_anim
 ` : ''}.enemy_step_cadence_gate:
 ${gear ? `    ; Gear cooldowns are real video-frame seconds, independent of the
     ; configured logic cadence. Once active, movement obeys the cadence gate.
@@ -2222,7 +2281,7 @@ ${enemyBulletSatTerminator}    xor a
 ; CALLS: copy_to_vram_ext, bitmap_enemy_patterns_offset, bitmap_enemy_colors_offset.
 ; ------------------------------------------------------------
 bitmap_load_enemies:
-    push ix
+    push ix${konamiLoadAsm}
 ${bankedArt ? `    ; The room record lives in a data bank. Resolve its bank, LDIR it into RAM and
     ; walk the RAM copy: this routine sits in #8000-#9FFF and would unmap itself.
     push bc
@@ -2357,7 +2416,7 @@ bitmap_update_enemy_colors:
 ${colorUploadSlotBlocks}
     pop hl
     pop bc
-    ret${scriptedRuntime ? `\n${scriptedRuntime.routinesAsm}` : ''}
+    ret${scriptedRuntime ? `\n${scriptedRuntime.routinesAsm}` : ''}${konamiStepAsm}
 `;
 
   const emitBytes = (label: string, bytes: number[], comment: string, endLabel?: string): string => {
@@ -2368,6 +2427,17 @@ ${colorUploadSlotBlocks}
     if (endLabel) lines.push(`${endLabel}:`);
     return lines.join('\n') + '\n';
   };
+  const konamiDataAsm = konami ? `bitmap_enemy_konami_rooms:
+${data.roomTables.map((_, i) => `    DW bitmap_enemy_konami_room_${i}`).join('\n')}
+${data.roomTables.map((_, room) => `bitmap_enemy_konami_room_${room}:\n` + Array.from({ length: maxSlots }, (_, slot) => {
+    const index = data.konamiRoomPaths?.[room]?.[slot] ?? -1;
+    if (index < 0) return '    DW 0,0,0,0';
+    const path = data.konamiPaths![index];
+    const label = `bitmap_enemy_konami_path_${index}`;
+    return `    DW ${label},${label},${label}_end,${path.loop ? label : `${label}_end-4`}`;
+  }).join('\n')).join('\n')}
+${data.konamiPaths!.map((path, i) => emitBytes(`bitmap_enemy_konami_path_${i}`, path.bytes,
+    'Konami positions: game Y, X, frame, reserved colour (sprite art is owned by the enemy)', `bitmap_enemy_konami_path_${i}_end`)).join('')}` : '';
   // Scripted programs stay resident: bitmap_enemy_script_step reads them with
   // HL directly and deliberately does not own mapper state. Keeping this
   // block resident also makes the runtime call safe in both simple32k and
@@ -2398,6 +2468,7 @@ ${colorUploadSlotBlocks}
       ? '; Enemy sprite pattern/colour art is emitted in a Konami MegaROM data bank below.\n'
       : emitBytes('bitmap_enemy_sprite_patterns', data.patternBytes, `Enemy sprites: ${data.patternBytes.length / 32} pattern group(s), ${slime ? '[right, left, ceilRight, ceilLeft] variants' : '[right, left] variant pair'} per frame (mode 2 quadrants)`)
         + emitBytes('bitmap_enemy_sprite_colors', data.colorBytes, `Enemy sprites: 16-byte line colour tables per unique sprite layer frame${slime ? ' (normal tables then vertical flips)' : ''}`))
+    + konamiDataAsm
     + scriptedProgramAsm
     + enemyBulletDataAsm;
 

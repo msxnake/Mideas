@@ -1,4 +1,5 @@
 import { Msx2BossPath, Msx2BossPathAction, Msx2BossPathNode, Msx2BossPathSegment } from '../types';
+import { sampleTimedPath, normalizePathTiming, evaluatePathTiming } from './msx2PathTiming';
 
 /**
  * Bakes a boss path into the byte stream the Z80 interpreter walks.
@@ -338,6 +339,323 @@ export function rotateBakedPath(baked: BossPathBakeResult, startNode: number): n
     : baked.bytes.slice();
   if (cut >= body.length) return baked.bytes;
   return [...body.slice(cut), ...body.slice(0, cut), PATH_OP_END];
+}
+
+/* ============================================================================
+ * FIXED TABLE BAKE — the other thing a route can become
+ *
+ * Same authored shape, same sampler, different hardware contract. Instead of a
+ * stream of deltas an interpreter has to add up, this emits one SPRITE
+ * ATTRIBUTE TABLE entry per frame:
+ *
+ *   byte 0  Y        already carrying the VDP's one-line bias
+ *   byte 1  X
+ *   byte 2  pattern  which sprite shape this frame shows
+ *   byte 3  colour   MSX colour code (sprite mode 1 layout)
+ *
+ * That is the Konami arrangement, and the reason it is worth the bytes: the
+ * entry IS what the hardware consumes, so one LDIR of 4 bytes resolves a whole
+ * frame. Movement and animation stop being two systems — they are the same
+ * copy — and the runtime does no arithmetic, which is what lets a table-driven
+ * enemy cost the same as a stationary one.
+ *
+ * What it does NOT do, said plainly because it decides where this mode belongs:
+ * the table carries state, not events. A `fire` node cannot live inside it, so
+ * those come back in `events` for the caller to schedule, and the table pins the
+ * route to absolute pixels instead of being replayable from anywhere.
+ * ========================================================================== */
+
+/** The bitmap room's HUD band. Nodes are authored in game-area pixels; the VDP wants a screen line. */
+export const SCREEN5_HUD_BAND_ROWS = 20;
+
+/** The VDP paints a sprite one line BELOW its Y byte, so the byte is one less than the line. */
+export const SPRITE_Y_BIAS = -1;
+
+/** Sprite mode 2 (SCREEN 5) stops processing sprites when it reads this Y. Mode 1 uses 208. */
+export const SPRITE_Y_STOP_MODE2 = 216;
+
+/** A 16x16 sprite eats four 8x8 patterns, so animation frames step the pattern byte by 4. */
+export const SPRITE_PATTERN_STEP = 4;
+
+/** Bytes per frame in a fixed table: Y, X, pattern, colour. */
+export const FIXED_TABLE_ENTRY_BYTES = 4;
+
+export interface FixedTableBakeOptions {
+  /** Screen lines the HUD band occupies above the game area. */
+  hudRows?: number;
+  /** Pattern byte for animation frame 0. */
+  basePattern?: number;
+  /** MSX colour code 0-15 for the entry's fourth byte. */
+  colour?: number;
+  /**
+   * Largest travel per frame. A sprite has no restore strips to clean, so unlike
+   * the bitmap body it is not capped at 2 — which is exactly what makes a fast
+   * dive expressible in this mode.
+   */
+  maxSpeed?: number;
+  /**
+   * What the Y byte holds. The layout is the same either way; what changes is who
+   * has already applied the screen offsets.
+   *
+   * 'satEntry' (default) is the finished attribute byte: HUD band and the VDP's
+   * one-line bias are inside it, so it can go straight to the hardware.
+   *
+   * 'gameArea' is the authored pixel, untouched. Use it when the consumer adds
+   * the HUD band itself — which is exactly what the bitmap room's enemy SAT
+   * writer does (`add a, BITMAP_ROOM_GAME_Y_OFFSET`). Handing that writer a
+   * finished entry would apply the band twice and drop every sprite 20 lines.
+   */
+  yEncoding?: 'satEntry' | 'gameArea';
+  /**
+   * What the pattern byte holds.
+   *
+   * 'absolute' (default) is the attribute's own pattern number.
+   *
+   * 'animFrame' writes the frame index 0-3 instead, for a consumer that derives
+   * the pattern itself. The bitmap room's writer does: it folds in the slot's
+   * pattern group and the mirrored variant, so an absolute byte would fight it
+   * and the enemy would lose its facing.
+   */
+  patternEncoding?: 'absolute' | 'animFrame';
+}
+
+export interface FixedTableBakeResult {
+  /** 4 bytes per frame: Y, X, pattern, colour. */
+  bytes: number[];
+  frames: number;
+  /** Authored game-area pixels, for out-of-room warnings. */
+  bounds: { minX: number; minY: number; maxX: number; maxY: number };
+  /**
+   * What the table cannot say. A position table has no opcodes, so a node's
+   * `fire` is reported here against the frame it lands on, and whoever consumes
+   * the table schedules it alongside.
+   */
+  events: Array<{ frame: number; action: 'fire'; shootIndex: number }>;
+  warnings: string[];
+}
+
+/**
+ * Bakes a route into an absolute sprite attribute table, one entry per frame.
+ *
+ * Reuses `sampleSegment`, so a shape looks the same in both modes — the author
+ * never has to re-draw a route to change how it is compiled.
+ */
+export function bakeBossPathFixed(
+  path: Msx2BossPath,
+  options: FixedTableBakeOptions = {},
+  resolveShootIndex: (id: string | undefined) => number = () => 0,
+): FixedTableBakeResult {
+  const warnings: string[] = [];
+  const events: FixedTableBakeResult['events'] = [];
+  const hudRows = Number.isFinite(options.hudRows) ? Number(options.hudRows) : SCREEN5_HUD_BAND_ROWS;
+  const maxSpeed = clamp(Math.floor(Number(options.maxSpeed) || 16), 1, 64);
+  const colour = clamp(Math.floor(
+    Number(options.colour ?? path.spriteColour ?? 15),
+  ), 0, 15);
+  const basePattern = clamp(Math.floor(
+    Number(options.basePattern ?? path.spriteBasePattern ?? 0),
+  ), 0, 255);
+
+  const yEncoding = options.yEncoding || 'satEntry';
+  const patternEncoding = options.patternEncoding || 'absolute';
+
+  const nodes = (path?.nodes || []).filter(node => node && Number.isFinite(node.x) && Number.isFinite(node.y));
+  const bounds = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+  const bytes: number[] = [];
+  /** The screen line each frame ends up on, whoever applies the offsets. */
+  const screenY: number[] = [];
+  let frames = 0;
+  let animFrame = 0;
+  let speed = clamp(Math.floor(Number(path.speedPxPerTick) || 2), 1, maxSpeed);
+  let boundsSeeded = false;
+
+  /** Writes one frame. This is the only place the hardware's quirks are applied. */
+  const emit = (x: number, y: number) => {
+    const edited = path.fixedFramePositions?.[frames];
+    const gameX = Math.round(Number.isFinite(edited?.x) ? edited!.x : x);
+    const gameY = Math.round(Number.isFinite(edited?.y) ? edited!.y : y);
+    if (!boundsSeeded) {
+      bounds.minX = bounds.maxX = gameX;
+      bounds.minY = bounds.maxY = gameY;
+      boundsSeeded = true;
+    } else {
+      bounds.minX = Math.min(bounds.minX, gameX);
+      bounds.minY = Math.min(bounds.minY, gameY);
+      bounds.maxX = Math.max(bounds.maxX, gameX);
+      bounds.maxY = Math.max(bounds.maxY, gameY);
+    }
+    const yByte = yEncoding === 'gameArea'
+      ? gameY & 0xff
+      : (gameY + hudRows + SPRITE_Y_BIAS) & 0xff;
+    // What the VDP will read once everyone has had their turn: the finished
+    // entry already carries the bias, a raw pixel gets only the band added.
+    screenY.push(yEncoding === 'gameArea' ? (gameY + hudRows) & 0xff : yByte);
+    const patternByte = patternEncoding === 'animFrame'
+      ? animFrame & 0xff
+      : (basePattern + animFrame * SPRITE_PATTERN_STEP) & 0xff;
+    bytes.push(yByte, gameX & 0xff, patternByte, colour & 0x0f);
+    frames++;
+    return yByte;
+  };
+
+  if (nodes.length < 1) {
+    return { bytes: [], frames: 0, bounds, events, warnings };
+  }
+
+  /** Node scripts, in table terms: a wait is repeated frames, an anim frame is a new pattern byte. */
+  const runActions = (actions: Msx2BossPathAction[] | undefined, at: { x: number; y: number }) => {
+    for (const action of actions || []) {
+      switch (action?.action) {
+        case 'wait': {
+          // A pause is not an opcode here: it is the same entry, once per frame.
+          // This is where a fixed table gets expensive, and saying so in a
+          // warning is cheaper than the author discovering it in the ROM budget.
+          const held = Math.max(1, Math.floor(Number(action.frames) || 0));
+          for (let i = 0; i < held; i++) emit(at.x, at.y);
+          break;
+        }
+        case 'setAnimFrame':
+          animFrame = clamp(Math.floor(Number(action.frame) || 0), 0, 3);
+          break;
+        case 'setSpeed':
+          speed = clamp(Math.floor(Number(action.speed) || 1), 1, maxSpeed);
+          break;
+        case 'fire':
+          events.push({ frame: frames, action: 'fire', shootIndex: resolveShootIndex(action.shootId) & 0xff });
+          break;
+        default:
+          warnings.push(`unknown path action "${String((action as any)?.action)}"; skipped`);
+      }
+    }
+  };
+
+  const origin = { x: Math.round(nodes[0].x), y: Math.round(nodes[0].y) };
+  let cursor = { x: origin.x, y: origin.y };
+  // Node 0's script runs BEFORE the first frame is written, or an anim frame set
+  // there would not reach the frame it was set on. A wait already writes frames
+  // at the origin, so the spawn pixel is only emitted when the script wrote none.
+  runActions(nodes[0].actions, cursor);
+  if (frames === 0) emit(cursor.x, cursor.y);
+
+  const ordered = path.loopMode === 'loop' && nodes.length > 1 ? [...nodes, nodes[0]] : nodes;
+  for (let i = 1; i < ordered.length; i++) {
+    const from = { x: ordered[i - 1].x, y: ordered[i - 1].y };
+    const to = { x: ordered[i].x, y: ordered[i].y };
+    const segment = ordered[i - 1].segment;
+    const wrap = (index: number) => {
+      if (index >= 0 && index < ordered.length) return ordered[index];
+      if (path.loopMode !== 'loop') return undefined;
+      const count = ordered.length - 1;
+      return count > 0 ? ordered[((index % count) + count) % count] : undefined;
+    };
+    const prevNode = wrap(i - 2);
+    const nextNode = wrap(i + 1);
+    const samples = sampleSegment(from, to, segment, prevNode, nextNode);
+
+    if (segment?.timing) {
+      const timing = normalizePathTiming(segment.timing);
+      const requestedEnd = timing.endNodeId ? ordered.findIndex((node, index) => index >= i && node.id === timing.endNodeId) : i;
+      const end = requestedEnd >= i ? requestedEnd : i;
+      if (requestedEnd < i) warnings.push(`node ${i}: timing destination missing or before origin; using next node`);
+      const combined = [...samples];
+      const arrivals: Array<{ index: number; distance: number }> = [];
+      let length = 0, lastPoint = from;
+      const measure = (points: typeof samples) => {
+        for (const point of points) { length += Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y); lastPoint = point; }
+      };
+      measure(samples); arrivals.push({ index: i, distance: length });
+      for (let edge = i + 1; edge <= end; edge++) {
+        const edgeSamples = sampleSegment(ordered[edge - 1], ordered[edge], ordered[edge - 1].segment, wrap(edge - 2), wrap(edge + 1));
+        combined.push(...edgeSamples); measure(edgeSamples);
+        arrivals.push({ index: edge, distance: length });
+        if (ordered[edge - 1].segment?.timing) warnings.push(`node ${edge}: timing overridden by range starting at node ${i}`);
+      }
+      const timed = sampleTimedPath(from, combined, timing);
+      let previous = from;
+      let largestStep = 0;
+      let arrival = 0;
+      for (let frame = 0; frame < timed.length; frame++) {
+        const point = timed[frame];
+        cursor = { x: Math.round(point.x), y: Math.round(point.y) };
+        largestStep = Math.max(largestStep, Math.hypot(cursor.x - previous.x, cursor.y - previous.y));
+        previous = cursor;
+        emit(cursor.x, cursor.y);
+        const travelled = evaluatePathTiming(timing.keys, (frame + 1) / timed.length, timing.intensity) * length;
+        while (arrival < arrivals.length && arrivals[arrival].distance <= travelled + 1e-8) {
+          const nodeIndex = arrivals[arrival++].index;
+          if (nodeIndex < nodes.length) runActions(ordered[nodeIndex].actions, cursor);
+        }
+      }
+      if (largestStep > maxSpeed + 1) warnings.push(`node ${i}: timing reaches ${largestStep.toFixed(1)} px/frame; increase duration for smaller steps`);
+      i = end;
+      continue;
+    }
+
+    // Speeds describe spacing in the ROM, not arithmetic in the Z80 runtime.
+    // Interpolate along arc length so a sine can accelerate without changing shape.
+    const finiteSpeed = (value: number | undefined, fallback: number) =>
+      Number.isFinite(value) ? clamp(Number(value), 0.25, maxSpeed) : fallback;
+    const startSpeed = finiteSpeed(segment?.speedStart, speed);
+    const endSpeed = finiteSpeed(segment?.speedEnd, startSpeed);
+    let arcLength = 0;
+    let arcPrev = from;
+    for (const sample of samples) {
+      arcLength += Math.hypot(sample.x - arcPrev.x, sample.y - arcPrev.y);
+      arcPrev = sample;
+    }
+    const spacingAt = (distance: number) => startSpeed
+      + (endSpeed - startSpeed) * Math.min(1, distance / Math.max(arcLength, 0.001));
+    let travelled = 0;
+    let target = 0;
+    let prev = { x: from.x, y: from.y };
+    for (const sample of samples) {
+      const distance = Math.hypot(sample.x - prev.x, sample.y - prev.y);
+      const before = travelled;
+      travelled += distance;
+      while (travelled >= target + spacingAt(target)) {
+        target += spacingAt(target);
+        const fraction = distance ? clamp((target - before) / distance, 0, 1) : 1;
+        cursor = { x: Math.round(prev.x + (sample.x - prev.x) * fraction),
+          y: Math.round(prev.y + (sample.y - prev.y) * fraction) };
+        emit(cursor.x, cursor.y);
+      }
+      prev = sample;
+    }
+    // Land exactly on the node: an arc-length walk stops a fraction short.
+    const last = samples[samples.length - 1];
+    if (last && (Math.round(last.x) !== cursor.x || Math.round(last.y) !== cursor.y)) {
+      cursor = { x: Math.round(last.x), y: Math.round(last.y) };
+      emit(cursor.x, cursor.y);
+    }
+    if (i < nodes.length) runActions(ordered[i].actions, cursor);
+  }
+
+  if (path.loopMode === 'pingpong') {
+    warnings.push('pingpong paths are not baked yet; using loop instead');
+  }
+
+  // The one hardware trap a position table can walk into on its own. Checked on
+  // the line the VDP ends up reading, not on the stored byte: with 'gameArea'
+  // the offset is applied later, and a check on the raw pixel would miss it.
+  const stopFrames: number[] = [];
+  for (let frame = 0; frame < frames; frame++) {
+    if (screenY[frame] === SPRITE_Y_STOP_MODE2) stopFrames.push(frame);
+  }
+  if (stopFrames.length) {
+    warnings.push(
+      `frames ${stopFrames.slice(0, 6).join(', ')}${stopFrames.length > 6 ? '...' : ''} land on Y=216 (D8h), `
+      + 'which stops sprite processing in sprite mode 2: move the route a pixel or the rest of the sprites vanish',
+    );
+  }
+  if (events.length) {
+    warnings.push(
+      `${events.length} fire node(s) cannot travel inside a position table; they are reported as frame events instead`,
+    );
+  }
+  const outsideX = bounds.minX < 0 || bounds.maxX > 255;
+  if (outsideX) warnings.push('the route leaves the 0-255 X range, so those frames wrap around the screen');
+
+  return { bytes, frames, bounds, events, warnings };
 }
 
 /** A blank path with the defaults the runtime expects. */

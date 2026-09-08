@@ -33,6 +33,7 @@
     "test:msx2-shoot-sound-ui": "node scripts/check_msx2_shoot_sound_ui_playwright.cjs",
     "smoke:msx2-shoot-sound": "node scripts/build_msx2_shoot_sound_smoke.mjs && python -B scripts/build_mideas_unified_rom.py --json test/msx2-shoot/fixture_shot_sound.json --rom-mode megarom",
     "test:msx2-boss-path-shapes": "node scripts/check_msx2_boss_path_shapes.mjs",
+    "test:msx2-boss-path-fixed-table": "node scripts/check_msx2_boss_path_fixed_table.mjs",
     "test:msx2-boss-path-phase-switch": "node scripts/check_msx2_boss_path_phase_switch.mjs",
     "smoke:msx2-boss-path-phase-switch": "node scripts/build_msx2_boss_path_phase_switch_smoke.mjs && python -B scripts/build_mideas_unified_rom.py --json test/msx2-boss/fixture_path_phase_switch.json --rom-mode megarom && node scripts/check_msx2_boss_path_phase_switch_openmsx.mjs",
     "test:msx2-boss-path-shapes-ui": "node scripts/check_msx2_boss_path_shapes_ui_playwright.cjs",
