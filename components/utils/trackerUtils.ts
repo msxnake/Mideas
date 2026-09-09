@@ -2,6 +2,7 @@
 import { TrackerCell, TrackerRow, TrackerPattern, TrackerSongData, PT3Instrument, SCCInstrument, PT3Ornament, TrackerChannelId, PT3PatternCellSource } from '../../types';
 import { DEFAULT_PT3_ROWS_PER_PATTERN, DEFAULT_PT3_BPM, DEFAULT_PT3_SPEED, PT3_CHANNELS, SCC_CHANNELS, PSG_SCC_CHANNELS, PT3_NOTE_NAMES } from '../../constants';
 import { sourceEffectToNativeFields } from './trackerEffects';
+import { findPreviousTrackerInstrument, resolveTrackerNoteInstrumentEntry } from './pt3SourceEditor';
 
 /**
  * Chip a tracker channel belongs to: PSG letters (A-C) vs SCC digits (1-5).
@@ -405,4 +406,98 @@ export const normalizeImportedPT3Data = (parsedData: Partial<TrackerSongData>, f
    }
 
   return baseSong;
+};
+
+/**
+ * The instrument and ornament a newly entered note should carry, given the song,
+ * where the note lands and what the user has selected.
+ *
+ * Both ways of entering a note -- typing or clicking a cell, and capturing live
+ * from a MIDI keyboard -- have to answer this identically, so they share this
+ * one function. They did not before: the live path carried a shortened copy that
+ * only stamped an instrument the user had picked by hand, and skipped the
+ * fallback to the song's first chip-compatible instrument. Recording without
+ * having clicked an instrument first therefore wrote notes with an empty INS
+ * column, and a note with no instrument is silent on playback.
+ *
+ * Returns only the fields that should be applied, so callers can spread it over
+ * a cell without clobbering anything they set themselves. An `instrument` of
+ * null means "clear this column", which is not the same as omitting it.
+ */
+export const resolveNoteEntryAutoFields = (
+  song: TrackerSongData,
+  patternStorageIndex: number,
+  rowIndex: number,
+  channelId: TrackerChannelId,
+  currentInstrument: number | null | undefined,
+  currentOrnament: number | null | undefined,
+  activeInstrumentId: number | null,
+  activeOrnamentId: number | null,
+  explicitlySelectedInstrumentId: number | null,
+  /**
+   * Write the instrument even when the channel would inherit the very same one.
+   * Live recording sets this for the FIRST note it captures on each channel of a
+   * take. Strict Vortex semantics would leave that row blank, because the
+   * instrument is already in effect from earlier in the order -- correct for the
+   * file, but it means a performer who selects an instrument and plays never
+   * sees it appear anywhere, and cannot tell the take used it. One row per
+   * channel per take is a cheap way to make the take self-describing; every
+   * following note still inherits.
+   */
+  stampEvenIfInherited = false,
+): { instrument?: number | null; ornament?: number } => {
+  const applied: { instrument?: number | null; ornament?: number } = {};
+
+  const targetChip = channelChip(channelId);
+  const instrumentMatchesTargetChip = (instrument: PT3Instrument | SCCInstrument) => (
+    targetChip === 'SCC' ? isSccInstrument(instrument) : !isSccInstrument(instrument)
+  );
+
+  const activeInstrument = song.instruments.find(instrument => instrument.id === activeInstrumentId);
+  const compatibleInstrumentId = activeInstrument && instrumentMatchesTargetChip(activeInstrument)
+    ? activeInstrument.id
+    : song.instruments.find(instrumentMatchesTargetChip)?.id ?? null;
+
+  const previousInstrumentId = findPreviousTrackerInstrument({
+    patterns: song.patterns,
+    patternIndex: patternStorageIndex,
+    order: song.order,
+    orderIndex: song.currentPatternIndexInOrder,
+    rowIndex,
+    channel: channelId,
+  });
+  const previousInstrument = song.instruments.find(instrument => instrument.id === previousInstrumentId);
+  // Never leave a PSG instrument on an SCC channel (or vice versa). This is
+  // especially easy to trigger right after converting an imported PT3 song to
+  // PSG+SCC.
+  const compatiblePreviousInstrumentId = previousInstrument && instrumentMatchesTargetChip(previousInstrument)
+    ? previousInstrument.id
+    : null;
+
+  const instrumentToWrite = resolveTrackerNoteInstrumentEntry(
+    compatiblePreviousInstrumentId,
+    compatibleInstrumentId,
+    explicitlySelectedInstrumentId === activeInstrument?.id,
+  );
+  if (instrumentToWrite !== null) {
+    applied.instrument = instrumentToWrite;
+  } else if (stampEvenIfInherited && compatibleInstrumentId !== null) {
+    applied.instrument = compatibleInstrumentId;
+  } else if (currentInstrument === 0) {
+    // The column is meant to be left blank so the note inherits the instrument
+    // already in effect on the channel. Blank means null: the AY engine only
+    // takes its inheritance path when the cell's instrument is null, while a
+    // literal 0 is read as "this row names instrument 0", resolves to no
+    // instrument at all and plays silence. Songs written by the generators and
+    // by older imports are full of those zeros -- they are what the grid shows
+    // as "00" on rows that look empty -- so clear it rather than leave it.
+    applied.instrument = null;
+  }
+
+  if (activeOrnamentId !== null
+    && (currentOrnament === null || currentOrnament === undefined || currentOrnament === 0)) {
+    applied.ornament = activeOrnamentId;
+  }
+
+  return applied;
 };

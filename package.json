@@ -23,6 +23,7 @@
     "test:generator-byte-identical": "node scripts/check_generator_output_identical.mjs",
     "test:pt3-effect-editing": "node scripts/check_pt3_effect_editing.mjs",
     "test:pt3-preview-flush": "node scripts/check_pt3_preview_flush.mjs",
+    "test:tracker-note-entry": "node scripts/check_tracker_note_entry_instrument.mjs",
     "test:external-pt3-megarom": "node scripts/check_external_pt3_megarom_contract.mjs",
     "test:msx2-screen5-presentation": "node scripts/check_msx2_screen5_presentation_contract.mjs",
     "test:msx2-gameflow": "node scripts/check_msx2_gameflow_contract.mjs",

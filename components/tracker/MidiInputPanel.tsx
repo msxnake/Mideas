@@ -73,6 +73,13 @@ interface MidiInputPanelProps {
   onClearAction: (action: MidiActionId) => void;
   /** Whether live recording is currently armed (REC). */
   recArmed: boolean;
+  /**
+   * Arm/disarm live recording. Until this existed the flag could only be
+   * toggled by a MIDI CC bound through Learn, so a user with a plain keyboard
+   * had no way to arm REC at all and every note played during playback was
+   * silently discarded.
+   */
+  onRecArmedChange: (value: boolean) => void;
   /** When on, MIDI velocity is written to the cell's volume column. */
   velocityToVolume: boolean;
   onVelocityToVolumeChange: (value: boolean) => void;
@@ -134,6 +141,7 @@ export const MidiInputPanel: React.FC<MidiInputPanelProps> = ({
   onLearnAction,
   onClearAction,
   recArmed,
+  onRecArmedChange,
   velocityToVolume,
   onVelocityToVolumeChange,
 }) => {
@@ -168,6 +176,26 @@ export const MidiInputPanel: React.FC<MidiInputPanelProps> = ({
           </label>
           <span className={`font-mono ${STATUS_COLOR[status]}`}>{STATUS_LABEL[status]}</span>
         </div>
+
+        <button
+          type="button"
+          className={`flex w-full items-center justify-center gap-1.5 rounded border px-2 py-1 font-semibold uppercase tracking-wider transition-colors ${
+            recArmed
+              ? 'border-red-500 bg-red-500/20 text-red-300'
+              : 'border-msx-border bg-msx-bgcolor text-msx-textsecondary hover:border-red-400 hover:text-red-300'
+          } disabled:opacity-40`}
+          disabled={!enabled}
+          aria-pressed={recArmed}
+          title={
+            'Con REC armado, las notas que toques por MIDI mientras suena la canción se graban '
+            + 'en la fila por la que va el cursor de reproducción. Sin armar, tocar durante la '
+            + 'reproducción sólo suena y no escribe nada.'
+          }
+          onClick={() => { onActivateAudio?.(); onRecArmedChange(!recArmed); }}
+        >
+          <span className={recArmed ? 'text-red-400' : 'text-msx-textsecondary'}>●</span>
+          {recArmed ? 'REC armado' : 'Armar REC'}
+        </button>
 
         <div className="flex flex-col gap-0.5">
           <span className="uppercase tracking-wider text-msx-textsecondary">Device</span>

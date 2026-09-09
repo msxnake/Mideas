@@ -14,7 +14,8 @@ import { DualChipSynthesizer } from '../utils/dualChipSynthesizer';
 import {
   createEmptyRow, createDefaultTrackerPattern,
   NOTE_REGEX, INSTRUMENT_REGEX, ORNAMENT_REGEX, VOLUME_REGEX,
-  createEmptyCell, getSongChannels, toDualChipSong, toNativeTrackerSong, channelChip, isSccInstrument
+  createEmptyCell, getSongChannels, toDualChipSong, toNativeTrackerSong, channelChip, isSccInstrument,
+  resolveNoteEntryAutoFields
 } from '../utils/trackerUtils';
 import { LogModal } from '../modals/LogModal'; // Import the new LogModal
 
@@ -124,6 +125,7 @@ const PT3_SOURCE_FIELD_RANGES = {
     format: (value: number) => value.toString(16).toUpperCase(),
   },
 } as const;
+
 
 
 /**
@@ -413,6 +415,20 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const externalPt3PlayerRef = useRef<CowbellPT3Player | null>(null);
   const songDataRef = useRef(songData);
   songDataRef.current = songData;
+  /**
+   * The row scheduler reads the song, the pattern and the update callback
+   * through refs rather than through its dependency array. AppUI hands this
+   * editor a fresh inline `onUpdate` on every render and `songData` changes
+   * identity on every edit, so having them as dependencies re-ran the scheduler
+   * for reasons that had nothing to do with playback: it cleared the pending row
+   * timeout and started a new full-length one (the tempo stretched under your
+   * fingers exactly while you were recording) and it re-issued playNote for
+   * every channel of the current row (the audible retrigger). The scheduler only
+   * ever needs the newest value at the moment a row fires, which is what a ref
+   * gives it.
+   */
+  const onUpdateRef = useRef(onUpdate);
+  onUpdateRef.current = onUpdate;
   const lastExternalOrderIndexRef = useRef(songData.currentPatternIndexInOrder);
   /**
    * Set once the user takes charge of which pattern is shown, by picking one
@@ -580,8 +596,11 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       playbackPianoTimeoutsRef.current[channelIndex] = null;
     }
 
+    // Read the instrument list through the ref, not the prop. This callback is a
+    // dependency of the row scheduler, so taking songData.instruments here gave
+    // the scheduler a new identity on every edit and restarted it mid-row.
     const instrument = typeof instrumentId === 'number'
-      ? songData.instruments.find(instr => instr.id === instrumentId) as PT3Instrument | undefined
+      ? songDataRef.current.instruments.find(instr => instr.id === instrumentId) as PT3Instrument | undefined
       : undefined;
     const volumeEnvelope = instrument?.volumeEnvelope?.length ? instrument.volumeEnvelope : [15];
     const envelopeMaxValue = Math.max(...volumeEnvelope, 15);
@@ -630,7 +649,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     };
 
     playbackPianoTimeoutsRef.current[channelIndex] = window.setTimeout(tickEnvelope, stepMs);
-  }, [normalizePianoEnvelopeValue, publishPianoVisualState, songData.instruments]);
+  }, [normalizePianoEnvelopeValue, publishPianoVisualState]);
 
   const schedulePreviewNoteCut = useCallback((channelIndex: number, delayMs: number = 400) => {
     if (!synthesizer || channelIndex < 0) return;
@@ -708,9 +727,100 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     return 0;
   }, [songData.currentPatternIndexInOrder, songData.order, songData.patterns, activePatternIdToUse]);
 
+  /**
+   * Notes captured live while REC is armed, keyed
+   * `${patternStorageIndex}:${rowIndex}:${channelId}`, held here until the take
+   * ends instead of being written to the asset one at a time.
+   *
+   * Going through `handleCellChange` per note meant rebuilding the pattern array
+   * and, worse, pushing an undo entry whose equality test serialises the whole
+   * song twice -- for a song of any size that is tens of milliseconds of blocked
+   * main thread per note, on the same thread that renders the audio buffer, and
+   * it left one undo step per note (two, with velocity enabled). Buffering makes
+   * a take cost nothing until it is committed, and commits it as a single
+   * undoable action.
+   */
+  const recordBufferRef = useRef<Map<string, Partial<TrackerCell>>>(new Map());
+  /**
+   * Channels that have already had the instrument written once in the current
+   * take. The first captured note on each channel states it even if the channel
+   * would have inherited it, so a recorded take always shows which instrument
+   * played it; the rest inherit as usual. Cleared when the take is committed.
+   */
+  const recordStampedChannelsRef = useRef<Set<TrackerChannelId>>(new Set());
+  /** Bumped per captured note so the merged pattern below recomputes. */
+  const [recordTakeVersion, setRecordTakeVersion] = useState(0);
+
+  /**
+   * The stored pattern with the pending take laid over it, so the grid and the
+   * row scheduler both see live-recorded notes before they are committed.
+   */
   const currentPattern = useMemo(() => {
-    return songData.patterns[activePatternStorageIndex];
-  }, [songData.patterns, activePatternStorageIndex]);
+    const storedPattern = songData.patterns[activePatternStorageIndex];
+    const buffer = recordBufferRef.current;
+    if (!storedPattern || buffer.size === 0) return storedPattern;
+    let touched = false;
+    const rows = storedPattern.rows.map((row, rowIndex) => {
+      let mergedRow = row;
+      channels.forEach(channelId => {
+        const patch = buffer.get(`${activePatternStorageIndex}:${rowIndex}:${channelId}`);
+        if (!patch) return;
+        if (mergedRow === row) mergedRow = { ...row };
+        mergedRow[channelId] = { ...row[channelId], ...patch };
+        touched = true;
+      });
+      return mergedRow;
+    });
+    return touched ? { ...storedPattern, rows } : storedPattern;
+  }, [songData.patterns, activePatternStorageIndex, channels, recordTakeVersion]);
+
+  const currentPatternRef = useRef(currentPattern);
+  currentPatternRef.current = currentPattern;
+
+  /**
+   * Commit the pending take as one update and one undo entry. Safe to call when
+   * nothing is buffered. The buffer is dropped synchronously while the update is
+   * still in flight, so the notes can blink for a single frame before the
+   * committed song carries them.
+   */
+  const flushRecordBuffer = useCallback(() => {
+    const buffer = recordBufferRef.current;
+    if (buffer.size === 0) return;
+    const patchesByPattern = new Map<number, { rowIndex: number; channelId: TrackerChannelId; patch: Partial<TrackerCell> }[]>();
+    buffer.forEach((patch, key) => {
+      const separator = key.indexOf(':');
+      const secondSeparator = key.indexOf(':', separator + 1);
+      const patternIndex = Number(key.slice(0, separator));
+      const rowIndex = Number(key.slice(separator + 1, secondSeparator));
+      const channelId = key.slice(secondSeparator + 1) as TrackerChannelId;
+      const list = patchesByPattern.get(patternIndex);
+      if (list) list.push({ rowIndex, channelId, patch });
+      else patchesByPattern.set(patternIndex, [{ rowIndex, channelId, patch }]);
+    });
+    recordBufferRef.current = new Map();
+    recordStampedChannelsRef.current = new Set();
+    setRecordTakeVersion(version => version + 1);
+
+    onUpdateRef.current(currentSong => ({
+      patterns: currentSong.patterns.map((pattern, patternIndex) => {
+        const patches = patchesByPattern.get(patternIndex);
+        if (!patches) return pattern;
+        const rows = pattern.rows.map(row => row);
+        patches.forEach(({ rowIndex, channelId, patch }) => {
+          const row = rows[rowIndex];
+          if (!row) return;
+          rows[rowIndex] = { ...row, [channelId]: { ...row[channelId], ...patch } };
+        });
+        return { ...pattern, rows };
+      }),
+    }));
+  }, []);
+
+  const flushRecordBufferRef = useRef(flushRecordBuffer);
+  flushRecordBufferRef.current = flushRecordBuffer;
+
+  // A take left pending by unmounting the editor would be lost silently.
+  useEffect(() => () => { flushRecordBufferRef.current(); }, []);
 
   const getResolvedCellValue = useCallback((
     rowIndex: number,
@@ -915,6 +1025,10 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
   const handleCellChange = useCallback((rowIndex: number, channelId: TrackerChannelId, field: keyof TrackerCell, inputValue: string | number | null) => {
     if (!currentPattern) return;
+    // A pending take is only an overlay on the stored pattern. Commit it before a
+    // manual edit so this change and the recorded notes apply to the same song
+    // instead of the take silently winning the next merge.
+    flushRecordBufferRef.current();
     let finalValueToStore: string | number | null = null;
     let isValid = false;
     if (inputValue === null || (typeof inputValue === 'string' && inputValue.trim() === "")) {
@@ -1065,44 +1179,22 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
               if (field === 'note' && finalValueToStore && typeof finalValueToStore === 'string' &&
                 finalValueToStore !== "---" && finalValueToStore !== "===") {
 
-                // Explicitly check for null, undefined, or 0
-                const targetChip = channelChip(channelId);
-                const instrumentMatchesTargetChip = (instrument: PT3Instrument | SCCInstrument) => (
-                  targetChip === 'SCC' ? isSccInstrument(instrument) : !isSccInstrument(instrument)
-                );
-                const activeInstrument = currentSong.instruments.find(instrument => instrument.id === activeInstrumentId);
-                const compatibleInstrumentId = activeInstrument && instrumentMatchesTargetChip(activeInstrument)
-                  ? activeInstrument.id
-                  : currentSong.instruments.find(instrumentMatchesTargetChip)?.id ?? null;
-                const previousInstrumentId = findPreviousTrackerInstrument({
-                  patterns: currentSong.patterns,
-                  patternIndex: activePatternStorageIndex,
-                  order: currentSong.order,
-                  orderIndex: currentSong.currentPatternIndexInOrder,
+                const autoFields = resolveNoteEntryAutoFields(
+                  currentSong,
+                  activePatternStorageIndex,
                   rowIndex,
-                  channel: channelId,
-                });
-                const previousInstrument = currentSong.instruments.find(
-                  instrument => instrument.id === previousInstrumentId,
+                  channelId,
+                  updatedChannelCell.instrument,
+                  updatedChannelCell.ornament,
+                  activeInstrumentId,
+                  activeOrnamentId,
+                  explicitlySelectedInstrumentIdRef.current,
                 );
-                const compatiblePreviousInstrumentId = previousInstrument
-                  && instrumentMatchesTargetChip(previousInstrument)
-                  ? previousInstrument.id
-                  : null;
-                const instrumentToWrite = resolveTrackerNoteInstrumentEntry(
-                  compatiblePreviousInstrumentId,
-                  compatibleInstrumentId,
-                  explicitlySelectedInstrumentIdRef.current === activeInstrument?.id,
-                );
-
-                // Never leave a PSG instrument on an SCC channel (or vice
-                // versa). This is especially easy to trigger immediately
-                // after converting an imported PT3 song to PSG+SCC.
-                if (instrumentToWrite !== null) {
-                  updatedChannelCell.instrument = instrumentToWrite;
+                if (autoFields.instrument !== undefined) {
+                  updatedChannelCell.instrument = autoFields.instrument;
                 }
-                if (activeOrnamentId !== null && (updatedChannelCell.ornament === null || updatedChannelCell.ornament === undefined || updatedChannelCell.ornament === 0)) {
-                  updatedChannelCell.ornament = activeOrnamentId;
+                if (autoFields.ornament !== undefined) {
+                  updatedChannelCell.ornament = autoFields.ornament;
                 }
               }
               newRow[channelId] = updatedChannelCell;
@@ -1311,6 +1403,8 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   // Stop playback. When `resetRow` is true (Stop) the playhead returns to row 0;
   // when false (Pause) the current row is kept so playback can resume in place.
   const stopPlayback = useCallback((resetRow: boolean) => {
+    // Stopping the transport ends the take, whether or not REC stays armed.
+    flushRecordBufferRef.current();
     if (synthesizer) synthesizer.stopAllNotes();
     setIsPlaying(false);
     if (playbackIntervalRef.current) clearTimeout(playbackIntervalRef.current);
@@ -1416,18 +1510,20 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     // notes are heard at once. Deriving both from one expression keeps the two
     // from drifting apart -- Pause on an external-PT3 song, for instance, sets
     // isPlaying without ever starting this scheduler.
-    const rowSchedulerActive = songData.playbackBackend !== 'external-pt3'
+    const song = songDataRef.current;
+    const activePattern = currentPatternRef.current;
+    const rowSchedulerActive = song.playbackBackend !== 'external-pt3'
       && isPlaying
-      && !!currentPattern
+      && !!activePattern
       && !!synthesizer
       && synthesizer['audioContext']?.state === 'running';
     (synthesizer as { setRowPlaybackActive?: (active: boolean) => void } | null)
       ?.setRowPlaybackActive?.(rowSchedulerActive);
 
-    if (rowSchedulerActive && currentPattern && synthesizer) {
+    if (rowSchedulerActive && activePattern && synthesizer) {
       let rowToProcess = playbackRow;
-      let patternToProcess = currentPattern;
-      let patternIndexInOrderToProcess = songData.currentPatternIndexInOrder;
+      let patternToProcess = activePattern;
+      let patternIndexInOrderToProcess = song.currentPatternIndexInOrder;
 
       const rowData = patternToProcess.rows[rowToProcess];
       if (!rowData) {
@@ -1440,14 +1536,14 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         nativeRowSpeedRef.current,
       );
       nativeRowSpeedRef.current = rowSpeed;
-      let rowDurationMs = (2500 * rowSpeed) / songData.bpm;
-      if (songData.bpm === 0 || rowSpeed === 0) rowDurationMs = 200;
+      let rowDurationMs = (2500 * rowSpeed) / song.bpm;
+      if (song.bpm === 0 || rowSpeed === 0) rowDurationMs = 200;
 
       const nextPatternIndexInOrder = (rowToProcess + 1) >= patternToProcess.numRows
-        ? ((patternIndexInOrderToProcess + 1) >= songData.lengthInPatterns ? songData.restartPosition : (patternIndexInOrderToProcess + 1))
+        ? ((patternIndexInOrderToProcess + 1) >= song.lengthInPatterns ? song.restartPosition : (patternIndexInOrderToProcess + 1))
         : patternIndexInOrderToProcess;
-      const nextPatternStorageIndex = songData.order?.[nextPatternIndexInOrder];
-      const nextPatternObj = songData.patterns[nextPatternStorageIndex ?? patternIndexInOrderToProcess];
+      const nextPatternStorageIndex = song.order?.[nextPatternIndexInOrder];
+      const nextPatternObj = song.patterns[nextPatternStorageIndex ?? patternIndexInOrderToProcess];
       const nextRowIndex = (rowToProcess + 1) >= patternToProcess.numRows ? 0 : (rowToProcess + 1);
       const nextRowData = nextPatternObj?.rows?.[nextRowIndex];
 
@@ -1466,7 +1562,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       }
 
       channels.forEach((chId, chIndex) => {
-        if (mutedChannels.has(chId)) {
+        if (mutedChannelsRef.current.has(chId)) {
           synthesizer.playNote(chIndex as any, "===", null, null, null);
           if (playbackPianoTimeoutsRef.current[chIndex]) {
             clearTimeout(playbackPianoTimeoutsRef.current[chIndex]!);
@@ -1517,29 +1613,39 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
       if (playbackIntervalRef.current) clearTimeout(playbackIntervalRef.current);
       playbackIntervalRef.current = window.setTimeout(() => {
-        setPlaybackRow(prevRow => {
-          let nextRow = prevRow + 1;
-          let nextPatternOrderIdx = patternIndexInOrderToProcess;
+        // Both the next row and the next order step are decided out here, not
+        // inside a setPlaybackRow updater. React runs those updaters during the
+        // render phase, so advancing the order from within one reached up and set
+        // state on App mid-render -- the "Cannot update a component while
+        // rendering a different component" warning this editor has been logging.
+        // The row this timer belongs to is already known, so nothing is lost by
+        // computing from it instead of from the previous state.
+        const currentSong = songDataRef.current;
+        let nextRow = rowToProcess + 1;
+        let nextPatternOrderIdx = patternIndexInOrderToProcess;
 
-          if (nextRow >= patternToProcess.numRows) {
-            nextRow = 0;
-            // Auditioning one pattern: wrap to its own row 0 instead of
-            // stepping through the order.
-            if (!loopCurrentPatternRef.current) {
-              nextPatternOrderIdx = patternIndexInOrderToProcess + 1;
-              if (nextPatternOrderIdx >= songData.lengthInPatterns) {
-                nextPatternOrderIdx = songData.restartPosition;
-              }
+        if (nextRow >= patternToProcess.numRows) {
+          nextRow = 0;
+          // Auditioning one pattern: wrap to its own row 0 instead of
+          // stepping through the order.
+          if (!loopCurrentPatternRef.current) {
+            nextPatternOrderIdx = patternIndexInOrderToProcess + 1;
+            if (nextPatternOrderIdx >= currentSong.lengthInPatterns) {
+              nextPatternOrderIdx = currentSong.restartPosition;
             }
           }
+        }
 
-          if (nextPatternOrderIdx !== patternIndexInOrderToProcess) {
-            const nextPatternIdxInStorage = songData.order?.[nextPatternOrderIdx];
-            const nextPatternObj = songData.patterns[nextPatternIdxInStorage];
-            onUpdate({ currentPatternIndexInOrder: nextPatternOrderIdx, currentPatternId: nextPatternObj?.id });
-          }
-          return nextRow;
-        });
+        setPlaybackRow(nextRow);
+
+        if (nextPatternOrderIdx !== patternIndexInOrderToProcess) {
+          // Leaving the pattern ends the take: the buffer is keyed by storage
+          // index, and its notes must land before the editor moves on.
+          flushRecordBufferRef.current();
+          const nextPatternIdxInStorage = currentSong.order?.[nextPatternOrderIdx];
+          const nextPatternObj = currentSong.patterns[nextPatternIdxInStorage];
+          onUpdateRef.current({ currentPatternIndexInOrder: nextPatternOrderIdx, currentPatternId: nextPatternObj?.id });
+        }
       }, Math.max(20, rowDurationMs));
 
     } else {
@@ -1560,7 +1666,13 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     }
     wasPlayingRef.current = isPlaying;
     return () => { if (playbackIntervalRef.current) clearTimeout(playbackIntervalRef.current); };
-  }, [isPlaying, playbackRow, songData, synthesizer, onUpdate, currentPattern, channels, mutedChannels, clearPreviewNoteTimeout, clearPianoHighlights, isPlayableNote, schedulePianoVisualEnvelope, publishPianoVisualState]);
+    // songData, currentPattern, mutedChannels and onUpdate are deliberately read
+    // through refs instead of listed here: they change identity on every edit and
+    // on every parent render, and as dependencies they restarted the row timer
+    // and retriggered the row's voices. The only things that may legitimately
+    // (re)start a row are the transport, the playhead and the synth itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying, playbackRow, synthesizer, channels, clearPreviewNoteTimeout, clearPianoHighlights, isPlayableNote, schedulePianoVisualEnvelope, publishPianoVisualState]);
 
   const focusCellAndSelectText = useCallback((rIdx: number, chId: TrackerChannelId, fld: keyof TrackerCell) => {
     if (!currentPattern || rIdx < 0 || rIdx >= currentPattern.numRows) return;
@@ -1988,6 +2100,11 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
   useEffect(() => { localStorage.setItem('mideas.tracker.midi.actionMap', JSON.stringify(midiActionMap)); }, [midiActionMap]);
 
+  // Disarming REC ends the take and commits it, even with the transport running.
+  useEffect(() => {
+    if (!midiRecArmed) flushRecordBufferRef.current();
+  }, [midiRecArmed]);
+
   // Convert a MIDI note number to a tracker note string (e.g. 60 -> "C-4"),
   // applying the configured octave offset. MIDI 60 = C4. Returns null if the
   // resulting octave is outside the tracker's 0..7 range.
@@ -2023,18 +2140,62 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       : (focusedCell ? focusedCell.rowIndex : 0);
     const resolvedInstrumentId = getResolvedCellValue(rowIndex, channelId, 'instrument');
     const resolvedOrnamentId = getResolvedCellValue(rowIndex, channelId, 'ornament');
-    // Manual preview only when stopped. During playback the engine plays the
-    // written note on its next pass, and a manual note-cut would silence the
-    // channel mid-playback.
-    if (!recording && !mutedChannels.has(channelId)) {
+    const recordKey = `${activePatternStorageIndex}:${rowIndex}:${channelId}`;
+    const bufferedCell = recordBufferRef.current.get(recordKey);
+    const storedCell = songDataRef.current.patterns[activePatternStorageIndex]?.rows[rowIndex]?.[channelId];
+    // The instrument and ornament this note will carry, by exactly the same rules
+    // a typed note gets. Monitoring below plays through them too, so what you
+    // hear while recording is what the cell ends up holding -- previously it
+    // passed activeInstrumentId, which is null until the user clicks an
+    // instrument, and the synth had nothing to sound.
+    // Resolve against the pattern WITH the pending take laid over it. The take
+    // lives in the buffer until it is committed, so a resolver looking only at
+    // the stored song cannot see the instrument the first captured note just
+    // stamped, and would restate it on every following note of the same take.
+    const songForResolve = recordBufferRef.current.size === 0
+      ? songDataRef.current
+      : {
+        ...songDataRef.current,
+        patterns: songDataRef.current.patterns.map(
+          (pattern, patternIndex) => (patternIndex === activePatternStorageIndex ? currentPattern : pattern),
+        ),
+      };
+    const autoFields = resolveNoteEntryAutoFields(
+      songForResolve,
+      activePatternStorageIndex,
+      rowIndex,
+      channelId,
+      bufferedCell?.instrument ?? storedCell?.instrument,
+      bufferedCell?.ornament ?? storedCell?.ornament,
+      activeInstrumentId,
+      activeOrnamentId,
+      explicitlySelectedInstrumentIdRef.current,
+      recording && !recordStampedChannelsRef.current.has(channelId),
+    );
+    // 0 is not an instrument, it is the absence of one, and `??` would happily
+    // pass it through to the synth, which then plays nothing.
+    const inheritedInstrumentId = resolvedInstrumentId && resolvedInstrumentId > 0 ? resolvedInstrumentId : null;
+    const inheritedOrnamentId = resolvedOrnamentId && resolvedOrnamentId > 0 ? resolvedOrnamentId : null;
+    const monitorInstrumentId = autoFields.instrument ?? inheritedInstrumentId ?? activeInstrumentId;
+    const monitorOrnamentId = autoFields.ornament ?? inheritedOrnamentId ?? activeOrnamentId;
+    // Monitoring: you hear what you play, the instant you play it, recording or
+    // not. This used to be skipped while recording, on the theory that the row
+    // engine would play the written note on its next pass -- but the row had
+    // already been processed, so the note was silent until the playhead came
+    // round again a whole pattern later. What made it audible at all was the
+    // scheduler accidentally re-running on the edit, which is the retrigger this
+    // change removes. The note-cut is still scheduled only when stopped: during
+    // playback the row engine owns the channel and a manual cut would silence it
+    // mid-bar.
+    if (!mutedChannels.has(channelId)) {
       synthesizer?.playNote(
         channelIndex as any,
         noteName,
-        resolvedInstrumentId !== null ? resolvedInstrumentId : activeInstrumentId,
-        resolvedOrnamentId !== null ? resolvedOrnamentId : activeOrnamentId,
+        monitorInstrumentId,
+        monitorOrnamentId,
         velVolume ?? currentPattern.rows[rowIndex]?.[channelId]?.volume ?? 15
       );
-      schedulePreviewNoteCut(channelIndex);
+      if (!recording) schedulePreviewNoteCut(channelIndex);
     }
     setActivePianoKeys(prev => new Set(prev).add(noteName));
     setActivePianoKeyLevels(prev => { const next = new Map(prev); next.set(noteName, 1); return next; });
@@ -2043,15 +2204,24 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       setActivePianoKeys(prev => { const next = new Set(prev); next.delete(noteName); return next; });
       setActivePianoKeyLevels(prev => { const next = new Map(prev); next.delete(noteName); return next; });
     }, 150);
+    if (recording) {
+      // Live capture goes to the take buffer, not through handleCellChange:
+      // committing per note is what made recording expensive and what filled the
+      // undo stack with one step per note. See flushRecordBuffer.
+      const patch: Partial<TrackerCell> = { note: noteName, ...autoFields };
+      if (velVolume !== null) patch.volume = velVolume;
+      recordBufferRef.current.set(recordKey, { ...bufferedCell, ...patch });
+      recordStampedChannelsRef.current.add(channelId);
+      setRecordTakeVersion(version => version + 1);
+      return;
+    }
     handleCellChange(rowIndex, channelId, 'note', noteName);
     // Translate the played velocity into the cell's volume column.
     if (velVolume !== null) {
       handleCellChange(rowIndex, channelId, 'volume', velVolume.toString(16).toUpperCase());
     }
-    if (!recording) {
-      focusCellAndSelectText(Math.min(currentPattern.numRows - 1, rowIndex + editStepJump), channelId, 'note');
-    }
-  }, [currentPattern, focusedCell, channels, getResolvedCellValue, mutedChannels, synthesizer, activeInstrumentId, activeOrnamentId, schedulePreviewNoteCut, handleCellChange, focusCellAndSelectText, editStepJump, isPlaying, playbackRow, midiRecArmed, midiVelocityToVolume]);
+    focusCellAndSelectText(Math.min(currentPattern.numRows - 1, rowIndex + editStepJump), channelId, 'note');
+  }, [currentPattern, focusedCell, channels, getResolvedCellValue, mutedChannels, synthesizer, activeInstrumentId, activeOrnamentId, schedulePreviewNoteCut, handleCellChange, focusCellAndSelectText, editStepJump, isPlaying, playbackRow, midiRecArmed, midiVelocityToVolume, activePatternStorageIndex]);
 
   const handleMidiNoteOn = useCallback((midiNote: number, velocity: number) => {
     const noteName = midiNoteToTrackerNote(midiNote);
@@ -2883,6 +3053,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
             onLearnAction={setMidiLearnTarget}
             onClearAction={clearMidiAction}
             recArmed={midiRecArmed}
+            onRecArmedChange={setMidiRecArmed}
             velocityToVolume={midiVelocityToVolume}
             onVelocityToVolumeChange={setMidiVelocityToVolume}
           />
