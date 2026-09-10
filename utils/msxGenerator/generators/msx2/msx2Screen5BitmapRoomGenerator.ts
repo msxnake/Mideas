@@ -1703,7 +1703,6 @@ function extractAtlasEntryPixels(
   entry: { sx: number; sy: number; w: number; h: number },
   options: { maxWidth?: number; maxHeight?: number } = {},
 ): number[][] {
-  const pixels = normalizeAtlasPixels(room);
   const sx = clampInt(entry.sx, 0, Math.max(0, room.atlas.width - 1), 0);
   const sy = clampInt(entry.sy, 0, Math.max(0, room.atlas.height - 1), 0);
   const maxWidth = Math.max(1, Math.trunc(Number(options.maxWidth) || room.atlas.width));
@@ -1718,8 +1717,16 @@ function extractAtlasEntryPixels(
     Math.max(1, room.atlas.height - sy),
     Math.trunc(Number(entry.h) || TILE_GRID_SIZE),
   ));
+  // Normalize only the requested rectangle. Normalizing the entire atlas per
+  // entry makes shared-world packing scale with entries * atlas area.
+  // Keep the authored bounds and zero padding used by normalizeAtlasPixels.
+  const atlasWidth = Math.max(0, Math.trunc(room.atlas.width));
+  const atlasHeight = Math.max(0, Math.trunc(room.atlas.height));
   return Array.from({ length: height }, (_row, y) =>
-    Array.from({ length: width }, (_col, x) => pixels[sy + y]?.[sx + x] ?? 0)
+    Array.from({ length: width }, (_col, x) =>
+      sy + y < atlasHeight && sx + x < atlasWidth
+        ? clampByte(room.atlas.pixels?.[sy + y]?.[sx + x], 0) & 0x0f
+        : 0)
   );
 }
 
