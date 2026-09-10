@@ -1,4 +1,5 @@
 import React from 'react';
+import { midiVelocityToTrackerVolume } from '../utils/midiVelocity';
 import { Panel } from '../common/Panel';
 import { MusicNoteIcon } from '../icons/MsxIcons';
 import type { UseMidiInputReturn, MidiLastMessage } from '../../utils/useMidiInput';
@@ -73,6 +74,8 @@ interface MidiInputPanelProps {
   onClearAction: (action: MidiActionId) => void;
   /** Whether live recording is currently armed (REC). */
   recArmed: boolean;
+  onlyPlay: boolean;
+  onOnlyPlayChange: (value: boolean) => void;
   /**
    * Arm/disarm live recording. Until this existed the flag could only be
    * toggled by a MIDI CC bound through Learn, so a user with a plain keyboard
@@ -83,6 +86,16 @@ interface MidiInputPanelProps {
   /** When on, MIDI velocity is written to the cell's volume column. */
   velocityToVolume: boolean;
   onVelocityToVolumeChange: (value: boolean) => void;
+  velocitySensitivity: number;
+  onVelocitySensitivityChange: (value: number) => void;
+  /** Volume a note gets however softly it is played, 1..15. */
+  velocityMinVolume: number;
+  onVelocityMinVolumeChange: (value: number) => void;
+  pt3Recording?: boolean;
+  quantizeRows?: number;
+  onQuantizeRowsChange?: (rows: number) => void;
+  recordNoteOff?: boolean;
+  onRecordNoteOffChange?: (enabled: boolean) => void;
 }
 
 const formatMessage = (msg: MidiLastMessage | null): string => {
@@ -141,9 +154,16 @@ export const MidiInputPanel: React.FC<MidiInputPanelProps> = ({
   onLearnAction,
   onClearAction,
   recArmed,
+  onlyPlay,
+  onOnlyPlayChange,
   onRecArmedChange,
   velocityToVolume,
   onVelocityToVolumeChange,
+  velocitySensitivity,
+  onVelocitySensitivityChange,
+  velocityMinVolume,
+  onVelocityMinVolumeChange,
+  pt3Recording, quantizeRows = 1, onQuantizeRowsChange, recordNoteOff = true, onRecordNoteOffChange,
 }) => {
   const {
     supported, status, enabled, setEnabled, inputs, selectedInputId, selectInput, lastMessage,
@@ -179,12 +199,24 @@ export const MidiInputPanel: React.FC<MidiInputPanelProps> = ({
 
         <button
           type="button"
+          aria-pressed={onlyPlay}
+          disabled={!enabled}
+          className={`w-full rounded border px-2 py-1 font-semibold disabled:opacity-40 ${onlyPlay
+            ? 'border-msx-accent bg-msx-accent/20 text-msx-highlight'
+            : 'border-msx-border text-msx-textsecondary'}`}
+          title="Tocar con el instrumento y ornamento seleccionados sin escribir notas ni mover el cursor."
+          onClick={() => { onActivateAudio?.(); onOnlyPlayChange(!onlyPlay); }}
+        >Only play</button>
+        {onlyPlay && <p className="text-msx-highlight">Solo escuchar · no se graban notas MIDI.</p>}
+
+        <button
+          type="button"
           className={`flex w-full items-center justify-center gap-1.5 rounded border px-2 py-1 font-semibold uppercase tracking-wider transition-colors ${
             recArmed
               ? 'border-red-500 bg-red-500/20 text-red-300'
               : 'border-msx-border bg-msx-bgcolor text-msx-textsecondary hover:border-red-400 hover:text-red-300'
           } disabled:opacity-40`}
-          disabled={!enabled}
+          disabled={!enabled || onlyPlay}
           aria-pressed={recArmed}
           title={
             'Con REC armado, las notas que toques por MIDI mientras suena la canción se graban '
@@ -198,6 +230,24 @@ export const MidiInputPanel: React.FC<MidiInputPanelProps> = ({
         </button>
 
         <div className="flex flex-col gap-0.5">
+          {pt3Recording && <div className="space-y-2 rounded border border-msx-border p-2">
+            <label className="flex items-center justify-between gap-2">
+              <span>Cuantización MIDI</span>
+              <select aria-label="Cuantización MIDI" value={quantizeRows}
+                className="rounded bg-msx-bgcolor p-1 text-msx-textprimary"
+                onChange={event => onQuantizeRowsChange?.(Number(event.target.value))}>
+                <option value={0}>Fila actual</option>
+                <option value={1}>1 fila · cercana</option>
+                <option value={2}>2 filas</option>
+                <option value={4}>4 filas</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={recordNoteOff} onChange={event => onRecordNoteOffChange?.(event.target.checked)} />
+              Grabar duración (note-off)
+            </label>
+            <p className="text-msx-textsecondary">Al soltar se escribe ===. Un toque corto ocupa como mínimo un paso de la rejilla.</p>
+          </div>}
           <span className="uppercase tracking-wider text-msx-textsecondary">Device</span>
           <select
             className="rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 font-mono text-msx-textprimary disabled:opacity-50"
@@ -238,6 +288,36 @@ export const MidiInputPanel: React.FC<MidiInputPanelProps> = ({
             onChange={(e) => onVelocityToVolumeChange(e.target.checked)}
           />
         </label>
+
+        <div className={`space-y-1 rounded border border-msx-border p-2 ${velocityToVolume ? '' : 'opacity-50'}`}>
+          <label className="flex items-center justify-between gap-2">
+            <span>Sensibilidad MIDI</span>
+            <span>{velocitySensitivity.toFixed(1)}</span>
+            <input type="range" aria-label="Sensibilidad MIDI" min="0.5" max="3" step="0.1"
+              className="w-24 accent-msx-accent" value={velocitySensitivity} disabled={!velocityToVolume}
+              onChange={event => onVelocitySensitivityChange(Number(event.target.value))} />
+          </label>
+          <p className="text-msx-textsecondary">Más sensibilidad: más volumen con menos fuerza. 1.0 = respuesta original.</p>
+
+          <label className="flex items-center justify-between gap-2">
+            <span>Volumen mínimo</span>
+            <span>{velocityMinVolume}</span>
+            <input type="range" aria-label="Volumen mínimo" min="1" max="15" step="1"
+              className="w-24 accent-msx-accent" value={velocityMinVolume} disabled={!velocityToVolume}
+              onChange={event => onVelocityMinVolumeChange(Number(event.target.value))} />
+          </label>
+          <p className="text-msx-textsecondary">
+            Suelo por debajo del cual no baja por flojo que sea el toque. La curva se
+            reparte entre ese mínimo y 15, así que sigue habiendo dinámica. 1 = sin suelo.
+          </p>
+          <p>
+            Toque flojo: volumen {midiVelocityToTrackerVolume(20, velocitySensitivity, velocityMinVolume)} / 15
+            {' · '}
+            medio: {midiVelocityToTrackerVolume(64, velocitySensitivity, velocityMinVolume)} / 15
+            {' · '}
+            fuerte: {midiVelocityToTrackerVolume(120, velocitySensitivity, velocityMinVolume)} / 15
+          </p>
+        </div>
 
         <div className="flex flex-col gap-0.5">
           <span className="uppercase tracking-wider text-msx-textsecondary">Target channel</span>

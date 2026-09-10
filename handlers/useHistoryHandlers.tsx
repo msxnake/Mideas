@@ -5,6 +5,7 @@ import {
   EntityTemplate, EnemyDefinition, MainMenuConfig, PresentationScreenConfig
 } from '../types';
 import { MAX_HISTORY_LENGTH } from '../constants';
+import { historyValuesEqual } from '../utils/historyValueEquality';
 
 interface HistoryHandlersProps {
   setAssets: (assets: ProjectAsset[]) => void;
@@ -35,7 +36,13 @@ export const useHistoryHandlers = ({
   const [history, setHistory] = useState<HistoryState>({ undoStack: [], redoStack: [] });
 
   const pushToHistory = useCallback((type: HistoryActionType, before: any, after: any) => {
-    if (JSON.stringify(before) === JSON.stringify(after)) {
+    // State is updated immutably, so an untouched branch stays reference-equal.
+    // `historyValuesEqual` exploits that at every level and bails on the first
+    // real difference, instead of serializing both payloads to compare them.
+    // An atlas edit fans out to every room of the world, so the old stringify
+    // pair cost ~115 ms on a 13-room project; see utils/historyValueEquality.ts
+    // and scripts/perf_screen5_atlas_fanout.mjs.
+    if (historyValuesEqual(before, after)) {
       return; // No change, don't add to history
     }
 

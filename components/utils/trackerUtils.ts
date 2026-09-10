@@ -337,6 +337,7 @@ export const normalizeImportedPT3Data = (parsedData: Partial<TrackerSongData>, f
               volume: cell?.volume ?? null,
               effectCommand: cell?.effectCommand ?? null,
               effectParams: cell?.effectParams ?? null,
+              pt3Envelope: cell?.pt3Envelope ?? null,
         });
         rows.push({
           A: cleanCell(existingRow?.A),

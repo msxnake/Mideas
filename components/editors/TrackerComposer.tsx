@@ -35,8 +35,11 @@ import { WaveformEditorModal } from '../tracker/WaveformEditorModal';
 import { Panel } from '../common/Panel';
 import { createCmajorChiptuneSampleSong } from '../../utils/trackerSampleSong';
 import { CowbellPT3Player } from '../utils/cowbellPt3Player';
+import { commitTrackerTake, overlayTrackerTake, createBlankPT3Song, rebuildPT3Bank } from '../utils/pt3Recording';
+import { buildPT3RecordingTimeline, quantizePT3Position, resolvePT3NoteOffPosition, type PT3QuantizeRows, type PT3RecordingPosition } from '../utils/pt3RecordingTiming';
 import { useMidiInput } from '../../utils/useMidiInput';
 import { MidiInputPanel, MidiChannelMode, MidiActionId, MidiActionMap } from '../tracker/MidiInputPanel';
+import { midiVelocityToTrackerVolume } from '../utils/midiVelocity';
 import { downloadJsonFile } from '../../utils/downloadUtils';
 import { createMusicJsonPackage, normalizeImportedMusic, sanitizeMusicFilename } from '../../utils/trackerMusicJson';
 import { locatePT3PlaybackFrame, locatePT3OrderStepFrames, parsePT3Module, parsePT3File } from '../utils/pt3Parser';
@@ -379,7 +382,7 @@ const createOdeToJoySampleSong = (): TrackerSongData => {
  * @returns A React component.
  * @category Editors
  */
-export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUpdate, onCreateDualChipCopy }) => {
+export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUpdate: onUpdateSong, onCreateDualChipCopy }) => {
   const [localSongName, setLocalSongName] = useState(songData.name);
   const [localSongTitle, setLocalSongTitle] = useState(songData.title || "");
   const [localSongAuthor, setLocalSongAuthor] = useState(songData.author || "");
@@ -413,6 +416,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const nativeRowSpeedRef = useRef(Math.max(1, songData.speed || DEFAULT_PT3_SPEED));
   const patternEditorRef = useRef<HTMLDivElement>(null);
   const externalPt3PlayerRef = useRef<CowbellPT3Player | null>(null);
+  const externalPt3LoadedBytesRef = useRef<number[] | undefined>(undefined);
   const songDataRef = useRef(songData);
   songDataRef.current = songData;
   /**
@@ -427,8 +431,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
    * ever needs the newest value at the moment a row fires, which is what a ref
    * gives it.
    */
-  const onUpdateRef = useRef(onUpdate);
-  onUpdateRef.current = onUpdate;
+  const onUpdateRef = useRef(onUpdateSong);
   const lastExternalOrderIndexRef = useRef(songData.currentPatternIndexInOrder);
   /**
    * Set once the user takes charge of which pattern is shown, by picking one
@@ -456,8 +459,25 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const reportExternalPt3Error = useCallback((message: string) => {
     queueMicrotask(() => setExternalPt3Error(message));
   }, []);
+  const onUpdate = useCallback<TrackerComposerProps['onUpdate']>((update) => {
+    onUpdateSong(current => {
+      const patch = typeof update === 'function' ? update(current) : update;
+      const next = { ...current, ...patch };
+      if (next.playbackBackend !== 'external-pt3' || patch.externalPt3Data !== undefined
+          || !(patch.patterns || patch.order || patch.restartPosition !== undefined)) return patch;
+      try {
+        return { ...patch, ...commitTrackerTake(next, new Map()) };
+      } catch (error) {
+        reportExternalPt3Error(error instanceof Error ? error.message : String(error));
+        return {};
+      }
+    });
+  }, [onUpdateSong, reportExternalPt3Error]);
+  onUpdateRef.current = onUpdate;
   const [externalPt3CurrentTime, setExternalPt3CurrentTime] = useState(0);
   const [externalPt3Duration, setExternalPt3Duration] = useState<number | null>(null);
+  const [pt3LoopIteration, setPt3LoopIteration] = useState(0);
+  const [pt3TakePlaybackStatus, setPt3TakePlaybackStatus] = useState('');
 
   const [isInstrumentModalOpen, setIsInstrumentModalOpen] = useState(false);
   const [editingInstrument, setEditingInstrument] = useState<PT3Instrument | null>(null);
@@ -576,7 +596,9 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   }, [channels]);
 
   useEffect(() => {
-    externalPt3PlayerRef.current?.setMutedChannels(mutedChannels);
+    externalPt3PlayerRef.current?.setMutedChannels(new Set([
+      ...mutedChannels, ...Array.from(midiHeldNotesRef.current.values(), (held: { channel: TrackerChannelId }) => held.channel),
+    ]));
     mutedChannels.forEach(channelId => silencePlaybackChannel(channelId));
     publishPianoVisualState();
   }, [mutedChannels, silencePlaybackChannel, publishPianoVisualState]);
@@ -741,6 +763,13 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
    * undoable action.
    */
   const recordBufferRef = useRef<Map<string, Partial<TrackerCell>>>(new Map());
+  const finishMidiNotesRef = useRef<() => void>(() => {});
+  const releaseMidiKeyRef = useRef<(key: string) => void>(() => {});
+  const midiHeldNotesRef = useRef(new Map<string, {
+    channel: TrackerChannelId; note: string; start: PT3RecordingPosition | null;
+    iteration: number; recordRelease: boolean; grid: PT3QuantizeRows; loopOrderIndex: number | null;
+  }>());
+  const pt3RecordingTimeline = useMemo(() => buildPT3RecordingTimeline(songData), [songData.patterns, songData.order, songData.speed]);
   /**
    * Channels that have already had the instrument written once in the current
    * take. The first captured note on each channel states it even if the channel
@@ -783,38 +812,23 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
    * still in flight, so the notes can blink for a single frame before the
    * committed song carries them.
    */
-  const flushRecordBuffer = useCallback(() => {
+  const flushRecordBuffer = useCallback((finishHeldNotes = true) => {
+    if (finishHeldNotes) finishMidiNotesRef.current();
     const buffer = recordBufferRef.current;
     if (buffer.size === 0) return;
-    const patchesByPattern = new Map<number, { rowIndex: number; channelId: TrackerChannelId; patch: Partial<TrackerCell> }[]>();
-    buffer.forEach((patch, key) => {
-      const separator = key.indexOf(':');
-      const secondSeparator = key.indexOf(':', separator + 1);
-      const patternIndex = Number(key.slice(0, separator));
-      const rowIndex = Number(key.slice(separator + 1, secondSeparator));
-      const channelId = key.slice(secondSeparator + 1) as TrackerChannelId;
-      const list = patchesByPattern.get(patternIndex);
-      if (list) list.push({ rowIndex, channelId, patch });
-      else patchesByPattern.set(patternIndex, [{ rowIndex, channelId, patch }]);
-    });
+    // Validate before dropping the buffer, so a rejected PT3 is still recoverable.
+    try {
+      commitTrackerTake(songDataRef.current, buffer);
+    } catch (error) {
+      reportExternalPt3Error(error instanceof Error ? error.message : String(error));
+      return;
+    }
     recordBufferRef.current = new Map();
     recordStampedChannelsRef.current = new Set();
     setRecordTakeVersion(version => version + 1);
 
-    onUpdateRef.current(currentSong => ({
-      patterns: currentSong.patterns.map((pattern, patternIndex) => {
-        const patches = patchesByPattern.get(patternIndex);
-        if (!patches) return pattern;
-        const rows = pattern.rows.map(row => row);
-        patches.forEach(({ rowIndex, channelId, patch }) => {
-          const row = rows[rowIndex];
-          if (!row) return;
-          rows[rowIndex] = { ...row, [channelId]: { ...row[channelId], ...patch } };
-        });
-        return { ...pattern, rows };
-      }),
-    }));
-  }, []);
+    onUpdateRef.current(currentSong => commitTrackerTake(currentSong, buffer));
+  }, [reportExternalPt3Error]);
 
   const flushRecordBufferRef = useRef(flushRecordBuffer);
   flushRecordBufferRef.current = flushRecordBuffer;
@@ -869,6 +883,9 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   }, []);
 
   useEffect(() => {
+    // A committed take must not interrupt its backing track. The next Play
+    // opens the new module; the in-flight player finishes its current version.
+    if (songData.playbackBackend === 'external-pt3' && isPlaying && externalPt3PlayerRef.current) return;
     externalPt3PlayerRef.current?.close();
     externalPt3PlayerRef.current = null;
     setExternalPt3Status(songData.playbackBackend === 'external-pt3' && songData.externalPt3Data?.length ? 'ready' : 'idle');
@@ -1028,7 +1045,9 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     // A pending take is only an overlay on the stored pattern. Commit it before a
     // manual edit so this change and the recorded notes apply to the same song
     // instead of the take silently winning the next merge.
-    flushRecordBufferRef.current();
+    // Step entry also uses this path after starting MIDI monitoring. Committing
+    // edits must not release the physical key that is still held down.
+    flushRecordBufferRef.current(false);
     let finalValueToStore: string | number | null = null;
     let isValid = false;
     if (inputValue === null || (typeof inputValue === 'string' && inputValue.trim() === "")) {
@@ -1264,7 +1283,12 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       return null;
     }
 
+    if (externalPt3PlayerRef.current && externalPt3LoadedBytesRef.current !== songData.externalPt3Data) {
+      externalPt3PlayerRef.current.close();
+      externalPt3PlayerRef.current = null;
+    }
     if (!externalPt3PlayerRef.current) {
+      externalPt3LoadedBytesRef.current = songData.externalPt3Data;
       externalPt3PlayerRef.current = new CowbellPT3Player(bytes, {
         onPlay: () => {
           setIsPlaying(true);
@@ -1272,28 +1296,23 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         },
         onPause: () => setIsPlaying(false),
         onEnded: () => {
+          flushRecordBufferRef.current();
           setIsPlaying(false);
           setExternalPt3CurrentTime(0);
         },
         onLoadedMetadata: (duration) => setExternalPt3Duration(duration),
+        onError: reportExternalPt3Error,
+        onLoop: (iteration, revision) => {
+          setPt3LoopIteration(iteration);
+          if (revision > 0) setPt3TakePlaybackStatus('Toma incorporada al bucle');
+        },
         onTimeUpdate: (currentTime, duration) => {
           setExternalPt3CurrentTime(currentTime);
           setExternalPt3Duration(duration);
           const liveSong = songDataRef.current;
           const cursor = locatePT3PlaybackFrame(liveSong, Math.floor(currentTime * 50));
 
-          // Pattern audition: as soon as the playhead leaves the latched order
-          // step, jump back to its first frame. Seeking rather than restarting
-          // keeps the replayer's channel state, which is what makes an
-          // instrument tweak audible on the very next repeat.
-          if (cursor && loopCurrentPatternRef.current && loopOrderIndexRef.current !== null
-              && cursor.orderIndex !== loopOrderIndexRef.current) {
-            const span = locatePT3OrderStepFrames(liveSong, loopOrderIndexRef.current);
-            if (span) {
-              externalPt3PlayerRef.current?.seek(span.startFrame / 50);
-              return;
-            }
-          }
+          // Loop boundaries are handled sample-accurately by the AudioWorklet.
 
           if (cursor) {
             setPlaybackRow(cursor.row);
@@ -1341,15 +1360,47 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
           }
         },
       });
-      externalPt3PlayerRef.current.setMutedChannels(mutedChannelsRef.current);
+      externalPt3PlayerRef.current.setMutedChannels(new Set([
+        ...mutedChannelsRef.current, ...Array.from(midiHeldNotesRef.current.values(), (held: { channel: TrackerChannelId }) => held.channel),
+      ]));
     }
 
     return externalPt3PlayerRef.current;
-  }, [songData.externalPt3Data, onUpdate, isPlayableNote, publishPianoVisualState]);
+  }, [songData.externalPt3Data, onUpdate, isPlayableNote, publishPianoVisualState, reportExternalPt3Error]);
+
+  useEffect(() => {
+    const player = externalPt3PlayerRef.current;
+    if (!player) return;
+    const span = loopCurrentPattern && loopOrderIndexRef.current !== null
+      ? locatePT3OrderStepFrames(songData, loopOrderIndexRef.current) : null;
+    player.setLoopRange(span ? { startFrame: span.startFrame, endFrame: span.startFrame + span.frameCount } : null);
+  }, [loopCurrentPattern, songData.patterns, songData.order, songData.speed]);
+
+  useEffect(() => {
+    const player = externalPt3PlayerRef.current;
+    if (!player || !isPlaying || !loopCurrentPattern || songData.playbackBackend !== 'external-pt3') return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      try {
+        const snapshot = commitTrackerTake(songDataRef.current, recordBufferRef.current);
+        setPt3TakePlaybackStatus('Preparando toma para la siguiente vuelta…');
+        void player.queueModule(new Uint8Array(snapshot.externalPt3Data!)).then(() => {
+          if (!cancelled) setPt3TakePlaybackStatus('Toma preparada para la siguiente vuelta');
+        }).catch(error => {
+          if (!cancelled) reportExternalPt3Error(error instanceof Error ? error.message : String(error));
+        });
+      } catch (error) {
+        reportExternalPt3Error(error instanceof Error ? error.message : String(error));
+      }
+    }, 80);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [recordTakeVersion, songData.externalPt3Data, isPlaying, loopCurrentPattern, reportExternalPt3Error]);
 
   const handleExternalPt3PlayStop = useCallback(async () => {
     if (isPlaying) {
       externalPt3PlayerRef.current?.pause();
+      synthesizer?.stopAllNotes();
+      flushRecordBufferRef.current();
       setIsPlaying(false);
       return;
     }
@@ -1366,9 +1417,13 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         const orderIndex = songDataRef.current.currentPatternIndexInOrder;
         loopOrderIndexRef.current = orderIndex;
         const span = locatePT3OrderStepFrames(songDataRef.current, orderIndex);
-        if (span) player.seek(span.startFrame / 50);
+        if (span) {
+          player.setLoopRange({ startFrame: span.startFrame, endFrame: span.startFrame + span.frameCount });
+          player.seek(span.startFrame / 50);
+        }
       }
       await player.play();
+      setPt3LoopIteration(0);
       setExternalPt3Status('ready');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not start PT3 playback.';
@@ -1378,10 +1433,12 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       externalPt3PlayerRef.current?.close();
       externalPt3PlayerRef.current = null;
     }
-  }, [ensureExternalPt3Player, isPlaying]);
+  }, [ensureExternalPt3Player, isPlaying, synthesizer]);
 
   const handleExternalPt3Stop = useCallback(() => {
     externalPt3PlayerRef.current?.stop();
+    synthesizer?.stopAllNotes();
+    flushRecordBufferRef.current();
     setIsPlaying(false);
     setExternalPt3CurrentTime(0);
     setPlaybackRow(0);
@@ -1391,7 +1448,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       currentPatternIndexInOrder: 0,
       currentPatternId: typeof firstPatternIndex === 'number' ? songDataRef.current.patterns[firstPatternIndex]?.id : undefined,
     });
-  }, [onUpdate]);
+  }, [onUpdate, synthesizer]);
 
   const handleExternalPt3Seek = useCallback((value: string) => {
     const nextTime = Number(value);
@@ -1447,9 +1504,13 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
   // Pause/resume toggle: unlike Play/Stop it preserves the playhead position.
   const handlePlayPause = useCallback(async () => {
+    if (songData.playbackBackend === 'external-pt3') {
+      await handleExternalPt3PlayStop();
+      return;
+    }
     if (isPlaying) stopPlayback(false);
     else await startPlayback(false);
-  }, [isPlaying, startPlayback, stopPlayback]);
+  }, [songData.playbackBackend, handleExternalPt3PlayStop, isPlaying, startPlayback, stopPlayback]);
 
   /**
    * Toggle single-pattern audition. Arming it mid-playback latches whichever
@@ -1481,6 +1542,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   }, []);
 
   const handleSilenceAllChannels = useCallback(() => {
+    flushRecordBufferRef.current();
     if (songData.playbackBackend === 'external-pt3') {
       externalPt3PlayerRef.current?.stop();
       setExternalPt3CurrentTime(0);
@@ -1826,22 +1888,12 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     const newPatterns = [...songData.patterns, newPattern];
     const newPatternIndexInStorage = newPatterns.length - 1;
 
-    // A new pattern cannot exist in the immutable source PT3 stream. Adding
-    // one is therefore an explicit request to compose a native Mideas song;
-    // keep the imported PSG instruments, but leave source-faithful playback.
-    const switchToNative = songData.playbackBackend === 'external-pt3';
     onUpdate({
       patterns: newPatterns,
       order: [...(songData.order || []), newPatternIndexInStorage],
       lengthInPatterns: (songData.order?.length || 0) + 1,
       currentPatternIndexInOrder: songData.order?.length || 0,
       currentPatternId: newPattern.id,
-      ...(switchToNative ? {
-        playbackBackend: 'native' as const,
-        externalPt3Data: undefined,
-        externalPt3HasHeader: undefined,
-        externalPt3PlayerId: undefined,
-      } : {}),
     });
   }, [songData.patterns, songData.order, songData.playbackBackend, onUpdate, channels]);
 
@@ -2073,6 +2125,18 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     return localStorage.getItem('mideas.tracker.midi.velocityToVolume') !== '0';
   });
   useEffect(() => { localStorage.setItem('mideas.tracker.midi.velocityToVolume', midiVelocityToVolume ? '1' : '0'); }, [midiVelocityToVolume]);
+  const [midiVelocitySensitivity, setMidiVelocitySensitivity] = useState(() => {
+    const saved = Number(localStorage.getItem('mideas.tracker.midi.velocitySensitivity') ?? 1.5);
+    return Number.isFinite(saved) ? Math.max(0.5, Math.min(3, saved)) : 1.5;
+  });
+  useEffect(() => { localStorage.setItem('mideas.tracker.midi.velocitySensitivity', String(midiVelocitySensitivity)); }, [midiVelocitySensitivity]);
+  // Floor for the velocity mapping. The AY's low volumes are near-inaudible, so
+  // playing gently could write a value that never really sounds.
+  const [midiVelocityMinVolume, setMidiVelocityMinVolume] = useState(() => {
+    const saved = Number(localStorage.getItem('mideas.tracker.midi.velocityMinVolume') ?? 1);
+    return Number.isFinite(saved) ? Math.max(1, Math.min(15, Math.round(saved))) : 1;
+  });
+  useEffect(() => { localStorage.setItem('mideas.tracker.midi.velocityMinVolume', String(midiVelocityMinVolume)); }, [midiVelocityMinVolume]);
 
   useEffect(() => { localStorage.setItem('mideas.tracker.midi.octaveOffset', String(midiOctaveOffset)); }, [midiOctaveOffset]);
   useEffect(() => { localStorage.setItem('mideas.tracker.midi.channelMode', midiChannelMode); }, [midiChannelMode]);
@@ -2095,6 +2159,14 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   // REC arm: live MIDI notes are written into the pattern during playback only
   // while this is on. Stopped step-entry editing is unaffected.
   const [midiRecArmed, setMidiRecArmed] = useState(false);
+  const [midiOnlyPlay, setMidiOnlyPlay] = useState(false);
+  const [midiQuantizeRows, setMidiQuantizeRows] = useState<PT3QuantizeRows>(() => {
+    const value = Number(localStorage.getItem('mideas.tracker.midi.quantizeRows') ?? 1);
+    return [0, 1, 2, 4].includes(value) ? value as PT3QuantizeRows : 1;
+  });
+  const [midiRecordNoteOff, setMidiRecordNoteOff] = useState(() => localStorage.getItem('mideas.tracker.midi.recordNoteOff') !== '0');
+  useEffect(() => { localStorage.setItem('mideas.tracker.midi.quantizeRows', String(midiQuantizeRows)); }, [midiQuantizeRows]);
+  useEffect(() => { localStorage.setItem('mideas.tracker.midi.recordNoteOff', midiRecordNoteOff ? '1' : '0'); }, [midiRecordNoteOff]);
   // Tracks the last value per CC so we fire actions on the rising edge only.
   const ccLastValueRef = useRef<Map<number, number>>(new Map());
 
@@ -2119,30 +2191,37 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   // Insert a note string at an explicit (row, channel) target, reusing the
   // exact same logic as the on-screen piano / computer keyboard: write the
   // cell, preview through the synth, highlight the key, and advance the row.
-  const insertNoteAtChannel = useCallback((channelId: TrackerChannelId, noteName: string, velocity?: number) => {
+  const insertNoteAtChannel = useCallback((channelId: TrackerChannelId, noteName: string, velocity?: number, midiKey?: string) => {
     if (!currentPattern) return;
     const channelIndex = channels.indexOf(channelId);
     if (channelIndex < 0) return;
-    // Velocity sensitivity: map MIDI velocity (1..127) to PT3 volume (1..15).
+    // Velocity sensitivity: map MIDI velocity (1..127) to PT3 volume, spread
+    // between the configured minimum and 15.
     const velVolume = (midiVelocityToVolume && typeof velocity === 'number')
-      ? Math.max(1, Math.min(15, Math.round((velocity / 127) * 15)))
+      ? midiVelocityToTrackerVolume(velocity, midiVelocitySensitivity, midiVelocityMinVolume)
       : null;
     // While playing, record live at tempo: write into the row currently being
     // played and let the cursor follow the playhead (do NOT advance the edit
     // cursor per note, which produced the sequential bug). When stopped, behave
     // as step entry at the focused cell, advancing by editStepJump.
     const recording = isPlaying;
+    const onlyPlay = Boolean(midiKey) && midiOnlyPlay;
     // While playing, only capture live notes when REC is armed. Stopped
     // step-entry (editing) is always allowed.
-    if (recording && !midiRecArmed) return;
-    const rowIndex = recording
+    const liveSong = songDataRef.current;
+    const pt3Cursor = recording && liveSong.playbackBackend === 'external-pt3'
+      ? quantizePT3Position(pt3RecordingTimeline, (externalPt3PlayerRef.current?.getCurrentTime() ?? 0) * 50,
+          midiQuantizeRows, loopCurrentPatternRef.current ? loopOrderIndexRef.current : null)
+      : null;
+    const targetPatternIndex = pt3Cursor?.patternIndex ?? activePatternStorageIndex;
+    const rowIndex = pt3Cursor?.row ?? (recording
       ? Math.max(0, Math.min(currentPattern.numRows - 1, playbackRow))
-      : (focusedCell ? focusedCell.rowIndex : 0);
+      : (focusedCell ? focusedCell.rowIndex : 0));
     const resolvedInstrumentId = getResolvedCellValue(rowIndex, channelId, 'instrument');
     const resolvedOrnamentId = getResolvedCellValue(rowIndex, channelId, 'ornament');
-    const recordKey = `${activePatternStorageIndex}:${rowIndex}:${channelId}`;
+    const recordKey = `${targetPatternIndex}:${rowIndex}:${channelId}`;
     const bufferedCell = recordBufferRef.current.get(recordKey);
-    const storedCell = songDataRef.current.patterns[activePatternStorageIndex]?.rows[rowIndex]?.[channelId];
+    const storedCell = liveSong.patterns[targetPatternIndex]?.rows[rowIndex]?.[channelId];
     // The instrument and ornament this note will carry, by exactly the same rules
     // a typed note gets. Monitoring below plays through them too, so what you
     // hear while recording is what the cell ends up holding -- previously it
@@ -2152,17 +2231,21 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     // lives in the buffer until it is committed, so a resolver looking only at
     // the stored song cannot see the instrument the first captured note just
     // stamped, and would restate it on every following note of the same take.
-    const songForResolve = recordBufferRef.current.size === 0
-      ? songDataRef.current
-      : {
-        ...songDataRef.current,
-        patterns: songDataRef.current.patterns.map(
-          (pattern, patternIndex) => (patternIndex === activePatternStorageIndex ? currentPattern : pattern),
-        ),
-      };
+    const songForResolve = {
+      ...liveSong,
+      currentPatternIndexInOrder: pt3Cursor?.orderIndex ?? liveSong.currentPatternIndexInOrder,
+      patterns: overlayTrackerTake(liveSong.patterns, recordBufferRef.current),
+    };
+    const inherited = (field: 'instrument' | 'ornament') => {
+      for (let row = rowIndex; row >= 0; row--) {
+        const value = songForResolve.patterns[targetPatternIndex]?.rows[row]?.[channelId]?.[field];
+        if (value !== null && value !== undefined && (field === 'ornament' || value > 0)) return value;
+      }
+      return null;
+    };
     const autoFields = resolveNoteEntryAutoFields(
       songForResolve,
-      activePatternStorageIndex,
+      targetPatternIndex,
       rowIndex,
       channelId,
       bufferedCell?.instrument ?? storedCell?.instrument,
@@ -2174,10 +2257,12 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     );
     // 0 is not an instrument, it is the absence of one, and `??` would happily
     // pass it through to the synth, which then plays nothing.
-    const inheritedInstrumentId = resolvedInstrumentId && resolvedInstrumentId > 0 ? resolvedInstrumentId : null;
-    const inheritedOrnamentId = resolvedOrnamentId && resolvedOrnamentId > 0 ? resolvedOrnamentId : null;
-    const monitorInstrumentId = autoFields.instrument ?? inheritedInstrumentId ?? activeInstrumentId;
-    const monitorOrnamentId = autoFields.ornament ?? inheritedOrnamentId ?? activeOrnamentId;
+    const inheritedInstrumentId = pt3Cursor ? findPreviousTrackerInstrument({ patterns: songForResolve.patterns,
+      patternIndex: targetPatternIndex, order: songForResolve.order, orderIndex: songForResolve.currentPatternIndexInOrder,
+      rowIndex, channel: channelId }) : resolvedInstrumentId && resolvedInstrumentId > 0 ? resolvedInstrumentId : null;
+    const inheritedOrnamentId = pt3Cursor ? inherited('ornament') : resolvedOrnamentId && resolvedOrnamentId > 0 ? resolvedOrnamentId : null;
+    const monitorInstrumentId = onlyPlay ? activeInstrumentId : autoFields.instrument ?? inheritedInstrumentId ?? activeInstrumentId;
+    const monitorOrnamentId = onlyPlay ? activeOrnamentId ?? 0 : autoFields.ornament ?? inheritedOrnamentId ?? activeOrnamentId;
     // Monitoring: you hear what you play, the instant you play it, recording or
     // not. This used to be skipped while recording, on the theory that the row
     // engine would play the written note on its next pass -- but the row had
@@ -2193,9 +2278,24 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         noteName,
         monitorInstrumentId,
         monitorOrnamentId,
-        velVolume ?? currentPattern.rows[rowIndex]?.[channelId]?.volume ?? 15
+        velVolume ?? (onlyPlay ? 15 : currentPattern.rows[rowIndex]?.[channelId]?.volume ?? 15)
       );
-      if (!recording) schedulePreviewNoteCut(channelIndex);
+      if (midiKey && liveSong.playbackBackend === 'external-pt3') clearPreviewNoteTimeout(channelIndex);
+      else if (!recording || liveSong.playbackBackend === 'external-pt3') schedulePreviewNoteCut(channelIndex);
+    }
+    if (midiKey && liveSong.playbackBackend === 'external-pt3') {
+      // AY is monophonic: releasing an older key must never cut a newer note.
+      for (const [key, held] of midiHeldNotesRef.current) {
+        if (held.channel === channelId) midiHeldNotesRef.current.delete(key);
+      }
+      midiHeldNotesRef.current.set(midiKey, { channel: channelId, note: noteName,
+        start: recording && midiRecArmed && !onlyPlay ? pt3Cursor : null,
+        iteration: externalPt3PlayerRef.current?.getLoopIteration() ?? 0,
+        recordRelease: midiRecordNoteOff, grid: midiQuantizeRows,
+        loopOrderIndex: loopCurrentPatternRef.current ? loopOrderIndexRef.current : null });
+      externalPt3PlayerRef.current?.setMutedChannels(new Set([
+        ...mutedChannelsRef.current, ...Array.from(midiHeldNotesRef.current.values(), (held: { channel: TrackerChannelId }) => held.channel),
+      ]));
     }
     setActivePianoKeys(prev => new Set(prev).add(noteName));
     setActivePianoKeyLevels(prev => { const next = new Map(prev); next.set(noteName, 1); return next; });
@@ -2204,7 +2304,9 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       setActivePianoKeys(prev => { const next = new Set(prev); next.delete(noteName); return next; });
       setActivePianoKeyLevels(prev => { const next = new Map(prev); next.delete(noteName); return next; });
     }, 150);
+    if (onlyPlay) return;
     if (recording) {
+      if (!midiRecArmed) return;
       // Live capture goes to the take buffer, not through handleCellChange:
       // committing per note is what made recording expensive and what filled the
       // undo stack with one step per note. See flushRecordBuffer.
@@ -2221,25 +2323,58 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       handleCellChange(rowIndex, channelId, 'volume', velVolume.toString(16).toUpperCase());
     }
     focusCellAndSelectText(Math.min(currentPattern.numRows - 1, rowIndex + editStepJump), channelId, 'note');
-  }, [currentPattern, focusedCell, channels, getResolvedCellValue, mutedChannels, synthesizer, activeInstrumentId, activeOrnamentId, schedulePreviewNoteCut, handleCellChange, focusCellAndSelectText, editStepJump, isPlaying, playbackRow, midiRecArmed, midiVelocityToVolume, activePatternStorageIndex]);
+  }, [currentPattern, focusedCell, channels, getResolvedCellValue, mutedChannels, synthesizer, activeInstrumentId, activeOrnamentId, schedulePreviewNoteCut, clearPreviewNoteTimeout, handleCellChange, focusCellAndSelectText, editStepJump, isPlaying, playbackRow, midiRecArmed, midiOnlyPlay, midiVelocityToVolume, midiVelocitySensitivity, midiVelocityMinVolume, activePatternStorageIndex, pt3RecordingTimeline, midiQuantizeRows, midiRecordNoteOff]);
 
-  const handleMidiNoteOn = useCallback((midiNote: number, velocity: number) => {
+  const handleMidiNoteOn = useCallback((midiNote: number, velocity: number, inputChannel: number) => {
     const noteName = midiNoteToTrackerNote(midiNote);
     if (!noteName) return;
+    // Re-attacking the same MIDI key after changing target channels releases
+    // the old owner before assigning it to the new channel.
+    releaseMidiKeyRef.current(`${inputChannel}:${midiNote}`);
     // Follow cursor: requires a focused cell; otherwise default to first channel.
     if (midiChannelMode === 'follow') {
       const targetChannel = focusedCell ? focusedCell.channelId : channels[0];
-      insertNoteAtChannel(targetChannel, noteName, velocity);
+      insertNoteAtChannel(targetChannel, noteName, velocity, `${inputChannel}:${midiNote}`);
     } else {
       const idx = Math.max(0, Math.min(channels.length - 1, midiFixedChannelIndex));
-      insertNoteAtChannel(channels[idx], noteName, velocity);
+      insertNoteAtChannel(channels[idx], noteName, velocity, `${inputChannel}:${midiNote}`);
     }
   }, [midiNoteToTrackerNote, midiChannelMode, focusedCell, channels, midiFixedChannelIndex, insertNoteAtChannel]);
 
-  // Note Off: nothing to clean up here. Preview note cuts are scheduled by
-  // the preview timeout; explicit silencing on key release is intentionally
-  // avoided so it does not interfere with row playback / pending cuts.
-  const handleMidiNoteOff = useCallback((_midiNote: number) => { /* no-op: state-safe */ }, []);
+  const releaseMidiNote = useCallback((key: string, endingTake = false) => {
+    const held = midiHeldNotesRef.current.get(key);
+    if (!held) return;
+    midiHeldNotesRef.current.delete(key);
+    externalPt3PlayerRef.current?.setMutedChannels(new Set([
+      ...mutedChannelsRef.current, ...Array.from(midiHeldNotesRef.current.values(), (note: { channel: TrackerChannelId }) => note.channel),
+    ]));
+    const channelIndex = channels.indexOf(held.channel);
+    if (channelIndex >= 0) {
+      clearPreviewNoteTimeout(channelIndex);
+      synthesizer?.playNote(channelIndex as any, '===', null, null, null);
+    }
+    if (!held.start || !held.recordRelease || (!endingTake && (!isPlaying || !midiRecArmed))) return;
+    const player = externalPt3PlayerRef.current;
+    const release = quantizePT3Position(pt3RecordingTimeline, (player?.getCurrentTime() ?? 0) * 50, held.grid, held.loopOrderIndex);
+    const position = release && resolvePT3NoteOffPosition(pt3RecordingTimeline, held.start, release, held.grid,
+      held.iteration, player?.getLoopIteration() ?? 0, held.loopOrderIndex);
+    if (!position) return;
+    const targetKey = `${position.patternIndex}:${position.row}:${held.channel}`;
+    const buffered = recordBufferRef.current.get(targetKey);
+    const cell = songDataRef.current.patterns[position.patternIndex]?.rows[position.row]?.[held.channel];
+    const existingNote = buffered?.note ?? cell?.note;
+    // A release cannot erase a note already authored or recorded on that row.
+    if (existingNote && existingNote !== '---' && existingNote !== '===') return;
+    recordBufferRef.current.set(targetKey, { ...buffered, note: '===' });
+    setRecordTakeVersion(version => version + 1);
+  }, [channels, clearPreviewNoteTimeout, synthesizer, isPlaying, midiRecArmed, pt3RecordingTimeline]);
+  finishMidiNotesRef.current = () => {
+    for (const key of Array.from(midiHeldNotesRef.current.keys())) releaseMidiNote(key, true);
+  };
+  releaseMidiKeyRef.current = releaseMidiNote;
+  const handleMidiNoteOff = useCallback((midiNote: number, inputChannel: number) => {
+    releaseMidiNote(`${inputChannel}:${midiNote}`);
+  }, [releaseMidiNote]);
 
   // Cycle the active instrument by dir (+1/-1), wrapping around the list.
   const cycleInstrument = useCallback((dir: 1 | -1) => {
@@ -2287,18 +2422,26 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     if (!pressed) return;
     if (midiActionMap.playStop === cc) { void handlePlayStop(); return; }
     if (midiActionMap.pause === cc) { void handlePlayPause(); return; }
-    if (midiActionMap.recArm === cc) { setMidiRecArmed(v => !v); return; }
+    if (midiActionMap.recArm === cc) { if (!midiOnlyPlay) setMidiRecArmed(v => !v); return; }
     if (midiActionMap.instrumentPrev === cc) { cycleInstrument(-1); return; }
     if (midiActionMap.instrumentNext === cc) { cycleInstrument(1); return; }
     if (midiActionMap.volumeDown === cc) { adjustFocusedVolume(-1); return; }
     if (midiActionMap.volumeUp === cc) { adjustFocusedVolume(1); return; }
-  }, [midiLearnTarget, midiActionMap, handlePlayStop, handlePlayPause, cycleInstrument, adjustFocusedVolume]);
+  }, [midiLearnTarget, midiActionMap, midiOnlyPlay, handlePlayStop, handlePlayPause, cycleInstrument, adjustFocusedVolume]);
 
   const midi = useMidiInput({
     onNoteOn: handleMidiNoteOn,
     onNoteOff: handleMidiNoteOff,
     onControlChange: handleMidiControlChange,
   });
+  const lastMidiDeviceRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!midi.enabled || midi.selectedInputId !== lastMidiDeviceRef.current
+        || !midi.inputs.some(input => input.id === midi.selectedInputId)) {
+      if (midiHeldNotesRef.current.size) flushRecordBufferRef.current();
+    }
+    lastMidiDeviceRef.current = midi.selectedInputId;
+  }, [midi.enabled, midi.selectedInputId, midi.inputs]);
 
   const handleOpenInstrumentModal = useCallback((instrument: PT3Instrument | null) => {
     if (instrument) {
@@ -2612,7 +2755,14 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       return;
     }
 
-    onUpdate({ instruments: merged.instruments });
+    try {
+      const binaryPatch = songData.playbackBackend === 'external-pt3'
+        ? rebuildPT3Bank({ ...songData, instruments: merged.instruments }) : {};
+      onUpdate({ instruments: merged.instruments, ...binaryPatch });
+    } catch (error) {
+      setPt3ImportFeedback({ kind: 'error', message: error instanceof Error ? error.message : String(error) });
+      return;
+    }
     explicitlySelectedInstrumentIdRef.current = null;
     setActiveInstrumentId(merged.addedInstrumentIds[0]);
     const skippedCount = merged.skippedPresetNames.length;
@@ -2623,7 +2773,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         ? `Added ${addedCount} factory PT3 instruments; ${skippedCount} did not fit in the bank.`
         : `Added ${addedCount} original Mideas PT3 instruments${alreadyInstalled > 0 ? ` (${alreadyInstalled} already present)` : ''}. Select one and use the piano below to hear it.`,
     });
-  }, [songData.instruments, onUpdate]);
+  }, [songData, onUpdate]);
 
   const handlePT3InstrumentFileSelected = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const input = event.currentTarget;
@@ -2644,7 +2794,9 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         return;
       }
 
-      onUpdate({ instruments: merged.instruments, ornaments: merged.ornaments });
+      const updatedBank = { ...songData, instruments: merged.instruments, ornaments: merged.ornaments };
+      const binaryPatch = songData.playbackBackend === 'external-pt3' ? rebuildPT3Bank(updatedBank) : {};
+      onUpdate({ instruments: merged.instruments, ornaments: merged.ornaments, ...binaryPatch });
       if (merged.importedInstrumentIds[0] !== undefined) {
         explicitlySelectedInstrumentIdRef.current = null;
         setActiveInstrumentId(merged.importedInstrumentIds[0]);
@@ -2671,7 +2823,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     } finally {
       input.value = '';
     }
-  }, [songData.instruments, songData.ornaments, onUpdate]);
+  }, [songData, onUpdate]);
 
   const handleMusicJsonFileSelected = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const input = event.currentTarget;
@@ -2946,17 +3098,51 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         onLoadDemoPT3File={handleLoadDemoPT3File}
         isExternalPT3={songData.playbackBackend === 'external-pt3'}
       />
+      <div className="flex flex-shrink-0 items-center gap-3 border-b border-msx-border px-3 py-1.5 text-xs">
+        <Button size="sm" variant="ghost" onClick={() => {
+          if (!window.confirm('Crear una canción PT3 vacía con el banco de instrumentos actual (o el banco Mideas si está vacío). Sustituye la canción del editor; puedes deshacerlo.')) return;
+          const bank = songData.instruments.filter((instrument): instrument is PT3Instrument => !isSccInstrument(instrument) && !!instrument.pt3Sample);
+          const next = bank.length ? createBlankPT3Song(bank, songData.ornaments) : createBlankPT3Song();
+          externalPt3PlayerRef.current?.stop();
+          synthesizer?.stopAllNotes();
+          recordBufferRef.current = new Map();
+          midiHeldNotesRef.current.clear();
+          recordStampedChannelsRef.current.clear();
+          setRecordTakeVersion(version => version + 1);
+          setIsPlaying(false);
+          setMidiRecArmed(false);
+          setFocusedCell(null);
+          explicitlySelectedInstrumentIdRef.current = null;
+          setActiveInstrumentId(next.instruments?.[0]?.id ?? null);
+          setActiveOrnamentId(null);
+          onUpdate(next);
+        }}>Nueva canción PT3 con este banco</Button>
+        <span className="text-msx-textsecondary">Carga un PT3 para estudiarlo, o importa sus instrumentos y crea tu canción con este banco.</span>
+        {songData.playbackBackend === 'external-pt3' && <Button size="sm" variant="ghost" onClick={() => {
+          try {
+            const exported = { ...songDataRef.current, ...commitTrackerTake(songDataRef.current, recordBufferRef.current) };
+            const url = URL.createObjectURL(new Blob([new Uint8Array(exported.externalPt3Data!)], { type: 'application/octet-stream' }));
+            const link = document.createElement('a');
+            link.href = url; link.download = `${sanitizeMusicFilename(exported.name || 'musica')}.pt3`;
+            link.click();
+            window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+          } catch (error) {
+            reportExternalPt3Error(error instanceof Error ? error.message : String(error));
+          }
+        }}>Exportar PT3</Button>}
+      </div>
       {songData.playbackBackend === 'external-pt3' && songData.patterns.length > 0 && (
         <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-b border-msx-highlight/50 bg-msx-highlight/10 px-3 py-1.5 text-[0.68rem]">
           <div>
             <span className="font-bold uppercase text-msx-highlight">Source-faithful PT3</span>
             <span className="ml-2 text-msx-textprimary">
-              Modo Vortex: NOTE, INS, ORN, VOL y FX/CMD son editables sobre el stream original. FX admite 1 GLISS, 2 PORTA, 3 SAMPLE POS, 4 ORNAMENT POS, 5 VIBRATO, 8 ENV SLIDE y 9 SPEED; la columna PT3 muestra el estado inline de la fila y no se edita. Para crear una canción nueva con los instrumentos PT3 importados, cambia al modo nativo.
+              MIDI + REC graba notas y duración en el canal elegido. Activa «Solo este patrón» para escuchar la toma en las siguientes vueltas. Al parar se guarda en el módulo PT3. Nueva canción conserva el banco importado.
             </span>
           </div>
           <div className="flex items-center gap-2">
             <span className="font-mono text-msx-textsecondary">
               {(songData.externalPt3Data?.length ?? 0).toLocaleString()} bytes / {externalPt3Status}
+              {loopCurrentPattern && <span className="ml-2" aria-label="Estado del bucle PT3">Vuelta {pt3LoopIteration + 1} · {pt3TakePlaybackStatus}</span>}
             </span>
             <Button
               size="sm"
@@ -2971,7 +3157,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
                 onUpdate(toNativeTrackerSong(songData));
               }}
             >
-              Componer música nueva
+              Convertir al motor nativo
             </Button>
           </div>
         </div>
@@ -3053,9 +3239,24 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
             onLearnAction={setMidiLearnTarget}
             onClearAction={clearMidiAction}
             recArmed={midiRecArmed}
+            onlyPlay={midiOnlyPlay}
+            onOnlyPlayChange={value => {
+              flushRecordBufferRef.current();
+              setMidiOnlyPlay(value);
+              if (value) setMidiRecArmed(false);
+            }}
             onRecArmedChange={setMidiRecArmed}
             velocityToVolume={midiVelocityToVolume}
             onVelocityToVolumeChange={setMidiVelocityToVolume}
+            velocityMinVolume={midiVelocityMinVolume}
+            onVelocityMinVolumeChange={setMidiVelocityMinVolume}
+            velocitySensitivity={midiVelocitySensitivity}
+            onVelocitySensitivityChange={setMidiVelocitySensitivity}
+            pt3Recording={songData.playbackBackend === 'external-pt3'}
+            quantizeRows={midiQuantizeRows}
+            onQuantizeRowsChange={value => setMidiQuantizeRows(value as PT3QuantizeRows)}
+            recordNoteOff={midiRecordNoteOff}
+            onRecordNoteOffChange={setMidiRecordNoteOff}
           />
           </div>
         </div>

@@ -1,0 +1,42 @@
+{
+  "browser": "131.0.6778.33",
+  "samples": 60,
+  "results": [
+    {
+      "height": 192,
+      "name": "fillRect",
+      "ms": {
+        "p50": 19.30000001192093,
+        "p95": 23
+      },
+      "parity": true
+    },
+    {
+      "height": 192,
+      "name": "ImageData",
+      "ms": {
+        "p50": 0.2999999523162842,
+        "p95": 0.40000003576278687
+      },
+      "parity": true
+    },
+    {
+      "height": 212,
+      "name": "fillRect",
+      "ms": {
+        "p50": 21.30000001192093,
+        "p95": 24
+      },
+      "parity": true
+    },
+    {
+      "height": 212,
+      "name": "ImageData",
+      "ms": {
+        "p50": 0.30000001192092896,
+        "p95": 0.40000003576278687
+      },
+      "parity": true
+    }
+  ]
+}

@@ -17,6 +17,7 @@ import {
   DEFAULT_PRESENTATION_SCREEN_CONFIG
 } from '../constants';
 import { createDefaultScreen5PaletteSlots, ensureScreen5PaletteSlots, screen5SlotsToMsxColors } from '../utils/msx2PaletteUtils';
+import { applySharedAtlasToWorldRooms, cloneBitmapAtlas } from '../utils/msx2BitmapAtlasFanout';
 import { createDefaultPaletteZones, normalizePaletteZones } from '../utils/msx2PaletteZones';
 import { importTilesIntoAtlas } from '../utils/msx2BitmapAtlasImport';
 import { bitmapTileScreen5ToAtlasTile } from '../utils/msx2Screen5BitmapTileLibrary';
@@ -412,73 +413,19 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
       return;
     }
 
-    const cloneAtlas = (atlas: Msx2Screen5BitmapRoom['atlas']): Msx2Screen5BitmapRoom['atlas'] => ({
-      width: atlas.width,
-      height: atlas.height,
-      offscreenBaseY: atlas.offscreenBaseY,
-      pixels: (atlas.pixels || []).map(row => [...row]),
-      entries: (atlas.entries || []).map(entry => ({ ...entry })),
-    });
-
-    const remapTileGridToAtlas = (
-      grid: Msx2Screen5BitmapRoom['tileGrid'],
-      oldAtlas: Msx2Screen5BitmapRoom['atlas'] | undefined,
-      nextAtlas: Msx2Screen5BitmapRoom['atlas'],
-    ): Msx2Screen5BitmapRoom['tileGrid'] => {
-      if (!Array.isArray(grid)) return grid;
-      const nextIndexById = new Map((nextAtlas.entries || []).map((entry, index) => [entry.id, index + 1]));
-      const oldEntries = oldAtlas?.entries || [];
-      return grid.map(row => (row || []).map(value => {
-        const oldValue = Math.max(0, Math.trunc(Number(value) || 0));
-        if (oldValue <= 0) return 0;
-        const oldEntry = oldEntries[oldValue - 1];
-        if (!oldEntry) return 0;
-        return nextIndexById.get(oldEntry.id) || 0;
-      }));
-    };
-
-    const rebuildCopyCommandsForGrid = (
-      grid: Msx2Screen5BitmapRoom['tileGrid'],
-      atlas: Msx2Screen5BitmapRoom['atlas'],
-      sourceCommands: Msx2Screen5BitmapRoom['composition']['commands'] = [],
-    ): Msx2Screen5BitmapRoom['composition'] => {
-      const nonCopy = (sourceCommands || []).filter(command => command.op !== 'copy');
-      const entries = atlas.entries || [];
-      const tileCommands = (grid || []).flatMap((row, y) => (row || []).flatMap((value, x) => {
-        const index = Math.max(0, Math.trunc(Number(value) || 0)) - 1;
-        const entry = index >= 0 ? entries[index] : undefined;
-        return entry
-          ? [{ id: `tile_${x}_${y}`, op: 'copy' as const, atlasEntryId: entry.id, dx: x * 16, dy: y * 16, w: entry.w || 16, h: entry.h || 16 }]
-          : [];
-      }));
-      return { source: 'authored', commands: [...nonCopy, ...tileCommands] };
-    };
-
-    const sharedAtlas = cloneAtlas(atlasPatch);
+    // One atlas object for the whole world instead of a deep clone per room:
+    // 4.6 M numbers copied per edit on a 13-room project, for data every
+    // consumer already treats as immutable. See utils/msx2BitmapAtlasFanout.ts
+    // for the invariant, and scripts/check_msx2_atlas_share_immutability.mjs.
+    const sharedAtlas = cloneBitmapAtlas(atlasPatch);
     const activeRoomId = roomAsset.id;
     setAssetsWithHistory(prev => {
       const withNewAssets = newAssets && newAssets.length > 0 ? [...prev, ...newAssets] : prev;
-      return withNewAssets.map(asset => {
-        if (asset.type !== 'msx2bitmaproom' || !activeBitmapWorldRoomIds.has(asset.id)) return asset;
-        const roomData = asset.data as Msx2Screen5BitmapRoom;
-        const patch = asset.id === activeRoomId ? data : { atlas: sharedAtlas };
-        const nextAtlas = cloneAtlas(sharedAtlas);
-        const patchHasTileGrid = Object.prototype.hasOwnProperty.call(patch, 'tileGrid');
-        const nextTileGrid = patchHasTileGrid
-          ? patch.tileGrid
-          : remapTileGridToAtlas(roomData.tileGrid, roomData.atlas, nextAtlas);
-        const patchHasComposition = Object.prototype.hasOwnProperty.call(patch, 'composition');
-        const shouldRebuildComposition = !patchHasComposition && Array.isArray(nextTileGrid);
-        return {
-          ...asset,
-          data: {
-            ...roomData,
-            ...patch,
-            atlas: nextAtlas,
-            ...(Array.isArray(nextTileGrid) ? { tileGrid: nextTileGrid } : {}),
-            ...(shouldRebuildComposition ? { composition: rebuildCopyCommandsForGrid(nextTileGrid, nextAtlas, roomData.composition?.commands || []) } : {}),
-          },
-        };
+      return applySharedAtlasToWorldRooms(withNewAssets, {
+        activeRoomId,
+        worldRoomIds: activeBitmapWorldRoomIds,
+        patch: data,
+        sharedAtlas,
       });
     });
   }, [activeAsset, activeBitmapWorldRoomIds, handleUpdateAsset, setAssetsWithHistory]);

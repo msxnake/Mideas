@@ -40,6 +40,7 @@ import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { Msx2BitmapTileEditor } from './Msx2BitmapTileEditor';
 import { ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
+import { BitmapStrokeCell, interpolateBitmapStrokeCells } from '../../utils/msx2BitmapStroke';
 import { importTilesIntoAtlas } from '../../utils/msx2BitmapAtlasImport';
 import {
   buildCopyCommandsFromGrid,
@@ -70,7 +71,9 @@ import {
   findMatchingScreen5PaletteAsset,
 } from '../../utils/msx2Screen5BitmapTileLibrary';
 import {
+  CollapseAllIcon,
   EraserIcon,
+  ExpandAllIcon,
   EyeIcon,
   EyeOffIcon,
   FolderOpenIcon,
@@ -408,6 +411,8 @@ const writeCell = (grid: number[][] | undefined, cellX: number, cellY: number, v
 
 /** Flatten the room composition commands into a SCREEN_W x SCREEN_H slot grid (same idea as the legacy editor's renderComposition). */
 const renderComposition = (room: Msx2Screen5BitmapRoom, atlasPixels: number[][]): number[][] => {
+  // Keep the 192-line composition contract shared with SCREEN 2/4 and WorldView,
+  // even when the surrounding SCREEN 5 canvas has 212 lines.
   const pixels = createPixels(SCREEN_W, SCREEN_H, roomBackgroundColor(room));
   const atlasEntries = new Map((room.atlas?.entries || []).map(entry => [entry.id, entry]));
   (room.composition?.commands || []).forEach(command => {
@@ -528,6 +533,36 @@ const CollapsiblePanel: React.FC<CollapsiblePanelProps> = ({ title, isOpen, onTo
     </div>
     {isOpen && <div className="p-2">{children}</div>}
   </section>
+);
+
+interface PanelBulkToggleProps {
+  /** True while at least one panel of the sidebar is open. */
+  anyOpen: boolean;
+  /** Opens/closes every panel of the owning sidebar at once. */
+  onSetAll: (open: boolean) => void;
+}
+
+/**
+ * Sticky strip at the top of a sidebar with a single button that collapses every
+ * panel of that column (and expands them all again once they are closed), so the
+ * user does not have to toggle each `CollapsiblePanel` one by one while hunting
+ * for a control.
+ */
+const PanelBulkToggle: React.FC<PanelBulkToggleProps> = ({ anyOpen, onSetAll }) => (
+  // The owning <aside> has no top padding, so this pins flush with the scroll area.
+  <div className="sticky top-0 z-10 -mx-2 flex items-center justify-between gap-2 border-b border-msx-border bg-msx-bgcolor px-2 py-1.5">
+    <span className="text-[0.65rem] pixel-font text-msx-textsecondary truncate">Paneles</span>
+    <button
+      type="button"
+      onClick={() => onSetAll(!anyOpen)}
+      title={anyOpen ? 'Contraer todos los paneles de esta columna' : 'Expandir todos los paneles de esta columna'}
+      aria-label={anyOpen ? 'Contraer todo' : 'Expandir todo'}
+      className="flex items-center gap-1 rounded border border-msx-border px-1.5 py-0.5 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight"
+    >
+      {anyOpen ? <CollapseAllIcon className="w-3.5 h-3.5" /> : <ExpandAllIcon className="w-3.5 h-3.5" />}
+      {anyOpen ? 'Contraer todo' : 'Expandir todo'}
+    </button>
+  </div>
 );
 
 interface AtlasThumbProps {
@@ -1229,6 +1264,20 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const [openHud, setOpenHud] = useState(true);
   const [openLighting, setOpenLighting] = useState(true);
 
+  // "Contraer/expandir todo", scoped per sidebar column (the centre minimap panel keeps its own toggle).
+  const anyLeftPanelOpen = openTools || openAtlas || openAutotile || openStamps || openBitmapTiles
+    || openCategories || openLayers || openForeground || openPlacement;
+  const anyRightPanelOpen = openConfig || openHud || openLighting || openGridOptions || openTarget
+    || openPalette || openBudget;
+  const setLeftPanelsOpen = (open: boolean) => {
+    for (const setOpen of [setOpenTools, setOpenAtlas, setOpenAutotile, setOpenStamps, setOpenBitmapTiles,
+      setOpenCategories, setOpenLayers, setOpenForeground, setOpenPlacement]) setOpen(open);
+  };
+  const setRightPanelsOpen = (open: boolean) => {
+    for (const setOpen of [setOpenConfig, setOpenHud, setOpenLighting, setOpenGridOptions, setOpenTarget,
+      setOpenPalette, setOpenBudget]) setOpen(open);
+  };
+
   const hudAssets = useMemo(() => allAssets.filter(asset => asset.type === 'msx2hud'), [allAssets]);
   const hudAssetId = room.runtime?.hudAssetId;
   const linkedHudAsset = useMemo(
@@ -1453,7 +1502,9 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     if (category) setSelectedCategory(category);
     setConfigTarget('tile');
   };
-  const composedPixels = useMemo(() => renderComposition(room, atlasPixels), [room, atlasPixels]);
+  // Entity/collision/selection edits do not change the visual composition.
+  const composedPixels = useMemo(() => renderComposition(room, atlasPixels),
+    [room.composition, room.atlas?.entries, room.height, backgroundColor, atlasPixels]);
 
   const roomHeight = Number(room.height) || SCREEN_H;
   const gridWidth = Math.floor(SCREEN_W / GRID); // 16 (256/16)
@@ -1694,6 +1745,47 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     onUpdate({ palette: slots.map(slot => ({ ...slot })) });
   }, [changed, onUpdate, onUpdatePaletteAsset, slots, usesWorldPalette, worldPaletteAssetId]);
 
+  // Resolve colours with Canvas once per palette, including the slot-0 backdrop
+  // and the fallback for malformed slot indices. Avoid CSS colour parsing per pixel.
+  const compositionColors = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 17;
+    canvas.height = 1;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return new Uint8ClampedArray(17 * 4);
+    for (let slot = 0; slot < 17; slot++) {
+      const hex = slot === 0 ? backdropHex : (slot === 16 ? FALLBACK_HEX : (slots[slot]?.hex || FALLBACK_HEX));
+      ctx.fillStyle = hex === 'rgba(0,0,0,0)' ? FALLBACK_HEX : hex;
+      ctx.fillRect(slot, 0, 1, 1);
+    }
+    return ctx.getImageData(0, 0, 17, 1).data;
+  }, [slots, backdropHex]);
+
+  // Cache the native-resolution background separately from overlays. Selecting a
+  // cell, dragging an entity or toggling the grid then costs one scaled blit,
+  // instead of ~50,000 fillRect calls. Keep Canvas colour handling unchanged.
+  const compositionCanvas = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = SCREEN_W;
+    canvas.height = roomHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return canvas;
+    const image = ctx.createImageData(SCREEN_W, roomHeight);
+    for (let y = 0; y < roomHeight; y++) {
+      for (let x = 0; x < SCREEN_W; x++) {
+        const slot = composedPixels[y]?.[x] ?? 0;
+        const color = (Number.isInteger(slot) && slot >= 0 && slot < 16 ? slot : 16) * 4;
+        const pixel = (y * SCREEN_W + x) * 4;
+        image.data[pixel] = compositionColors[color];
+        image.data[pixel + 1] = compositionColors[color + 1];
+        image.data[pixel + 2] = compositionColors[color + 2];
+        image.data[pixel + 3] = compositionColors[color + 3];
+      }
+    }
+    ctx.putImageData(image, 0, 0);
+    return canvas;
+  }, [composedPixels, compositionColors, roomHeight]);
+
   // --- Main canvas render ---
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1707,20 +1799,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     ctx.fillStyle = backgroundHex === 'rgba(0,0,0,0)' ? FALLBACK_HEX : backgroundHex;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (layerVisible.visual) {
-      for (let y = 0; y < roomHeight; y++) {
-        for (let x = 0; x < SCREEN_W; x++) {
-          const slot = composedPixels[y]?.[x] ?? 0;
-          // Color 0 is the SCREEN 5 backdrop (R#7): render it with the background color,
-          // exactly as the V9938 shows transparent pixels on hardware.
-          if (slot === 0) {
-            ctx.fillStyle = backdropHex;
-          } else {
-            const hex = slots[slot]?.hex || FALLBACK_HEX;
-            ctx.fillStyle = hex === 'rgba(0,0,0,0)' ? FALLBACK_HEX : hex;
-          }
-          ctx.fillRect(x * zoom, y * zoom, zoom, zoom);
-        }
-      }
+      ctx.drawImage(compositionCanvas, 0, 0, canvas.width, canvas.height);
     }
     if (showGrid) {
       ctx.strokeStyle = 'rgba(255,255,255,0.14)';
@@ -1942,7 +2021,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       ctx.strokeRect(selectedCell.x * GRID * zoom + 1, selectedCell.y * GRID * zoom + 1, GRID * zoom - 2, GRID * zoom - 2);
       ctx.lineWidth = 1;
     }
-  }, [backgroundColor, backdropHex, composedPixels, showGrid, slots, zoom, roomHeight, selectedCell, layerVisible, room.collision, room.collisionShape, room.behavior, room.atlas?.entries, atlasPixels, collisionCols, collisionRows, activeLayer, placedEntities, playerEntries, selectedPlacedId, foregroundTiles, allAssets]);
+  }, [backgroundColor, backdropHex, compositionCanvas, showGrid, slots, zoom, roomHeight, selectedCell, layerVisible, room.collision, room.collisionShape, room.behavior, room.atlas?.entries, atlasPixels, collisionCols, collisionRows, activeLayer, placedEntities, playerEntries, selectedPlacedId, foregroundTiles, allAssets]);
 
   const commands = room.composition?.commands || [];
 
@@ -2312,7 +2391,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const updatePlacedEntityMovement = (id: string, patch: Record<string, unknown>) => {
     const movementPatch: Record<string, unknown> = {};
     if (patch.movement !== undefined) movementPatch.mode = patch.movement;
-    ['boundsUnit', 'minX', 'maxX', 'minY', 'maxY', 'direction', 'speed', 'travelPx', 'respawnSeconds', 'turnPx'].forEach(key => {
+    ['boundsUnit', 'minX', 'maxX', 'minY', 'maxY', 'direction', 'speed', 'travelPx', 'respawnSeconds', 'turnPx', 'konamiPathId'].forEach(key => {
       if (patch[key] !== undefined) movementPatch[key] = patch[key];
     });
 
@@ -3052,16 +3131,96 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     setStatusBarMessage?.(`SCREEN 5: foreground colocado en celda (${cellX}, ${cellY}).`);
   };
 
+  // A stroke owns its latest logical room immediately, without waiting for React
+  // to commit the parent update. Each delivered sample emits one cumulative patch.
+  const visualStrokeRef = useRef<{ roomId: string; draft: Msx2Screen5BitmapRoom; last: BitmapStrokeCell | null } | null>(null);
+  const isPaintingRef = useRef(false);
+
+  const paintVisualStrokeTo = (cell: BitmapStrokeCell) => {
+    const stroke = visualStrokeRef.current;
+    if (!stroke || stroke.roomId !== room.id) return;
+    const cells = interpolateBitmapStrokeCells(stroke.last, cell);
+    stroke.last = cell;
+    if (!cells.length) return;
+    const source = stroke.draft;
+    let grid = buildTileGrid(source, gridWidth, gridHeight);
+    let collision = source.collision;
+    let behavior = source.behavior;
+    let shape = source.collisionShape;
+    let nonCopy = (source.composition?.commands || []).filter(command => command.op !== 'copy');
+    let changed = false;
+    const setMetadata = (x: number, y: number, entry?: Msx2BitmapRoomAtlasEntry, singleTile = false) => {
+      const flags = singleTile ? selectedAtlasEntryFlags : entryPaintFlags(entry);
+      const code = clampByte(entry?.behaviorCode, 0);
+      if (readCell(collision, x, y) !== flags) {
+        collision = writeCell(collision, x, y, flags, collisionCols, collisionRows);
+        changed = true;
+      }
+      if (readCell(behavior, x, y) !== code) {
+        behavior = writeCell(behavior, x, y, code, collisionCols, collisionRows);
+        changed = true;
+      }
+      // Keep the existing policy: tiles without an explicit shape preserve the
+      // per-cell shape, including when erasing or resolving terrain neighbours.
+      const entryShape = singleTile ? selectedAtlasEntryShape : entry?.collisionShape;
+      if (entryShape && readCell(shape, x, y) !== entryShape) {
+        shape = writeCell(shape, x, y, entryShape, collisionCols, collisionRows);
+        changed = true;
+      }
+    };
+    for (const { x, y } of cells) {
+      const terrain = tool === 'eraser'
+        ? findTerrainForGridValue(autoTerrains, atlasEntries, grid[y]?.[x] ?? 0)
+        : selectedTerrain;
+      if (terrain) {
+        const result = applyTerrainToGrid({ grid, entries: atlasEntries, terrain, cells: [{ x, y }], erase: tool === 'eraser', edgesAreTerrain: terrainEdgesAsTerrain });
+        grid = result.grid;
+        if (result.changed.length) changed = true;
+        result.changed.forEach(update => setMetadata(update.x, update.y, update.entry));
+        continue;
+      }
+      if (tool === 'eraser') {
+        if (grid[y][x] !== 0) { grid[y][x] = 0; changed = true; }
+        setMetadata(x, y);
+        const remaining = nonCopy.filter(command => !commandContainsPoint(command, x * GRID, y * GRID));
+        if (remaining.length !== nonCopy.length) changed = true;
+        nonCopy = remaining;
+        continue;
+      }
+      let entry = selectedAtlasEntry;
+      if (multiSelectionActive) {
+        const currentId = atlasEntries[(grid[y]?.[x] ?? 0) - 1]?.id;
+        if (currentId && multiTileSelection.some(item => item.entryId === currentId)) continue;
+        entry = pickFromMultiSelection();
+      }
+      if (!entry) continue;
+      const value = atlasEntries.indexOf(entry) + 1;
+      if (value <= 0) continue;
+      if (grid[y][x] !== value) { grid[y][x] = value; changed = true; }
+      setMetadata(x, y, entry, !multiSelectionActive);
+    }
+    if (!changed) return;
+    const patch: Partial<Msx2Screen5BitmapRoom> = {
+      tileGrid: grid,
+      composition: { source: 'authored', commands: [...nonCopy, ...buildCopyCommandsFromGrid(grid, atlasEntries)] },
+      ...(collision !== source.collision ? { collision } : {}),
+      ...(behavior !== source.behavior ? { behavior } : {}),
+      ...(shape !== source.collisionShape ? { collisionShape: shape } : {}),
+    };
+    stroke.draft = { ...source, ...patch };
+    onUpdate(patch);
+  };
+
   // --- Canvas click → cell selection + paint ---
   // IMPORTANT: map clicks via rendered rect ratio (not raw zoom) to avoid the legacy distortion bug.
-  const handleCanvasPaint = (event: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleCanvasPaint = (event: React.MouseEvent<HTMLCanvasElement>, endpoint?: { x: number; y: number }) => {
     const rect = event.currentTarget.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
-    const px = Math.floor((event.clientX - rect.left) * (SCREEN_W / rect.width));
-    const py = Math.floor((event.clientY - rect.top) * (roomHeight / rect.height));
+    const px = endpoint?.x ?? Math.floor((event.clientX - rect.left) * (SCREEN_W / rect.width));
+    const py = endpoint?.y ?? Math.floor((event.clientY - rect.top) * (roomHeight / rect.height));
     const cellX = Math.max(0, Math.min(gridWidth - 1, Math.floor(px / GRID)));
     const cellY = Math.max(0, Math.min(gridHeight - 1, Math.floor(py / GRID)));
-    setSelectedCell({ x: cellX, y: cellY });
+    setSelectedCell(current => current?.x === cellX && current?.y === cellY ? current : { x: cellX, y: cellY });
     setConfigTarget('cell');
 
     if (layerLocked[activeLayer]) {
@@ -3098,7 +3257,8 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       if (tool === 'select') {
         setStatusBarMessage?.(`SCREEN 5: tile seleccionado en celda (${cellX}, ${cellY}).`);
       } else {
-        paintVisualAt(px, py);
+        if (visualStrokeRef.current?.roomId === room.id) paintVisualStrokeTo({ x: cellX, y: cellY });
+        else paintVisualAt(px, py);
         setStatusBarMessage?.(`SCREEN 5: ${tool} en celda (${cellX}, ${cellY}).`);
       }
     } else if (activeLayer === 'foreground') {
@@ -3110,14 +3270,17 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   };
 
   // Pointer-drag painting: paint on down and while dragging.
-  const [isPainting, setIsPainting] = useState(false);
   const handleCanvasDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
     if (event.button !== 0) return; // only left button paints; right button erases (onContextMenu)
-    setIsPainting(true);
+    isPaintingRef.current = true;
+    visualStrokeRef.current = activeLayer === 'visual' && !layerLocked.visual
+      && (tool === 'eraser' || (tool === 'brush' && !preparedStamp && (selectedAtlasEntry || selectedTerrain)))
+      ? { roomId: room.id, draft: room, last: null } : null;
     handleCanvasPaint(event);
   };
   const handleCanvasMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isPainting) return;
+    if (!isPaintingRef.current) return;
+    if ((event.buttons & 1) === 0) { handleCanvasUp(); return; }
     // Drag-fill would re-clear the whole page each move; only stamp for brush/eraser.
     if (tool === 'fill' || tool === 'select') return;
     if (activeLayer === 'visual' && tool === 'brush' && preparedStamp) return;
@@ -3137,11 +3300,55 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     }
     handleCanvasPaint(event);
   };
-  const handleCanvasUp = () => {
+  const handleCanvasUp = (event?: React.MouseEvent<HTMLCanvasElement>) => {
+    // The release can carry a final position that had no separate mousemove.
+    if (event?.type === 'mouseup' && isPaintingRef.current && visualStrokeRef.current) {
+      handleCanvasPaint(event);
+    }
+    if (event?.type === 'mouseleave' && isPaintingRef.current && visualStrokeRef.current?.last) {
+      // A fast sweep may deliver mouseleave instead of a final in-canvas move.
+      // Clip its segment at the canvas edge rather than losing the last cells.
+      const rect = event.currentTarget.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        const last = visualStrokeRef.current.last;
+        const x = (last.x + 0.5) * GRID, y = (last.y + 0.5) * GRID;
+        const tx = (event.clientX - rect.left) * SCREEN_W / rect.width;
+        const ty = (event.clientY - rect.top) * roomHeight / rect.height;
+        let t = 1;
+        if (tx < 0) t = Math.min(t, -x / (tx - x));
+        if (tx >= SCREEN_W) t = Math.min(t, (SCREEN_W - x) / (tx - x));
+        if (ty < 0) t = Math.min(t, -y / (ty - y));
+        if (ty >= roomHeight) t = Math.min(t, (roomHeight - y) / (ty - y));
+        handleCanvasPaint(event, { x: clampScreenPixelX(x + (tx - x) * t), y: clampScreenPixelY(y + (ty - y) * t, roomHeight) });
+      }
+    }
     if (draggingPlaced) setStatusBarMessage?.('SCREEN 5: objeto recolocado.');
-    setIsPainting(false);
+    isPaintingRef.current = false;
+    visualStrokeRef.current = null;
     setDraggingPlaced(null);
   };
+
+  useEffect(() => {
+    const stop = () => {
+      isPaintingRef.current = false;
+      visualStrokeRef.current = null;
+      setDraggingPlaced(null);
+    };
+    const stopForHistory = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && ['z', 'y'].includes(event.key.toLowerCase())) stop();
+    };
+    stop();
+    window.addEventListener('mouseup', stop);
+    window.addEventListener('blur', stop);
+    window.addEventListener('keydown', stopForHistory);
+    return () => {
+      window.removeEventListener('mouseup', stop);
+      window.removeEventListener('blur', stop);
+      window.removeEventListener('keydown', stopForHistory);
+      isPaintingRef.current = false;
+      visualStrokeRef.current = null;
+    };
+  }, [room.id]);
 
   // Right-click on the grid erases the tile under the cell, regardless of the active tool.
   const handleCanvasContextMenu = (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -4459,7 +4666,9 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
 
       <div className="flex flex-grow min-h-0 overflow-hidden">
         {/* LEFT SIDEBAR */}
-        <aside className="w-60 border-r border-msx-border p-2 overflow-y-auto space-y-2">
+        <aside className="w-60 border-r border-msx-border px-2 pb-2 overflow-y-auto space-y-2">
+          <PanelBulkToggle anyOpen={anyLeftPanelOpen} onSetAll={setLeftPanelsOpen} />
+
           <CollapsiblePanel title="Herramientas" isOpen={openTools} onToggle={() => setOpenTools(v => !v)}>
             <div className="grid grid-cols-1 gap-1">
               {toolBtn('select', 'Select', <SelectionIcon />)}
@@ -5339,6 +5548,23 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                           </span>
                         )}
                       </div>
+                      {selectedPlacedEntity.kind === 'enemy' && !isSelectedCarryable
+                        && !selectedPlacedEntity.params?.enemyTurretAim
+                        && !selectedPlacedEntity.components?.msx2_ai?.turretAim
+                        && !allAssets.some(asset => asset.type === 'msx2enemy'
+                          && asset.id === selectedPlacedEntity.params?.enemyAssetId
+                          && (asset.data as any)?.behavior?.type === 'TurretAim')
+                        && <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Movimiento por asset Konami table
+                        <select className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs"
+                          value={String(selectedPlacedEntity.components?.msx2_movement?.konamiPathId ?? selectedPlacedEntity.params?.konamiPathId ?? '')}
+                          onChange={event => updatePlacedEntityMovement(selectedPlacedEntity.id, { konamiPathId: event.target.value })}>
+                          <option value="">Sin tabla (usar movimiento inferior)</option>
+                          {allAssets.filter(asset => asset.type === 'msx2bosspath' && (asset.data as any).bakeMode === 'fixed')
+                            .map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+                        </select>
+                        Una posición por frame, en coordenadas de pantalla. Sustituye el movimiento inferior.
+                      </label>}
                       <label className="block text-[0.65rem] text-msx-textsecondary">
                         Movimiento
                         <select
@@ -6697,7 +6923,9 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         </main>
 
         {/* RIGHT SIDEBAR */}
-        <aside className="w-80 border-l border-msx-border p-2 overflow-y-auto space-y-2">
+        <aside className="w-80 border-l border-msx-border px-2 pb-2 overflow-y-auto space-y-2">
+          <PanelBulkToggle anyOpen={anyRightPanelOpen} onSetAll={setRightPanelsOpen} />
+
           <CollapsiblePanel title="Configuración" isOpen={openConfig} onToggle={() => setOpenConfig(v => !v)}>
             {/* Tile seleccionado */}
             <div className="rounded border border-msx-border bg-msx-bgcolor p-2 mb-2">
@@ -6982,6 +7210,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                           </button>
                         )}
                       </div>
+
                     );
                   })}
                 </div>

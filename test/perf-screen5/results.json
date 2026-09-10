@@ -1,0 +1,571 @@
+{
+  "date": "2026-09-05T21:30:36.400Z",
+  "cpu": "AMD Ryzen 7 8745HS w/ Radeon 780M Graphics     ",
+  "browser": "131.0.6778.33",
+  "baseRef": "1f7c3cacb84eb70f5ac4ad8a5bc6d4fe24cebdac",
+  "samples": 30,
+  "warmup": 5,
+  "editor": [
+    {
+      "version": "baseline",
+      "rooms": 1,
+      "entries": 32,
+      "history": false,
+      "tests": {
+        "metadata": {
+          "synchronousMs": {
+            "p50": 26.900000035762787,
+            "p95": 35.60000002384186,
+            "max": 44.200000047683716
+          },
+          "reactRenderMs": {
+            "p50": 3.100000023841858,
+            "p95": 4.300000011920929,
+            "max": 4.799999952316284
+          }
+        },
+        "composition": {
+          "synchronousMs": {
+            "p50": 39,
+            "p95": 42.30000001192093,
+            "max": 53.5
+          },
+          "reactRenderMs": {
+            "p50": 3.899999976158142,
+            "p95": 5.899999976158142,
+            "max": 6.799999952316284
+          }
+        }
+      },
+      "serializedBytes": 97581,
+      "historyComparisonMs": {
+        "p50": 2,
+        "p95": 2.300000011920929,
+        "max": 2.699999988079071
+      },
+      "same": false
+    },
+    {
+      "version": "baseline",
+      "rooms": 1,
+      "entries": 32,
+      "history": true,
+      "tests": {
+        "metadata": {
+          "synchronousMs": {
+            "p50": 28.399999976158142,
+            "p95": 34.69999998807907,
+            "max": 36.10000002384186
+          },
+          "reactRenderMs": {
+            "p50": 2.800000011920929,
+            "p95": 3.799999952316284,
+            "max": 4.800000071525574
+          }
+        },
+        "composition": {
+          "synchronousMs": {
+            "p50": 41.5,
+            "p95": 49.59999996423721,
+            "max": 49.60000002384186
+          },
+          "reactRenderMs": {
+            "p50": 3.5,
+            "p95": 6.099999964237213,
+            "max": 6.200000047683716
+          }
+        }
+      },
+      "serializedBytes": 97581,
+      "historyComparisonMs": {
+        "p50": 2,
+        "p95": 2.400000035762787,
+        "max": 2.400000035762787
+      },
+      "same": false
+    },
+    {
+      "version": "baseline",
+      "rooms": 20,
+      "entries": 128,
+      "history": false,
+      "tests": {
+        "metadata": {
+          "synchronousMs": {
+            "p50": 28.30000001192093,
+            "p95": 34.19999998807907,
+            "max": 35.10000002384186
+          },
+          "reactRenderMs": {
+            "p50": 3.400000035762787,
+            "p95": 4.200000047683716,
+            "max": 4.300000071525574
+          }
+        },
+        "composition": {
+          "synchronousMs": {
+            "p50": 40.19999998807907,
+            "p95": 49,
+            "max": 53.60000002384186
+          },
+          "reactRenderMs": {
+            "p50": 4.199999928474426,
+            "p95": 6.200000047683716,
+            "max": 8.800000071525574
+          }
+        }
+      },
+      "serializedBytes": 2078157,
+      "historyComparisonMs": {
+        "p50": 25.30000001192093,
+        "p95": 32.69999998807907,
+        "max": 39.80000001192093
+      },
+      "same": false
+    },
+    {
+      "version": "baseline",
+      "rooms": 20,
+      "entries": 128,
+      "history": true,
+      "tests": {
+        "metadata": {
+          "synchronousMs": {
+            "p50": 43.799999952316284,
+            "p95": 46.19999998807907,
+            "max": 63.19999998807907
+          },
+          "reactRenderMs": {
+            "p50": 2.799999952316284,
+            "p95": 3.200000047683716,
+            "max": 4.100000023841858
+          }
+        },
+        "composition": {
+          "synchronousMs": {
+            "p50": 65.30000001192093,
+            "p95": 70.60000002384186,
+            "max": 71.29999995231628
+          },
+          "reactRenderMs": {
+            "p50": 4.199999988079071,
+            "p95": 5.899999976158142,
+            "max": 6.400000035762787
+          }
+        }
+      },
+      "serializedBytes": 2078157,
+      "historyComparisonMs": {
+        "p50": 23.599999964237213,
+        "p95": 30.69999998807907,
+        "max": 39.10000002384186
+      },
+      "same": false
+    },
+    {
+      "version": "baseline",
+      "rooms": 80,
+      "entries": 256,
+      "history": false,
+      "tests": {
+        "metadata": {
+          "synchronousMs": {
+            "p50": 28.100000023841858,
+            "p95": 32.90000003576279,
+            "max": 38.40000003576279
+          },
+          "reactRenderMs": {
+            "p50": 4.099999964237213,
+            "p95": 5.700000047683716,
+            "max": 10
+          }
+        },
+        "composition": {
+          "synchronousMs": {
+            "p50": 42,
+            "p95": 57.69999998807907,
+            "max": 71.60000002384186
+          },
+          "reactRenderMs": {
+            "p50": 4.5,
+            "p95": 6.599999904632568,
+            "max": 8.99999988079071
+          }
+        }
+      },
+      "serializedBytes": 8999577,
+      "historyComparisonMs": {
+        "p50": 103.69999998807907,
+        "p95": 114.79999995231628,
+        "max": 117.69999998807907
+      },
+      "same": false
+    },
+    {
+      "version": "baseline",
+      "rooms": 80,
+      "entries": 256,
+      "history": true,
+      "tests": {
+        "metadata": {
+          "synchronousMs": {
+            "p50": 107.69999998807907,
+            "p95": 180.69999998807907,
+            "max": 233.39999997615814
+          },
+          "reactRenderMs": {
+            "p50": 4.399999976158142,
+            "p95": 9.200000047683716,
+            "max": 9.699999988079071
+          }
+        },
+        "composition": {
+          "synchronousMs": {
+            "p50": 146.69999998807907,
+            "p95": 165.5,
+            "max": 174.30000001192093
+          },
+          "reactRenderMs": {
+            "p50": 4.699999988079071,
+            "p95": 7.399999976158142,
+            "max": 8.699999988079071
+          }
+        }
+      },
+      "serializedBytes": 8999577,
+      "historyComparisonMs": {
+        "p50": 105.89999997615814,
+        "p95": 139,
+        "max": 157.89999997615814
+      },
+      "same": false
+    },
+    {
+      "version": "cached",
+      "rooms": 1,
+      "entries": 32,
+      "history": false,
+      "tests": {
+        "metadata": {
+          "synchronousMs": {
+            "p50": 4.600000023841858,
+            "p95": 5.100000023841858,
+            "max": 5.399999976158142
+          },
+          "reactRenderMs": {
+            "p50": 1.2999999523162842,
+            "p95": 1.800000011920929,
+            "max": 1.9000000357627869
+          }
+        },
+        "composition": {
+          "synchronousMs": {
+            "p50": 27.5,
+            "p95": 54.89999997615814,
+            "max": 64
+          },
+          "reactRenderMs": {
+            "p50": 23.700000047683716,
+            "p95": 47.200000047683716,
+            "max": 55.69999998807907
+          }
+        }
+      },
+      "serializedBytes": 97581,
+      "historyComparisonMs": {
+        "p50": 2.199999988079071,
+        "p95": 3.600000023841858,
+        "max": 3.699999988079071
+      },
+      "same": false
+    },
+    {
+      "version": "cached",
+      "rooms": 1,
+      "entries": 32,
+      "history": true,
+      "tests": {
+        "metadata": {
+          "synchronousMs": {
+            "p50": 6.099999964237213,
+            "p95": 7.200000047683716,
+            "max": 9.100000023841858
+          },
+          "reactRenderMs": {
+            "p50": 1.0000000596046448,
+            "p95": 2.099999964237213,
+            "max": 3.199999988079071
+          }
+        },
+        "composition": {
+          "synchronousMs": {
+            "p50": 29.100000023841858,
+            "p95": 45.30000001192093,
+            "max": 45.5
+          },
+          "reactRenderMs": {
+            "p50": 23.399999916553497,
+            "p95": 35.89999997615814,
+            "max": 36.799999952316284
+          }
+        }
+      },
+      "serializedBytes": 97581,
+      "historyComparisonMs": {
+        "p50": 2,
+        "p95": 2.299999952316284,
+        "max": 2.700000047683716
+      },
+      "same": false
+    },
+    {
+      "version": "cached",
+      "rooms": 20,
+      "entries": 128,
+      "history": false,
+      "tests": {
+        "metadata": {
+          "synchronousMs": {
+            "p50": 5,
+            "p95": 5.899999976158142,
+            "max": 6.100000023841858
+          },
+          "reactRenderMs": {
+            "p50": 1.4000000357627869,
+            "p95": 2.100000023841858,
+            "max": 2.5
+          }
+        },
+        "composition": {
+          "synchronousMs": {
+            "p50": 29.19999998807907,
+            "p95": 43.19999998807907,
+            "max": 49.60000002384186
+          },
+          "reactRenderMs": {
+            "p50": 25,
+            "p95": 37.09999996423721,
+            "max": 43.39999997615814
+          }
+        }
+      },
+      "serializedBytes": 2078157,
+      "historyComparisonMs": {
+        "p50": 23.900000035762787,
+        "p95": 27.299999952316284,
+        "max": 29.900000035762787
+      },
+      "same": false
+    },
+    {
+      "version": "cached",
+      "rooms": 20,
+      "entries": 128,
+      "history": true,
+      "tests": {
+        "metadata": {
+          "synchronousMs": {
+            "p50": 21.100000023841858,
+            "p95": 23.600000023841858,
+            "max": 24.100000023841858
+          },
+          "reactRenderMs": {
+            "p50": 0.9999999403953552,
+            "p95": 1.300000011920929,
+            "max": 1.3000001311302185
+          }
+        },
+        "composition": {
+          "synchronousMs": {
+            "p50": 65.89999997615814,
+            "p95": 81.5,
+            "max": 82.30000001192093
+          },
+          "reactRenderMs": {
+            "p50": 36.10000002384186,
+            "p95": 44.39999997615814,
+            "max": 49.500000059604645
+          }
+        }
+      },
+      "serializedBytes": 2078157,
+      "historyComparisonMs": {
+        "p50": 24.299999952316284,
+        "p95": 26.399999976158142,
+        "max": 26.599999964237213
+      },
+      "same": false
+    },
+    {
+      "version": "cached",
+      "rooms": 80,
+      "entries": 256,
+      "history": false,
+      "tests": {
+        "metadata": {
+          "synchronousMs": {
+            "p50": 5.899999976158142,
+            "p95": 6.899999976158142,
+            "max": 7.199999988079071
+          },
+          "reactRenderMs": {
+            "p50": 2.0000000596046448,
+            "p95": 2.900000035762787,
+            "max": 3.5
+          }
+        },
+        "composition": {
+          "synchronousMs": {
+            "p50": 29.900000035762787,
+            "p95": 44.80000001192093,
+            "max": 57.5
+          },
+          "reactRenderMs": {
+            "p50": 25.30000013113022,
+            "p95": 37.80000001192093,
+            "max": 50.69999998807907
+          }
+        }
+      },
+      "serializedBytes": 8999577,
+      "historyComparisonMs": {
+        "p50": 100.40000003576279,
+        "p95": 118,
+        "max": 137.39999997615814
+      },
+      "same": false
+    },
+    {
+      "version": "cached",
+      "rooms": 80,
+      "entries": 256,
+      "history": true,
+      "tests": {
+        "metadata": {
+          "synchronousMs": {
+            "p50": 73.39999997615814,
+            "p95": 121.80000001192093,
+            "max": 151.0999999642372
+          },
+          "reactRenderMs": {
+            "p50": 1.699999988079071,
+            "p95": 2.6000000834465027,
+            "max": 2.800000011920929
+          }
+        },
+        "composition": {
+          "synchronousMs": {
+            "p50": 148.70000004768372,
+            "p95": 168.69999998807907,
+            "max": 169.10000002384186
+          },
+          "reactRenderMs": {
+            "p50": 38.40000003576279,
+            "p95": 43.50000011920929,
+            "max": 43.90000003576279
+          }
+        }
+      },
+      "serializedBytes": 8999577,
+      "historyComparisonMs": {
+        "p50": 106.70000004768372,
+        "p95": 114.90000003576279,
+        "max": 115.39999997615814
+      },
+      "same": false
+    }
+  ],
+  "kernels": {
+    "rows": [
+      {
+        "name": "original-arrays",
+        "batch": 1,
+        "ms": {
+          "p50": 1.699999988079071,
+          "p95": 2.5,
+          "max": 2.5
+        }
+      },
+      {
+        "name": "flat-js",
+        "batch": 1,
+        "ms": {
+          "p50": 0.19999998807907104,
+          "p95": 0.30000001192092896,
+          "max": 0.3999999761581421
+        }
+      },
+      {
+        "name": "rust-wasm-with-copies",
+        "batch": 1,
+        "ms": {
+          "p50": 0.09999996423721313,
+          "p95": 0.10000002384185791,
+          "max": 0.19999998807907104
+        },
+        "coldMs": 11.399999976158142
+      },
+      {
+        "name": "worker-js-resident-input",
+        "batch": 1,
+        "ms": {
+          "p50": 0.7000000476837158,
+          "p95": 0.9000000357627869,
+          "max": 1.0999999642372131
+        },
+        "computeMs": {
+          "p50": 0.30000001192092896,
+          "p95": 0.40000003576278687,
+          "max": 0.5
+        },
+        "coldMs": 2.600000023841858
+      },
+      {
+        "name": "original-arrays",
+        "batch": 64,
+        "ms": {
+          "p50": 107.69999998807907,
+          "p95": 173.60000002384186,
+          "max": 174.5
+        }
+      },
+      {
+        "name": "flat-js",
+        "batch": 64,
+        "ms": {
+          "p50": 20.30000001192093,
+          "p95": 21.900000035762787,
+          "max": 22.5
+        }
+      },
+      {
+        "name": "rust-wasm-with-copies",
+        "batch": 64,
+        "ms": {
+          "p50": 6.799999952316284,
+          "p95": 8.900000035762787,
+          "max": 9.5
+        },
+        "coldMs": 11.399999976158142
+      },
+      {
+        "name": "worker-js-resident-input",
+        "batch": 64,
+        "ms": {
+          "p50": 20.80000001192093,
+          "p95": 22.69999998807907,
+          "max": 22.80000001192093
+        },
+        "computeMs": {
+          "p50": 20.19999998807907,
+          "p95": 22.099999964237213,
+          "max": 22.19999998807907
+        },
+        "coldMs": 2.600000023841858
+      }
+    ],
+    "parity": true,
+    "wasmBytes": 16292,
+    "notes": "Worker inputs are resident; Rust includes input and output copies on every room. No Canvas/React in kernel timing. Synthetic full tilemap, 192 copies."
+  }
+}

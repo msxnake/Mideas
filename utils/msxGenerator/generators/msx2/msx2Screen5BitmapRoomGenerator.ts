@@ -1,6 +1,7 @@
 import { MSX2_WORLDLINK_MUSIC_NONE, ConnectionDirection, Msx2BitmapRoomCommand, Msx2GameFlowEndNode, Msx2GameFlowGraph, Msx2GameFlowNode, Msx2GameFlowScreen5PresentationNode, Msx2GameFlowTransitionNode, Msx2HudAsset, Msx2HudElement, Msx2HudFontAsset, Msx2HudIconEntry, Msx2HudWidget, Msx2PlayerDefinition, Msx2Screen5BitmapRoom, Msx2Screen5PresentationConfig, Msx2Sprite, PaletteAsset, PSGSoundData, Screen5PaletteSlot } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { isMsx2Screen5Purpose } from '../../../msx2GameFlowPurpose';
+import { bakeBossPathFixed } from '../../../msx2BossPath';
 import {
   SCREEN5_ROW_BYTES,
   SCREEN5_VISIBLE_HEIGHT,
@@ -13735,7 +13736,8 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
   };
   const normalizeBitmapEnemyEntity = (entity: any): any => {
     const def = resolveBitmapEnemyAssetForEntity(analysis, entity);
-    const forced = behaviorMovementOverride[String(def?.behavior?.type || '')];
+    const pathId = entity.components?.msx2_movement?.konamiPathId ?? entity.params?.konamiPathId;
+    const forced = pathId ? 'static' : behaviorMovementOverride[String(def?.behavior?.type || '')];
     if (!forced) return entity;
     const movement = entity?.components?.msx2_movement || {};
     const params = entity?.params || {};
@@ -14232,6 +14234,25 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       : 0;
     return [frames & 0xff, (frames >>> 8) & 0xff];
   };
+  const konamiPaths: NonNullable<BitmapEnemyRoomData['konamiPaths']> = [];
+  const pathIndices = new Map<string, number>();
+  const konamiRoomPaths = roomSlotSets.map(slots => Array.from({ length: maxSlots }, (_, index) => {
+    const pair = slots[index];
+    const id = pair?.entity.components?.msx2_movement?.konamiPathId ?? pair?.entity.params?.konamiPathId;
+    if (!id || pair?.isFollower) return -1;
+    if (pathIndices.has(id)) return pathIndices.get(id)!;
+    const asset = (analysis.assets || []).find(asset => asset.id === id && asset.type === 'msx2bosspath');
+    const path = asset?.data as any;
+    if (!path || path.bakeMode !== 'fixed') throw new Error(`Enemy Konami path "${id}" is missing or is not a fixed table.`);
+    const baked = bakeBossPathFixed(path, { yEncoding: 'gameArea', patternEncoding: 'animFrame' });
+    if (!baked.frames || baked.bytes.length > 65532) throw new Error(`Enemy Konami path "${id}" is empty or too large.`);
+    if (baked.events.length) throw new Error(`Enemy Konami path "${id}": remove Fire actions; enemy position tables do not execute firing scripts.`);
+    if (baked.warnings.length) console.warn(`Konami path ${asset!.name}: ${baked.warnings.join('; ')}`);
+    const pathIndex = konamiPaths.length;
+    pathIndices.set(id, pathIndex);
+    konamiPaths.push({ bytes: baked.bytes, loop: path.loopMode !== 'once' });
+    return pathIndex;
+  }));
   const roomTables = roomSlotSets.map(slots => {
     const table: number[] = [slots.length & 0xff];
     for (let i = 0; i < maxSlots; i++) {
@@ -14294,6 +14315,8 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     maxSlots,
     maxFrames,
     roomTables,
+    konamiPaths,
+    konamiRoomPaths,
     patternBytes,
     colorBytes,
     slimeEnabled,

@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "rooms": 80,
+  "burstDispatchMs": 2.599999999627471,
+  "metricNote": "Dispatch only; excludes React settling/presentation. Throughput is measured separately.",
+  "burstSamples": 4,
+  "paintedCells": 42,
+  "updates": 4,
+  "nativeCpuThrottle": 4,
+  "nativeZooms": [
+    2,
+    3
+  ]
+}
