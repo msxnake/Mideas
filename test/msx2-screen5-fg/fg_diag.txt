@@ -1,0 +1,9 @@
+diag start
+frame=200 idx=255 px=255 py=0
+frame=400 idx=0 px=48 py=119
+frame=410 px=48 (RIGHT held since 400)
+frame=500 px=48 (RIGHT held since 400)
+frame=690 px=48 (RIGHT held since 400)
+moved-right=1
+vram-sat: 52 32 32 | 84 96 36
+DONE

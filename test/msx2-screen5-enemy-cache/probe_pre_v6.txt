@@ -1,0 +1,8 @@
+probe v6 start (build=pre, INIT bp=0x4010, slots=4, colorBase=#F420, oracle=pool-derived expected colour block)
+room change: 255 -> 0 at frame 18
+room change: 0 -> 255 at frame 34
+game initialised at frame 34 (count=0)
+room change: 255 -> 0 at frame 281
+frames=5400 boot=1 stale=0 verified=20216 keyErrors=0 vramFails=0 tickerr=0 evals=20221 uploads=0 idxChanges=3 anomalies=0 injected=0
+VERDICT: PASS
+RUN-COMPLETE

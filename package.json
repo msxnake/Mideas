@@ -55,6 +55,8 @@
     "test:msx2-worldlink-music": "node scripts/check_msx2_worldlink_music.mjs",
     "test:msx2-atlas-entries": "node scripts/check_msx2_atlas_entries.mjs",
     "test:msx2-atlas-extraction": "node scripts/check_msx2_atlas_extraction.mjs",
+    "test:msx2-fg-vram-fast-copy": "node scripts/check_msx2_fg_vram_fast_copy.mjs",
+    "test:msx2-enemy-color-cache": "node scripts/check_msx2_enemy_color_cache.mjs",
     "test:msx2-boss-roomlock-ui": "node scripts/check_msx2_boss_roomlock_ui_playwright.cjs",
     "test:msx2-budget-feedback": "node scripts/check_msx2_budget_feedback_helper.mjs",
     "test:msx2-shooter60hz-asm": "node scripts/check_msx2_shooter60hz_asm.mjs",

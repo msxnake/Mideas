@@ -1,0 +1,10 @@
+probe v6 start (build=post, INIT bp=0x4010, slots=4, colorBase=#F420, oracle=pool-derived expected colour block)
+room change: 255 -> 0 at frame 18
+room change: 0 -> 255 at frame 34
+game initialised at frame 34 (count=0)
+room change: 255 -> 0 at frame 281
+INJECT valid=0 slot=0
+ORACLE-FAIL slot=0 valid=0
+frames=5400 boot=1 stale=0 verified=20216 keyErrors=0 vramFails=1 tickerr=0 evals=2893 uploads=2890 idxChanges=3 anomalies=0 injected=1
+VERDICT: FAIL
+RUN-COMPLETE

@@ -1,0 +1,18 @@
+{
+  "target": "pre",
+  "negative": false,
+  "files": [
+    {
+      "path": "work/enemy-cache-game-v6/pre.rom",
+      "sha256": "406e0dd06e2d3d82ef29d8ad86559587be5262ae3fbfc12e9bbda605c5c4d1d5"
+    },
+    {
+      "path": "work/enemy-cache-game-v6/pre.sym",
+      "sha256": "c9db7b86c357d42c702c0baeab9cabafe2115978462894a0d8e3455ec4bde4d7"
+    },
+    {
+      "path": "work/enemy-cache-game-v6/pre.asm",
+      "sha256": "deb992b1e8e0fb9fa8e7a6bff05b9a56e0d24d062800301b6c469057490ca9e5"
+    }
+  ]
+}

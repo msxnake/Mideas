@@ -1,0 +1,21 @@
+probe v3 start (reset bp at 0x4010 armed)
+regs: R0=6 R1=98 R2=31 border=1
+CAPTURE-STUCK phase=10 ticks=1
+   captured ROOM-A-INIT -> C:/Users/salam/Documents/Programacion/Mideas/test/msx2-screen5-fg/fg_roomA_init.png
+== ROOM-A-INIT: idx=0 px=48
+DUMP room=0 slot0(off=00) sat:34 20 20 00 pat:FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF col:08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 slot1(off=01) sat:54 60 24 00 pat:FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF col:09 09 09 09 09 09 09 09 09 09 09 09 09 09 09 09
+reached-B at hold-frame=158 px=2
+CAPTURE-STUCK phase=20 ticks=1
+   captured ROOM-B-STABLE -> C:/Users/salam/Documents/Programacion/Mideas/test/msx2-screen5-fg/fg_roomB_stable.png
+== ROOM-B-STABLE: idx=1 px=238
+DUMP room=1 slot0(off=02) sat:24 90 20 00 pat:FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF col:0A 0A 0A 0A 0A 0A 0A 0A 0A 0A 0A 0A 0A 0A 0A 0A slot1=EMPTY(sat:D4 00 24 00)
+reached-A at hold-frame=181 px=238
+CAPTURE-STUCK phase=30 ticks=1
+   captured ROOM-A-RETURN -> C:/Users/salam/Documents/Programacion/Mideas/test/msx2-screen5-fg/fg_roomA_return.png
+== ROOM-A-RETURN: idx=0 px=2
+DUMP room=0 slot0(off=00) sat:34 20 20 00 pat:FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF col:08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 slot1(off=01) sat:54 60 24 00 pat:FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF col:09 09 09 09 09 09 09 09 09 09 09 09 09 09 09 09
+RUN-COMPLETE
+transition-frames: to-B=158 to-A=181 total=30
+boot_hits=1 sat_fails=0 dump_fails=0 capture_errors=0 tickerr=0 sawB=1 sawAreturn=1
+anomalies: none
+VERDICT: PASS

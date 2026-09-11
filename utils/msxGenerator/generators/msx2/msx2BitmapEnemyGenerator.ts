@@ -498,14 +498,20 @@ bitmap_enemy_konami_step:
       playerBulletPool: opts.playerBullets,
     })
     : undefined;
-  const totalRamBytes = baseRamBytes
+  const colorCacheOffset = baseRamBytes
     + (scriptedRuntime?.ramBytes || 0)
     + (scriptedRuntime?.bulletRamBytes || 0);
+  // Append after all optional scratch/bullet storage; every byte offset is valid.
+  const colorKeysAddr = opts.ramBase + colorCacheOffset;
+  const colorValidAddr = colorKeysAddr + maxSlots;
+  const totalRamBytes = colorCacheOffset + 2 * maxSlots;
 
   const equates = `; --- ENEMY runtime state (${totalRamBytes} bytes): count + ${maxSlots} slot(s) x ${POOL_STRIDE}${fly8 ? ' + PRNG seed' : ''}
 ; (x,y,dx,dy,minX,maxX,minY,maxY,animTick,animFrame,frameCount,animDelay,colorOff,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,logicInterval,logicCountdown${slime ? ',travelPx,travelCount,phase' : ''}${gear ? ',gearState,gearCooldownLo,gearCooldownHi,gearDelayLo,gearDelayHi' : ''}${fly8 ? ',flyLeft,flyTurnPx' : ''}${scripted ? ',scriptProgram,scriptState,scriptTimer,scriptVelocity,scriptShield,scriptHit' : ''}${programsUsePath ? ',pathNode,pathBranchMask' : ''}) ---
 bitmap_enemy_count EQU ${asmWord(countAddr)}
 bitmap_enemy_pool  EQU ${asmWord(poolAddr)}
+bitmap_enemy_color_keys EQU ${asmWord(colorKeysAddr)}
+bitmap_enemy_color_valid EQU ${asmWord(colorValidAddr)}
 ${fly8 ? `bitmap_enemy_rand_seed EQU ${asmWord(randSeedAddr)}
 ` : ''}${bankedArt ? `; Room record staged out of its data bank (${TABLE_BYTES} bytes) before it is walked.
 bitmap_enemy_table_buf EQU ${asmWord(tableBufAddr)}
@@ -2086,10 +2092,24 @@ ${slotUsesCeilingVariants ? `    ld e, a
 ${slime ? `    add a, a
 ` : ''}    add a, e
 .color_slot_${i}_lit:
-` : ''}    call bitmap_enemy_colors_offset
+` : ''}    ld e, a                   ; final colour offset, including light/flip
+    ld a, (bitmap_enemy_color_valid + ${i})
+    or a
+    jp z, .color_slot_${i}_upload
+    ld a, (bitmap_enemy_color_keys + ${i})
+    cp e
+    jp nz, .color_slot_${i}_upload
+.color_slot_${i}_skip:
+    jp .color_slot_${i}_done
+.color_slot_${i}_upload:
+    ld a, e
+    ld (bitmap_enemy_color_keys + ${i}), a ; preserve before banked copy changes A
+    call bitmap_enemy_colors_offset
     ld de, ${asmWord(colorVram)}
     ld bc, 16
 ${copyArt('bitmap_enemy_sprite_colors')}
+    ld a, 1
+    ld (bitmap_enemy_color_valid + ${i}), a ; valid only after the copy returns
 .color_slot_${i}_done:`;
   }).join('\n');
 
@@ -2281,6 +2301,9 @@ ${enemyBulletSatTerminator}    xor a
 ; CALLS: copy_to_vram_ext, bitmap_enemy_patterns_offset, bitmap_enemy_colors_offset.
 ; ------------------------------------------------------------
 bitmap_load_enemies:
+    ; Room loading writes colours independently; invalidate every cached slot.
+    xor a
+${Array.from({ length: maxSlots }, (_unused, i) => `    ld (bitmap_enemy_color_valid + ${i}), a`).join('\n')}
     push ix${konamiLoadAsm}
 ${bankedArt ? `    ; The room record lives in a data bank. Resolve its bank, LDIR it into RAM and
     ; walk the RAM copy: this routine sits in #8000-#9FFF and would unmap itself.
@@ -2401,7 +2424,9 @@ ${enemyBulletSatAsm ? `${enemyBulletSatAsm}\n` : ''}; --------------------------
 ; FUNCTION: bitmap_update_enemy_colors
 ; ------------------------------------------------------------
 ; PURPOSE: Refreshes each active enemy hardware layer's 16-byte line-colour
-;   table for its current animation/light state. Deliberately separate from SAT
+;   table only when its final ROM colour offset changes or its cache is invalid.
+;   Room loading invalidates all slots, including previously empty slots.
+;   Deliberately separate from SAT
 ;   publication so this variable-cost work cannot leave later subsystem SAT
 ;   entries stale or partially published when blanking ends.
 ; INPUT: bitmap_enemy_count, bitmap_enemy_pool and optional lighting state.

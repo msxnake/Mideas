@@ -1,0 +1,2 @@
+mini start
+frame=1 idx=255 vramcatch=0 vr=0

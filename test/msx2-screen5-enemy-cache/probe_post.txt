@@ -1,0 +1,8 @@
+probe v5 start (build=post, INIT bp=0x4010, slots=4, colorBase=#F420, oracle=pool-derived expected colour block)
+room change: 255 -> 0 at frame 18
+room change: 0 -> 255 at frame 34
+game initialised at frame 34 (count=0)
+room change: 255 -> 0 at frame 281
+frames=5400 stale=0 verified=20216 keyErrors=0 evals=2893 uploads=2889 idxChanges=3 anomalies=0
+VERDICT: PASS
+TICK-ERROR(5400): can't read "f": no such variable

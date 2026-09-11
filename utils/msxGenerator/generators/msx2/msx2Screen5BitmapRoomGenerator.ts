@@ -15398,14 +15398,14 @@ function buildBitmapLoadForegroundSpritesAsm(fg: { count: number; patternGroupBa
     ld a, (ix+2)
     call fg_patterns_offset
     ld de, ${hexWord(patternVram)}
-    ld bc, 32
-    call copy_to_vram_ext
+    ld b, 32
+    call fast_copy_to_vram_ext
     ; --- upload 16-byte colour table -> VRAM ${hexWord(colorVram)} (slot ${i}) ---
     ld a, (ix+2)
     call fg_colors_offset
     ld de, ${hexWord(colorVram)}
-    ld bc, 16
-    call copy_to_vram_ext
+    ld b, 16
+    call fast_copy_to_vram_ext
     ; --- write SAT slot ${i} (filled): Y/X from table ---
     ld a, (ix+0)
     ld b, a                   ; B = satY

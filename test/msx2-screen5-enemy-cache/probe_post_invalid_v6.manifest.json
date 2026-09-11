@@ -1,0 +1,18 @@
+{
+  "target": "post",
+  "negative": true,
+  "files": [
+    {
+      "path": "work/enemy-cache-game-v6/post.rom",
+      "sha256": "65544d2f770c8c13549893dfd44bb6507987152781479f7ff27f973dca2e60ac"
+    },
+    {
+      "path": "work/enemy-cache-game-v6/post.sym",
+      "sha256": "83be9e2b88698d8c39e06a866e74df1b4d183476df3a548b30a5790111a410ae"
+    },
+    {
+      "path": "work/enemy-cache-game-v6/post.asm",
+      "sha256": "820dd96d6c56b208f5cca5f9bd226cdae5e8a2f24969dd9e96825919768e7315"
+    }
+  ]
+}
