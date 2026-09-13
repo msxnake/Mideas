@@ -17,8 +17,24 @@
  *   --diagonal  one bullet down-right (ring slot 6) at speed 2. THIS is the
  *               8.8 claim: 2 * sin(45deg) = 1.414, i.e. whole 1 and fraction
  *               106, where the old whole-pixel table gave a wrong 2,2.
+ *   --angle22   one bullet at the AUTHORED angle 15 (337.5 deg, 22.5 left of
+ *               up), speed 2: dx -1 + 60/256, dy -2 + 38/256. Proves a linear
+ *               shot can leave along an odd ring slot.
+ *   --fanfixed  radial of 2 with fixedAngle: true, angle 6. The wave must centred
+ *               on slot 6 (slots 6 and 14) even though the player stands
+ *               somewhere else entirely — bit 7 of the pattern byte.
+ *   --spiral    spread of 1 (stride 1), spin: true, 3 waves 10 frames apart:
+ *               wave k leaves along ring slot k. Proves the rotation byte and
+ *               the pattern bit 6: velocities slot0 (0,-2), slot1 (-1,-2)+frac,
+ *               slot2 (1,-2)+frac in that order.
+ *   --aimed     one AIMED bullet at speed 2 from a boss parked at --boss-x N
+ *               (default 64). Build once, read player_x/boss_x from the probe
+ *               log, rebuild aligned so the player body centre sits straight
+ *               below the boss centre: the bullet must then fire dx=0 dy=+2.
+ *               The old aim compared the player render ORIGIN against the boss
+ *               centre and answered down-left in exactly that setup.
  *
- * Usage: node scripts/build_msx2_boss_radial_burst_smoke.mjs [--linear|--diagonal]
+ * Usage: node scripts/build_msx2_boss_radial_burst_smoke.mjs [--linear|--diagonal|--angle22|--fanfixed|--aimed [--boss-x N]]
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -29,7 +45,13 @@ const OUT_DIR = resolve(ROOT, 'test/msx2-boss');
 
 const variant = process.argv.includes('--linear') ? 'linear'
   : process.argv.includes('--diagonal') ? 'diagonal'
-    : 'radial';
+    : process.argv.includes('--angle22') ? 'angle22'
+      : process.argv.includes('--fanfixed') ? 'fanfixed'
+        : process.argv.includes('--spiral') ? 'spiral'
+          : process.argv.includes('--aimed') ? 'aimed'
+            : 'radial';
+const bossXArg = process.argv.find(arg => arg.startsWith('--boss-x='));
+const bossX = bossXArg ? Number(bossXArg.split('=')[1]) : 64;
 
 const SHOOT_ID = 'shoot_smoke_ring';
 const PATH_ID = 'bosspath_smoke_fire';
@@ -52,6 +74,35 @@ const SHOOTS = {
     id: SHOOT_ID, name: 'Down-right diagonal',
     pattern: 'linear', bulletCount: 1, direction: 'downRight', speed: 2,
     burstCount: 1, burstInterval: 8,
+  },
+  // Authored odd ring slot: unit (sin 337.5deg, -cos 337.5deg) = (-0.3827, -0.9239).
+  // Table words -98 / -237, doubled by speed 2 -> dx #FF3C, dy #FE26.
+  angle22: {
+    id: SHOOT_ID, name: 'Authored 337.5 degrees',
+    pattern: 'linear', bulletCount: 1, direction: 'down', angle: 15, speed: 2,
+    burstCount: 1, burstInterval: 8,
+  },
+  // Fixed-angle ring: centred on slot 6 whatever the player does (pattern
+  // byte 3 | 0x80 = #83). Wave = slots 6 and 14.
+  fanfixed: {
+    id: SHOOT_ID, name: 'Fixed-angle ring x2',
+    pattern: 'radial', bulletCount: 2, direction: 'down', angle: 6,
+    fixedAngle: true, speed: 2,
+    burstCount: 1, burstInterval: 8,
+  },
+  // The turret: follow the player. Alignment under test, see the header.
+  aimed: {
+    id: SHOOT_ID, name: 'Aimed at the player',
+    pattern: 'aimed', bulletCount: 1, direction: 'down', speed: 2,
+    burstCount: 1, burstInterval: 8,
+  },
+  // Spiral: spread of 1 at the FIXED angle 0 (up), spin. Wave k leaves along
+  // slot k: 0, 1, then 2. Record pattern byte = 2 | 0x80 | 0x40 = #C2. Speed 2.
+  spiral: {
+    id: SHOOT_ID, name: 'Spiral 3 waves',
+    pattern: 'spread', bulletCount: 1, spreadStep: 1,
+    direction: 'up', angle: 0, fixedAngle: true, spin: true, speed: 2,
+    burstCount: 3, burstInterval: 10,
   },
 };
 
@@ -84,8 +135,8 @@ project.assets.push({
     loopMode: 'loop',
     firing: 'path',            // silences the phase cadence: only this node shoots
     nodes: [
-      { id: 'n0', x: 64, y: 32, actions: [{ action: 'wait', frames: 90 }, { action: 'fire', shootId: SHOOT_ID }] },
-      { id: 'n1', x: 68, y: 32, actions: [] },
+      { id: 'n0', x: bossX, y: 32, actions: [{ action: 'wait', frames: 90 }, { action: 'fire', shootId: SHOOT_ID }] },
+      { id: 'n1', x: bossX + 4, y: 32, actions: [] },
     ],
   },
 });

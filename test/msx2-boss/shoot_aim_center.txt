@@ -1,0 +1,1 @@
+RESULT: FAIL - no bullet captured

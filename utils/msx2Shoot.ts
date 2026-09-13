@@ -9,10 +9,11 @@ import { Msx2ShootDefinition, Msx2ShootDirection } from '../types';
  * 16-bit numbers and the ring can be as fine as the table is long; 16 is where
  * the useful angles stop for a 256x192 screen with 2 px/frame bullets.
  *
- * AIMING stays on the 8 compass points and maps to the EVEN ring slots. Working
- * out which of 8 sectors the player is in only needs the sign of each axis (a
- * 9-entry lookup, no arithmetic); the odd slots exist so fans and rings can land
- * between the compass points, which is what makes a ring look round.
+ * AIMING at the player stays on the 8 compass points and maps to the EVEN ring
+ * slots. Working out which of 8 sectors the player is in only needs the sign of
+ * each axis (a 9-entry lookup, no arithmetic); the odd slots exist so fans and
+ * rings can land between the compass points, and an authored `angle` puts a
+ * `linear` (or fixed-angle) shot exactly on any of them.
  */
 
 /** Directions in the ring. Even indices are the 8 compass points. */
@@ -45,6 +46,36 @@ export const shootDirectionIndex = (direction: Msx2ShootDirection | undefined): 
 /** A compass point as a ring slot. The compass is every other ring direction. */
 export const shootRingIndex = (direction: Msx2ShootDirection | undefined): number =>
   shootDirectionIndex(direction) * 2;
+
+/**
+ * The authored firing angle as a ring slot: the fine `angle` field (0..15, in
+ * 22.5° steps clockwise from up) when the asset has one, otherwise the legacy
+ * 8-compass `direction`. Old assets never carry `angle`, so they keep firing
+ * exactly the way they always did.
+ */
+export function shootAngleIndex(
+  shoot: Pick<Msx2ShootDefinition, 'direction' | 'angle'>,
+): number {
+  const angle = Math.floor(Number(shoot.angle));
+  if (Number.isFinite(angle)) {
+    return ((angle % MSX2_SHOOT_RING) + MSX2_SHOOT_RING) % MSX2_SHOOT_RING;
+  }
+  return shootRingIndex(shoot.direction);
+}
+
+/**
+ * True when the wave centres on the AUTHORED angle instead of the live player
+ * aim: `linear` always, plus a `spread`/`radial` whose author ticked the fixed
+ * angle. The runtime record marks the same fact in bit 7 of the pattern byte,
+ * which is the only thing the Z80 ever reads.
+ */
+export function shootUsesAuthoredAngle(
+  shoot: Pick<Msx2ShootDefinition, 'pattern' | 'fixedAngle'>,
+): boolean {
+  if (shoot.pattern === 'linear') return true;
+  return (shoot.pattern === 'spread' || shoot.pattern === 'radial')
+    && shoot.fixedAngle === true;
+}
 
 /** Unit vector of ring slot k, in screen axes (y grows downwards). */
 export function shootRingVector(index: number): { dx: number; dy: number } {
@@ -106,15 +137,21 @@ export function shootBurst(
  *
  * `aimIndex` is the ring slot the boss is aiming at; the editor passes a sample
  * value so the preview has something to draw, the runtime uses the real aim.
+ * Patterns that fire along the authored angle (`linear`, or a fixed-angle
+ * fan/ring) ignore it. `rotationSteps` shifts the whole wave around the ring —
+ * that is what the spiral preview uses to draw successive burst waves.
  */
 export function shootVectors(
-  shoot: Pick<Msx2ShootDefinition, 'pattern' | 'bulletCount' | 'direction' | 'spreadStep'>,
+  shoot: Pick<Msx2ShootDefinition, 'pattern' | 'bulletCount' | 'direction' | 'angle' | 'fixedAngle' | 'spreadStep'>,
   aimIndex: number,
+  rotationSteps = 0,
 ): Array<{ dx: number; dy: number }> {
-  const base = shoot.pattern === 'linear' ? shootRingIndex(shoot.direction) : aimIndex;
+  const base = shootUsesAuthoredAngle(shoot) ? shootAngleIndex(shoot) : aimIndex;
   const { count, start, stride } = shootWaveLayout(shoot);
   const out: Array<{ dx: number; dy: number }> = [];
-  for (let i = 0; i < count; i++) out.push(shootRingVector(base + start + i * stride));
+  for (let i = 0; i < count; i++) {
+    out.push(shootRingVector(base + rotationSteps + start + i * stride));
+  }
   return out;
 }
 
@@ -123,23 +160,30 @@ export function shootVectors(
  *
  *   [pattern, count, dir, speed, start, stride, burstCount, burstInterval]
  *
- * pattern 0 = aimed, 1 = linear, 2 = spread, 3 = radial; speed 0 means "use the
- * attack phase's bullet speed". `start`/`stride` are signed ring steps, which is
- * what lets one loop cover a fan and a full ring alike: the runtime walks
- * `dir + start`, then `+ stride` each time, and looks every slot up in the 8.8
- * vector table. No fan arithmetic, no multiply, no angle.
+ * pattern 0 = aimed, 1 = linear, 2 = spread, 3 = radial — bit 7 additionally
+ * set when a spread/radial fires from the authored angle instead of the player
+ * (linear needs no flag: it never aims). speed 0 means "use the attack phase's
+ * bullet speed". `dir` is the authored ring slot 0..15, and `start`/`stride`
+ * are signed ring steps, which is what lets one loop cover a fan and a full
+ * ring alike: the runtime walks `dir + start`, then `+ stride` each time, and
+ * looks every slot up in the 8.8 vector table. No fan arithmetic, no multiply,
+ * no angle.
  */
 export function bakeShootDefinition(shoot: Msx2ShootDefinition): number[] {
-  const pattern = shoot.pattern === 'linear' ? 1
+  const base = shoot.pattern === 'linear' ? 1
     : shoot.pattern === 'spread' ? 2
       : shoot.pattern === 'radial' ? 3
         : 0;
+  let pattern = shootUsesAuthoredAngle(shoot) && base >= 2 ? base | 0x80 : base;
+  // Spin (rotate the base angle every burst wave) rides bit 6; it needs the
+  // burst machinery, so `aimed` never carries it.
+  if (shoot.spin === true && base !== 0) pattern |= 0x40;
   const { count, start, stride } = shootWaveLayout(shoot);
   const burst = shootBurst(shoot);
   return [
     pattern,
     count,
-    shootRingIndex(shoot.direction),
+    shootAngleIndex(shoot),
     clampInt(shoot.speed, 0, 4, 0),
     start & 0xff,
     stride & 0xff,

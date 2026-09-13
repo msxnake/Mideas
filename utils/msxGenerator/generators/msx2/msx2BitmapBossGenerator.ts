@@ -1996,16 +1996,21 @@ export function buildBitmapBossSystemAsm(
   const hasShoots = (hasPaths || hasPhaseShoots) && hasSpriteProjectiles && shootRecords.length > 0;
   const shootRamBase = pathRamBase + (hasPaths ? PATH_RAM_BYTES : 0);
   const SHOOT_RAM_BYTES = 10;
+  // A spin pattern (pattern byte bit 6: rotate the base angle every burst wave)
+  // owns one extra accumulator byte. Reserved only when a record actually spins,
+  // so ROMs without a spiral keep their exact RAM map.
+  const shootSpinUsed = shootRecords.some(record => (record[0] & 0x40) !== 0);
+  const shootRamBytesTotal = SHOOT_RAM_BYTES + (shootSpinUsed ? 1 : 0);
   // Resolved-phase scratch: interval, projectile speed, shoot index, laser
   // interval, body cadence, movement steps. Recomputed from boss_hp at the top
   // of every boss update, so it is NOT part of the per-instance saved state the
   // two-boss dispatcher swaps -- and one scan per frame serves every consumer,
   // instead of each one walking the table again.
   const PHASE_RAM_BYTES = 6;
-  const phaseRamBase = shootRamBase + (hasShoots ? SHOOT_RAM_BYTES : 0);
+  const phaseRamBase = shootRamBase + (hasShoots ? shootRamBytesTotal : 0);
   const baseRamBytes = 11 + 2 + 15 + defeatedBytes + flagCount + (hasBarrier ? 7 : 0)
     + PROJ_RAM_BYTES + spriteSlots * BOSS_SBUL_SLOT_BYTES
-    + (hasPaths ? PATH_RAM_BYTES : 0) + (hasShoots ? SHOOT_RAM_BYTES : 0)
+    + (hasPaths ? PATH_RAM_BYTES : 0) + (hasShoots ? shootRamBytesTotal : 0)
     + (phasesExtended ? PHASE_RAM_BYTES : 0);
   const introRamBase = ram + baseRamBytes;
   const INTRO_RAM_BYTES = 7;
@@ -2101,6 +2106,14 @@ export function buildBitmapBossSystemAsm(
     console.warn('MSX2 bitmap boss: shoot patterns need hardware-sprite bullets (bossProjectileKind "sprite"); the bitmap bullet fires one aimed shot regardless.');
   }
   const hit = opts.playerHitbox;
+  // Aiming offset from the player render origin to the BODY CENTRE. The aim
+  // lookups compare the boss centre against the player, and player_x/player_y
+  // is the sprite's top-left corner: comparing against it directly put the
+  // "directly at the player" bearing half a body off, so a player standing
+  // straight below the boss read as down-LEFT and the bullet visibly missed.
+  // Same conversion the falling rocks already use for their band centre.
+  const aimOffsetX = clampInt(hit.x + Math.floor(Math.max(1, hit.w) / 2), 0, 255, 8);
+  const aimOffsetY = clampInt(hit.y + Math.floor(Math.max(1, hit.h) / 2), 0, 255, 8);
   // Falling rocks aim at the player's body centre, not the render origin, and
   // scatter inside a band around it. The band is a power of two so the runtime
   // masks the PRNG byte instead of dividing. 32px ~= two cells: wide enough to
@@ -2184,7 +2197,7 @@ bitmap_boss_shoot_fire:
     xor a
     ld (boss_burst_idx), a     ; single volley: nothing left to tick
 .bsf_wave:
-    ld a, c
+${shootSpinUsed ? '    xor a\n    ld (boss_shoot_rot), a     ; every trigger starts the spiral clean\n' : ''}    ld a, c
     jp bitmap_boss_shoot_wave
 
 ; ------------------------------------------------------------
@@ -2251,14 +2264,35 @@ bitmap_boss_shoot_wave:
     inc hl
     ld a, (hl)                 ; signed ring step between bullets
     ld (boss_shoot_step), a
+    ; C carries the pattern byte through the whole wave, but the aim lookup and
+    ; the vector/spawn calls trash BC — so it lives on the stack until the tail.
+    push bc
     ; Everything the loop needs is in RAM now, so the aim lookup is free to
     ; clobber HL/DE/BC.
     ld a, c
-    cp 1
-    jr z, .bsw_loop            ; linear keeps the authored direction
+${shootSpinUsed ? `    cp 1
+    jr z, .bsw_spin            ; linear keeps the authored direction (then spins)
+    bit 7, c                   ; fixed-angle fan/ring: bit 7 of the pattern byte
+    jr nz, .bsw_spin           ; says the authored direction replaces the aim
     call bitmap_boss_aim_index ; aimed, spread and radial centre on the player
     ld (boss_shoot_dir), a
-.bsw_loop:
+    pop bc
+    push bc                    ; re-stash the pattern byte past the aim lookup
+.bsw_spin:
+    bit 6, c                   ; spin: the base angle carries the accumulated
+    jr z, .bsw_loop            ; rotation of the earlier waves of this burst
+    ld a, (boss_shoot_rot)
+    ld hl, boss_shoot_dir
+    add a, (hl)
+    and ${MSX2_SHOOT_RING - 1}
+    ld (hl), a
+` : `    cp 1
+    jr z, .bsw_loop            ; linear keeps the authored direction
+    bit 7, c                   ; fixed-angle fan/ring: bit 7 of the pattern byte
+    jr nz, .bsw_loop           ; says the authored direction replaces the aim
+    call bitmap_boss_aim_index ; aimed, spread and radial centre on the player
+    ld (boss_shoot_dir), a
+`}.bsw_loop:
     ld a, (boss_shoot_off)
     ld hl, boss_shoot_dir
     add a, (hl)
@@ -2272,7 +2306,15 @@ bitmap_boss_shoot_wave:
     ld hl, boss_shoot_cnt
     dec (hl)
     jr nz, .bsw_loop
-    ret
+${shootSpinUsed ? `    pop bc                     ; the pattern byte survives the spawn calls
+    bit 6, c                   ; spiral: step the rotation for the next wave
+    ret z
+    ld a, (boss_shoot_step)
+    ld hl, boss_shoot_rot
+    add a, (hl)
+    ld (hl), a
+    ret` : `    pop bc
+    ret`}
 
 ; Ring slot -> velocity. IN: A = slot 0..${MSX2_SHOOT_RING - 1}.
 ; OUT: D = whole-pixel dx, E = whole-pixel dy, and the matching 8.8 fractions in
@@ -2325,6 +2367,9 @@ bitmap_boss_shoot_scale:
 ; Which of the 8 compass directions points at the player, as a RING slot.
 ; The compass is every other ring direction, so the sign lookup (which is all
 ; aiming really needs) doubles into the finer ring the bullets fly on.
+; The comparison is against the player's BODY CENTRE (player_x/y is the render
+; origin, hence the build-time hitbox offsets), so a player standing straight
+; below the boss centre reads as "same column", not half a body to one side.
 ; OUT: A = 0, 2, 4 ... 14. DESTROYS: AF, BC, DE, HL. Preserves IX.
 bitmap_boss_aim_index:
     call bitmap_boss_table_ix_shadow   ; HL -> boss width
@@ -2335,7 +2380,8 @@ bitmap_boss_aim_index:
     add a, b                   ; boss centre X
     ld b, a
     ld a, (player_x)
-    cp b
+${aimOffsetX ? `    add a, ${asmByte(aimOffsetX)}          ; player body centre X (hitbox aware)
+` : ''}    cp b
     ld c, 1                    ; 1 = same column
     jr z, .bai_y
     jr nc, .bai_right
@@ -2353,7 +2399,8 @@ bitmap_boss_aim_index:
     add a, b                   ; boss centre Y
     ld b, a
     ld a, (player_y)
-    cp b
+${aimOffsetY ? `    add a, ${asmByte(aimOffsetY)}          ; player body centre Y (hitbox aware)
+` : ''}    cp b
     ld e, 1                    ; 1 = same row
     jr z, .bai_lookup
     jr nc, .bai_below
@@ -2488,7 +2535,8 @@ boss_sbul_dyf   EQU ${asmWord(shootRamBase + 6)}
 boss_burst_idx  EQU ${asmWord(shootRamBase + 7)}  ; pattern being burst-fired, 1-based (0 = idle)
 boss_burst_left EQU ${asmWord(shootRamBase + 8)}  ; waves still owed after the current one
 boss_burst_cd   EQU ${asmWord(shootRamBase + 9)}  ; frames until the next wave
-` : ''}${phasesExtended ? `; ---- active attack phase, resolved once per boss update from boss_hp ----
+${shootSpinUsed ? `boss_shoot_rot EQU ${asmWord(shootRamBase + 10)}  ; spiral: accumulated ring rotation
+` : ''}` : ''}${phasesExtended ? `; ---- active attack phase, resolved once per boss update from boss_hp ----
 ; 0 in a slot means "no phase matched, keep the boss default"; the movement
 ; slot is the exception, where the neutral value is 1 step per update.
 boss_phase_int  EQU ${asmWord(phaseRamBase + 0)}  ; fire interval of the active phase
@@ -7231,10 +7279,14 @@ bitmap_boss_sbul_spawn:
     add a, b
     sub 8
     ld (iy+2), a
-    ; dx = sign(player_x - x) * phase speed
+    ; dx = sign(playerCentreX - bulletCentreX) * phase speed. Both sides are
+    ; CENTRES: the bullet spawns centred on the boss (slot + 8), and the player
+    ; side adds the hitbox offset because player_x is the render origin.
     ld a, (player_x)
+    add a, ${asmByte(aimOffsetX)}              ; player body centre X (hitbox aware)
     ld b, a
     ld a, (iy+1)
+    add a, 8                   ; bullet centre X (the visible 8x8 blob)
     cp b
     jr z, .sb_dx0
     jr c, .sb_dxp
@@ -7248,10 +7300,12 @@ bitmap_boss_sbul_spawn:
     xor a
 .sb_dxs:
     ld (iy+3), a
-    ; dy = sign(player_y - y) * phase speed
+    ; dy = sign(playerCentreY - bulletCentreY) * phase speed
     ld a, (player_y)
+    add a, ${asmByte(aimOffsetY)}              ; player body centre Y (hitbox aware)
     ld b, a
     ld a, (iy+2)
+    add a, 8                   ; bullet centre Y
     cp b
     jr z, .sb_dy0
     jr c, .sb_dyp
@@ -7874,7 +7928,10 @@ ${(data.pathSelTables || []).map((_, index) => `    dw bitmap_boss_pathsel_room_
 ` : ''}${hasShoots ? `
 ; ---- shoot patterns ----
 ; [pattern, count, dir, speed, start, stride, burstCount, burstInterval]
-; pattern 0 = aimed at the player, 1 = fixed direction, 2 = spread, 3 = radial.
+; pattern 0 = aimed at the player, 1 = fixed direction, 2 = spread, 3 = radial;
+; bit 7 (spread/radial) fires from the authored dir instead of aiming at the
+; player, bit 6 (any but aimed) rotates the base angle one ring step of the
+; record's stride after every burst wave: the spiral.
 ; start/stride are SIGNED ring steps, precomputed so a fan and a full ring are
 ; the same runtime loop.
 bitmap_boss_shoot_table:

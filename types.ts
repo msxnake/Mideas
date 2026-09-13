@@ -1803,8 +1803,29 @@ export interface Msx2ShootDefinition {
   pattern: Msx2ShootPattern;
   /** Bullets per wave. More than the bullet pool holds are dropped (with a build warning). */
   bulletCount: number;
-  /** `linear` only: which way the bullets go. */
+  /** `linear` only: which way the bullets go (legacy 8-compass authoring). */
   direction: Msx2ShootDirection;
+  /**
+   * Fine firing angle on the 16-point ring, in 22.5° steps clockwise from up
+   * (0 = up, 4 = right, 8 = down, 12 = left). When authored it wins over the
+   * 8-compass `direction`, which is what lets a `linear` shot (or a
+   * `fixedAngle` fan/ring) leave along an in-between compass bearing. Absent
+   * keeps every pre-existing asset on its compass direction.
+   */
+  angle?: number;
+  /**
+   * `spread`/`radial` only: centre the fan/ring on the authored `angle` instead
+   * of following the player. The runtime record flags this in bit 7 of the
+   * pattern byte so the Z80 keeps the authored direction.
+   */
+  fixedAngle?: boolean;
+  /**
+   * Spiral: rotate the base angle one ring step of `spreadStep`/ring stride
+   * after every wave of the burst, so successive waves sweep around the boss
+   * (the classic rotating-emitter pattern of shoot'em up bosses). Flagged in
+   * bit 6 of the pattern byte; ignored for `aimed`.
+   */
+  spin?: boolean;
   /** Pixels per frame; 0 = inherit the attack phase's bullet speed. */
   speed: number;
   /**

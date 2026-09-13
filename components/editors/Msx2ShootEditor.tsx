@@ -1,13 +1,15 @@
 import React from 'react';
-import { Msx2ShootDefinition, Msx2ShootDirection, Msx2ShootPattern } from '../../types';
+import { Msx2ShootDefinition, Msx2ShootPattern } from '../../types';
 import {
   MSX2_SHOOT_MAX_BULLETS,
   MSX2_SHOOT_MAX_BURST,
   MSX2_SHOOT_MAX_BURST_INTERVAL,
   MSX2_SHOOT_MAX_WAVE_BULLETS,
   MSX2_SHOOT_RING,
+  shootAngleIndex,
   shootBulletCount,
   shootBurst,
+  shootUsesAuthoredAngle,
   shootVectors,
   shootWaveLayout,
 } from '../../utils/msx2Shoot';
@@ -18,9 +20,10 @@ import {
  * A shot pattern authored once and fired by name: a boss path node picks one,
  * and the same asset is meant to serve turrets and shoot'em up enemies later.
  *
- * Bullets fly on a 16-point ring; the AUTHORED direction stays on the 8 compass
- * points, because aiming only ever needs the sign of each axis. The preview
- * draws the exact vectors the runtime will use.
+ * Bullets fly on a 16-point ring (22.5° steps, the "Angle" control). Aiming at
+ * the player still snaps to the 8 compass points, because aiming only ever
+ * needs the sign of each axis; `linear` shots and fixed-angle fans/rings can
+ * use all 16. The preview draws the exact vectors the runtime will use.
  *
  * See docs/msx/BOSS_SYSTEM_DESIGN.md §Fase G.
  */
@@ -35,7 +38,14 @@ const label = 'block text-xs text-msx-textsecondary mb-1';
 const input = 'w-full bg-msx-bgcolor border border-msx-border rounded px-2 py-1 text-sm text-msx-textprimary';
 const note = 'text-xs text-msx-textsecondary mt-3';
 
-const DIRECTIONS: Msx2ShootDirection[] = ['up', 'upRight', 'right', 'downRight', 'down', 'downLeft', 'left', 'upLeft'];
+/** Compass names for the even ring slots, clockwise from up. */
+const COMPASS: string[] = ['up', 'up right', 'right', 'down right', 'down', 'down left', 'left', 'up left'];
+
+const ANGLE_OPTIONS = Array.from({ length: MSX2_SHOOT_RING }, (_unused, slot) => ({
+  slot,
+  degrees: (slot * 360) / MSX2_SHOOT_RING,
+  name: slot % 2 === 0 ? COMPASS[slot / 2] : undefined,
+}));
 
 /** Sample aim for the preview: as if the player stood down-right of the boss. */
 const SAMPLE_AIM = 6;
@@ -44,9 +54,16 @@ export const Msx2ShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdat
   const set = <K extends keyof Msx2ShootDefinition>(key: K, value: Msx2ShootDefinition[K]) =>
     onUpdate({ ...shoot, [key]: value });
 
-  const vectors = shootVectors(shoot, SAMPLE_AIM);
+  const fixedBase = shoot.pattern !== 'aimed' && shootUsesAuthoredAngle(shoot);
+  const spinOn = shoot.pattern !== 'aimed' && shoot.spin === true;
+  const vectors = shootVectors(shoot, fixedBase ? shootAngleIndex(shoot) : SAMPLE_AIM);
   const layout = shootWaveLayout(shoot);
   const burst = shootBurst(shoot);
+  // A spiral sweeps: draw up to three successive burst waves, fading out.
+  const spiralWaves: Array<Array<{ dx: number; dy: number }>> = spinOn
+    ? Array.from({ length: Math.min(3, burst.count) }, (_v, wave) =>
+        shootVectors(shoot, fixedBase ? shootAngleIndex(shoot) : SAMPLE_AIM, wave * layout.stride))
+    : [];
   const count = shootBulletCount(shoot);
   const fansOut = shoot.pattern === 'spread' || shoot.pattern === 'radial';
   // Every bullet of a wave is born at the boss centre, so a wave wider than the
@@ -81,13 +98,29 @@ export const Msx2ShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdat
                 value={shoot.bulletCount}
                 onChange={e => set('bulletCount', Number(e.target.value))} />
             </div>
-            <div>
-              <label className={label}>Direction</label>
-              <select className={input} value={shoot.direction} disabled={shoot.pattern !== 'linear'}
-                onChange={e => set('direction', e.target.value as Msx2ShootDirection)}>
-                {DIRECTIONS.map(dir => <option key={dir} value={dir}>{dir}</option>)}
-              </select>
-            </div>
+            {shoot.pattern !== 'aimed' && (
+              <div>
+                <label className={label}>
+                  {shoot.pattern === 'linear' ? 'Angle' : 'Fixed angle (ignore the player)'}
+                </label>
+                {shoot.pattern === 'linear' ? (
+                  <select className={input} value={shootAngleIndex(shoot)}
+                    onChange={e => set('angle', Number(e.target.value))}>
+                    {ANGLE_OPTIONS.map(option => (
+                      <option key={option.slot} value={option.slot}>
+                        {option.degrees}°{option.name ? ` — ${option.name}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <label className="flex items-center gap-2 text-sm text-msx-textprimary">
+                    <input type="checkbox" checked={shoot.fixedAngle === true}
+                      onChange={e => set('fixedAngle', e.target.checked)} />
+                    fire from a fixed angle
+                  </label>
+                )}
+              </div>
+            )}
             <div>
               <label className={label}>Speed (px/frame, 0 = phase speed)</label>
               <input type="number" min={0} max={4} className={input} value={shoot.speed}
@@ -100,12 +133,35 @@ export const Msx2ShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdat
                 value={shoot.spreadStep ?? 2}
                 onChange={e => set('spreadStep', Number(e.target.value))} />
             </div>
+            {shoot.pattern !== 'aimed' && (
+              <div>
+                <label className={label}>Spiral (rotate every wave)</label>
+                <label className="flex items-center gap-2 text-sm text-msx-textprimary">
+                  <input type="checkbox" checked={shoot.spin === true}
+                    onChange={e => set('spin', e.target.checked)} />
+                  sweep the angle each wave
+                </label>
+              </div>
+            )}
+            {fansOut && shoot.fixedAngle === true && (
+              <div>
+                <label className={label}>Angle</label>
+                <select className={input} value={shootAngleIndex(shoot)}
+                  onChange={e => set('angle', Number(e.target.value))}>
+                  {ANGLE_OPTIONS.map(option => (
+                    <option key={option.slot} value={option.slot}>
+                      {option.degrees}°{option.name ? ` — ${option.name}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
           <p className={note}>
             Bullets fly on a ring of {MSX2_SHOOT_RING} directions ({(360 / MSX2_SHOOT_RING).toFixed(1)}° apart), stored as
-            8.8 fixed-point velocity per axis. Aiming still snaps to the 8 compass points — that
-            only needs the sign of each axis — and the in-between slots are what the fans and
-            rings use.
+            8.8 fixed-point velocity per axis. Aiming at the player snaps to the 8 compass
+            points — that only needs the sign of each axis — and the in-between angles are
+            what the fans, rings and a chosen Angle use.
           </p>
         </div>
 
@@ -155,16 +211,34 @@ export const Msx2ShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdat
                 x2={centre + vector.dx * reach} y2={centre + vector.dy * reach}
                 stroke="#ff4d4d" strokeWidth={2} />
             ))}
+            {spiralWaves.map((waveVectors, wave) => (
+              waveVectors.map((vector, index) => (
+                <line key={`spin${wave}_${index}`}
+                  x1={centre} y1={centre}
+                  x2={centre + vector.dx * reach} y2={centre + vector.dy * reach}
+                  stroke="#ff4d4d" strokeWidth={1.5} opacity={0.55 - wave * 0.18} />
+              ))
+            ))}
             <circle cx={centre} cy={centre} r={5} fill="#50c8ff" />
           </svg>
           <p className="text-xs text-msx-textsecondary mt-2">
             {shoot.pattern === 'aimed'
               ? 'Drawn as if the player stood down-right; in game it follows them.'
               : shoot.pattern === 'spread'
-                ? 'The fan is centred on the aim and drawn here against the same sample player.'
+                ? fixedBase
+                  ? 'The fan is centred on the chosen angle and never turns.'
+                  : 'The fan is centred on the aim and drawn here against the same sample player.'
                 : shoot.pattern === 'radial'
-                  ? 'The ring starts on the aim and walks all the way round.'
+                  ? fixedBase
+                    ? 'The ring starts on the chosen angle and walks all the way round.'
+                    : 'The ring starts on the aim and walks all the way round.'
                   : 'A fixed direction, whatever the player does.'}
+            {spinOn && (
+              <>
+                {' '}The spiral sweeps the base angle {layout.stride} ring step{layout.stride === 1 ? '' : 's'}
+                {' '}per wave; the fading lines are the next burst waves.
+              </>
+            )}
           </p>
           <p className="text-xs text-msx-textsecondary mt-2">
             Record: {count} bullet{count === 1 ? '' : 's'}, start {layout.start}, step {layout.stride}
