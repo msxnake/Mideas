@@ -1,0 +1,2 @@
+boot_check start
+INIT hit #1

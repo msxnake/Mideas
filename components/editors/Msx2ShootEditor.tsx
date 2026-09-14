@@ -20,10 +20,8 @@ import {
  * A shot pattern authored once and fired by name: a boss path node picks one,
  * and the same asset is meant to serve turrets and shoot'em up enemies later.
  *
- * Bullets fly on a 16-point ring (22.5° steps, the "Angle" control). Aiming at
- * the player still snaps to the 8 compass points, because aiming only ever
- * needs the sign of each axis; `linear` shots and fixed-angle fans/rings can
- * use all 16. The preview draws the exact vectors the runtime will use.
+ * Aimed shots use the vector to the player's body centre at spawn, with 8.8
+ * subpixel velocity. Authored angles and fans/rings use the 16-point ring.
  *
  * See docs/msx/BOSS_SYSTEM_DESIGN.md §Fase G.
  */
@@ -47,7 +45,7 @@ const ANGLE_OPTIONS = Array.from({ length: MSX2_SHOOT_RING }, (_unused, slot) =>
   name: slot % 2 === 0 ? COMPASS[slot / 2] : undefined,
 }));
 
-/** Sample aim for the preview: as if the player stood down-right of the boss. */
+/** Sample bearing for ring-based patterns. */
 const SAMPLE_AIM = 6;
 
 export const Msx2ShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdate }) => {
@@ -56,13 +54,20 @@ export const Msx2ShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdat
 
   const fixedBase = shoot.pattern !== 'aimed' && shootUsesAuthoredAngle(shoot);
   const spinOn = shoot.pattern !== 'aimed' && shoot.spin === true;
-  const vectors = shootVectors(shoot, fixedBase ? shootAngleIndex(shoot) : SAMPLE_AIM);
+  const vectors = shootVectors(shoot, fixedBase ? shootAngleIndex(shoot)
+    : shoot.pattern === 'aimed' ? 6.7 : SAMPLE_AIM);
   const layout = shootWaveLayout(shoot);
   const burst = shootBurst(shoot);
   // A spiral sweeps: draw up to three successive burst waves, fading out.
   const spiralWaves: Array<Array<{ dx: number; dy: number }>> = spinOn
     ? Array.from({ length: Math.min(3, burst.count) }, (_v, wave) =>
         shootVectors(shoot, fixedBase ? shootAngleIndex(shoot) : SAMPLE_AIM, wave * layout.stride))
+    : [];
+  // Spray scatters: draw the ±spray neighbours of the main wave.
+  const spray = Math.max(0, Math.min(3, Math.floor(Number(shoot.spray) || 0)));
+  const sprayWaves: Array<Array<{ dx: number; dy: number }>> = spray > 0
+    ? [-spray, spray].map(steps =>
+        shootVectors(shoot, fixedBase ? shootAngleIndex(shoot) : SAMPLE_AIM, steps))
     : [];
   const count = shootBulletCount(shoot);
   const fansOut = shoot.pattern === 'spread' || shoot.pattern === 'radial';
@@ -143,6 +148,19 @@ export const Msx2ShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdat
                 </label>
               </div>
             )}
+            <div>
+              <label className={label}>Spray per wave (± ring steps)</label>
+              <input type="number" min={0} max={3} className={input} value={shoot.spray ?? 0}
+                onChange={e => set('spray', Number(e.target.value))} />
+            </div>
+            <div>
+              <label className={label}>Hold still while firing</label>
+              <label className="flex items-center gap-2 text-sm text-msx-textprimary">
+                <input type="checkbox" checked={shoot.freezeWhileFiring === true}
+                  onChange={e => set('freezeWhileFiring', e.target.checked)} />
+                boss stops during the burst
+              </label>
+            </div>
             {fansOut && shoot.fixedAngle === true && (
               <div>
                 <label className={label}>Angle</label>
@@ -158,10 +176,10 @@ export const Msx2ShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdat
             )}
           </div>
           <p className={note}>
-            Bullets fly on a ring of {MSX2_SHOOT_RING} directions ({(360 / MSX2_SHOOT_RING).toFixed(1)}° apart), stored as
-            8.8 fixed-point velocity per axis. Aiming at the player snaps to the 8 compass
-            points — that only needs the sign of each axis — and the in-between angles are
-            what the fans, rings and a chosen Angle use.
+            Aimed shots target the player's body centre when fired, with subpixel precision
+            and constant speed. Each shot keeps that trajectory; later shots aim again.
+            Fans, rings and the Angle control use {MSX2_SHOOT_RING} directions
+            ({(360 / MSX2_SHOOT_RING).toFixed(1)}° apart). Spray deliberately offsets the aim.
           </p>
         </div>
 
@@ -211,6 +229,14 @@ export const Msx2ShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdat
                 x2={centre + vector.dx * reach} y2={centre + vector.dy * reach}
                 stroke="#ff4d4d" strokeWidth={2} />
             ))}
+            {sprayWaves.map((waveVectors, index) => (
+              waveVectors.map((vector, i) => (
+                <line key={`spray${index}_${i}`}
+                  x1={centre} y1={centre}
+                  x2={centre + vector.dx * reach} y2={centre + vector.dy * reach}
+                  stroke="#ffb454" strokeWidth={1.5} opacity={0.6} />
+              ))
+            ))}
             {spiralWaves.map((waveVectors, wave) => (
               waveVectors.map((vector, index) => (
                 <line key={`spin${wave}_${index}`}
@@ -223,7 +249,7 @@ export const Msx2ShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdat
           </svg>
           <p className="text-xs text-msx-textsecondary mt-2">
             {shoot.pattern === 'aimed'
-              ? 'Drawn as if the player stood down-right; in game it follows them.'
+              ? 'Targets the player at the moment of firing, then travels straight.'
               : shoot.pattern === 'spread'
                 ? fixedBase
                   ? 'The fan is centred on the chosen angle and never turns.'
@@ -242,7 +268,9 @@ export const Msx2ShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdat
           </p>
           <p className="text-xs text-msx-textsecondary mt-2">
             Record: {count} bullet{count === 1 ? '' : 's'}, start {layout.start}, step {layout.stride}
-            {burst.count > 1 ? `, ${burst.count} waves every ${burst.interval}f` : ''}.
+            {burst.count > 1 ? `, ${burst.count} waves every ${burst.interval}f` : ''}
+            {spray > 0 ? `, spray ±${spray}` : ''}
+            {shoot.freezeWhileFiring ? ', hold still' : ''}.
           </p>
           {overPool && (
             <p className="text-xs mt-2" style={{ color: '#ffb454' }}>
@@ -257,10 +285,4 @@ export const Msx2ShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdat
 };
 
 /** A blank shoot definition with the defaults the runtime expects. */
-export function createMsx2ShootDefinition(id: string, name: string): Msx2ShootDefinition {
-  return {
-    id, name,
-    pattern: 'aimed', bulletCount: 1, direction: 'down', speed: 0,
-    spreadStep: 2, burstCount: 1, burstInterval: 8,
-  };
-}
+export { createMsx2ShootDefinition } from '../../utils/msx2AssetDefaults';

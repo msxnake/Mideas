@@ -1826,6 +1826,19 @@ export interface Msx2ShootDefinition {
    * bit 6 of the pattern byte; ignored for `aimed`.
    */
   spin?: boolean;
+  /**
+   * Per-wave spray: 1..3 ring steps (22.5° each) of jitter around the computed
+   * bearing, alternating to each side wave by wave, so a volley scatters around
+   * the player instead of repeating one bearing (≈ the classic "±5°" spread).
+   * 0 (default) = exact aim. Encoded in bits 4-5 of the pattern byte.
+   */
+  spray?: number;
+  /**
+   * Hold the boss still while a burst of this pattern is in flight, so the
+   * volley leaves from where the aim was taken. Encoded in bit 2 of the
+   * pattern byte (the movement gate is a build-time global).
+   */
+  freezeWhileFiring?: boolean;
   /** Pixels per frame; 0 = inherit the attack phase's bullet speed. */
   speed: number;
   /**

@@ -1,0 +1,14 @@
+pc_watch start
+t=2.000 pc=298B sp=F07E scr=FF
+t=4.000 pc=041B sp=F086 scr=FF
+t=6.000 pc=5B6A sp=F088 scr=FF
+t=8.000 pc=5B51 sp=F08A scr=FF
+t=10.000 pc=5B68 sp=F088 scr=FF
+t=12.000 pc=5B56 sp=F08A scr=FF
+t=14.000 pc=5B64 sp=F088 scr=FF
+t=16.000 pc=5B6D sp=F088 scr=FF
+t=18.000 pc=5B62 sp=F088 scr=FF
+t=20.000 pc=5B6C sp=F088 scr=FF
+t=22.000 pc=5B62 sp=F088 scr=FF
+t=24.000 pc=5B6C sp=F088 scr=FF
+PC-WATCH-DONE

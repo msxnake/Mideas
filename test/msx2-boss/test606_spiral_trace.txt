@@ -1,0 +1,1590 @@
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=255 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=0 rot=0 cnt=0 off=255 step=0 ph_shoot=1 s0=0
+spd=255 dir=15 rot=0 cnt=253 off=253 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=250 off=250 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=248 off=248 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=245 off=245 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=242 off=242 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=239 off=239 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=236 off=236 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=233 off=233 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=230 off=230 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=227 off=227 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=224 off=224 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=221 off=221 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=218 off=218 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=215 off=215 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=212 off=212 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=209 off=209 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=206 off=206 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=203 off=203 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=200 off=200 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=197 off=197 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=194 off=194 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=191 off=191 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=188 off=188 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=185 off=185 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=182 off=182 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=179 off=179 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=176 off=176 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=173 off=173 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=170 off=170 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=167 off=167 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=164 off=164 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=161 off=161 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=159 off=159 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=156 off=156 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=153 off=153 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=150 off=150 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=147 off=147 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=144 off=144 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=141 off=141 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=138 off=138 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=135 off=135 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=132 off=132 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=129 off=129 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=126 off=126 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=123 off=123 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=120 off=120 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=117 off=117 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=114 off=114 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=111 off=111 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=108 off=108 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=105 off=105 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=102 off=102 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=99 off=99 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=96 off=96 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=93 off=93 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=90 off=90 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=87 off=87 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=84 off=84 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=81 off=81 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=78 off=78 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=75 off=75 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=72 off=72 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=70 off=70 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=67 off=67 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=64 off=64 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=61 off=61 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=58 off=58 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=55 off=55 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=52 off=52 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=49 off=49 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=46 off=46 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=43 off=43 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=40 off=40 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=37 off=37 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=34 off=34 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=31 off=31 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=28 off=28 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=25 off=25 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=22 off=22 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=19 off=19 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=16 off=16 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=13 off=13 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=10 off=10 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=7 off=7 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=4 off=4 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=1 off=1 step=255 ph_shoot=1 s0=1 x=152 y=48 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=1 x=227 y=123 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=162 y=52 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=160 y=48 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=160 y=48 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=158 y=44 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=157 y=40 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=157 y=40 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=155 y=37 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=154 y=33 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=154 y=33 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=152 y=29 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=151 y=26 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=151 y=26 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=149 y=22 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=148 y=18 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=148 y=18 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=146 y=14 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=145 y=11 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=145 y=11 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=255 dir=15 rot=0 cnt=253 off=253 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=250 off=250 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=247 off=247 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=244 off=244 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=241 off=241 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=238 off=238 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=235 off=235 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=233 off=233 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=230 off=230 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=227 off=227 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=224 off=224 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=221 off=221 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=218 off=218 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=215 off=215 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=212 off=212 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=209 off=209 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=206 off=206 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=203 off=203 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=200 off=200 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=197 off=197 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=194 off=194 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=191 off=191 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=188 off=188 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=185 off=185 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=182 off=182 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=179 off=179 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=176 off=176 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=173 off=173 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=170 off=170 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=167 off=167 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=164 off=164 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=161 off=161 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=158 off=158 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=155 off=155 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=152 off=152 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=149 off=149 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=146 off=146 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=144 off=144 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=141 off=141 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=138 off=138 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=135 off=135 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=132 off=132 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=129 off=129 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=126 off=126 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=123 off=123 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=120 off=120 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=117 off=117 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=114 off=114 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=111 off=111 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=108 off=108 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=105 off=105 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=102 off=102 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=99 off=99 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=96 off=96 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=93 off=93 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=90 off=90 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=87 off=87 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=84 off=84 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=81 off=81 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=78 off=78 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=75 off=75 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=72 off=72 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=69 off=69 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=66 off=66 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=63 off=63 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=60 off=60 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=57 off=57 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=55 off=55 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=52 off=52 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=49 off=49 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=46 off=46 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=43 off=43 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=40 off=40 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=37 off=37 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=34 off=34 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=31 off=31 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=28 off=28 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=25 off=25 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=22 off=22 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=19 off=19 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=16 off=16 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=13 off=13 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=10 off=10 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=7 off=7 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=4 off=4 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=1 off=1 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=1 x=114 y=64 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=1 x=189 y=139 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=104 y=64 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=104 y=64 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=102 y=60 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=100 y=56 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=100 y=56 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=99 y=52 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=97 y=49 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=97 y=49 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=96 y=45 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=94 y=41 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=94 y=41 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=93 y=38 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=91 y=34 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=91 y=34 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=90 y=30 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=88 y=26 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=88 y=26 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=87 y=23 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=85 y=19 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=85 y=19 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=84 y=15 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=82 y=12 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=82 y=12 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=81 y=8 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=255 dir=15 rot=0 cnt=254 off=254 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=251 off=251 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=248 off=248 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=245 off=245 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=242 off=242 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=239 off=239 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=236 off=236 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=233 off=233 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=230 off=230 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=227 off=227 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=224 off=224 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=221 off=221 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=218 off=218 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=215 off=215 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=212 off=212 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=209 off=209 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=206 off=206 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=203 off=203 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=200 off=200 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=197 off=197 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=194 off=194 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=191 off=191 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=188 off=188 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=185 off=185 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=182 off=182 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=180 off=180 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=177 off=177 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=174 off=174 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=171 off=171 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=168 off=168 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=165 off=165 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=162 off=162 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=159 off=159 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=156 off=156 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=153 off=153 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=150 off=150 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=147 off=147 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=144 off=144 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=141 off=141 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=138 off=138 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=135 off=135 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=132 off=132 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=129 off=129 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=126 off=126 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=123 off=123 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=120 off=120 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=117 off=117 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=114 off=114 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=111 off=111 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=108 off=108 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=105 off=105 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=102 off=102 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=99 off=99 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=96 off=96 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=93 off=93 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=91 off=91 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=88 off=88 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=85 off=85 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=82 off=82 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=79 off=79 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=76 off=76 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=73 off=73 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=70 off=70 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=67 off=67 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=64 off=64 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=61 off=61 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=58 off=58 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=55 off=55 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=52 off=52 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=49 off=49 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=46 off=46 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=43 off=43 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=40 off=40 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=37 off=37 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=34 off=34 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=31 off=31 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=28 off=28 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=25 off=25 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=22 off=22 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=19 off=19 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=16 off=16 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=13 off=13 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=10 off=10 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=7 off=7 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=4 off=4 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=0 cnt=2 off=2 step=255 ph_shoot=1 s0=1 x=126 y=65 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=0 rot=255 cnt=0 off=255 step=0 ph_shoot=1 s0=1 x=201 y=140 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=1 x=201 y=140 dx=75 dy=75 dxf=181 dyf=181
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=255 dir=15 rot=255 cnt=0 off=0 step=255 ph_shoot=1 s0=0
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=134 y=58 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=132 y=54 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=132 y=54 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=130 y=50 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=129 y=46 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=129 y=46 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=127 y=43 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=126 y=39 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=126 y=39 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=124 y=35 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=123 y=32 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=123 y=32 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=121 y=28 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=120 y=24 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=15 rot=0 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=120 y=24 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=118 y=20 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=117 y=17 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=117 y=17 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=115 y=13 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=114 y=9 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=1 x=114 y=9 dx=254 dy=252 dxf=120 dyf=76
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0
+spd=4 dir=0 rot=1 cnt=0 off=1 step=1 ph_shoot=1 s0=0

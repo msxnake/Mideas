@@ -1,0 +1,20 @@
+trace start
+F 120 upd1=0 upd0=0 loop=0 act=0 intro=51 ph=0 hp=0 idx=51 pend=51 cur=51 x=0 y=0
+F 240 upd1=0 upd0=0 loop=0 act=0 intro=51 ph=0 hp=0 idx=51 pend=51 cur=51 x=0 y=0
+F 360 upd1=0 upd0=0 loop=0 act=0 intro=51 ph=0 hp=0 idx=51 pend=51 cur=51 x=0 y=0
+F 480 upd1=0 upd0=0 loop=0 act=0 intro=51 ph=0 hp=0 idx=51 pend=51 cur=51 x=0 y=0
+F 600 upd1=124 upd0=0 loop=63 act=1 intro=5 ph=5 hp=30 idx=1 pend=1 cur=168 x=64 y=32
+F 720 upd1=364 upd0=0 loop=183 act=1 intro=0 ph=5 hp=30 idx=1 pend=1 cur=168 x=64 y=32
+F 840 upd1=604 upd0=80 loop=303 act=1 intro=0 ph=3 hp=30 idx=1 pend=1 cur=208 x=177 y=104
+F 960 upd1=844 upd0=160 loop=423 act=1 intro=0 ph=2 hp=30 idx=1 pend=1 cur=248 x=119 y=104
+F 1080 upd1=1084 upd0=240 loop=543 act=1 intro=0 ph=1 hp=30 idx=1 pend=1 cur=188 x=155 y=64
+F 1200 upd1=1272 upd0=303 loop=637 act=1 intro=0 ph=0 hp=30 idx=1 pend=1 cur=219 x=175 y=104
+F 1320 upd1=1272 upd0=303 loop=637 act=1 intro=0 ph=0 hp=30 idx=1 pend=1 cur=219 x=175 y=104
+F 1440 upd1=1272 upd0=303 loop=637 act=1 intro=0 ph=0 hp=30 idx=1 pend=1 cur=219 x=175 y=104
+F 1560 upd1=1272 upd0=303 loop=637 act=1 intro=0 ph=0 hp=10 idx=1 pend=1 cur=219 x=175 y=104
+F 1680 upd1=1272 upd0=303 loop=637 act=1 intro=0 ph=0 hp=10 idx=1 pend=1 cur=219 x=175 y=104
+F 1800 upd1=1272 upd0=303 loop=637 act=1 intro=0 ph=0 hp=10 idx=1 pend=1 cur=219 x=175 y=104
+F 1920 upd1=1272 upd0=303 loop=637 act=1 intro=0 ph=0 hp=10 idx=1 pend=1 cur=219 x=175 y=104
+F 2040 upd1=1272 upd0=303 loop=637 act=1 intro=0 ph=0 hp=10 idx=1 pend=1 cur=219 x=175 y=104
+FINAL upd1=1272 upd0=303 loop=637
+DONE

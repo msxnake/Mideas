@@ -77,9 +77,44 @@ const actual = generate(after);
 
 assert.deepEqual(Object.keys(actual).sort(), Object.keys(expected).sort(), 'same generated file set');
 
-// The only allowed difference is inside the FG routine (label .. fg_colors_offset).
+// The only allowed differences are:
+//  - inside the FG routine (label .. fg_colors_offset): fast copier calls;
+//  - the accepted C2-parche (canal Codex-032 SOLUCION_FINALIZADA): the
+//    fast_copy_to_vram_chunked helper block and the single copier call swap
+//    inside bitmap_restore_player_sprite_patterns. Both are masked out of the
+//    head/tail byte-identical comparisons; everything else must match.
 // The generator emits the routine into every output variant (main.asm, unitedFiles.asm).
 const ROUTINE_END = 'fg_colors_offset:';
+const stripRoutineBlock = (text, label) => {
+  const start = text.indexOf(`\n${label}:`);
+  if (start < 0) return text;
+  let from = start;
+  // Also drop the doc-comment block above the label (back to its '; ----' separator).
+  const doc = text.indexOf(`\n; FUNCTION: ${label}`);
+  if (doc >= 0 && doc < start) {
+    const sep = text.lastIndexOf('\n; ---', doc);
+    if (sep >= 0) from = sep;
+  }
+  const tail = text.slice(start + 1);
+  const end = tail.slice(label.length + 1).search(/^\w[^\s:]*:/m);
+  return end < 0 ? text.slice(0, from + 1) : text.slice(0, from + 1) + tail.slice(label.length + 1 + end);
+};
+const maskC2Patch = (text) => {
+  let t = stripRoutineBlock(text, 'fast_copy_to_vram_chunked');
+  // Doc comments legitimately renamed the callee in the C2 patch (CALLS: lines).
+  t = t.replace(/^(\s*;.*)fast_copy_to_vram_chunked(.*)$/gm, '$1copy_to_vram_ext$2');
+  const label = 'bitmap_restore_player_sprite_patterns';
+  const start = t.indexOf(`\n${label}:`);
+  if (start >= 0) {
+    const tail = t.slice(start + 1);
+    const body = tail.slice(label.length + 1);
+    const end = body.search(/^\w[^\s:]*:/m);
+    const block = end < 0 ? body : body.slice(0, end);
+    const masked = block.replace(/^(\s*)call (fast_copy_to_vram_chunked|copy_to_vram_ext)\s*$/m, '$1call COPIER_C2_MASKED');
+    t = t.slice(0, start + 1) + label + ':\n' + masked + (end < 0 ? '' : body.slice(end));
+  }
+  return t;
+};
 const filesWithRoutine = Object.keys(actual).filter(k => typeof actual[k] === 'string' && actual[k].includes(FG_LABEL));
 assert.ok(filesWithRoutine.length >= 1, `fixture must emit ${FG_LABEL}`);
 const splitRoutine = (text) => {
@@ -116,8 +151,15 @@ for (const [name, content] of Object.entries(actual)) {
   }
   const beforeSplit = splitRoutine(expected[name]);
   const afterSplit = splitRoutine(content);
-  assert.equal(afterSplit.head, beforeSplit.head, `content before the routine must stay byte-identical (${name})`);
-  assert.equal(afterSplit.tail, beforeSplit.tail, `content after the routine must stay byte-identical (${name})`);
+  const assertMaskedEqual = (a, b, label, name) => {
+    if (a === b) return;
+    let i = 0;
+    while (i < Math.min(a.length, b.length) && a[i] === b[i]) i++;
+    const ctx = (s) => s.slice(Math.max(0, i - 200), i + 300);
+    assert.fail(`${label} (${name}): first diff at char ${i}\n--- masked actual ---\n${ctx(a)}\n--- masked pinned ---\n${ctx(b)}`);
+  };
+  assertMaskedEqual(maskC2Patch(afterSplit.head), maskC2Patch(beforeSplit.head), 'content before the routine must stay byte-identical outside the C2-parche mask', name);
+  assertMaskedEqual(maskC2Patch(afterSplit.tail), maskC2Patch(beforeSplit.tail), 'content after the routine must stay byte-identical outside the C2-parche mask', name);
   assert.match(beforeSplit.block, /ld bc,\s*32\b/, `pinned FG block must load bc,32 for the pattern upload (${name})`);
   assert.match(beforeSplit.block, /ld bc,\s*16\b/, `pinned FG block must load bc,16 for the colour upload (${name})`);
   assert.match(beforeSplit.block, /call copy_to_vram_ext/, `pinned FG block must call the slow copier (${name})`);

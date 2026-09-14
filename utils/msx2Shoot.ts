@@ -9,11 +9,10 @@ import { Msx2ShootDefinition, Msx2ShootDirection } from '../types';
  * 16-bit numbers and the ring can be as fine as the table is long; 16 is where
  * the useful angles stop for a 256x192 screen with 2 px/frame bullets.
  *
- * AIMING at the player stays on the 8 compass points and maps to the EVEN ring
- * slots. Working out which of 8 sectors the player is in only needs the sign of
- * each axis (a 9-entry lookup, no arithmetic); the odd slots exist so fans and
- * rings can land between the compass points, and an authored `angle` puts a
- * `linear` (or fixed-angle) shot exactly on any of them.
+ * A plain AIMED definition uses the live body-centre displacement at spawn,
+ * normalised to the configured speed in 8.8. It does not snap to this ring.
+ * Fans/rings and intentional spray still use ring bearings. The preview may
+ * supply a fractional aimIndex to show an aimed bearing between ring slots.
  */
 
 /** Directions in the ring. Even indices are the 8 compass points. */
@@ -178,6 +177,11 @@ export function bakeShootDefinition(shoot: Msx2ShootDefinition): number[] {
   // Spin (rotate the base angle every burst wave) rides bit 6; it needs the
   // burst machinery, so `aimed` never carries it.
   if (shoot.spin === true && base !== 0) pattern |= 0x40;
+  // Hold still while the burst is in flight (bit 2).
+  if (shoot.freezeWhileFiring === true) pattern |= 0x04;
+  // Per-wave spray, ±N ring steps around the computed bearing (bits 4-5).
+  const spray = clampInt(shoot.spray, 0, 3, 0);
+  if (spray > 0) pattern |= (spray & 3) << 4;
   const { count, start, stride } = shootWaveLayout(shoot);
   const burst = shootBurst(shoot);
   return [

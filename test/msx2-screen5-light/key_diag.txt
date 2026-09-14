@@ -1,0 +1,37 @@
+key_diag start
+intro passed
+vb=60 px=27 py=0 lx=255 ly=0 on=1 act=1 stg=255
+vb=120 px=31 py=16 lx=40 ly=180 on=1 act=1 stg=0
+vb=180 px=31 py=0 lx=40 ly=180 on=1 act=1 stg=0
+--- SPACE down
+vb=240 px=31 py=0 lx=40 ly=180 on=1 act=1 stg=0
+vb=300 px=31 py=16 lx=40 ly=180 on=1 act=1 stg=0
+--- SPACE up
+vb=360 px=31 py=0 lx=40 ly=180 on=1 act=1 stg=0
+--- RIGHT down
+vb=420 px=67 py=32 lx=72 ly=180 on=1 act=1 stg=0
+vb=480 px=67 py=48 lx=72 ly=180 on=1 act=1 stg=0
+--- RIGHT up
+vb=540 px=67 py=16 lx=72 ly=180 on=1 act=1 stg=0
+vb=600 px=67 py=0 lx=72 ly=180 on=1 act=1 stg=0
+--- UP down (row7 bit0)
+vb=660 px=67 py=16 lx=72 ly=180 on=1 act=1 stg=0
+vb=720 px=67 py=16 lx=72 ly=180 on=1 act=1 stg=0
+--- UP up
+vb=780 px=67 py=0 lx=72 ly=180 on=1 act=1 stg=0
+--- Z down (row6 bit0)
+vb=840 px=67 py=16 lx=72 ly=180 on=1 act=1 stg=0
+vb=900 px=67 py=16 lx=72 ly=180 on=1 act=1 stg=0
+--- Z up
+vb=960 px=67 py=0 lx=72 ly=180 on=1 act=1 stg=0
+--- M down (row2 bit2)
+vb=1020 px=67 py=16 lx=72 ly=180 on=1 act=1 stg=0
+vb=1080 px=67 py=16 lx=72 ly=180 on=1 act=1 stg=0
+--- M up
+vb=1140 px=67 py=0 lx=72 ly=180 on=1 act=1 stg=0
+vb=1200 px=67 py=16 lx=72 ly=180 on=1 act=1 stg=0
+--- stage poke cycle
+vb=1260 px=67 py=16 lx=72 ly=180 on=1 act=1 stg=2
+vb=1320 px=67 py=0 lx=72 ly=180 on=1 act=1 stg=2
+vb=1380 px=67 py=16 lx=72 ly=180 on=1 act=1 stg=2
+DIAG-DONE

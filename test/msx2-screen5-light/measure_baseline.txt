@@ -1,0 +1,17 @@
+measure start ROM=67ee3eb4b9330372... INIT=0x4010 lightRect=0x7106 waitCmd=0x5CE0 loadRoom=0x5DCE
+intro passed (main loop running)
+boot room idx=0 is dark: no directed load needed
+PHASE 'settle': frames=900 secs=22.330 ticks/s=40.305 rects=11 avgRects/frame=0.01 Mpix=0.003 lightCEwaits=11 waitCE=11.1ms span=0.0ms
+NOTE: rects during settle = room-entry light paint (expected, one-shot)
+SELFTEST differ DETECTED poked byte; restoring
+SELFTEST restored OK
+SNAPSHOT idle@90 halo p0=99 99 99 99 99 A9 99 9A 99 99 99 99 99 A9 99 9A 99 99 99 99 99 A9 99 9A 99 99 99 99 B9 BB BB BB
+PHASE 'idle': frames=1200 secs=20.026 ticks/s=59.922 rects=0 avgRects/frame=0.00 Mpix=0.000 lightCEwaits=0 waitCE=0.0ms span=0.0ms
+IDLE-VRAM-STABLE halo OK
+PHASE 'moveX': frames=1200 secs=21.548 ticks/s=55.690 rects=58 avgRects/frame=0.05 Mpix=0.006 lightCEwaits=58 waitCE=24.3ms span=44.8ms
+PHASE 'moveY': frames=1200 secs=20.176 ticks/s=59.477 rects=0 avgRects/frame=0.00 Mpix=0.000 lightCEwaits=0 waitCE=0.0ms span=0.0ms
+PHASE 'diagonal': frames=1200 secs=20.026 ticks/s=59.923 rects=0 avgRects/frame=0.00 Mpix=0.000 lightCEwaits=0 waitCE=0.0ms span=0.0ms
+PHASE 'stageCycle': frames=1200 secs=20.026 ticks/s=59.923 rects=0 avgRects/frame=0.00 Mpix=0.000 lightCEwaits=0 waitCE=0.0ms span=0.0ms
+TOTAL frames=6900 boot_hits=1 tickErrors=0 ceViolR36=0 ceViolR46=0 anomalies=0 
+INSTRUMENT: CLEAN
+MEASUREMENT-COMPLETE baseline (profile above; no patch applied)

@@ -1,0 +1,17 @@
+TRACE start
+TRACE symval boss_sbul_pool = 53690
+TRACE symval boss_active = 53619
+TRACE symval boss_x = 53620
+TRACE symval boss_y = 53621
+TRACE symval player_x = 49153
+TRACE symval player_y = 49152
+TRACE symval boss_proj_cd = 53688
+TRACE symval boss_shoot_cnt = 53719
+TRACE symval boss_path_idx = 53713
+TRACE symval boss_path_fire_mode = 53714
+TRACE symval boss_burst_idx = 53724
+TRACE symval boss_path_wait = 53712
+TRACE symval boss_path_cur = 53710
+TRACE symval boss_intro_state = 53728
+TRACE symval boss_int_tick = 53629
+TRACE symval boss_path_ptr = 53708

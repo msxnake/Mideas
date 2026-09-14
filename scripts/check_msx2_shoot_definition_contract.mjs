@@ -46,6 +46,20 @@ const checks = [
   ['Pattern byte survives the wave loop (vector/spawn calls trash BC)',
     bossGen.includes('push bc') && bossGen.includes('pop bc') &&
     bossGen.includes('the pattern byte survives the spawn calls')],
+  ['Fine aim: diagonal sectors pick the odd slot from |relX| vs |relY| (wrap-safe)',
+    bossGen.includes('closer to the horizontal or the vertical') &&
+    bossGen.includes('.bai_x_neg') && bossGen.includes('.bai_vert') &&
+    bossGen.includes('odd-slot correction')],
+  ['Spray: bits 4-5 of the pattern byte jitter each wave around the aim',
+    types.includes('spray?: number') &&
+    shoot.includes('(spray & 3) << 4') &&
+    bossGen.includes('shootSprayUsed = shootRecords.some(record => (record[0] & 0x30) !== 0)') &&
+    bossGen.includes('.bsw_spray:') && bossGen.includes('spray ring steps live in bits 4-5')],
+  ['freezeWhileFiring: bit 2 stops boss movement while a burst is in flight',
+    types.includes('freezeWhileFiring?: boolean') &&
+    shoot.includes('shoot.freezeWhileFiring === true) pattern |= 0x04') &&
+    bossGen.includes('shootFreezeUsed = shootRecords.some(record => (record[0] & 0x04) !== 0)') &&
+    bossGen.includes('hold still while firing')],
   ['Editor exposes the 16-step angle, fixed-angle and spiral controls',
     editor.includes('ANGLE_OPTIONS') &&
     editor.includes('fire from a fixed angle') &&

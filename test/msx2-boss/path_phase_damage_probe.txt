@@ -1,0 +1,28 @@
+START boss=155,104 hp=30 path=1 player=147,146 health=50 inv=255 lives=9 gameover=0
+EVENT frame=1 boss=155,104 path=1 pending=1 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=60 boss=177,104 path=1 pending=1 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=120 boss=161,104 path=1 pending=1 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=180 boss=121,104 path=1 pending=1 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=240 boss=117,68 path=1 pending=1 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=300 boss=153,64 path=1 pending=1 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=360 boss=177,80 path=1 pending=1 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=420 boss=161,104 path=1 pending=1 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=480 boss=121,104 path=1 pending=1 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=540 boss=117,68 path=1 pending=1 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=600 boss=153,64 path=1 pending=1 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=660 boss=177,80 path=1 pending=1 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=720 boss=161,104 path=1 pending=1 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=780 boss=121,104 path=1 pending=1 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+POKE frame=780 boss=119,104 path=1 player=147,146 health=50 inv=254 lives=9 gameover=0
+SAMPLE frame=840 boss=117,68 path=1 pending=2 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+EVENT frame=846 boss=117,64 path=2 pending=2 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=900 boss=153,64 path=2 pending=2 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=960 boss=192,64 path=2 pending=2 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=1020 boss=192,88 path=2 pending=2 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=1080 boss=152,88 path=2 pending=2 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=1140 boss=112,88 path=2 pending=2 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=1200 boss=104,64 path=2 pending=2 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=1260 boss=144,64 path=2 pending=2 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=1320 boss=184,64 path=2 pending=2 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+SAMPLE frame=1380 boss=184,88 path=2 pending=2 player=147,146 health=50 inv=255 lives=9 gameover=0 active=1
+FINAL frame=1380 boss=182,88 path=2 pending=2 hp=10 player=147,146 health=50 inv=255 lives=9 gameover=0 swapFrame=846

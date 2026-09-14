@@ -5299,7 +5299,7 @@ ${commitMusicKeepAlive}${foreground ? foreground.loadCallAsm : ''}${roomCommitEx
 ;   IX, IY.
 ;
 ; CALLS:
-;   bitmap_room_select_data_bank_a (MegaROM only), copy_to_vram_ext,
+;   bitmap_room_select_data_bank_a (MegaROM only), fast_copy_to_vram_chunked,
 ;   bitmap_room_restore_resident_banks (MegaROM only).
 ; ------------------------------------------------------------
 bitmap_restore_player_sprite_patterns:
@@ -5308,8 +5308,61 @@ ${options.bankedRle ? `    ld a, bitmap_room_sprite_patterns_DATA_BANK
 ` : ''}    ld hl, bitmap_room_sprite_patterns
     ld de, #F800
     ld bc, bitmap_room_sprite_patterns_end - bitmap_room_sprite_patterns
-    call copy_to_vram_ext
+    call fast_copy_to_vram_chunked
 ${options.bankedRle ? `    jp bitmap_room_restore_resident_banks` : `    ret`}
+
+; ------------------------------------------------------------
+; FUNCTION: fast_copy_to_vram_chunked
+; PURPOSE: Copy a contiguous block using 256-byte OTIR chunks and a tail.
+; INPUT: HL = accessible source, DE = absolute VRAM address, BC = total bytes.
+;   Source must stay in its mapped window; destination must not cross 16KB.
+;   The restore caller targets #F800 and fits the sprite pattern table.
+; OUTPUT: None. BC=0 is a no-op (not a 65536-byte copy).
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY, interrupt enable state.
+; CALLS: vdp_write_register. No bank switching or interrupt-state changes.
+; VDP STATE: Nonempty copies restore R#14=0; R#15/R#17 are untouched.
+;   Caller owns VDP access, as for copy_to_vram_ext. SCREEN 5 / V9938 only.
+; ------------------------------------------------------------
+fast_copy_to_vram_chunked:
+    ld a, b
+    or c
+    ret z
+    push de
+    ld a, d
+    and #C0
+    rlca
+    rlca
+    ld e, a
+    ld a, #0E
+    call vdp_write_register
+    pop de
+    ld a, e
+    out (${VDP_CTRL_PORT}), a
+    ld a, d
+    and #3F
+    or #40
+    out (${VDP_CTRL_PORT}), a
+    ld d, b                   ; number of complete 256-byte chunks
+    ld e, c                   ; final 0..255-byte tail
+    ld c, ${VDP_DATA_PORT}
+    ld a, d
+    or a
+    jp z, .chunked_tail
+.chunked_full:
+    ld b, 0                   ; OTIR B=0 copies exactly 256 bytes
+    otir
+    dec d
+    jp nz, .chunked_full
+.chunked_tail:
+    ld a, e
+    or a
+    jp z, .chunked_done        ; exact multiple: never issue a zero-size tail
+    ld b, e
+    otir
+.chunked_done:
+    ld e, 0
+    ld a, #0E
+    jp vdp_write_register
 
 init_hardware_sprite_tables:
     ; Sprite mode 2 tables at F400/F600/F800 (physical layout used by VK).
@@ -16675,9 +16728,33 @@ ${bossWindowRoomBlobIndices.map((indices, roomIndex) => (indices.length === 0
       `Reduce player animation frames/layers, foreground tiles, enemies or platforms per room.`,
     );
   }
+  // Burst-aware boss bullet pool (Jordi, test606): a boss phase whose authored
+  // shoot asset repeats its wave (burstCount) needs enough live sprite slots
+  // for the overlapping waves; without this the later waves silently drop once
+  // the small bullet pool is exhausted. Projects without bursts keep today's
+  // exact pool (min(3, enemySlots)) and therefore byte-identical output.
+  const bossBurstNeed = Math.min(8, (() => {
+    let need = 0;
+    const shootById = new Map<string, any>();
+    for (const asset of ((analysis as any)?.assets || []) as any[]) {
+      if (String(asset?.type || '').toLowerCase() === 'msx2shoot') shootById.set(String(asset?.id || ''), asset);
+    }
+    for (const asset of ((analysis as any)?.assets || []) as any[]) {
+      if (String(asset?.type || '').toLowerCase() !== 'msx2boss') continue;
+      for (const phase of ((asset?.data?.bossPhases || []) as any[])) {
+        const shoot = shootById.get(String(phase?.shootId || ''));
+        if (!shoot) continue;
+        const waves = Math.max(1, Math.floor(Number(shoot?.data?.burstCount) || 1));
+        const perWave = Math.max(1, Math.floor(Number(shoot?.data?.bulletCount) || 1));
+        need = Math.max(need, waves * perWave);
+      }
+    }
+    return need;
+  })());
+  const bossBulletSatSlots = Math.max(enemyData.maxSlots, bossBurstNeed);
   const platformHardwareSlots = platformData.maxSlots * platformData.maxCells;
-  const platformSatBase = enemySatBase + enemyData.maxSlots * 4;
-  const platformColorBase = enemyColorBase + enemyData.maxSlots * 16;
+  const platformSatBase = enemySatBase + bossBulletSatSlots * 4;
+  const platformColorBase = enemyColorBase + bossBulletSatSlots * 16;
   const carryPatternGroupCount = carryRuntimeSlots;
   const carryPatternGroupBase = allocatePatternRange(carryPatternGroupCount, roomHasCarry);
   if (carryPatternGroupCount > 0) {
@@ -16806,7 +16883,7 @@ ${bossWindowRoomBlobIndices.map((indices, roomIndex) => (indices.length === 0
     (r.entities || []).some((e: any) => e?.kind === 'boss') &&
     (r.entities || []).some((e: any) => e?.kind === 'enemy'));
   const bossSpriteBulletSlots = (!bossRoomsHaveEnemies && enemyData.maxSlots > 0)
-    ? Math.min(3, enemyData.maxSlots)
+    ? Math.min(8, Math.max(Math.min(3, enemyData.maxSlots), Math.min(bossBurstNeed, bossBulletSatSlots)))
     : 0;
   if (bossData.enabled && bossRoomsHaveEnemies) {
     console.warn('MSX2 bitmap boss: a room mixes a boss with regular enemies, so the boss cannot reuse the enemy sprite slots. Hardware-sprite boss bullets are disabled there; use bossProjectileKind "bitmap" instead.');

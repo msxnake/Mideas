@@ -1994,6 +1994,7 @@ export function buildBitmapBossSystemAsm(
   // the boss fires hardware sprites (a single bitmap bullet cannot fan out).
   const shootRecords = data.shootRecords || [];
   const hasShoots = (hasPaths || hasPhaseShoots) && hasSpriteProjectiles && shootRecords.length > 0;
+  const hasPreciseAimed = hasShoots && shootRecords.some(record => (record[0] & 0x33) === 0);
   const shootRamBase = pathRamBase + (hasPaths ? PATH_RAM_BYTES : 0);
   const SHOOT_RAM_BYTES = 10;
   // A spin pattern (pattern byte bit 6: rotate the base angle every burst wave)
@@ -2001,6 +2002,11 @@ export function buildBitmapBossSystemAsm(
   // so ROMs without a spiral keep their exact RAM map.
   const shootSpinUsed = shootRecords.some(record => (record[0] & 0x40) !== 0);
   const shootRamBytesTotal = SHOOT_RAM_BYTES + (shootSpinUsed ? 1 : 0);
+  // Spray (bits 4-5 of the pattern byte: ±N ring steps of per-wave jitter) and
+  // hold-still-while-firing (bit 2: skip boss movement while a burst is in
+  // flight) are both build-time constants read straight off the records.
+  const shootSprayUsed = shootRecords.some(record => (record[0] & 0x30) !== 0);
+  const shootFreezeUsed = shootRecords.some(record => (record[0] & 0x04) !== 0);
   // Resolved-phase scratch: interval, projectile speed, shoot index, laser
   // interval, body cadence, movement steps. Recomputed from boss_hp at the top
   // of every boss update, so it is NOT part of the per-instance saved state the
@@ -2264,7 +2270,15 @@ bitmap_boss_shoot_wave:
     inc hl
     ld a, (hl)                 ; signed ring step between bullets
     ld (boss_shoot_step), a
-    ; C carries the pattern byte through the whole wave, but the aim lookup and
+${hasPreciseAimed ? `    ld a, c
+    and #33                    ; aimed without authored spray; freeze flag is independent
+    jr nz, .bsw_ring
+    call bitmap_boss_aim_vector
+    xor a
+    ld (boss_shoot_cnt), a     ; same exhausted-wave state as the ring loop
+    jp bitmap_boss_sbul_spawn_dir
+.bsw_ring:
+` : ''}    ; C carries the pattern byte through the whole wave, but the aim lookup and
     ; the vector/spawn calls trash BC — so it lives on the stack until the tail.
     push bc
     ; Everything the loop needs is in RAM now, so the aim lookup is free to
@@ -2292,7 +2306,33 @@ ${shootSpinUsed ? `    cp 1
     jr nz, .bsw_loop           ; says the authored direction replaces the aim
     call bitmap_boss_aim_index ; aimed, spread and radial centre on the player
     ld (boss_shoot_dir), a
-`}.bsw_loop:
+`}.bsw_spray:
+${shootSprayUsed ? `    ; spray: lean each wave spraySteps to one side, alternating with the
+    ; projectile cooldown's low bit, so a volley scatters around the aim.
+    ld a, c
+    and #30                    ; spray ring steps live in bits 4-5
+    jr z, .bsw_loop
+    rrca
+    rrca
+    rrca
+    rrca                       ; A = spray steps (1..3)
+    ld hl, boss_proj_cd
+    bit 0, (hl)
+    jr nz, .bsw_spray_neg
+    ld hl, boss_shoot_dir
+    add a, (hl)
+    and #0F
+    ld (hl), a
+    jr .bsw_loop
+.bsw_spray_neg:
+    neg
+    ld hl, boss_shoot_dir
+    add a, (hl)
+    and #0F
+    ld (hl), a
+    jr .bsw_loop
+` : '    jr .bsw_loop'}
+.bsw_loop:
     ld a, (boss_shoot_off)
     ld hl, boss_shoot_dir
     add a, (hl)
@@ -2364,55 +2404,290 @@ bitmap_boss_shoot_scale:
     ex de, hl
     ret
 
-; Which of the 8 compass directions points at the player, as a RING slot.
-; The compass is every other ring direction, so the sign lookup (which is all
-; aiming really needs) doubles into the finer ring the bullets fly on.
+${!hasPreciseAimed ? '' : `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_aim_vector
+; PURPOSE: Aim at the player's body centre at spawn, independent of the ring.
+; INPUT: boss/player coordinates, boss_shoot_spd (1..4).
+; OUTPUT: D/E = signed whole dx/dy; boss_sbul_dxf/dyf = 8.8 fractions.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY, mapper and VDP state.
+; CALLS: bitmap_boss_table_ix_shadow, bitmap_boss_shoot_scale.
+; NOTES: 16-bit centres avoid edge wrap. Eight division steps find the rounded
+;   minor/major ratio; a unit-vector table keeps speed independent of bearing.
+;   No additional per-bullet RAM or per-frame work. Coincident centres aim down.
+; ------------------------------------------------------------
+bitmap_boss_aim_vector:
+    call bitmap_boss_table_ix_shadow
+    ld b, (hl)                 ; width
+    inc hl
+    ld c, (hl)                 ; height (no more table calls)
+    srl b
+    srl c
+    ld a, (boss_x)
+    ld l, a
+    ld h, 0
+    ld e, b
+    ld d, 0
+    add hl, de
+    ex de, hl                  ; DE = boss centre X, 16-bit
+    ld a, (player_x)
+    ld l, a
+    ld h, 0
+    ld b, 0
+    push bc                    ; save half-height
+    ld bc, ${aimOffsetX}
+    add hl, bc
+    or a
+    sbc hl, de
+    pop bc
+    push hl                    ; signed relX
+    ld a, (boss_y)
+    ld l, a
+    ld h, 0
+    ld e, c
+    ld d, 0
+    add hl, de
+    ex de, hl
+    ld a, (player_y)
+    ld l, a
+    ld h, 0
+    ld bc, ${aimOffsetY}
+    add hl, bc
+    or a
+    sbc hl, de                 ; signed relY
+    pop de                     ; signed relX
+    ld c, 0                    ; flags: bit0 negative X, bit1 negative Y
+    bit 7, d
+    jr z, .bav_x_positive
+    xor a
+    sub e
+    ld e, a
+    sbc a, a
+    sub d
+    ld d, a
+    set 0, c
+.bav_x_positive:
+    bit 7, h
+    jr z, .bav_y_positive
+    xor a
+    sub l
+    ld l, a
+    sbc a, a
+    sub h
+    ld h, a
+    set 1, c
+.bav_y_positive:
+    ld a, h
+    or l
+    or d
+    or e
+    jr nz, .bav_nonzero
+    inc hl                     ; coincident: deterministic downward vector
+.bav_nonzero:
+    push hl
+    or a
+    sbc hl, de
+    pop hl
+    jr c, .bav_x_major
+    ex de, hl                  ; HL = minor, DE = major
+    set 2, c                   ; Y is the major axis
+.bav_x_major:
+    ld a, c
+    push af                    ; signs/swap survive the division
+    ld b, d
+    ld c, e                    ; BC = major, nonzero
+    push hl
+    or a
+    sbc hl, bc
+    pop hl
+    jr nz, .bav_divide
+    ld hl, 256                 ; exact 45-degree diagonal
+    jr .bav_lookup
+.bav_divide:
+    ld d, 8
+    ld e, 0                    ; quotient
+.bav_div_bit:
+    add hl, hl
+    or a
+    sbc hl, bc
+    jr nc, .bav_div_one
+    add hl, bc
+    or a                       ; quotient bit 0
+    jr .bav_div_shift
+.bav_div_one:
+    scf
+.bav_div_shift:
+    rl e
+    dec d
+    jr nz, .bav_div_bit
+    add hl, hl                 ; round the ratio to nearest 1/256
+    or a
+    sbc hl, bc
+    push de
+    pop hl                     ; D=0, E=quotient
+    jr c, .bav_lookup
+    inc hl
+.bav_lookup:
+    add hl, hl
+    add hl, hl
+    ld de, bitmap_boss_aim_unit_table
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                 ; positive major component, 8.8
+    inc hl
+    push de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                 ; positive minor component
+    ex de, hl
+    pop de                     ; HL=minor, DE=major
+    pop af
+    ld c, a
+    bit 2, c
+    jr nz, .bav_axes
+    ex de, hl                  ; HL=X, DE=Y
+.bav_axes:
+    bit 0, c
+    jr z, .bav_sign_y
+    xor a
+    sub l
+    ld l, a
+    sbc a, a
+    sub h
+    ld h, a
+.bav_sign_y:
+    bit 1, c
+    jr z, .bav_scale
+    xor a
+    sub e
+    ld e, a
+    sbc a, a
+    sub d
+    ld d, a
+.bav_scale:
+    push de                    ; Y survives scaling X (scale destroys HL)
+    ex de, hl
+    call bitmap_boss_shoot_scale
+    ld a, e
+    ld (boss_sbul_dxf), a
+    pop hl
+    push de                    ; scaled X survives scaling Y
+    ex de, hl
+    call bitmap_boss_shoot_scale
+    ld a, e
+    ld (boss_sbul_dyf), a
+    ld e, d
+    pop hl
+    ld d, h
+    ret
+`}; Which of the 16 ring directions points at the player.
+; A 9-entry sign table still answers the 8 compass sectors (even slots); inside
+; a diagonal sector, |relX| vs |relY| picks the ODD slot in between, so "the
+; player is straight below" no longer shares a bearing with "45 degrees off" —
+; an 8-point aim turned every near-vertical shot into a visible miss.
 ; The comparison is against the player's BODY CENTRE (player_x/y is the render
-; origin, hence the build-time hitbox offsets), so a player standing straight
-; below the boss centre reads as "same column", not half a body to one side.
-; OUT: A = 0, 2, 4 ... 14. DESTROYS: AF, BC, DE, HL. Preserves IX.
+; origin, hence the build-time hitbox offsets). The centre differences are
+; taken wrap-safe via carry/neg, because boss and player can sit on opposite
+; screen edges.
+; OUT: A = ring slot 0..15. DESTROYS: AF, BC, DE, HL. Preserves IX, IY.
 bitmap_boss_aim_index:
     call bitmap_boss_table_ix_shadow   ; HL -> boss width
     ld a, (hl)
     srl a
     ld b, a
     ld a, (boss_x)
-    add a, b                   ; boss centre X
-    ld b, a
+    add a, b
+    ld b, a                    ; B = boss centre X
     ld a, (player_x)
 ${aimOffsetX ? `    add a, ${asmByte(aimOffsetX)}          ; player body centre X (hitbox aware)
-` : ''}    cp b
-    ld c, 1                    ; 1 = same column
-    jr z, .bai_y
-    jr nc, .bai_right
-    ld c, 0                    ; player to the left
-    jr .bai_y
-.bai_right:
-    ld c, 2
-.bai_y:
+` : ''}    sub b                      ; relX (may wrap; carry = player to the left)
+    ld c, 2                    ; right
+    jr c, .bai_x_neg
+    jr z, .bai_x_zero
+    jr .bai_x_abs
+.bai_x_neg:
+    ld c, 0                    ; left
+    neg                        ; undo the wrap: |relX|
+    jr .bai_x_abs
+.bai_x_zero:
+    ld c, 1                    ; same column
+    xor a
+.bai_x_abs:
+    ld d, a                    ; D = |relX|
     call bitmap_boss_table_ix_shadow
     inc hl
     ld a, (hl)                 ; boss height
     srl a
     ld b, a
     ld a, (boss_y)
-    add a, b                   ; boss centre Y
-    ld b, a
+    add a, b
+    ld b, a                    ; B = boss centre Y
     ld a, (player_y)
 ${aimOffsetY ? `    add a, ${asmByte(aimOffsetY)}          ; player body centre Y (hitbox aware)
-` : ''}    cp b
-    ld e, 1                    ; 1 = same row
-    jr z, .bai_lookup
-    jr nc, .bai_below
-    ld e, 0                    ; player above
-    jr .bai_lookup
-.bai_below:
-    ld e, 2
-.bai_lookup:
+` : ''}    sub b                      ; relY (wrap-safe as above)
+    ld e, 2                    ; below
+    jr c, .bai_y_neg
+    jr z, .bai_y_zero
+    jr .bai_y_abs
+.bai_y_neg:
+    ld e, 0                    ; above
+    neg
+    jr .bai_y_abs
+.bai_y_zero:
+    ld e, 1                    ; same row
+    xor a
+.bai_y_abs:
+    ld b, a                    ; B = |relY|
+    ; B = |relY|, D = |relX|, C/E = column/row sector codes (0/1/2)
+    ld a, c
+    cp 1
+    jp z, .bai_even            ; axis-aligned: straight up/down/left/right
+    ld a, e
+    cp 1
+    jp z, .bai_even
+    ; diagonal sector: is the player closer to the horizontal or the vertical
+    ; axis? picks the odd slot between the two compass points.
+    ld a, d
+    cp b                       ; |relX| vs |relY|: carry = closer to vertical
+    jp c, .bai_vert
+    ld a, c
+    xor e                      ; bit 1 set when column and row point opposite
+    and #02
+    jr nz, .bai_h_pos
+    ld a, -1
+    jr .bai_apply
+.bai_h_pos:
+    ld a, 1
+    jr .bai_apply
+.bai_vert:
+    ld a, c
+    xor e
+    and #02
+    jr nz, .bai_v_neg
+    ld a, -1
+    jr .bai_apply
+.bai_v_neg:
+    ld a, 1
+.bai_apply:
+    ld b, a                    ; B = odd-slot correction
     ld a, e
     add a, a
-    add a, e                   ; row * 3
-    add a, c                   ; + column
+    add a, e
+    add a, c                   ; 9-entry table index
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_boss_aim_ring
+    add hl, de
+    ld a, (hl)                 ; even compass slot of the sector
+    add a, b
+    and #0F
+    ret
+.bai_even:
+    ld a, e
+    add a, a
+    add a, e
+    add a, c
     ld e, a
     ld d, 0
     ld hl, bitmap_boss_aim_ring
@@ -3088,7 +3363,10 @@ ${hasPhaseBodyInterval ? `    ; The active phase may shorten the cadence: a lowe
     ld (boss_old_y), a
 
 ${hasPaths ? `    ; ---- authored path (Fase G) wins over the patrol ----
-    call bitmap_boss_path_sync
+${shootFreezeUsed ? `    ld a, (boss_burst_idx)
+    or a
+    jp nz, .no_y               ; a burst is in flight: hold still while firing
+` : ''}    call bitmap_boss_path_sync
     ld a, (boss_path_idx)
     or a
     jr z, .bp_patrol
@@ -7931,7 +8209,9 @@ ${(data.pathSelTables || []).map((_, index) => `    dw bitmap_boss_pathsel_room_
 ; pattern 0 = aimed at the player, 1 = fixed direction, 2 = spread, 3 = radial;
 ; bit 7 (spread/radial) fires from the authored dir instead of aiming at the
 ; player, bit 6 (any but aimed) rotates the base angle one ring step of the
-; record's stride after every burst wave: the spiral.
+; record's stride after every burst wave: the spiral. Bit 2 holds the boss
+; still while a burst is in flight, bits 4-5 are the per-wave spray in ring
+; steps (aim ±N, alternating sides).
 ; start/stride are SIGNED ring steps, precomputed so a fan and a full ring are
 ; the same runtime loop.
 bitmap_boss_shoot_table:
@@ -7941,7 +8221,15 @@ ${shootRecords.map((record, index) => `    db ${record.map(value => asmByte(valu
 ; speed of 4 without overflowing 16 bits.
 bitmap_boss_dir16_table:
 ${shootDirRows}
-; (row = player above/level/below, col = left/level/right) -> RING slot.
+${!hasPreciseAimed ? '' : `; Rounded minor/major ratio 0..256 -> positive unit major/minor in 8.8.
+; Generated only for projects using a precise aimed definition (1028 bytes).
+bitmap_boss_aim_unit_table:
+${Array.from({ length: 257 }, (_, ratio) => {
+  const r = ratio / 256;
+  const major = 256 / Math.sqrt(1 + r * r);
+  return `    dw ${asmWord(Math.round(major))}, ${asmWord(Math.round(major * r))}`;
+}).join('\n')}
+`}; (row = player above/level/below, col = left/level/right) -> RING slot.
 ; Only even slots: the compass is every other ring direction.
 bitmap_boss_aim_ring:
     db #0E, #00, #02

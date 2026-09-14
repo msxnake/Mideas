@@ -1,0 +1,35 @@
+player_tick_boss_probe
+SAMPLE frame=60 playerCalls=0 blits=0 boss=0,0
+SAMPLE frame=120 playerCalls=0 blits=0 boss=0,0
+SAMPLE frame=180 playerCalls=0 blits=0 boss=0,0
+SAMPLE frame=240 playerCalls=0 blits=0 boss=0,0
+SAMPLE frame=300 playerCalls=0 blits=0 boss=0,0
+SAMPLE frame=360 playerCalls=0 blits=0 boss=0,0
+SAMPLE frame=420 playerCalls=0 blits=0 boss=0,0
+SAMPLE frame=480 playerCalls=0 blits=0 boss=0,0
+SAMPLE frame=540 playerCalls=2 blits=2 boss=64,32
+SAMPLE frame=600 playerCalls=62 blits=2 boss=64,32
+SAMPLE frame=660 playerCalls=122 blits=2 boss=64,32
+SAMPLE frame=720 playerCalls=182 blits=2 boss=64,32
+START frame=778 playerCalls=241 blits=81
+SAMPLE frame=2 playerCalls=1 blits=3 boss=192,32
+SAMPLE frame=62 playerCalls=61 blits=103 boss=192,104
+SAMPLE frame=122 playerCalls=121 blits=223 boss=192,104
+SAMPLE frame=182 playerCalls=180 blits=341 boss=192,32
+SAMPLE frame=242 playerCalls=241 blits=440 boss=192,104
+SAMPLE frame=302 playerCalls=301 blits=534 boss=192,104
+SAMPLE frame=362 playerCalls=361 blits=642 boss=192,104
+SAMPLE frame=422 playerCalls=421 blits=762 boss=192,104
+SAMPLE frame=482 playerCalls=480 blits=880 boss=64,32
+SAMPLE frame=542 playerCalls=541 blits=979 boss=192,104
+SAMPLE frame=602 playerCalls=601 blits=1073 boss=192,104
+SAMPLE frame=662 playerCalls=661 blits=1181 boss=192,104
+SAMPLE frame=722 playerCalls=721 blits=1301 boss=192,104
+SAMPLE frame=782 playerCalls=780 blits=1419 boss=192,32
+SAMPLE frame=842 playerCalls=841 blits=1518 boss=192,104
+SAMPLE frame=902 playerCalls=901 blits=1612 boss=192,104
+SAMPLE frame=962 playerCalls=961 blits=1720 boss=192,104
+SAMPLE frame=1022 playerCalls=1021 blits=1840 boss=192,104
+SAMPLE frame=1082 playerCalls=1080 blits=1958 boss=64,32
+SAMPLE frame=1142 playerCalls=1141 blits=2057 boss=192,104
+FINAL frames=1200 playerCalls=1199 blits=2147

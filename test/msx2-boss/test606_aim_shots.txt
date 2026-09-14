@@ -1,0 +1,30 @@
+bullet[0] pos=(152,48) v=(3,1) player=(211,144) boss=(120,32) rel=(58,105) want=1/1 got=1/1 -> PASS
+bullet[1] pos=(162,52) v=(3,1) player=(211,144) boss=(130,36) rel=(48,101) want=1/1 got=1/1 -> PASS
+bullet[2] pos=(170,58) v=(3,1) player=(211,144) boss=(138,42) rel=(40,95) want=1/1 got=1/1 -> PASS
+bullet[0] pos=(174,64) v=(3,1) player=(211,144) boss=(142,48) rel=(36,89) want=1/1 got=1/1 -> PASS
+bullet[0] pos=(114,64) v=(3,1) player=(147,144) boss=(82,48) rel=(32,89) want=1/1 got=1/1 -> PASS
+bullet[1] pos=(104,64) v=(3,1) player=(117,144) boss=(72,48) rel=(12,89) want=1/1 got=1/1 -> PASS
+bullet[2] pos=(94,64) v=(-4,1) player=(95,144) boss=(62,48) rel=(0,89) want=0/1 got=-1/1 -> FAIL
+bullet[3] pos=(84,64) v=(3,1) player=(125,144) boss=(52,48) rel=(40,89) want=1/1 got=1/1 -> PASS
+bullet[0] pos=(126,65) v=(-4,1) player=(113,144) boss=(94,49) rel=(-14,88) want=-1/1 got=-1/1 -> PASS
+bullet[1] pos=(134,58) v=(-4,1) player=(99,144) boss=(102,42) rel=(-36,95) want=-1/1 got=-1/1 -> PASS
+bullet[2] pos=(142,51) v=(-4,1) player=(129,144) boss=(110,35) rel=(-14,102) want=-1/1 got=-1/1 -> PASS
+bullet[3] pos=(150,48) v=(3,1) player=(159,144) boss=(118,32) rel=(8,105) want=1/1 got=1/1 -> PASS
+bullet[0] pos=(146,64) v=(-4,1) player=(101,144) boss=(114,48) rel=(-46,89) want=-1/1 got=-1/1 -> PASS
+bullet[1] pos=(136,64) v=(-4,1) player=(131,144) boss=(104,48) rel=(-6,89) want=-1/1 got=-1/1 -> PASS
+bullet[2] pos=(126,64) v=(3,1) player=(161,144) boss=(94,48) rel=(34,89) want=1/1 got=1/1 -> PASS
+bullet[3] pos=(116,64) v=(3,1) player=(191,144) boss=(84,48) rel=(74,89) want=1/1 got=1/1 -> PASS
+bullet[0] pos=(100,80) v=(3,1) player=(135,144) boss=(68,64) rel=(34,73) want=1/1 got=1/1 -> PASS
+bullet[1] pos=(110,79) v=(3,1) player=(165,144) boss=(78,63) rel=(54,74) want=1/1 got=1/1 -> PASS
+bullet[2] pos=(118,73) v=(3,1) player=(195,144) boss=(86,57) rel=(76,80) want=1/1 got=1/1 -> PASS
+bullet[3] pos=(126,66) v=(3,1) player=(193,144) boss=(94,50) rel=(66,87) want=1/1 got=1/1 -> PASS
+bullet[0] pos=(174,62) v=(-4,1) player=(167,144) boss=(142,46) rel=(-8,91) want=-1/1 got=-1/1 -> PASS
+bullet[1] pos=(168,64) v=(3,1) player=(197,144) boss=(136,48) rel=(28,89) want=1/1 got=1/1 -> PASS
+bullet[2] pos=(158,64) v=(3,1) player=(191,144) boss=(126,48) rel=(32,89) want=1/1 got=1/1 -> PASS
+bullet[1] pos=(148,64) v=(3,1) player=(161,144) boss=(116,48) rel=(12,89) want=1/1 got=1/1 -> PASS
+bullet[0] pos=(86,64) v=(3,1) player=(201,144) boss=(54,48) rel=(114,89) want=1/1 got=1/1 -> PASS
+bullet[1] pos=(82,67) v=(3,1) player=(187,144) boss=(50,51) rel=(104,86) want=1/1 got=1/1 -> PASS
+bullet[2] pos=(90,74) v=(3,1) player=(157,144) boss=(58,58) rel=(66,79) want=1/1 got=1/1 -> PASS
+bullet[3] pos=(98,79) v=(3,1) player=(127,144) boss=(66,63) rel=(28,74) want=1/1 got=1/1 -> PASS
+captures=28 fails=1
+RESULT: FAIL

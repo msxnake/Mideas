@@ -1,0 +1,1 @@
+START hp=30 idx=1 pend=1

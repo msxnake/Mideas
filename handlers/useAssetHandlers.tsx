@@ -1,7 +1,7 @@
-import { createMsx2BossDefinition } from '../components/editors/Msx2BossEditor';
+import { createMsx2BossDefinition } from '../utils/msx2AssetDefaults';
 import { createMsx2BossPath } from '../utils/msx2BossPath';
 import { createMsx2EnemyBehavior } from '../utils/msx2EnemyBehavior';
-import { createMsx2ShootDefinition } from '../components/editors/Msx2ShootEditor';
+import { createMsx2ShootDefinition } from '../utils/msx2AssetDefaults';
 import { useCallback } from 'react';
 import {
   ProjectAsset, EditorType, Tile, Sprite, Msx2Sprite, Msx2Screen4TileScreen, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,

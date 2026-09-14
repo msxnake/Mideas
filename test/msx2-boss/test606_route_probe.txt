@@ -1,0 +1,44 @@
+room=255 player=(255,255) boss_act=255 boss=(255,255) bw=255 pool0=255
+room=255 player=(255,0) boss_act=255 boss=(0,255) bw=255 pool0=0
+room=255 player=(255,0) boss_act=255 boss=(0,255) bw=255 pool0=0
+room=255 player=(255,0) boss_act=255 boss=(0,255) bw=255 pool0=0
+room=255 player=(255,0) boss_act=255 boss=(0,255) bw=255 pool0=0
+room=255 player=(255,0) boss_act=255 boss=(0,255) bw=255 pool0=0
+room=255 player=(255,0) boss_act=255 boss=(0,255) bw=255 pool0=0
+room=11 player=(192,64) boss_act=0 boss=(0,255) bw=0 pool0=0
+room=11 player=(192,80) boss_act=0 boss=(0,255) bw=0 pool0=0
+room=11 player=(192,80) boss_act=0 boss=(0,255) bw=0 pool0=0
+room=11 player=(192,80) boss_act=0 boss=(0,255) bw=0 pool0=0
+room=11 player=(192,80) boss_act=0 boss=(0,255) bw=0 pool0=0
+room=11 player=(192,80) boss_act=0 boss=(0,255) bw=0 pool0=0
+room=11 player=(228,96) boss_act=0 boss=(0,255) bw=0 pool0=0
+bullet[1] pos=(0,0) v=(0,-1) player=(2,48) boss=(48,48) size=(80,48) rel=(-79,-7) want=-1/-1 got=0/-1 -> FAIL
+bullet[3] pos=(0,255) v=(0,-1) player=(2,48) boss=(48,48) size=(80,48) rel=(-79,-7) want=-1/-1 got=0/-1 -> FAIL
+room=12 player=(52,138) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=0 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=0 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+room=12 player=(121,144) boss_act=1 boss=(48,48) bw=80 pool0=0
+captures=2 fails=2
+RESULT: FAIL

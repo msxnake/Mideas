@@ -66,7 +66,10 @@ const turret = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2BitmapTu
 assert(types.includes('logicUpdateIntervalFrames?: number;'), 'EnemyDefinition must expose the canonical field');
 assert(library.includes('logicUpdateIntervalFrames: 1,'), 'new Enemy Assets must default to every frame');
 assert(editor.includes('enemy.logicUpdateIntervalFrames'), 'Enemy Asset UI must edit the canonical field');
-assert(catalog.includes('msx2_ai: aiComponent') && catalog.includes('logicUpdateIntervalFrames,'), 'placements must snapshot cadence');
+// Catalog snapshot path: since 1abd4aee placements build the ai component as a
+// local `aiComponent` object (carrying the cadence) spread into the snapshot;
+// the old literal `msx2_ai: aiComponent(...)` call no longer exists.
+assert(catalog.includes('const aiComponent = {') && catalog.includes('...aiComponent,') && catalog.includes('logicUpdateIntervalFrames,'), 'placements must snapshot cadence');
 
 assert(screen4.includes('update_msx2_enemy_logic_cadence:'), 'SCREEN 4 must compute cadence once per video frame');
 assert(screen4.includes('msx2_enemy_logic_due'), 'SCREEN 4 must expose one shared due flag per slot');
