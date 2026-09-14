@@ -45,13 +45,18 @@ export default defineConfig(({ mode }) => {
           rewrite: requestPath => requestPath.replace(/^\/mcp-api/, '/api'),
         },
       } : undefined,
+      // Pre-transforma el grafo de arranque mientras el server sube, en lugar
+      // de hacerlo cuando el navegador pide cada módulo (primera carga lenta).
+      warmup: {
+        clientFiles: ['./index.html', './index.tsx', './components/AppUI.tsx'],
+      },
     },
 
     // Exponer la API key de Gemini al frontend
     define: {
       // Puedes usar solo una, la más clara
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-      // Si también la usas como API_KEY en algún lado, déjala, sino quítala
+      // Si también la usas como API_KEY en algún lado, dale, sino quítala
       // 'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
 
@@ -63,30 +68,28 @@ export default defineConfig(({ mode }) => {
       extensions: ['.mjs', '.mts', '.ts', '.tsx', '.js', '.jsx', '.json'],
     },
 
+    optimizeDeps: {
+      // Pre-bundlea estas dependencias durante el arranque del server en vez de
+      // descubrirlas al cargar la página (cada descubrimiento tardío fuerza una
+      // re-optimización que bloquea la primera carga).
+      include: [
+        'react',
+        'react/jsx-dev-runtime',
+        'react/jsx-runtime',
+        'react-dom',
+        'react-dom/client',
+        '@xyflow/react',
+        'jszip',
+        'lucide-react',
+        'twgl.js',
+      ],
+    },
+
     build: {
       chunkSizeWarningLimit: 600,
-      rollupOptions: {
-        output: {
-          manualChunks: {
-            'vendor-react': ['react', 'react-dom'],
-            'vendor-ui': ['@xyflow/react'],
-            'msx-utils': [
-              './utils/msxGenerator/index.ts'
-            ],
-            'editors': [
-              './components/editors/TileEditor.tsx',
-              './components/editors/SpriteEditor.tsx',
-              './components/editors/ScreenEditor.tsx',
-              './components/editors/WorldMapEditor.tsx'
-            ],
-            'tools': [
-              './components/tools/FileExplorerPanel.tsx',
-              './components/tools/PropertiesPanel.tsx',
-              './components/tools/PalettePanel.tsx'
-            ]
-          }
-        }
-      }
+      // Let dynamic editor imports define boundaries. Grouping editor dependencies
+      // manually can pull generators and other tools back into the startup graph.
+      manifest: true,
     }
   };
 });

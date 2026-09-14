@@ -28,16 +28,11 @@ import { EDITABLE_CHAR_CODES_SUBSET } from './utils/msxFontRenderer';
 import { Msx2EnemyBehaviorAsset } from '../utils/msx2EnemyBehavior';
 import { buildDetailedMsx2PlayerDocument, mergeMsx2PlayerUpdate } from '../utils/msx2PlayerDocument';
 import { getUsedMsx2SpritePaletteSlots, reconcileMsx2SpriteIntoProjectPalette } from '../utils/msx2PaletteCompatibility';
-import { FileExplorerPanel, TILE_BANKS_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './tools/FileExplorerPanel';
-import { PropertiesPanel } from './tools/PropertiesPanel';
-import { PalettePanel } from './tools/PalettePanel';
-import { EntityTypeListPanel } from './tools/EntityTypeListPanel'; 
-import { SnippetsPanel } from './common/SnippetsPanel';
+import { TILE_BANKS_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './tools/systemAssetIds';
 import { StatusBar } from './layout/StatusBar';
 import { Toolbar } from './layout/Toolbar';
 // OBSOLETO: import { CompressDataModal } from './modals/CompressDataModal';
 import { ThemeProvider } from '../contexts/ThemeContext';
-import { ConfigTabModal } from './theme_config/ConfigTabModal';
 import { Panel } from './common/Panel';
 import { Button } from './common/Button';
 import { ContextMenu } from './common/ContextMenu';
@@ -106,6 +101,16 @@ const MsxEmulatorHelpModal = deferredPanel(() => import('./modals/MsxEmulatorHel
 const ConfirmationModal = deferredPanel(() => import('./modals/ConfirmationModal').then(module => ({ default: module.ConfirmationModal })));
 const HUDEditorModal = deferredPanel(() => import('./editors/HUDEditorModal').then(module => ({ default: module.HUDEditorModal })));
 const CodeExportModal = deferredPanel(() => import('./modals/CodeExportModal').then(module => ({ default: module.CodeExportModal })));
+
+// Side panels and shells that are visible at startup also load on demand: the
+// Suspense fallback keeps the layout in place while they transform/arrive.
+const FileExplorerPanel = deferredPanel(() => import('./tools/FileExplorerPanel').then(module => ({ default: module.FileExplorerPanel })));
+const PropertiesPanel = deferredPanel(() => import('./tools/PropertiesPanel').then(module => ({ default: module.PropertiesPanel })));
+const PalettePanel = deferredPanel(() => import('./tools/PalettePanel').then(module => ({ default: module.PalettePanel })));
+const EntityTypeListPanel = deferredPanel(() => import('./tools/EntityTypeListPanel').then(module => ({ default: module.EntityTypeListPanel })));
+const SnippetsPanel = deferredPanel(() => import('./common/SnippetsPanel').then(module => ({ default: module.SnippetsPanel })));
+const ConfigTabModal = deferredPanel(() => import('./theme_config/ConfigTabModal').then(module => ({ default: module.ConfigTabModal })));
+
 
 /**
  * Props for the main AppUI component.

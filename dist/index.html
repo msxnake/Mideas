@@ -4,71 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MSX Retro Game IDE</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script>
-    tailwind.config = {
-      darkMode: 'class', // Ensure dark mode is enabled
-      theme: {
-        extend: {
-          colors: {
-            msx: {
-              // Original MSX Palette for content - REMAINS UNCHANGED
-              transparent: 'transparent',
-              black: '#000000',
-              mediumgreen: '#3EB847',
-              lightgreen: '#74D07D',
-              darkblue: '#2F2FC1',
-              lightblue: '#5858FC',
-              darkred: '#B63125',
-              cyan: '#68D2DA',
-              mediumred: '#FC584A',
-              lightred: '#FF8E81',
-              darkyellow: '#C0BF3B',
-              lightyellow: '#E7E474',
-              darkgreen: '#309337',
-              magenta: '#B640C8',
-              gray: '#999999', // This is an MSX palette color, not a UI theme color.
-              white: '#FFFFFF',
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 
-              // UI specific colors - Now using CSS Variables for dynamic theming
-              bgcolor: 'var(--msx-bgcolor)',
-              'bgcolor-dark': 'color-mix(in srgb, var(--msx-bgcolor) 82%, #000000)',
-              'bgcolor-darker': 'color-mix(in srgb, var(--msx-bgcolor) 70%, #000000)',
-              panelbg: 'var(--msx-panelbg)',
-              'panelbg-dark': 'color-mix(in srgb, var(--msx-panelbg) 82%, #000000)',
-              accent: 'var(--msx-accent)',
-              highlight: 'var(--msx-highlight)',
-              primary: 'var(--msx-textprimary)',
-              textprimary: 'var(--msx-textprimary)',
-              textsecondary: 'var(--msx-textsecondary)',
-              border: 'var(--msx-border)',
-              danger: 'var(--msx-danger)',
-              warning: 'var(--msx-warning)',
-            }
-          },
-          fontFamily: {
-            'pixel': ['"Press Start 2P"', 'monospace'], 
-            'sans': ['Inter', 'sans-serif'], 
-          },
-          keyframes: {
-            fadeIn: {
-              '0%': { opacity: '0' },
-              '100%': { opacity: '1' },
-            },
-            slideIn: {
-              '0%': { transform: 'translateY(20px)', opacity: '0'},
-              '100%': { transform: 'translateY(0px)', opacity: '1'},
-            }
-          },
-          animation: {
-            fadeIn: 'fadeIn 0.5s ease-out',
-            slideIn: 'slideIn 0.5s ease-out forwards',
-          }
-        }
-      }
-    }
-  </script>
   <style id="dynamic-theme-styles">
     /* CSS variables will be injected here by ThemeProvider */
   </style>
@@ -144,16 +81,11 @@
     }
   </style>
 
-  <script type="module" crossorigin src="/assets/index-CMr46xEq.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/vendor-react-c5ypKtDW.js">
-  <link rel="modulepreload" crossorigin href="/assets/vendor-ui-eCPPcye4.js">
-  <link rel="modulepreload" crossorigin href="/assets/msx-utils-ZUNC1u5J.js">
-  <link rel="modulepreload" crossorigin href="/assets/editors-BKn4ylxb.js">
-  <link rel="modulepreload" crossorigin href="/assets/tools-Dv43ufI2.js">
-  <link rel="stylesheet" crossorigin href="/assets/index-BZV40eAE.css">
+  <script type="module" crossorigin src="/assets/index-BcjO40vE.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-DPNSOJZ3.css">
 </head>
 <body class="dark">
   <noscript>You need to enable JavaScript to run this app.</noscript>
-  <div id="root"></div>
+  <div id="root"></div>
 </body>
 </html>
