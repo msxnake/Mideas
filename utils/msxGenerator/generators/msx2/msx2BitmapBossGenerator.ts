@@ -646,6 +646,8 @@ export interface BitmapBossSystemAsm {
   bulletHookLabel: string;
   /** `call bitmap_boss_sbul_sat` — must run AFTER bitmap_update_enemy_sat. */
   satCallAsm: string;
+  /** Deferred animated bullet colour upload, after the full SAT chain. */
+  colorCallAsm: string;
   routinesAsm: string;
   dataAsm: string;
   /** Room records for the MegaROM data-bank packer; empty on simple32k. */
@@ -1798,7 +1800,7 @@ export function buildBitmapBossSystemAsm(
   if (!data.enabled) {
     return {
       enabled: false, ramBytes: 0, equates: '', initAsm: '', loadCallAsm: '', updateCallAsm: '', playerGateAsm: '', autoMoveInputAsm: '',
-      bulletHookLabel: '', satCallAsm: '', routinesAsm: '', dataAsm: '', bankedBlocks: [],
+      bulletHookLabel: '', satCallAsm: '', colorCallAsm: '', routinesAsm: '', dataAsm: '', bankedBlocks: [],
     };
   }
   const roomCount = data.roomTables.length;
@@ -1860,8 +1862,11 @@ export function buildBitmapBossSystemAsm(
   const hasShowMessage = streamHas(DEFEAT_OP_SHOW_MESSAGE);
   const hasChangeScreen = streamHas(DEFEAT_OP_CHANGE_SCREEN);
   const hasDefeatActions = flagCount > 0 || hasGiveKey || hasOpenDoor || hasShowMessage || hasChangeScreen;
+  // FASE 3: at least one room composes its boss from 16x16 atlas cells.
+  const hasBossCells = (data.cellTables || []).some(table => table && table[0] > 0);
+  const cellRenderRamBytes = hasBossCells ? 3 : 0;
   const defeatedBytes = roomPoolCount * bossInstanceCount;
-  const flagsBase = ram + 28 + defeatedBytes;
+  const flagsBase = ram + 29 + (hasBossCells ? 3 : 0) + defeatedBytes;
   // Phase B chain barrier: only emitted when at least one room configures a
   // bossBarrierTileId, so bosses without a chain keep byte-identical ROMs.
   const hasBarrier = (data.barrierTables || []).some(t => t && t[0] === 1);
@@ -1869,7 +1874,7 @@ export function buildBitmapBossSystemAsm(
   // Using roomPoolCount here leaves the second slot's flag overlapping the
   // first path pointer in every two-boss room; the path loader then writes a
   // non-zero value into boss_defeated[1] and silently suppresses Boss Beta.
-  const barrierRamBase = ram + 28 + defeatedBytes + flagCount;
+  const barrierRamBase = ram + 29 + (hasBossCells ? 3 : 0) + defeatedBytes + flagCount;
   const introStreams = data.introStreams || [];
   const introStreamIsEmpty = (stream: number[] | undefined) =>
     !stream || stream.length === 0 || (stream.length === 1 && stream[0] === INTRO_OP_END);
@@ -1888,8 +1893,6 @@ export function buildBitmapBossSystemAsm(
   const hasIntroClose = introHas(INTRO_OP_CLOSE_BARRIER);
   const hasIntroDialogue = introHas(INTRO_OP_DIALOGUE);
   const hasDeathFx = (data.deathFxTables || []).some(table => table && table[0] > 0);
-  // FASE 3: at least one room composes its boss from 16x16 atlas cells.
-  const hasBossCells = (data.cellTables || []).some(table => table && table[0] > 0);
   const hasDefaultDeathSound = (data.deathSoundIndexes || []).some(index => index < 0);
   const hasCustomDeathSound = (data.deathSoundIndexes || []).some(index => index > 0)
     && (data.deathSoundStreams || []).length > 0;
@@ -2014,7 +2017,7 @@ export function buildBitmapBossSystemAsm(
   // instead of each one walking the table again.
   const PHASE_RAM_BYTES = 6;
   const phaseRamBase = shootRamBase + (hasShoots ? shootRamBytesTotal : 0);
-  const baseRamBytes = 11 + 2 + 15 + defeatedBytes + flagCount + (hasBarrier ? 7 : 0)
+  const baseRamBytes = 12 + cellRenderRamBytes + 2 + 15 + defeatedBytes + flagCount + (hasBarrier ? 7 : 0)
     + PROJ_RAM_BYTES + spriteSlots * BOSS_SBUL_SLOT_BYTES
     + (hasPaths ? PATH_RAM_BYTES : 0) + (hasShoots ? shootRamBytesTotal : 0)
     + (phasesExtended ? PHASE_RAM_BYTES : 0);
@@ -2059,8 +2062,8 @@ export function buildBitmapBossSystemAsm(
   // path cursor, which is last) and the route walked into nonsense. Guarded by
   // scripts/check_msx2_boss_path_phase_switch.mjs, which counts the copies the
   // generator actually emitted.
-  const INSTANCE_STATE_BYTES = 13
-    + (hasBossCells ? 1 : 0)
+  const INSTANCE_STATE_BYTES = 14
+    + (hasBossCells ? 4 : 0)
     + (hasProjectiles ? 9 : 0)
     + (hasFallingRocks ? 1 : 0)
     // wait, idx, fire_mode, pending, once + the ptr and cur words
@@ -2184,6 +2187,14 @@ bitmap_boss_shoot_record:
 ; DESTROYS: AF, BC, DE, HL. Preserves IX.
 ; ------------------------------------------------------------
 bitmap_boss_shoot_fire:
+    ; Do not restart a burst while its remaining waves are still in flight.
+    ; Phase cadence can be shorter than a staggered burst (for example a 60f
+    ; five-shot volley with a 10f phase interval). Restarting here would keep
+    ; boss_burst_idx non-zero forever, so a freeze-enabled boss would never
+    ; return to its path or advance to the next node.
+    ld a, (boss_burst_idx)
+    or a
+    ret nz
     ld a, (boss_shoot_cnt)
     ld c, a                    ; C = pattern index, kept across the lookup
     call bitmap_boss_shoot_record
@@ -2764,8 +2775,11 @@ boss_anim_frame EQU ${asmWord(ram + 9)}
 boss_int_tick   EQU ${asmWord(ram + 10)}
 boss_sx         EQU ${asmWord(ram + 11)}  ; word: current frame atlas SX
 boss_cmd_buf    EQU ${asmWord(ram + 13)}  ; 15-byte V9938 command block
-${!hasBossCells ? '' : `boss_cells_shown EQU ${asmWord(cellsRamBase)}  ; frame currently on screen, #FF = none
-`}boss_defeated   EQU ${asmWord(ram + 28)}  ; ${defeatedBytes} active-world/instance bytes, 1 = killed
+boss_render_phase EQU ${asmWord(ram + 28)} ; 0 idle, 1 restore X, 2 restore Y, 3 draw body
+${!hasBossCells ? '' : `boss_render_cells_ptr EQU ${asmWord(ram + 29)} ; current cell-run record cursor
+boss_render_cells_left EQU ${asmWord(ram + 31)} ; records left in the deferred body
+boss_cells_shown EQU ${asmWord(cellsRamBase)}  ; frame currently on screen, #FF = none
+`}boss_defeated   EQU ${asmWord(ram + 29 + cellRenderRamBytes)}  ; ${defeatedBytes} active-world/instance bytes, 1 = killed
 boss_slot       EQU ${asmWord(instanceSelectorAddr)} ; selected boss instance (0 or 1)
 boss_instance_state EQU ${asmWord(instanceStateBase)} ; saved selected-state blocks
 BOSS_INSTANCE_STATE_BYTES EQU ${INSTANCE_STATE_BYTES}
@@ -2856,6 +2870,11 @@ boss_laser_tmp_dir   EQU ${asmWord(laserRamBase + 7)}
   // loads on purpose, so the per-room load path cannot clear them.
   const initAsm = `    ; Boss persistent state (defeated flags${hasDefeatActions ? ' + defeat action flags' : ''}).
     xor a
+    ld (boss_render_phase), a
+${hasBossCells ? `    ld (boss_render_cells_left), a
+    ld hl, 0
+    ld (boss_render_cells_ptr), hl
+` : ''}
 ${Array.from({ length: defeatedBytes }, (_v, i) => `    ld (boss_defeated + ${i}), a`).join('\n')}
 ${hasDefeatActions ? Array.from({ length: flagCount }, (_v, i) => `    ld (boss_flags + ${i}), a`).join('\n') + '\n' : ''}${hasIntro ? `    ld (boss_intro_state), a
     ld (boss_intro_auto_move), a
@@ -2946,10 +2965,13 @@ ${hasDeathAnim ? Array.from({ length: DEATH_ANIM_SLOTS }, (_v, i) => `    ld (bo
   const stateByteFields = [
     'boss_active', 'boss_x', 'boss_y', 'boss_old_x', 'boss_old_y',
     'boss_dx', 'boss_dy', 'boss_hp', 'boss_anim_tick', 'boss_anim_frame',
-    'boss_int_tick',
+    'boss_int_tick', 'boss_render_phase',
   ];
   const stateWordFields = ['boss_sx'];
-  if (hasBossCells) stateByteFields.push('boss_cells_shown');
+  if (hasBossCells) {
+    stateWordFields.push('boss_render_cells_ptr');
+    stateByteFields.push('boss_render_cells_left', 'boss_cells_shown');
+  }
   if (hasProjectiles) stateByteFields.push(
     'boss_proj_active', 'boss_proj_x', 'boss_proj_y', 'boss_proj_ox',
     'boss_proj_oy', 'boss_proj_dx', 'boss_proj_dy', 'boss_proj_cd',
@@ -3151,6 +3173,11 @@ ${hasHitBlast ? `    ld a, (ix+20)              ; authored blast hold (0 = this 
 ` : ''}    xor a
     ld (boss_anim_frame), a
     ld (boss_int_tick), a
+    ld (boss_render_phase), a
+${hasBossCells ? `    ld (boss_render_cells_left), a
+    ld hl, 0
+    ld (boss_render_cells_ptr), hl
+` : ''}
 ${hasHitBlast ? `    ld (boss_blast_timer), a   ; never enter a room mid-blast
 ` : ''}
     ld l, (ix+9)
@@ -3326,7 +3353,30 @@ ${hasBarrier ? `    ; The chain could not seal the doorway the player entered th
     call bitmap_boss_barrier_apply   ; reseals whatever the player has left
 .no_barrier_resweep:
 ` : ''}    call bitmap_boss_table_ix  ; IX -> room table (preserves state regs)
-${phasesExtended ? `    call bitmap_boss_phase_apply   ; before the laser and the cadence gate: both read it
+${hasBossCells ? `    ; Cell-composed bosses use the same deferred renderer, while an idle cell
+    ; body continues through the normal cadence path.
+    call bitmap_boss_cells_config
+    ld a, (hl)
+    or a
+    jp z, .boss_mono_path
+    ld a, (boss_render_phase)
+    or a
+    jp z, .boss_cells_update
+    call bitmap_boss_render_step
+    jp bitmap_boss_touch
+` : ''}
+${true ? `    ; A mono boss is rendered through a one-command-per-frame queue. The
+    ; queued strip/body command is retried without waiting for the VDP command
+    ; engine, so this path never steals the next player tick.
+.boss_mono_path:
+    ld a, (boss_render_phase)
+    or a
+    jr z, .boss_render_idle
+    call bitmap_boss_render_step
+    jp bitmap_boss_touch
+.boss_render_idle:
+` : ''}${hasBossCells ? `.boss_cells_update:
+` : ''}${phasesExtended ? `    call bitmap_boss_phase_apply   ; before the laser and the cadence gate: both read it
 ` : ''}${hasLaser ? `    call bitmap_boss_laser_tick
     ld a, (boss_laser_mask)
     or a
@@ -3353,6 +3403,31 @@ ${hasPhaseBodyInterval ? `    ; The active phase may shorten the cadence: a lowe
     ld (boss_int_tick), a
     cp (ix+19)
 `}    jp c, bitmap_boss_off_frame   ; off-frame: bullets + contact damage
+${hasSpriteProjectiles ? `    ; ---- Jordi's hold rule (2026-09-15): while boss bullets are on screen
+    ; the body HOLDS STILL. A moving body launches multi-VBlank HMMMs (full
+    ; repaint on move + strip restores) that soak the frame budget exactly when
+    ; several bullet slots churn the SAT every frame -- the one combination
+    ; that still glitched sprites. The salvo keeps flying and ticking from the
+    ; off-frame path; the body resumes its cadence once the pool drains.
+    push iy
+    ld iy, boss_sbul_pool
+    ld b, ${spriteSlots}
+.hold_scan:
+    ld a, (iy+0)
+    or a
+    jr nz, .hold_yes
+    push bc
+    ld bc, BOSS_SBUL_SLOT
+    add iy, bc
+    pop bc
+    djnz .hold_scan
+    pop iy                        ; pool drained: the body may move again
+    jr .hold_done                 ; MUST skip .hold_yes: it pops IY a second time
+.hold_yes:
+    pop iy
+    jp bitmap_boss_off_frame      ; salvo in flight: bullets + contact only
+.hold_done:
+` : ''}    ; Body redraws use bitmap_boss_render_step and never wait for CE.
     xor a
     ld (boss_int_tick), a
 
@@ -3465,10 +3540,23 @@ ${hasPhaseMoveSteps ? `    ld a, (boss_dy)
 .anim_done:
 
     ; ---- VDP phase: uncovered-edge strips from page 1, then body HMMM ----
-    call bitmap_boss_restore_strips
-${hasBossCells ? '    call bitmap_boss_draw_animated' : '    call bitmap_boss_draw'}
-${hasHitBlast ? `    call bitmap_boss_hit_blast_draw   ; over the body just painted; next redraw erases it
-` : ''}    jp bitmap_boss_touch
+${hasBossCells ? `    call bitmap_boss_cells_config
+    ld a, (hl)
+    or a
+    jr nz, .boss_body_cells
+` : ''}    ld a, 1
+    ld (boss_render_phase), a
+    call bitmap_boss_render_step
+    jr .boss_body_done
+${hasBossCells ? `.boss_body_cells:
+    xor a
+    ld (boss_render_cells_left), a
+    ld a, 1
+    ld (boss_render_phase), a
+    call bitmap_boss_render_step
+` : ''}${hasHitBlast && hasBossCells ? `    call bitmap_boss_hit_blast_draw   ; over the body just painted; next redraw erases it
+` : ''}.boss_body_done:
+    jp bitmap_boss_touch
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_off_frame
@@ -4127,6 +4215,372 @@ bitmap_boss_laser_rect_touch:
     ret
 ` : ''}
 
+${true ? `; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_try_launch_cmd
+; ------------------------------------------------------------
+; Try one V9938 command without waiting for a previous command to finish.
+; OUTPUT: Z when launched, NZ when the command engine is busy.
+; DESTROYS: AF, BC, HL. R#15 is restored to S#0 on both paths.
+; ------------------------------------------------------------
+bitmap_boss_try_launch_cmd:
+    call read_vdp_status_2
+    bit 0, a
+    jr nz, .boss_try_cmd_busy
+    call vdp_reinit_cmd_pointer
+    ld hl, boss_cmd_buf
+    ld bc, #0F9B
+    otir
+    xor a
+    ld e, a
+    ld a, #0F
+    call vdp_write_register
+    xor a
+    ret
+.boss_try_cmd_busy:
+    xor a
+    ld e, a
+    ld a, #0F
+    call vdp_write_register
+    ld a, 1
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_render_step
+; ------------------------------------------------------------
+; One command per call: restore the old X edge, restore the old Y edge, then
+; paint the new mono body. A busy VDP is simply retried on the next game tick;
+; no command-engine wait is allowed to delay player physics.
+; INPUT: IX -> current boss room record.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX.
+; ------------------------------------------------------------
+bitmap_boss_render_step:
+    ld a, (boss_render_phase)
+    cp 1
+    jp z, .boss_render_x
+    cp 2
+    jp z, .boss_render_y
+    cp 3
+    ret nz
+
+${hasBossCells ? `    ; Cell-composed bodies use the same strip phases, then consume
+    ; one coalesced cell run per game tick.
+    call bitmap_boss_cells_config
+    ld a, (hl)
+    or a
+    jp z, .boss_render_body
+    ld a, (boss_render_cells_left)
+    or a
+    jr nz, .boss_render_cell_cmd
+    call bitmap_boss_prepare_cell_render
+    ld a, (boss_render_cells_left)
+    or a
+    ret z
+.boss_render_cell_cmd:
+    call bitmap_boss_cell_render_step
+    ret
+` : ''}
+.boss_render_body:
+    ld hl, (boss_sx)
+    ld (boss_cmd_buf + 0), hl
+    ld l, (ix+11)
+    ld h, (ix+12)
+    ld (boss_cmd_buf + 2), hl
+    ld a, (boss_x)
+    and #FE
+    ld (boss_cmd_buf + 4), a
+    xor a
+    ld (boss_cmd_buf + 5), a
+    ld a, (boss_y)
+    add a, ${asmByte(gameY)}
+    ld l, a
+${visiblePageH}
+    ld (boss_cmd_buf + 6), hl
+    ld l, (ix+13)
+    ld h, 0
+    ld (boss_cmd_buf + 8), hl
+    ld l, (ix+14)
+    ld h, 0
+    ld (boss_cmd_buf + 10), hl
+    xor a
+    ld (boss_cmd_buf + 12), a
+    ld (boss_cmd_buf + 13), a
+    ld a, #D0
+    ld (boss_cmd_buf + 14), a
+    call bitmap_boss_try_launch_cmd
+    ret nz
+    xor a
+    ld (boss_render_phase), a
+    ret
+
+.boss_render_x:
+    ld a, (boss_x)
+    ld b, a
+    ld a, (boss_old_x)
+    cp b
+    jr z, .boss_render_x_done
+    jr c, .boss_render_x_left
+    add a, (ix+13)
+    sub 4
+.boss_render_x_left:
+    and #FE
+    ld (boss_cmd_buf + 0), a
+    ld (boss_cmd_buf + 4), a
+    xor a
+    ld (boss_cmd_buf + 1), a
+    ld (boss_cmd_buf + 5), a
+    ld a, (boss_old_y)
+    add a, ${asmByte(gameY)}
+    ld l, a
+${visiblePageH}
+    ld (boss_cmd_buf + 6), hl
+    ld a, h
+    xor 1
+    ld h, a
+    ld (boss_cmd_buf + 2), hl
+    ld hl, 4
+    ld (boss_cmd_buf + 8), hl
+    ld l, (ix+14)
+    ld h, 0
+    ld (boss_cmd_buf + 10), hl
+    xor a
+    ld (boss_cmd_buf + 12), a
+    ld (boss_cmd_buf + 13), a
+    ld a, #D0
+    ld (boss_cmd_buf + 14), a
+    call bitmap_boss_try_launch_cmd
+    ret nz
+.boss_render_x_done:
+    ld a, 2
+    ld (boss_render_phase), a
+    ret
+
+.boss_render_y:
+    ld a, (boss_y)
+    ld b, a
+    ld a, (boss_old_y)
+    cp b
+    jr z, .boss_render_y_done
+    jr c, .boss_render_y_top
+    add a, (ix+14)
+    sub 4
+.boss_render_y_top:
+    add a, ${asmByte(gameY)}
+    ld l, a
+${visiblePageH}
+    ld (boss_cmd_buf + 6), hl
+    ld a, h
+    xor 1
+    ld h, a
+    ld (boss_cmd_buf + 2), hl
+    ld a, (boss_old_x)
+    and #FE
+    ld (boss_cmd_buf + 0), a
+    ld (boss_cmd_buf + 4), a
+    xor a
+    ld (boss_cmd_buf + 1), a
+    ld (boss_cmd_buf + 5), a
+    ld l, (ix+13)
+    ld h, 0
+    ld (boss_cmd_buf + 8), hl
+    ld hl, 4
+    ld (boss_cmd_buf + 10), hl
+    ld (boss_cmd_buf + 12), a
+    ld (boss_cmd_buf + 13), a
+    ld a, #D0
+    ld (boss_cmd_buf + 14), a
+    call bitmap_boss_try_launch_cmd
+    ret nz
+.boss_render_y_done:
+    ld a, 3
+    ld (boss_render_phase), a
+    ret
+${hasBossCells ? `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_prepare_cell_render
+; ------------------------------------------------------------
+; Resolve one complete/delta cell list and keep its cursor in the selected
+; boss state. The list is then consumed one coalesced horizontal run per tick.
+; OUTPUT: boss_render_cells_ptr/left filled, or left = 0 when nothing changed.
+; ------------------------------------------------------------
+bitmap_boss_prepare_cell_render:
+    call bitmap_boss_cells_config
+    ld a, (boss_x)
+    ld b, a
+    ld a, (boss_old_x)
+    cp b
+    jp nz, .boss_prepare_cells_full
+    ld a, (boss_y)
+    ld b, a
+    ld a, (boss_old_y)
+    cp b
+    jp nz, .boss_prepare_cells_full
+    ld a, (boss_cells_shown)
+    cp #FF
+    jp z, .boss_prepare_cells_full
+    ld b, a
+    ld a, (boss_anim_frame)
+    cp b
+    jp z, .boss_prepare_cells_empty
+    call bitmap_boss_cells_delta
+    ld a, (boss_anim_frame)
+    ld (boss_cells_shown), a
+    ld c, (hl)
+    inc hl
+    ld a, c
+    or a
+    jp z, .boss_prepare_cells_empty
+    ld (boss_render_cells_ptr), hl
+    ld a, c
+    ld (boss_render_cells_left), a
+    ret
+.boss_prepare_cells_full:
+    ld a, (boss_anim_frame)
+    ld (boss_cells_shown), a
+    call bitmap_boss_cells_config
+    inc hl
+    ld c, (hl)                 ; cells per frame
+    inc hl
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                 ; DE = bytes per frame
+    inc hl                     ; HL -> frame 0 records
+    ld a, (boss_anim_frame)
+    or a
+    jr z, .boss_prepare_cells_ready
+    ld b, a
+.boss_prepare_cells_skip:
+    add hl, de
+    djnz .boss_prepare_cells_skip
+.boss_prepare_cells_ready:
+    ld (boss_render_cells_ptr), hl
+    ld a, c
+    ld (boss_render_cells_left), a
+    ret
+.boss_prepare_cells_empty:
+    xor a
+    ld (boss_render_cells_left), a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_cell_render_step
+; ------------------------------------------------------------
+; Build and try one coalesced horizontal cell run. On CE busy, the selected
+; state is untouched and the exact same run is retried next tick.
+; INPUT: IX -> current boss room record. DESTROYS: AF, BC, DE, HL. PRESERVES IX.
+; ------------------------------------------------------------
+bitmap_boss_cell_render_step:
+    ld a, (boss_render_cells_left)
+    ld c, a
+    ld a, c
+    or a
+    ret z
+    ld hl, (boss_render_cells_ptr)
+    push ix
+    push hl
+    pop ix                      ; IX = current cell record cursor
+    ld l, (ix+0)
+    ld h, (ix+1)
+    ld (boss_cmd_buf + 0), hl
+    ld l, (ix+2)
+    ld h, (ix+3)
+    ld (boss_cmd_buf + 2), hl
+    ld a, (ix+4)
+    ld b, a
+    ld a, (boss_x)
+    and #FE
+    add a, b
+    ld (boss_cmd_buf + 4), a
+    xor a
+    ld (boss_cmd_buf + 5), a
+    ld a, (ix+5)
+    ld b, a
+    ld a, (boss_y)
+    add a, ${asmByte(gameY)}
+    add a, b
+    ld l, a
+${visiblePageH}
+    ld (boss_cmd_buf + 6), hl
+    ld hl, 16
+    ld (boss_cmd_buf + 8), hl
+    ld (boss_cmd_buf + 10), hl
+    xor a
+    ld (boss_cmd_buf + 12), a
+    ld (boss_cmd_buf + 13), a
+    ld a, #D0
+    ld (boss_cmd_buf + 14), a
+    inc ix
+    inc ix
+    inc ix
+    inc ix
+    inc ix
+    inc ix                      ; IX -> next record; C = records remaining
+    dec c
+    jp z, .boss_cell_run_launch
+.boss_cell_run_merge:
+    ld hl, (boss_cmd_buf + 0)
+    ld de, (boss_cmd_buf + 8)
+    add hl, de
+    ld a, (ix+0)
+    cp l
+    jp nz, .boss_cell_run_launch
+    ld a, (ix+1)
+    cp h
+    jp nz, .boss_cell_run_launch
+    ld hl, (boss_cmd_buf + 2)
+    ld a, (ix+2)
+    cp l
+    jp nz, .boss_cell_run_launch
+    ld a, (ix+3)
+    cp h
+    jp nz, .boss_cell_run_launch
+    ld a, (boss_x)
+    and #FE
+    ld b, a
+    ld a, (ix+4)
+    add a, b
+    ld b, a
+    ld a, (boss_cmd_buf + 4)
+    ld e, a
+    ld a, (boss_cmd_buf + 8)
+    add a, e
+    cp b
+    jp nz, .boss_cell_run_launch
+    ld a, (boss_y)
+    add a, ${asmByte(gameY)}
+    add a, (ix+5)
+    ld b, a
+    ld a, (boss_cmd_buf + 6)
+    cp b
+    jp nz, .boss_cell_run_launch
+    ld a, (boss_cmd_buf + 8)
+    add a, 16
+    ld (boss_cmd_buf + 8), a
+    inc ix
+    inc ix
+    inc ix
+    inc ix
+    inc ix
+    inc ix
+    dec c
+    jp nz, .boss_cell_run_merge
+.boss_cell_run_launch:
+    push bc
+    call bitmap_boss_try_launch_cmd
+    pop bc
+    jp nz, .boss_cell_run_busy
+    ld (boss_render_cells_ptr), ix
+    ld a, c
+    ld (boss_render_cells_left), a
+    or a
+    jr nz, .boss_cell_run_done
+    xor a
+    ld (boss_render_phase), a
+.boss_cell_run_done:
+.boss_cell_run_busy:
+    pop ix
+    ret
+` : ''}
+` : ''}
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_restore_strips
 ; ------------------------------------------------------------
@@ -4398,6 +4852,48 @@ bitmap_boss_launch_cmd:
     ld a, #0F
     ld e, #00
     jp vdp_write_register
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_cmd_busy
+; ------------------------------------------------------------
+; PURPOSE: Bounded wait for the V9938 command engine, used by the v5 body
+;   defer gate. A probe with zero tolerance would defer the body forever:
+;   the room itself keeps small commands in flight almost every frame
+;   (animated tiles, HUD, atlas stamps), and those drain in well under a
+;   millisecond. So give the engine a SHORT grace (~4 ms) to drain them; only
+;   a genuinely long blit -- the previous body HMMM of a big boss, spanning
+;   2+ VBlanks -- is still running when the grace expires, and THAT is the
+;   case where the body frame must defer instead of blocking the game loop
+;   behind it (exchange.txt Codex-040/042: Player 60 Hz, boss deferred).
+; OUTPUT: A = 1 when the engine is STILL busy after the grace (defer the body
+;   frame), 0 when it drained in time (the body frame may start); Z flag
+;   matches A. R#15 restored to S#0.
+; DESTROYS: AF. PRESERVES: BC, DE, HL, IX, IY.
+; ------------------------------------------------------------
+bitmap_boss_cmd_busy:
+    push bc
+    ld b, #B4                   ; ~180 S#2 reads ≈ 4 ms of grace
+.cmd_busy_poll:
+    call read_vdp_status_2      ; A = S#2, R#15 left selecting S#2
+    bit 0, a                    ; CE bit: 1 = a command is executing
+    jr z, .cmd_busy_free
+    djnz .cmd_busy_poll
+    ; Still busy after the grace: the long blit is in flight -> defer.
+    xor a
+    ld e, a
+    ld a, #0F
+    call vdp_write_register     ; R#15 = 0: the control port reads S#0 again
+    pop bc
+    ld a, #01                   ; 1 = busy (NZ): the caller defers this frame
+    ret
+.cmd_busy_free:
+    xor a
+    ld e, a
+    ld a, #0F
+    call vdp_write_register     ; R#15 = 0: the control port reads S#0 again
+    pop bc
+    xor a                       ; 0 = free (Z): the body frame may start
+    ret
 ${!hasBossCells ? '' : `
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_cells_config
@@ -4417,7 +4913,7 @@ bitmap_boss_cells_config:
     ld d, 0
     ld hl, bitmap_boss_cells_ptr_table
     add hl, de
-    add hl, de                 ; word table: the entry index is room*2+slot
+    add hl, de                 ; word table: room*2 + boss slot
     ld a, (hl)
     inc hl
     ld h, (hl)
@@ -4490,7 +4986,7 @@ bitmap_boss_cells_delta:
     ld d, 0
     ld hl, bitmap_boss_cells_delta_ptr_table
     add hl, de
-    add hl, de                 ; word table: the entry index is room*2+slot
+    add hl, de                 ; word table: room*2 + boss slot
     ld a, (hl)
     inc hl
     ld h, (hl)
@@ -7620,33 +8116,22 @@ ${hasAnimatedSpriteBullet ? `    ld (iy+9), a               ; every spawned bull
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_sbul_sat
 ; ------------------------------------------------------------
-; PURPOSE: Refresh animated line colours, then stream the bullet SAT entries
-;   over the (unused) enemy slots. Runs
+; PURPOSE: Stream the bullet SAT entries over the (unused) enemy slots. Runs
 ;   AFTER bitmap_update_enemy_sat. Writes exactly ${spriteSlots} slot(s) and NO terminator,
 ;   so every system allocated after the enemies keeps rendering.
+;   v5: SAT PUBLICATION ONLY. The animated line-colour refresh lives in
+;   bitmap_boss_sbul_anim_colors, which the main loop calls in the deferred colour
+;   phase AFTER the whole SAT chain: a 16-byte copy_to_vram_ext per live
+;   bullet used to run in the middle of the chain and pushed the later
+;   subsystem writers out of the blanking window, which the raster sampled as
+;   one-frame ghost sprites exactly when several bullets were on screen.
 ; DESTROYS: AF, BC, DE, HL, IY.
 ; ------------------------------------------------------------
 bitmap_boss_sbul_sat:
     ld a, (boss_active)
     or a
     ret z
-${hasAnimatedSpriteBullet ? Array.from({ length: spriteSlots }, (_v, i) => `    ld iy, boss_sbul_pool + ${i * BOSS_SBUL_SLOT_BYTES}
-    ld a, (iy+0)
-    or a
-    jr z, .sb_color_slot_${i}_done
-    ld a, (iy+9)
-    add a, a
-    add a, a
-    add a, a
-    add a, a                  ; frame * 16-byte line-colour table
-    ld e, a
-    ld d, 0
-    ld hl, bitmap_boss_sbul_frame_colors
-    add hl, de
-    ld de, ${asmWord((sprites ? sprites.colorBase : 0) + i * 16)}
-    ld bc, 16
-    call copy_to_vram_ext
-.sb_color_slot_${i}_done:`).join('\n') + '\n' : ''}    ld de, ${asmWord(sprites ? sprites.satBase : 0)}
+    ld de, ${asmWord(sprites ? sprites.satBase : 0)}
     push de
     ld a, d
     and #C0
@@ -7701,6 +8186,41 @@ ${hasAnimatedSpriteBullet ? `    ld a, (iy+9)
     ld e, a
     ld a, #0E
     jp vdp_write_register
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_sbul_anim_colors
+; ------------------------------------------------------------
+; PURPOSE: Refresh each live animated bullet's 16-byte line-colour block.
+;   Deferred-cost work: the main loop calls this AFTER every subsystem has
+;   published its SAT entries, so a late copy can only affect colours/pixels
+;   for one frame and can never leave a later subsystem's SAT stale or
+;   half-written. Single-frame bullets keep their load-time colours and never
+;   emit this routine at all.
+; INPUT: boss_sbul_pool. DESTROYS: AF, BC, DE, HL, IY.
+; ------------------------------------------------------------
+${hasAnimatedSpriteBullet ? `bitmap_boss_sbul_anim_colors:
+    ld a, (boss_active)
+    or a
+    ret z
+${Array.from({ length: spriteSlots }, (_v, i) => `    ld iy, boss_sbul_pool + ${i * BOSS_SBUL_SLOT_BYTES}
+    ld a, (iy+0)
+    or a
+    jr z, .sb_color_slot_${i}_done
+    ld a, (iy+9)
+    add a, a
+    add a, a
+    add a, a
+    add a, a                  ; frame * 16-byte line-colour table
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_boss_sbul_frame_colors
+    add hl, de
+    ld de, ${asmWord((sprites ? sprites.colorBase : 0) + i * 16)}
+    ld bc, 16
+    call copy_to_vram_ext
+.sb_color_slot_${i}_done:`).join('\n')}
+    ret
+` : ''}
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_sbul_load
@@ -8256,6 +8776,9 @@ bitmap_boss_aim_ring:
     bulletHookLabel: 'bitmap_boss_bullet_hit',
     satCallAsm: hasSpriteProjectiles
       ? '    call bitmap_boss_sbul_sat    ; boss bullets over the free enemy SAT slots\n'
+      : '',
+    colorCallAsm: hasSpriteProjectiles && hasAnimatedSpriteBullet
+      ? '    call bitmap_boss_sbul_anim_colors ; deferred: after the whole SAT chain\n'
       : '',
     routinesAsm,
     dataAsm,

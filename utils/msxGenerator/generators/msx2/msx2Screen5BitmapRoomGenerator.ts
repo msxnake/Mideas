@@ -3437,7 +3437,7 @@ function buildRuntimeAsm(
   playerPhysics: BitmapPlayerPhysics,
   playerHitbox: BitmapPlayerHitbox,
   skillHooks: { inputGateAsm?: string; horizontalHookAsm?: string; gravityHookAsm?: string; landClearAsm?: string; leaveGroundAsm?: string } = {},
-  foreground: { count: number; patternGroupBase: number; satBase: number; colorBase: number; loadCallAsm: string } | null = null,
+  foreground: { count: number; patternGroupBase: number; satBase: number; colorBase: number; foregroundSatBase: number; foregroundColorBase: number; colorSourceOffset: number; loadCallAsm: string } | null = null,
   enableBlink: boolean = false,
   enableKeyDoorTransitions: boolean = false,
   doorVisualPendingPageCallAsm: string = '',
@@ -3480,11 +3480,12 @@ function buildRuntimeAsm(
 .rail_done:
 `
     : '';
-  // When foreground tiles exist, the player SAT/colour tables move past the
-  // foreground slots so the player renders behind them. With no foreground these
-  // default to the legacy #F600/#F400 bases (bit-identical output).
+  // The first SAT entries are reserved for the V9938 timing guard. Foreground
+  // tiles, when present, follow those entries and the player follows the
+  // foreground slots. `satBase`/`colorBase` are always the player's bases.
   const playerSatBaseWord = foreground ? hexWord(foreground.satBase) : '#F600';
   const playerColorBaseWord = foreground ? hexWord(foreground.colorBase) : '#F400';
+  const playerColorSourceOffset = foreground?.colorSourceOffset || 0;
   // Player body collision box (Player Config) -> solid-probe edges/offsets. The
   // leading edge is probed along the perpendicular axis at every <=16px step so a
   // body taller/wider than one 16px collision cell cannot tunnel through a cell.
@@ -3800,14 +3801,14 @@ ${glowingTailColors ? `    ld a, (bitmap_light_on)
 ${glowingTailColors ? `    bit 7, a
     jp z, .colors_normal_source
     res 7, a                  ; A = absolute animation frame
-    ld hl, bitmap_room_sprite_colors_glowing
+    ld hl, bitmap_room_sprite_colors_glowing${playerColorSourceOffset ? ` + ${playerColorSourceOffset}` : ''}
 ${options.bankedRle ? `    ld c, bitmap_room_sprite_colors_glowing_DATA_BANK
 ` : ''}    jp .colors_source_ready
 .colors_normal_source:
-    ld hl, bitmap_room_sprite_colors
+    ld hl, bitmap_room_sprite_colors${playerColorSourceOffset ? ` + ${playerColorSourceOffset}` : ''}
 ${options.bankedRle ? `    ld c, bitmap_room_sprite_colors_DATA_BANK
 ` : ''}.colors_source_ready:
-` : `    ld hl, bitmap_room_sprite_colors
+` : `    ld hl, bitmap_room_sprite_colors${playerColorSourceOffset ? ` + ${playerColorSourceOffset}` : ''}
 ${options.bankedRle ? `    ld c, bitmap_room_sprite_colors_DATA_BANK
 ` : ''}`}
     or a
@@ -5368,7 +5369,7 @@ init_hardware_sprite_tables:
     ; Sprite mode 2 tables at F400/F600/F800 (physical layout used by VK).
     ; Colours: upload ONLY frame 0's table here; the rest is per-frame and the
     ; main loop re-uploads on frame change (bitmap_upload_player_frame_colors).
-    ld hl, bitmap_room_sprite_colors
+    ld hl, bitmap_room_sprite_colors${playerColorSourceOffset ? ` + ${playerColorSourceOffset}` : ''}
     ld de, ${playerColorBaseWord}
     ld bc, ${colorFrameStride}
 ${options.bankedRle ? `    ld a, bitmap_room_sprite_colors_DATA_BANK
@@ -5376,7 +5377,7 @@ ${options.bankedRle ? `    ld a, bitmap_room_sprite_colors_DATA_BANK
 ${shouldEmitPlayerColorUpdate ? `    xor a                   ; frame 0 colours are now in VRAM
     ld (player_colors_loaded), a
 ` : ''}    ld hl, bitmap_room_sprite_attrs
-    ld de, ${playerSatBaseWord}
+    ld de, #F600
     ld bc, bitmap_room_sprite_attrs_end - bitmap_room_sprite_attrs
     call copy_to_vram_ext
 ${options.bankedRle ? `    ; The pattern bank is not resident: map it into P2 for the copy and put the
@@ -5394,7 +5395,8 @@ ${options.bankedRle ? `    ; The pattern bank is not resident: map it into P2 fo
 
 bitmap_wait_vblank:
     ; INPUT: none.
-    ; OUTPUT: one S#0 frame flag consumed; R#15 explicitly left selecting S#0.
+    ; OUTPUT: one S#0 frame flag consumed, timed to the blanking window when
+    ;   the VDP exposes it; R#15 explicitly left selecting S#0.
     ; DESTROYS: AF, BC. PRESERVES: DE, HL, IX, IY.
     ; Poll VDP status S#0 until the frame flag (bit 7) is set: a 60 Hz tick that
     ; does NOT depend on BIOS frame interrupts (the VK-style VDP init does not
@@ -5402,19 +5404,30 @@ bitmap_wait_vblank:
     ; every command-engine caller to have restored R#15 after reading S#2.
     ; If the host BIOS/VDP state never raises S#0 bit 7, return after a bounded
     ; delay so gameplay cannot hang on the first rendered frame.
+    ; v6 ghost-sprite fix: the frame flag LATCHES and is cleared by reading S#0.
+    ; An unconditional first read consumes either a stale flag or the current
+    ; one; only then do we wait for the NEXT rising edge. This prevents a late
+    ; main loop from publishing SAT data in the middle of the visible raster,
+    ; without the expensive S#2 grace loop that can burn enough CPU to drop
+    ; gameplay frames. R#15 stays on S#0 for every exit path.
+    push de
     xor a
     out (VDP_CTRL_PORT), a
     ld a, #8F                 ; R#15 = 0 -> control-port reads S#0
     out (VDP_CTRL_PORT), a
-    ld bc, #4000
-.wv_loop:
+    in a, (VDP_CTRL_PORT)      ; consume/clear stale or current S#0 flag
+    ld bc, #4000              ; tight-poll budget (host-quirk escape, as before)
+.wv_wait_next:
     in a, (VDP_CTRL_PORT)
     bit 7, a
-    ret nz
+    jp nz, .wv_done
     dec bc
     ld a, b
     or c
-    jp nz, .wv_loop
+    jp nz, .wv_wait_next
+.wv_done:
+    ; R#15 still selects S#0 and the returned S#0 flag has been consumed.
+    pop de
     ret
 
 update_player_movement:
@@ -12913,6 +12926,10 @@ function buildBitmapHudLinkedIconRowAsm(
   const drawPageLabel = `.hud_linked_${instanceIndex}_draw_page`;
   const fullLabel = `.hud_linked_${instanceIndex}_full`;
   const setSxLabel = `.hud_linked_${instanceIndex}_set_sx`;
+  const rangeNewReadyLabel = `.hud_linked_${instanceIndex}_range_new_ready`;
+  const rangeLowerLabel = `.hud_linked_${instanceIndex}_range_lower`;
+  const rangeFullLabel = `.hud_linked_${instanceIndex}_range_full`;
+  const rangeReadyLabel = `.hud_linked_${instanceIndex}_range_ready`;
 
   const equates = `; Linked HUD ${isToggle ? 'icon toggle' : 'icon row'} #${instanceIndex} (${element.id}), bound to "${element.binding}".
 ${dirtyLabel} EQU ${hexWord(ram.dirtyFlagAddress)}
@@ -12941,11 +12958,50 @@ ${ram.valueAddress !== undefined ? `    ld a, ${hexByte(clampByte(element.initia
 ${uploadLabel}:
 ${uploadAsm}
 ${updateLabel}:
-    ld a, (${bindingRamLabel})
+${isToggle ? `    ld a, (${bindingRamLabel})
     ld hl, ${dirtyLabel}
     cp (hl)
     ret z
     ld (hl), a
+` : `    ; Repaint only the icon-row slots whose filled/empty state changed.
+    ; Clamp the binding to the visible slot count so large values never walk
+    ; past this widget into neighbouring HUD elements.
+    ld a, (${bindingRamLabel})
+    cp ${slotCount}
+    jr c, ${rangeNewReadyLabel}
+    ld a, ${slotCount}
+${rangeNewReadyLabel}:
+    ld d, a
+    ld hl, ${dirtyLabel}
+    cp (hl)
+    ret z
+    ld e, (hl)
+    ld (hl), a
+    ld a, e
+    cp #FF
+    jp z, ${rangeFullLabel}
+    ld a, d
+    cp e
+    jr c, ${rangeLowerLabel}
+    sub e
+    ld (hud_draw_count), a
+    ld a, e
+    ld (hud_draw_start), a
+    jp ${rangeReadyLabel}
+${rangeLowerLabel}:
+    ld a, e
+    sub d
+    ld (hud_draw_count), a
+    ld a, d
+    ld (hud_draw_start), a
+    jp ${rangeReadyLabel}
+${rangeFullLabel}:
+    ld a, ${slotCount}
+    ld (hud_draw_count), a
+    xor a
+    ld (hud_draw_start), a
+${rangeReadyLabel}:
+`}
 
     ld hl, ${tmplLabel}
     ld de, hud_cmd_block
@@ -12960,13 +13016,18 @@ ${updateLabel}:
     ld (hud_cmd_block + 7), a
     call ${drawPageLabel}
 
-    call bitmap_restore_hud_separator
+    ; The separator is static and is restored by room loading/commit. Dynamic
+    ; counter updates must not add two blocking HMMV commands to the frame.
     ret
 
 ${drawPageLabel}:
-    ld b, ${slotCount}
+${isToggle ? `    ld b, 1
     ld c, 0
-${loopLabel}:
+` : `    ld a, (hud_draw_count)
+    ld b, a
+    ld a, (hud_draw_start)
+    ld c, a
+`}${loopLabel}:
 ${isToggle
     ? (isKeyItem || isCarriedObject
       ? `    ; Key item icon toggle: draw the "full" half (SX=0) when the player
@@ -13091,7 +13152,8 @@ ${ram.valueAddress !== undefined ? `    ld a, ${hexByte(clampByte(element.initia
     ld (hud_cmd_block + 7), a
     call ${drawPageLabel}
 
-    call bitmap_restore_hud_separator
+    ; The separator is static and is restored by room loading/commit. Keep the
+    ; dynamic bar update within the normal frame budget.
     ret
 
 ${drawPageLabel}:
@@ -13426,7 +13488,9 @@ ${clampNeeded ? `    cp ${max + 1}
     ld (hud_cmd_block + 7), a     ; page 1
     call ${drawPageLabel}
 
-    call bitmap_restore_hud_separator
+    ; The separator is static and is restored by room loading/commit. Keep the
+    ; dynamic bar update within the normal frame budget; do not launch two
+    ; extra blocking HMMV commands after each bar change.
     ret
 
 ${drawPageLabel}:
@@ -13624,7 +13688,8 @@ function isBitmapTurretEntity(analysis: ProjectAnalysis, entity: any): boolean {
 }
 
 /** Collects up to two aimed turrets per room. Every turret reserves two fixed
- * hardware sprites (centre + aim marker); all turrets share one bullet slot. */
+ * aim-marker sprite per turret (the body is authored room art, not a sprite);
+ * all turrets share one bullet slot. */
 function buildBitmapRoomTurretData(analysis: ProjectAnalysis, rooms: Msx2Screen5BitmapRoom[]): BitmapTurretRoomData {
   const patternBytes: number[] = [];
   const colorBytes: number[] = [];
@@ -15316,11 +15381,17 @@ function resolvePlayerSpawnPixels(room: Msx2Screen5BitmapRoom): { x: number; y: 
 }
 
 // Maximum foreground hardware-sprite tiles per room (SAT/pattern budget; the
-// player keeps slot `foregroundCount` onwards).
+// player keeps slot `reservedSpriteSlots + foregroundCount` onwards).
 const BITMAP_ROOM_FOREGROUND_MAX = 3;
 // Off-screen, non-terminating sprite Y written to empty foreground SAT slots so
 // the V9938 keeps processing sprites up to the player (Y=#D8 would terminate).
 const FOREGROUND_EMPTY_SPRITE_Y = 0xD4;
+// Keep the first SAT entries unused on V9938 SCREEN 5. This defensive layout
+// matches the convention used by Transball MSX for avoiding early sprite-fetch
+// artefacts. Y=$D1 (209) is out of bounds but does not terminate the SAT scan;
+// Y=$D8 would hide every real sprite after the reserved entries.
+const BITMAP_ROOM_RESERVED_SPRITE_SLOTS = 3;
+const RESERVED_EMPTY_SPRITE_Y = 0xD1;
 
 /**
  * Pack a 16x16 atlas tile into a 32-byte V9938 sprite-mode-2 pattern that is a
@@ -15434,14 +15505,14 @@ function buildBitmapRoomForegroundTables(rooms: Msx2Screen5BitmapRoom[], foregro
  * on every room flip to (re)write the foreground SAT slots, upload their mask
  * patterns/colours, and clear empty slots to an off-screen invisible sprite.
  */
-function buildBitmapLoadForegroundSpritesAsm(fg: { count: number; patternGroupBase: number }): string {
+function buildBitmapLoadForegroundSpritesAsm(fg: { count: number; patternGroupBase: number; foregroundSatBase: number; foregroundColorBase: number }): string {
   const slotBlocks: string[] = [];
   for (let i = 0; i < fg.count; i++) {
     const patGroup = fg.patternGroupBase + i;
     const patByte = (patGroup * 4) & 0xff;
     const patternVram = 0xF800 + patGroup * 32;
-    const colorVram = 0xF400 + i * 16;
-    const satVram = 0xF600 + i * 4;
+    const colorVram = fg.foregroundColorBase + i * 16;
+    const satVram = fg.foregroundSatBase + i * 4;
     slotBlocks.push(`
 .fg_slot_${i}:
     ld a, (ix+2)              ; pattern offset (#FF = empty slot for this room)
@@ -15506,22 +15577,22 @@ function buildBitmapLoadForegroundSpritesAsm(fg: { count: number; patternGroupBa
 ; FUNCTION: bitmap_load_foreground_sprites
 ; ------------------------------------------------------------
 ; PURPOSE:
-;   Load the foreground hardware-sprite tiles of the ACTIVE room into the first
-;   ${fg.count} SAT slot(s) (VRAM #F600..${hexWord(0xF600 + fg.count * 4 - 1)}), so the
-;   player (SAT slot ${fg.count}) walks BEHIND them. Each foreground tile is a
+;   Load the foreground hardware-sprite tiles of the ACTIVE room into SAT slots
+;   ${BITMAP_ROOM_RESERVED_SPRITE_SLOTS}..${BITMAP_ROOM_RESERVED_SPRITE_SLOTS + fg.count - 1} (VRAM ${hexWord(fg.foregroundSatBase)}..${hexWord(fg.foregroundSatBase + fg.count * 4 - 1)}),
+;   so the player (after those reserved slots) walks BEHIND them. Each foreground tile is a
 ;   single-colour 16x16 sprite whose pattern is a 1-bit opacity mask derived from
 ;   its atlas tile (pixel == background -> transparent). Rooms with fewer than
 ;   ${fg.count} foreground tiles fill the leftover slots with an off-screen
 ;   invisible sprite (Y=#${FOREGROUND_EMPTY_SPRITE_Y.toString(16).toUpperCase().padStart(2, '0')}) so the VDP keeps processing sprites up to the player.
 ;   Patterns/colours are uploaded once here; the per-frame player/bullet SAT
-;   writers never touch slots 0..${fg.count - 1}, so these sprites stay put.
+;   writers never touch the reserved foreground slot range, so these sprites stay put.
 ;
 ; INPUT:
 ;   current_screen_index = active room index.
 ;
 ; OUTPUT:
-;   SAT slots 0..${fg.count - 1}, pattern groups ${fg.patternGroupBase}..${fg.patternGroupBase + fg.count - 1}
-;   and colour slots 0..${fg.count - 1} rewritten for the active room.
+;   SAT slots ${BITMAP_ROOM_RESERVED_SPRITE_SLOTS}..${BITMAP_ROOM_RESERVED_SPRITE_SLOTS + fg.count - 1}, pattern groups ${fg.patternGroupBase}..${fg.patternGroupBase + fg.count - 1}
+;   and colour slots ${BITMAP_ROOM_RESERVED_SPRITE_SLOTS}..${BITMAP_ROOM_RESERVED_SPRITE_SLOTS + fg.count - 1} rewritten for the active room.
 ;
 ; DESTROYS:
 ;   AF, BC, DE, HL.
@@ -15533,7 +15604,7 @@ function buildBitmapLoadForegroundSpritesAsm(fg: { count: number; patternGroupBa
 ;   copy_to_vram_ext, vdp_write_register, fg_patterns_offset, fg_colors_offset.
 ;
 ; SIDE EFFECTS:
-;   Writes VRAM SAT (#F600..), pattern table (#F800+) and colour table (#F400+);
+;   Writes VRAM SAT (${hexWord(fg.foregroundSatBase)}..), pattern table (#F800+) and colour table (${hexWord(fg.foregroundColorBase)}..);
 ;   restores R#14 = 0 on exit.
 ; ------------------------------------------------------------
 bitmap_load_foreground_sprites:
@@ -16150,6 +16221,19 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   // 32KB and into a data bank, so its bytes must exist by packing time.
   const playerSprite = resolveBitmapRoomPlayerSprite(analysis, room);
   const spriteTables = buildSpriteTables(playerSprite);
+  // Keep three leading SAT entries out of the active sprite stream. The
+  // foreground tiles, if authored, start after that guard and the player then
+  // starts after the foreground block.
+  const foregroundCount = rooms.length
+    ? Math.min(BITMAP_ROOM_FOREGROUND_MAX, Math.max(0, ...rooms.map(r => (Array.isArray(r.foregroundTiles) ? r.foregroundTiles.length : 0))))
+    : 0;
+  const reservedSatBase = 0xF600;
+  const reservedColorBase = 0xF400;
+  const foregroundSatBase = reservedSatBase + BITMAP_ROOM_RESERVED_SPRITE_SLOTS * 4;
+  const foregroundColorBase = reservedColorBase + BITMAP_ROOM_RESERVED_SPRITE_SLOTS * 16;
+  const playerSatBase = foregroundSatBase + foregroundCount * 4;
+  const playerColorBase = foregroundColorBase + foregroundCount * 16;
+  const playerColorSourceOffset = (BITMAP_ROOM_RESERVED_SPRITE_SLOTS + foregroundCount) * 16;
   const spriteSourceLabel = spriteTables.usedConfigured
     ? `configured player sprite${playerSprite?.name ? ` "${playerSprite.name}"` : ''}`
     : 'placeholder fallback (no configured player sprite resolvable)';
@@ -16267,9 +16351,26 @@ ${airAnimBodyAsm}`;
     ...stateAnimations.flatMap(bank => bank.patternsMirror),
   ];
   const combinedColors = [
+    ...new Array(playerColorSourceOffset).fill(0),
     ...spriteTables.colors,
     ...stateAnimations.flatMap(bank => bank.colors),
   ];
+  const reservedSpriteAttrs = Array.from({ length: BITMAP_ROOM_RESERVED_SPRITE_SLOTS }, () => [
+    RESERVED_EMPTY_SPRITE_Y, 0, 0, 0,
+  ]).flat();
+  const foregroundSpriteAttrs = Array.from({ length: foregroundCount }, () => [
+    FOREGROUND_EMPTY_SPRITE_Y, 0, 0, 0,
+  ]).flat();
+  // The init copy starts at #F600 so the reserved entries are initialized before
+  // the dynamic SAT writers publish player/enemy/projectile data.
+  const initialSpriteAttrs = [...reservedSpriteAttrs, ...foregroundSpriteAttrs, ...spriteTables.attrs];
+  // Initialise every remaining SAT slot to a non-terminating off-screen entry.
+  // A zeroed Y/X pair is visually harmless only while its colour is also zero;
+  // during a partial SAT publication it can combine with an old player pattern
+  // and colour and produce the characteristic yellow sprite at the upper-left.
+  while (initialSpriteAttrs.length < 32 * 4) {
+    initialSpriteAttrs.push(RESERVED_EMPTY_SPRITE_Y, 0, 0, 0);
+  }
 
   // Enemy patrol runtime (SCREEN 4 port): SAT slots sit right after the player
   // layers (bullets shift past them), pattern groups after the foreground ones.
@@ -16505,12 +16606,6 @@ ${bossWindowRoomBlobIndices.map((indices, roomIndex) => (indices.length === 0
   const shootRamBase = powerStompShakeRamBase + (bitmapPowerStompEnabled(powerStompConfig) ? MSX2_BITMAP_SCREEN_SHAKE_RAM_BYTES : 0);
   const bulletSprite = resolveBitmapBulletSprite(analysis, resolveBitmapRoomPlayer(analysis, room));
   const playerPatternGroups = combinedFrameCount * spriteTables.layerCount * (spriteTables.mirror ? 2 : 1);
-  // Foreground hardware-sprite tiles (player walks behind them). foregroundCount
-  // is the MAX tile count across all rooms (capped at 3); 0 disables the feature
-  // entirely and keeps the ROM bit-identical to legacy exports.
-  const foregroundCount = rooms.length
-    ? Math.min(BITMAP_ROOM_FOREGROUND_MAX, Math.max(0, ...rooms.map(r => (Array.isArray(r.foregroundTiles) ? r.foregroundTiles.length : 0))))
-    : 0;
   const foregroundPatternGroupBase = playerPatternGroups;
   if (foregroundCount > 0 && foregroundPatternGroupBase + foregroundCount > 64) {
     throw new Error(
@@ -16518,16 +16613,17 @@ ${bossWindowRoomBlobIndices.map((indices, roomIndex) => (indices.length === 0
       `but the V9938 sprite pattern table only holds 64 groups (player uses ${playerPatternGroups}). Reduce player animation frames/layers or foreground tiles.`,
     );
   }
-  const playerSatBase = 0xF600 + foregroundCount * 4;
-  const playerColorBase = 0xF400 + foregroundCount * 16;
   const foregroundData = buildBitmapRoomForegroundTables(rooms, foregroundCount);
-  const foregroundContext = foregroundCount > 0 ? {
+  const foregroundContext = {
     count: foregroundCount,
     patternGroupBase: foregroundPatternGroupBase,
     satBase: playerSatBase,
     colorBase: playerColorBase,
-    loadCallAsm: '    call bitmap_load_foreground_sprites\n' as string,
-  } : null;
+    foregroundSatBase,
+    foregroundColorBase,
+    colorSourceOffset: playerColorSourceOffset,
+    loadCallAsm: foregroundCount > 0 ? '    call bitmap_load_foreground_sprites\n' : '',
+  };
   const foregroundLoadCallAsm = foregroundContext ? foregroundContext.loadCallAsm : '';
   const turretData = buildBitmapRoomTurretData(analysis, rooms);
   const carryAndThrowConfig = getMsx2CarryAndThrowConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
@@ -16876,6 +16972,15 @@ ${bossWindowRoomBlobIndices.map((indices, roomIndex) => (indices.length === 0
   }
   const enemyBulletSatBase = crumbleSatBase + crumbleDebrisSlots * 4;
   const enemyBulletColorBase = crumbleColorBase + crumbleDebrisSlots * 16;
+  // The player-bullet slots start after the ENTIRE chain. The shoot runtime's
+  // legacy summed slot counts cannot express the boss bullets overwriting the
+  // enemy slot range (the chain reserves bossSpriteBulletSlots there while the
+  // enemy writer emits fewer), which placed the bullet writer INSIDE the
+  // boss/enemy range in projects with both systems: boss bullets and player
+  // bullets fought over the same SAT entries, and the appended #D8 terminator
+  // hid every later sprite for a frame (ghost sprites during boss fights).
+  // Pass the true absolute slot index instead; colour blocks are slot-parallel.
+  const shootSlotStart = (enemyBulletSatBase + enemyBulletSlots * 4 - playerSatBase) / 4;
   // Boss sprite bullets are part of the authored room content, so they take
   // priority over the player's optional SHOOT pattern. They reuse idle enemy
   // SAT/color slots but need an independently allocated pattern range.
@@ -16960,7 +17065,7 @@ ${bossWindowRoomBlobIndices.map((indices, roomIndex) => (indices.length === 0
   const shootRuntimeOptions: BitmapShootRuntimeOptions = {
     playerLayerCount: spriteTables.layerCount,
     bulletPatternNumber,
-    satBase: 0xF600,
+    satBase: playerSatBase,
     colorBase: playerColorBase,
     patternBase: 0xF800,
     gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
@@ -16974,6 +17079,7 @@ ${bossWindowRoomBlobIndices.map((indices, roomIndex) => (indices.length === 0
     // bullet writer would start on top of them.
     destroySlotCount: destroyDebrisSlots + turretHardwareSlotCount + shaftHardwareSlots + crumbleDebrisSlots,
     enemyBulletSlotCount: enemyBulletSlots,
+    slotStartOverride: shootSlotStart,
     enemyCollisionJumpLabel: bulletTargetLabel,
     ammoCounterLabel,
     borrowPlayerPatternGroups: borrowedPlayerPatternGroups,
@@ -17134,7 +17240,9 @@ ${bossWindowRoomBlobIndices.map((indices, roomIndex) => (indices.length === 0
   // high-byte-only change is detected) + value byte(s) for bindings without a real
   // existing RAM counter (score/bossEnergy/air/collectibles/custom; NOT a scoring
   // mechanic, just the widget's own persistent byte(s) — 2 bytes for wide counters).
-  // Shared hud_dec3_buffer (3B) for narrow counters + hud_dec5_buffer (5B) for wide.
+  // Shared hud_draw_start/count (2B) for partial icon-row redraws, plus the
+  // shared hud_dec3_buffer (3B) for narrow counters + hud_dec5_buffer (5B)
+  // for wide counters.
   // The dedicated window is ordinary cartridge RAM (#D000..#EFFF), clear of
   // fixed bitmap state (#C000..#C2FF), SFX/music state (#C3FE..), and the BIOS
   // workspace above #F380.
@@ -17154,6 +17262,8 @@ ${bossWindowRoomBlobIndices.map((indices, roomIndex) => (indices.length === 0
     platformDropRamBase + (bitmapPlatformDropEnabled(platformDropConfig) ? MSX2_BITMAP_PLATFORM_DROP_RAM_BYTES : 0),
   );
   let hudLinkedRamCursor = linkedHudRamBase;
+  const hudDrawStartAddress = linkedHudDynamicSources.length ? hudLinkedRamCursor : undefined;
+  if (hudDrawStartAddress !== undefined) hudLinkedRamCursor += 2;
   const experienceElement = linkedHudDynamicSources
     .map(source => source.element)
     .find(element => element.binding === 'experience' && element.kind === 'bar');
@@ -17819,6 +17929,9 @@ ${keyDoorSystem.enabled ? `    ld a, (bitmap_world_saved_keys)
   const linkedHudSharedEquates = linkedHudDynamicSources.length
     ? `; Linked MSX2 HUD asset dynamic widgets: shared 15-byte V9938 command scratch${hudDec3BufferAddress !== undefined || hudDec5BufferAddress !== undefined ? ' + shared decimal conversion buffer(s)' : ''}.
 hud_cmd_block EQU #C2C0
+${hudDrawStartAddress !== undefined ? `hud_draw_start EQU ${hexWord(hudDrawStartAddress)}
+hud_draw_count EQU ${hexWord(hudDrawStartAddress + 1)}
+` : ''}
 ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3BufferAddress)}\n` : ''}${hudDec5BufferAddress !== undefined ? `hud_dec5_buffer EQU ${hexWord(hudDec5BufferAddress)}\n` : ''}`
     : '';
   const linkedHudSharedRoutines = linkedHudDynamicSources.length
@@ -17952,8 +18065,8 @@ ${vramFree.map(gap => `;   rows ${String(gap.from).padStart(4)}..${String(gap.to
   }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${healSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}${crumbleSystem.pendingPageDrawCall}${swaySystem.pendingPageDrawCall}${bitmapAtlasAnimationSystem.pendingPageDrawCall}${destroyTileApplyPendingCall}${lightingSystem.pendingPageCallAsm}`, keyDoorSystem.solidProbeCallAsm, `${shaftSystem.preLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${bossWindowLoadCallAsm}${bossSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}${shaftSystem.commitCallAsm}`);
   // Foreground sprite load routine + its per-room dispatch/data tables (only when
   // some room actually defines foreground tiles).
-  const foregroundLoadRoutineAsm = foregroundContext ? buildBitmapLoadForegroundSpritesAsm(foregroundContext) : '';
-  const foregroundDataAsm = foregroundContext
+  const foregroundLoadRoutineAsm = foregroundCount > 0 ? buildBitmapLoadForegroundSpritesAsm(foregroundContext) : '';
+  const foregroundDataAsm = foregroundCount > 0
     ? formatBytes('bitmap_room_foreground_patterns', foregroundData.patternBytes, `Foreground tile opacity masks (1 bit/px, ${foregroundContext.count} slot(s) max): ${foregroundData.patternBytes.length / 32} tile(s) total`)
       + formatBytes('bitmap_room_foreground_colors', foregroundData.colorBytes, `Foreground tile colour tables (16 bytes/slot, single colour repeated)`)
       + roomTables.map(table => formatBytes(`bitmap_room_foreground_table_${table.index}`, foregroundData.roomTables[table.index], `Room ${table.index} foreground dispatch: ${foregroundContext.count} slot(s) x 3 bytes (satY, satX, pattern-offset/#FF)`)).join('')
@@ -18494,7 +18607,7 @@ ${musicBootCall}${gameFlowEnabled ? '    ; Game Flow graph present: the dispatch
 ${playerAnimationUpdateCall}    call bitmap_update_sprite_sat
 ${enemySystem.satCallAsm}${bossSystem.satCallAsm}${platformSystem.satCallAsm}${carryAndThrowSystem.satCallAsm}${destroyTileSatCall}${turretSystem.satCallAsm}${shaftSystem.satCallAsm}${crumbleSystem.satCallAsm}${enemySystem.bulletSatCallAsm}${shootBulletSatCall}    ; Deferred dirty/variable-cost sprite VRAM copies. A late copy can affect
     ; colours/pixels for one frame, but can no longer expose partial SAT state.
-${playerColorsUpdateCall}${enemySystem.colorCallAsm}${shootPatternPrepareCall}    ; ---- logic phase: safe during active display ----
+${playerColorsUpdateCall}${enemySystem.colorCallAsm}${bossSystem.colorCallAsm}${shootPatternPrepareCall}    ; ---- logic phase: safe during active display ----
     call step_room_composition
     jp c, .skip_player_movement
 ${platformSystem.updateCallAsm}${shaftSystem.updateCallAsm}${bossSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${bossSystem.playerGateAsm}${perceptionSystem.inventoryGateAsm}${platformDropGate}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
@@ -18604,7 +18717,7 @@ ${formatBytes('bitmap_room_sprite_colors_glowing', combinedGlowingColors, 'Glowi
 bitmap_room_sprite_colors_glowing_end:
 ` : ''}`}
 
-${formatBytes('bitmap_room_sprite_attrs', spriteTables.attrs, 'SAT: sprite 0 active (Y/X set at runtime), sprite 1 Y=#D8 stops processing')}
+${formatBytes('bitmap_room_sprite_attrs', initialSpriteAttrs, `SAT init: ${BITMAP_ROOM_RESERVED_SPRITE_SLOTS} reserved entries at Y=#${RESERVED_EMPTY_SPRITE_Y.toString(16).toUpperCase()}, then foreground/player entries`)}
 bitmap_room_sprite_attrs_end:
 
 ${isKonamiMegaRom
