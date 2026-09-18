@@ -1680,13 +1680,32 @@ export interface EnemyHitboxes {
 // `kind:'boss'` entity (the BossEncounter) and may override fields per instance.
 // ---------------------------------------------------------------------------
 
-/** What happens when the boss is defeated. */
+/**
+ * What happens when the boss is defeated.
+ *
+ * The list is an ordered FINAL SEQUENCE: steps run in order once both bosses
+ * of the room are dead. `wait` and `dialogue` are blocking steps — they hold
+ * the freed room (and freeze the player) for their duration, exactly like
+ * their Room Lock entry-sequence twins — while every other action is instant.
+ */
 export type Msx2BossDefeatAction =
   | { action: 'setFlag'; flag: string }
   | { action: 'giveKey'; count?: number }
   | { action: 'openDoor'; target: string }
   /** Opens a dialogue in the NPC text box; needs a `msx2dialogue` asset with lines. */
   | { action: 'showMessage'; dialogueAssetId: string }
+  /**
+   * Final-sequence step: hold the room for N frames, e.g. between the boss's
+   * last words and the door swinging open. The player is frozen meanwhile.
+   */
+  | { action: 'wait'; frames: number }
+  /**
+   * Final-sequence step: opens an `msx2dialogue` in the NPC text box and waits
+   * for the player to read it through before later steps run — the defeat-side
+   * twin of the Room Lock `dialogue` step. Unlike the legacy `showMessage`,
+   * nothing later fires while the box is open.
+   */
+  | { action: 'dialogue'; dialogueAssetId: string }
   /**
    * Sends the player to another bitmap room, reusing the door transition.
    * `entryX`/`entryY` omitted = drop the player where they already stand.

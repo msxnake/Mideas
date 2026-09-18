@@ -2100,16 +2100,37 @@ const DefeatPanel: React.FC<{
 }> = ({ boss, onUpdate, doors, dialogues, rooms }) => {
   const actions = boss.onDefeated || [];
   const update = (next: Msx2BossDefeatAction[]) => onUpdate({ ...boss, onDefeated: next });
+  const patch = (index: number, changes: Partial<Msx2BossDefeatAction>) =>
+    update(actions.map((a, i) => i === index ? { ...a, ...changes } as Msx2BossDefeatAction : a));
+  const move = (index: number, delta: number) => {
+    const to = index + delta;
+    if (to < 0 || to >= actions.length) return;
+    const next = [...actions];
+    const [row] = next.splice(index, 1);
+    next.splice(to, 0, row);
+    update(next);
+  };
 
   const addAction = (kind: Msx2BossDefeatAction['action']) => {
     const created: Msx2BossDefeatAction =
       kind === 'setFlag' ? { action: 'setFlag', flag: `boss_${boss.id || 'x'}_defeated` }
         : kind === 'giveKey' ? { action: 'giveKey', count: 1 }
           : kind === 'showMessage' ? { action: 'showMessage', dialogueAssetId: dialogues[0]?.id || '' }
-            : kind === 'changeScreen' ? { action: 'changeScreen', target: rooms[0]?.id || '' }
-              : { action: 'openDoor', target: doors[0]?.id || '' };
+            : kind === 'dialogue' ? { action: 'dialogue', dialogueAssetId: dialogues[0]?.id || '' }
+              : kind === 'wait' ? { action: 'wait', frames: 60 }
+                : kind === 'changeScreen' ? { action: 'changeScreen', target: rooms[0]?.id || '' }
+                  : { action: 'openDoor', target: doors[0]?.id || '' };
     update([...actions, created]);
   };
+
+  const stepTitle = (action: Msx2BossDefeatAction) =>
+    action.action === 'setFlag' ? 'Set flag'
+      : action.action === 'giveKey' ? 'Give key'
+        : action.action === 'openDoor' ? 'Open door'
+          : action.action === 'showMessage' ? 'Message'
+            : action.action === 'dialogue' ? 'Boss speaks'
+              : action.action === 'wait' ? 'Wait'
+                : 'Change screen';
 
   return (
     <div className={card}>
@@ -2119,63 +2140,86 @@ const DefeatPanel: React.FC<{
           <button className={btn} onClick={() => addAction('setFlag')}>+ Set flag</button>
           <button className={btn} onClick={() => addAction('giveKey')}>+ Give key</button>
           <button className={btn} onClick={() => addAction('openDoor')} disabled={doors.length === 0}>+ Open door</button>
-          <button className={btn} onClick={() => addAction('showMessage')} disabled={dialogues.length === 0}>+ Message</button>
+          <button className={btn} onClick={() => addAction('dialogue')} disabled={dialogues.length === 0}>+ Dialogue</button>
+          <button className={btn} onClick={() => addAction('wait')}>+ Wait</button>
           <button className={btn} onClick={() => addAction('changeScreen')} disabled={rooms.length === 0}>+ Change screen</button>
         </div>
       </div>
 
+      <h4 className="text-sm font-semibold mb-2">Final sequence</h4>
+
       {actions.length === 0 && (
         <p className="text-xs text-msx-textsecondary">
           Nothing happens beyond the boss disappearing and the room unlocking.
+          Add steps to stage the ending: dying words, a held beat, then the reward.
         </p>
       )}
 
       {actions.map((action, index) => (
         <div key={index} className="flex gap-2 items-end mb-2 pb-2 border-b border-msx-border">
-          <div className="w-28">
-            <label className={label}>Action</label>
-            <input className={input} value={action.action} readOnly />
+          <div className="w-6 text-xs text-msx-textsecondary pb-2">{index + 1}.</div>
+          <div className="w-36">
+            <label className={label}>Step</label>
+            <input className={input} value={stepTitle(action)} readOnly />
           </div>
           {action.action === 'setFlag' && (
             <div className="flex-1">
               <label className={label}>Flag name</label>
               <input className={input} value={action.flag}
-                onChange={e => update(actions.map((a, i) => i === index ? { ...a, flag: e.target.value } as Msx2BossDefeatAction : a))} />
+                onChange={e => patch(index, { flag: e.target.value })} />
             </div>
           )}
           {action.action === 'giveKey' && (
             <div className="w-32">
               <label className={label}>How many</label>
               <input type="number" min={1} max={255} className={input} value={action.count ?? 1}
-                onChange={e => update(actions.map((a, i) => i === index ? { ...a, count: Number(e.target.value) } as Msx2BossDefeatAction : a))} />
+                onChange={e => patch(index, { count: Number(e.target.value) })} />
             </div>
           )}
           {action.action === 'openDoor' && (
             <div className="flex-1">
               <label className={label}>Door</label>
               <select className={input} value={action.target}
-                onChange={e => update(actions.map((a, i) => i === index ? { ...a, target: e.target.value } as Msx2BossDefeatAction : a))}>
+                onChange={e => patch(index, { target: e.target.value })}>
                 <option value="">— pick a locked door —</option>
                 {doors.map(door => <option key={door.id} value={door.id}>{door.label}</option>)}
               </select>
             </div>
           )}
-          {action.action === 'showMessage' && (
+          {(action.action === 'showMessage' || action.action === 'dialogue') && (
             <div className="flex-1">
               <label className={label}>Dialogue</label>
               <select className={input} value={action.dialogueAssetId || ''}
-                onChange={e => update(actions.map((a, i) => i === index ? { ...a, dialogueAssetId: e.target.value } as Msx2BossDefeatAction : a))}>
+                onChange={e => patch(index, { dialogueAssetId: e.target.value })}>
                 <option value="">— pick a dialogue —</option>
                 {dialogues.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
               </select>
+              {action.action === 'showMessage' && (
+                <p className="text-xs text-msx-textsecondary mt-1">
+                  Legacy message: the next steps fire at once, even with the box open.
+                  Prefer &ldquo;Boss speaks&rdquo;, which waits for the player.
+                </p>
+              )}
             </div>
+          )}
+          {action.action === 'wait' && (
+            <>
+              <div className="w-28">
+                <label className={label}>Frames</label>
+                <input type="number" min={1} max={255} className={input} value={action.frames}
+                  onChange={e => patch(index, { frames: Number(e.target.value) })} />
+              </div>
+              <div className="flex-1 text-xs text-msx-textsecondary pb-2">
+                About {(action.frames / 60).toFixed(1)}s at 60Hz.
+              </div>
+            </>
           )}
           {action.action === 'changeScreen' && (
             <>
               <div className="flex-1">
                 <label className={label}>Go to room</label>
                 <select className={input} value={action.target || ''}
-                  onChange={e => update(actions.map((a, i) => i === index ? { ...a, target: e.target.value } as Msx2BossDefeatAction : a))}>
+                  onChange={e => patch(index, { target: e.target.value })}>
                   <option value="">— pick a room —</option>
                   {rooms.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
                 </select>
@@ -2184,26 +2228,32 @@ const DefeatPanel: React.FC<{
                 <label className={label}>Entry x</label>
                 <input type="number" min={0} max={254} className={input} value={action.entryX ?? ''}
                   placeholder="keep"
-                  onChange={e => update(actions.map((a, i) => i === index
-                    ? { ...a, entryX: e.target.value === '' ? undefined : Number(e.target.value) } as Msx2BossDefeatAction : a))} />
+                  onChange={e => patch(index, { entryX: e.target.value === '' ? undefined : Number(e.target.value) })} />
               </div>
               <div className="w-20">
                 <label className={label}>Entry y</label>
                 <input type="number" min={0} max={255} className={input} value={action.entryY ?? ''}
                   placeholder="keep"
-                  onChange={e => update(actions.map((a, i) => i === index
-                    ? { ...a, entryY: e.target.value === '' ? undefined : Number(e.target.value) } as Msx2BossDefeatAction : a))} />
+                  onChange={e => patch(index, { entryY: e.target.value === '' ? undefined : Number(e.target.value) })} />
               </div>
             </>
           )}
-          <button className={btn} onClick={() => update(actions.filter((_, i) => i !== index))}>Remove</button>
+          <div className="flex gap-1">
+            <button className={btn} title="Move earlier" disabled={index === 0}
+              onClick={() => move(index, -1)}>&uarr;</button>
+            <button className={btn} title="Move later" disabled={index === actions.length - 1}
+              onClick={() => move(index, 1)}>&darr;</button>
+            <button className={btn} onClick={() => update(actions.filter((_, i) => i !== index))}>&#10005;</button>
+          </div>
         </div>
       ))}
 
       <p className="text-xs text-msx-textsecondary mt-2">
-        The boss is a progress event, not just an enemy: these run once, when it dies.
-        "Give key" needs a key/door system in the project, and "open door" needs a
-        locked door entity to target.
+        The boss is a progress event, not just an enemy: these run once, in this
+        order, when it dies. A &ldquo;Boss speaks&rdquo; step waits for the player to read
+        the dialogue through, and the player is frozen for the whole sequence —
+        the defeat-side twin of the entry sequence. &ldquo;Give key&rdquo; needs a key/door
+        system in the project, and &ldquo;open door&rdquo; needs a locked door entity to target.
       </p>
     </div>
   );

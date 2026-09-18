@@ -140,7 +140,10 @@ export interface BitmapBossRoomData {
    * Per-room Boss Defeat Actions bytecode (Phase A). Each stream is a list of
    * [opcode, arg...] pairs terminated by DEFEAT_OP_END. Interpreted by
    * bitmap_boss_run_defeat_actions when the boss in that room dies. A room
-   * with no onDefeated actions has a single-byte [END] stream.
+   * with no onDefeated actions has a single-byte [END] stream. WAIT/DIALOGUE
+   * opcodes make the stream a frame-based Final Sequence (see
+   * bitmap_boss_defeat_frame); the rest still completes on the finalization
+   * frame.
    */
   defeatStreams: number[][];
   /**
@@ -305,6 +308,8 @@ const DEFEAT_OP_GIVE_KEY = 0x02;   // arg: how many keys to add
 const DEFEAT_OP_OPEN_DOOR = 0x03;  // arg: door open-flag offset
 const DEFEAT_OP_SHOW_MESSAGE = 0x04; // arg: dialogue index (NPC text box)
 const DEFEAT_OP_CHANGE_SCREEN = 0x05; // args: room index, entry X (#FF = keep), entry Y
+const DEFEAT_OP_WAIT = 0x06;       // arg: frames to hold the room (blocking)
+const DEFEAT_OP_DIALOGUE = 0x07;   // arg: dialogue index; blocks until read through
 
 /**
  * Where the Room Lock auto-walk takes the player when the boss does not say
@@ -376,6 +381,8 @@ const DEFEAT_OP_ARGS: Record<number, number> = {
   [DEFEAT_OP_OPEN_DOOR]: 1,
   [DEFEAT_OP_SHOW_MESSAGE]: 1,
   [DEFEAT_OP_CHANGE_SCREEN]: 3,
+  [DEFEAT_OP_WAIT]: 1,
+  [DEFEAT_OP_DIALOGUE]: 1,
 };
 
 /**
@@ -383,6 +390,11 @@ const DEFEAT_OP_ARGS: Record<number, number> = {
  * is the shared global registry (mutated to append newly-seen flag names).
  * Unknown or not-yet-wired actions are skipped with a warning so a ROM never
  * breaks on an action a later Phase will implement.
+ *
+ * WAIT and DIALOGUE are blocking steps: the interpreter becomes frame-based
+ * and freezes the player until the sequence completes, mirroring the Room
+ * Lock entry sequence. Streams without them still finish on the frame the
+ * boss pair finalizes, exactly as they did before those opcodes existed.
  */
 function buildDefeatStream(onDefeated: unknown, flagNames: string[], roomName: string, caps: BossDefeatCapabilities): number[] {
   const stream: number[] = [];
@@ -433,6 +445,19 @@ function buildDefeatStream(onDefeated: unknown, flagNames: string[], roomName: s
             break;
           }
           stream.push(DEFEAT_OP_SHOW_MESSAGE, index & 0xff);
+          break;
+        }
+        case 'wait':
+          stream.push(DEFEAT_OP_WAIT, clampInt((raw as any).frames, 1, 255, 30));
+          break;
+        case 'dialogue': {
+          const assetId = String((raw as any).dialogueAssetId || '').trim();
+          const index = assetId ? caps.dialogueIndexById?.get(assetId) : undefined;
+          if (index === undefined) {
+            console.warn(`MSX2 bitmap room "${roomName}": boss onDefeated dialogue "${assetId}" is missing or has no lines; step skipped.`);
+            break;
+          }
+          stream.push(DEFEAT_OP_DIALOGUE, index & 0xff);
           break;
         }
         case 'changeScreen': {
@@ -1861,7 +1886,14 @@ export function buildBitmapBossSystemAsm(
   const hasOpenDoor = streamHas(DEFEAT_OP_OPEN_DOOR);
   const hasShowMessage = streamHas(DEFEAT_OP_SHOW_MESSAGE);
   const hasChangeScreen = streamHas(DEFEAT_OP_CHANGE_SCREEN);
-  const hasDefeatActions = flagCount > 0 || hasGiveKey || hasOpenDoor || hasShowMessage || hasChangeScreen;
+  // Final-sequence steps. WAIT/DIALOGUE make the interpreter frame-based, so
+  // they carry their own RAM, player-freeze gate and per-frame ticker; the
+  // other opcodes keep running on the finalization frame itself.
+  const hasDefeatWait = streamHas(DEFEAT_OP_WAIT);
+  const hasDefeatDialogue = streamHas(DEFEAT_OP_DIALOGUE);
+  const hasDefeatSequence = hasDefeatWait || hasDefeatDialogue;
+  const hasDefeatActions = flagCount > 0 || hasGiveKey || hasOpenDoor || hasShowMessage
+    || hasChangeScreen || hasDefeatSequence;
   // FASE 3: at least one room composes its boss from 16x16 atlas cells.
   const hasBossCells = (data.cellTables || []).some(table => table && table[0] > 0);
   const cellRenderRamBytes = hasBossCells ? 3 : 0;
@@ -2023,7 +2055,13 @@ export function buildBitmapBossSystemAsm(
     + (phasesExtended ? PHASE_RAM_BYTES : 0);
   const introRamBase = ram + baseRamBytes;
   const INTRO_RAM_BYTES = 7;
-  const deathRamBase = introRamBase + (hasIntro ? INTRO_RAM_BYTES : 0);
+  // Final-sequence interpreter scratch: state byte, stream cursor word and the
+  // wait counter. Opt-in like every other block so ROMs without a blocking
+  // defeat step keep their exact RAM map.
+  const defeatRamBase = introRamBase + (hasIntro ? INTRO_RAM_BYTES : 0);
+  const DEFEAT_RAM_BYTES = 4;
+  const deathRamBase = introRamBase + (hasIntro ? INTRO_RAM_BYTES : 0)
+    + (hasDefeatSequence ? DEFEAT_RAM_BYTES : 0);
   // 3 live explosions x 5 bytes (active, frame, timer, rx, ry) + the word that
   // points at the slot being serviced this frame.
   const DEATH_ANIM_SLOTS = 3;
@@ -2078,6 +2116,7 @@ export function buildBitmapBossSystemAsm(
   // boss from snapshotting the first boss as part of the clean page.
   const cleanSnapshotFlagAddr = instanceStateBase + INSTANCE_STATE_BYTES * bossInstanceCount;
   const totalRamBytes = baseRamBytes + (hasIntro ? INTRO_RAM_BYTES : 0)
+    + (hasDefeatSequence ? DEFEAT_RAM_BYTES : 0)
     + (hasDeathFx ? DEATH_RAM_BYTES : 0)
     + (hasPooledSfx ? DEATH_SFX_RAM_BYTES : 0)
     + (hasHitBlast ? HIT_BLAST_RAM_BYTES : 0)
@@ -2840,6 +2879,9 @@ boss_intro_counter EQU ${asmWord(introRamBase + 3)}  ; wait frames / raster scan
 boss_intro_raster_y EQU ${asmWord(introRamBase + 4)}  ; next horizontal pixel line (0..191)
 boss_intro_auto_move EQU ${asmWord(introRamBase + 5)}  ; 1 = forced horizontal walk; gravity remains active
 boss_intro_target_x EQU ${asmWord(introRamBase + 6)}  ; player_x the auto-walk aims at, loaded per room
+` : ''}${hasDefeatSequence ? `boss_defeat_state EQU ${asmWord(defeatRamBase + 0)}  ; Final sequence: 0 idle, 1 dispatch, 2 wait, 3 dialogue
+boss_defeat_ptr EQU ${asmWord(defeatRamBase + 1)}  ; word: next defeat opcode or active-step argument
+boss_defeat_counter EQU ${asmWord(defeatRamBase + 3)}  ; WAIT frames left this step
 ` : ''}${hasDeathFx ? `boss_death_left EQU ${asmWord(deathRamBase + 0)}  ; bitmap blasts still to draw (#FF = final hold)
 boss_death_tick EQU ${asmWord(deathRamBase + 1)}  ; frames to next blast/finalize
 boss_death_seed EQU ${asmWord(deathRamBase + 2)}  ; deterministic 8-bit PRNG state
@@ -2879,6 +2921,7 @@ ${Array.from({ length: defeatedBytes }, (_v, i) => `    ld (boss_defeated + ${i}
 ${hasDefeatActions ? Array.from({ length: flagCount }, (_v, i) => `    ld (boss_flags + ${i}), a`).join('\n') + '\n' : ''}${hasIntro ? `    ld (boss_intro_state), a
     ld (boss_intro_auto_move), a
     ld (boss_intro_target_x), a
+` : ''}${hasDefeatSequence ? `    ld (boss_defeat_state), a
 ` : ''}${hasDeathFx ? `    ld (boss_death_left), a
     ld (boss_death_tick), a
     ld (boss_death_seed), a
@@ -2890,8 +2933,8 @@ ${hasDeathAnim ? Array.from({ length: DEATH_ANIM_SLOTS }, (_v, i) => `    ld (bo
 `;
   const updateCallAsm = `    call bitmap_boss_update
 `;
-  const playerGateAsm = hasIntro
-    ? `    ld a, (boss_intro_auto_move)
+  const playerGateAsm = (hasIntro || hasDefeatSequence)
+    ? `${hasIntro ? `    ld a, (boss_intro_auto_move)
     or a
     jp z, .boss_intro_freeze_check
     ; Mandatory first step: run the normal player physics once with forced
@@ -2902,7 +2945,10 @@ ${hasDeathAnim ? Array.from({ length: DEATH_ANIM_SLOTS }, (_v, i) => `    ld (bo
     ld a, (boss_intro_state)    ; Room Lock wait/chain/dialogue step: freeze player
     or a
     jp nz, .skip_player_movement
-`
+` : ''}${hasDefeatSequence ? `    ld a, (boss_defeat_state)   ; Final sequence wait/dialogue step: freeze player
+    or a
+    jp nz, .skip_player_movement
+` : ''}`
     : '';
   const autoMoveInputAsm = hasIntro
     ? `    ; Boss intro auto-walk: replace the real keyboard row with exactly one
@@ -3077,12 +3123,14 @@ ${hasLaser ? `    ld (boss_laser_mask), a
     ld (boss_laser_w), a
     ld (boss_laser_cd), a
 ` : ''}
-${hasIntro ? `    ld a, (boss_slot)
+${hasIntro || hasDefeatSequence ? `    ld a, (boss_slot)
     or a
     jr nz, .load_skip_intro_reset
-    ld (boss_intro_state), a
+${hasIntro ? `    ld (boss_intro_state), a
     ld (boss_intro_auto_move), a
-.load_skip_intro_reset:
+` : ''}${hasDefeatSequence ? `    ld (boss_defeat_state), a   ; the player is frozen while the sequence
+    ; runs, so a mid-sequence room load cannot happen; this is defense in depth
+` : ''}.load_skip_intro_reset:
 ` : ''}${hasDeathFx ? `    ld (boss_death_left), a
     ld (boss_death_tick), a
 ` : ''}${hasBarrier ? `    ld a, (boss_slot)
@@ -3319,6 +3367,17 @@ ${hasPooledSfx ? `    call bitmap_boss_death_sfx_tick  ; pooled channel-C audio 
     dec a
     ld (boss_blast_timer), a
 .boss_no_blast_tick:
+` : ''}${hasDefeatSequence ? `    ; The Final Sequence outlives the boss: boss_active is already 0 while a
+    ; WAIT or DIALOGUE defeat step holds the room. Slot 0 owns it, like the
+    ; Room Lock intro, and the player gate keeps the player frozen meanwhile.
+    ld a, (boss_defeat_state)
+    or a
+    jr z, .boss_defeat_seq_idle
+    ld a, (boss_slot)
+    or a
+    ret nz
+    jp bitmap_boss_defeat_frame
+.boss_defeat_seq_idle:
 ` : ''}    ld a, (boss_active)
     or a
     ret z
@@ -6471,7 +6530,7 @@ ${hasIntro ? `    ld (boss_intro_state), a
     inc hl
     or (hl)
     jr z, .boss_pair_not_defeated
-${hasDefeatActions ? '    call bitmap_boss_run_defeat_actions   ; Phase A onDefeated bytecode\n' : ''}${hasBarrier ? '    call bitmap_boss_barrier_remove   ; Phase B: drop the chain (collision + graphics)\n' : ''}.boss_pair_not_defeated:
+${hasDefeatActions ? '    call bitmap_boss_run_defeat_actions   ; Phase A onDefeated bytecode; WAIT/DIALOGUE steps then span frames\n' : ''}${hasBarrier ? '    call bitmap_boss_barrier_remove   ; Phase B: drop the chain (collision + graphics)\n' : ''}.boss_pair_not_defeated:
     ; full-rect restore from page 1
     call bitmap_boss_table_ix_shadow   ; HL -> width
     ld a, (boss_x)
@@ -6505,7 +6564,13 @@ ${hasDefeatActions ? `
 ; ------------------------------------------------------------
 ; PURPOSE: Interpret the current room's Boss Defeat Actions bytecode when the
 ;   boss dies. Phase A opcodes: END (#00), SET_FLAG (#01, arg=flag index ->
-;   boss_flags[index]=1). Unknown/future opcodes stop the stream cleanly.
+;   boss_flags[index]=1), GIVE_KEY (#02), OPEN_DOOR (#03), SHOW_MESSAGE (#04),
+;   CHANGE_SCREEN (#05), WAIT (#06), DIALOGUE (#07). Unknown/future opcodes
+;   stop the stream cleanly.
+;   Without WAIT/DIALOGUE the whole stream still runs on this one call, byte
+;   for byte what it always did. With them the run becomes a Final Sequence:
+;   instant opcodes still land here, then boss_defeat_frame advances one
+;   frame at a time (the player frozen) until the last step completes.
 ; INPUT: current_screen_index. OUTPUT: boss_flags. DESTROYS: AF, DE, HL.
 ;   Preserves BC and IX (bitmap_boss_kill runs inside the bullet-hit contract).
 ; ------------------------------------------------------------
@@ -6524,12 +6589,39 @@ bitmap_boss_run_defeat_actions:
     inc hl
     ld h, (hl)
     ld l, a                    ; HL -> room defeat stream
-.next_op:
+${hasDefeatSequence ? `    ld (boss_defeat_ptr), hl
+    ld a, 1                    ; state 1 = dispatch
+    ld (boss_defeat_state), a
+    jp bitmap_boss_defeat_dispatch
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_defeat_frame
+; ------------------------------------------------------------
+; PURPOSE: Advance one Final Sequence frame while a WAIT (#06) or DIALOGUE
+;   (#07) step holds the defeat stream open. State 2 counts the wait down,
+;   state 3 polls the NPC text box until the player has read it through;
+;   state 1 dispatches opcodes until the next blocking step or END. The
+;   player stays frozen the whole time (see the player gate). Slot 0 owns
+;   the room-wide sequence, exactly like the Room Lock intro.
+; INPUT: boss_defeat_state / boss_defeat_ptr. OUTPUT: same, plus whatever
+;   the dispatched opcodes do. DESTROYS: AF, BC, DE, HL. PRESERVES: IX.
+; ------------------------------------------------------------
+bitmap_boss_defeat_frame:
+    ld a, (boss_defeat_state)
+    cp 2
+    jp z, .wait_tick
+${hasDefeatDialogue ? `    cp 3
+    jp z, .dialogue_tick
+` : ''}    ; state 1 (or a defensive unknown state) dispatches the next opcode.
+bitmap_boss_defeat_dispatch:
+    ld hl, (boss_defeat_ptr)
+` : ''}.next_op:
     ld a, (hl)
     inc hl
     or a
-    ret z                      ; END
-${flagCount > 0 ? `    cp ${asmByte(DEFEAT_OP_SET_FLAG)}
+${hasDefeatSequence ? `    jp z, bitmap_boss_defeat_end  ; END
+` : `    ret z                      ; END
+`}${flagCount > 0 ? `    cp ${asmByte(DEFEAT_OP_SET_FLAG)}
     jr z, .op_set_flag
 ` : ''}${hasGiveKey ? `    cp ${asmByte(DEFEAT_OP_GIVE_KEY)}
     jr z, .op_give_key
@@ -6539,8 +6631,13 @@ ${flagCount > 0 ? `    cp ${asmByte(DEFEAT_OP_SET_FLAG)}
     jr z, .op_show_message
 ` : ''}${hasChangeScreen ? `    cp ${asmByte(DEFEAT_OP_CHANGE_SCREEN)}
     jr z, .op_change_screen
-` : ''}    ret                        ; unknown opcode: stop cleanly
-${flagCount > 0 ? `.op_set_flag:
+` : ''}${hasDefeatWait ? `    cp ${asmByte(DEFEAT_OP_WAIT)}
+    jr z, .op_wait
+` : ''}${hasDefeatDialogue ? `    cp ${asmByte(DEFEAT_OP_DIALOGUE)}
+    jr z, .op_defeat_dialogue
+` : ''}${hasDefeatSequence ? `    jp bitmap_boss_defeat_end   ; unknown opcode: stop cleanly
+` : `    ret                        ; unknown opcode: stop cleanly
+`}${flagCount > 0 ? `.op_set_flag:
     ld a, (hl)                 ; arg = flag index
     inc hl
     ld e, a
@@ -6604,7 +6701,49 @@ ${flagCount > 0 ? `.op_set_flag:
 .op_change_go:
     ; Queue the room flip and stop: whatever came after belongs to a room the
     ; player is already leaving.
-    jp start_key_door_transition
+${hasDefeatSequence ? `    xor a
+    ld (boss_defeat_state), a  ; the sequence dies with the room
+` : ''}    jp start_key_door_transition
+` : ''}${hasDefeatWait ? `.op_wait:
+    ld a, (hl)                 ; arg = frames to hold the room
+    inc hl
+    ld (boss_defeat_ptr), hl
+    ld (boss_defeat_counter), a
+    ld a, 2                    ; state 2 = counting the wait down
+    ld (boss_defeat_state), a
+    ret
+` : ''}${hasDefeatDialogue ? `.op_defeat_dialogue:
+    ld a, (hl)                 ; arg = dialogue index
+    inc hl
+    ld (boss_defeat_ptr), hl
+    push af
+    ld a, #21                  ; UP or SPACE advances the scripted dialogue
+    ld (bitmap_dlg_key_mask), a
+    ld a, 1                    ; held entry input cannot fast-forward line 1
+    ld (bitmap_dlg_lock), a
+    pop af
+    call bitmap_dlg_open       ; reuses the NPC text box, typewriter and all
+    ld a, 3                    ; state 3 = hold while the box is open
+    ld (boss_defeat_state), a
+    ret
+` : ''}${hasDefeatSequence ? `.wait_tick:
+    ld hl, boss_defeat_counter
+    dec (hl)
+    ret nz
+    ld a, 1
+    ld (boss_defeat_state), a
+    ret
+${hasDefeatDialogue ? `.dialogue_tick:
+    ld a, (bitmap_dlg_state)
+    or a
+    ret nz
+    ld a, 1
+    ld (boss_defeat_state), a
+    ret
+` : ''}bitmap_boss_defeat_end:
+    xor a
+    ld (boss_defeat_state), a
+    ret
 ` : ''}
 ` : ''}${hasIntro ? `
 ; ------------------------------------------------------------

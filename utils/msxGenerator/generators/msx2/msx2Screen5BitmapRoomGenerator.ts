@@ -11055,8 +11055,9 @@ function collectBitmapDialogueData(
       });
     }
   }
-  // A boss can also open a dialogue when it dies (onDefeated showMessage), so
-  // those count as "used" even in a world with no talking NPC at all.
+  // A boss can also open a dialogue when it dies (onDefeated showMessage or a
+  // Final Sequence 'dialogue' step), so those count as "used" even in a world
+  // with no talking NPC at all.
   const bossDefParams = new Map<string, any>();
   for (const asset of assets) {
     if (asset.type !== 'msx2boss' || !asset.id) continue;
@@ -11071,7 +11072,10 @@ function collectBitmapDialogueData(
         ? own.onDefeated
         : (definition?.onDefeated || []);
       for (const action of actions) {
-        if (!action || String(action.action || '') !== 'showMessage') continue;
+        // 'showMessage' opens the box without waiting; 'dialogue' is the
+        // blocking Final Sequence step. Both resolve through the same registry.
+        const actionName = String(action?.action || '');
+        if (actionName !== 'showMessage' && actionName !== 'dialogue') continue;
         const assetId = String(action.dialogueAssetId || action.target || '').trim();
         const dialogue = assetId ? dialogueById.get(assetId) : undefined;
         if (!dialogue || !Array.isArray(dialogue.lines) || dialogue.lines.length === 0) continue;

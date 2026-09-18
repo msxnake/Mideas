@@ -187,10 +187,28 @@ porta, desbloquejar sortida, activar flag global, mostrar missatge centrat, canv
 pantalla/fase/món, activar cutscene, fer desaparèixer un bloqueig, guardar que el boss ja
 ha estat derrotat.
 
+La llista és una **Final Sequence** ordenada (com l'Entry Sequence del Room Lock): els
+passos s'executen en ordre quan moren tots dos bosses de la sala, i es poden reordenar
+amb les fletxes de l'editor. Dos passos són **bloquejants**:
+
+- `{ "action": "dialogue", "dialogueAssetId": "..." }` — obre un `msx2dialogue` al
+  quadre de text NPC i **espera que el jugador l'hagi llegit**; el jugador està congelat
+  mentre dura la seqüència (opcodes `DIALOGUE=#07`, interpretat per
+  `bitmap_boss_defeat_frame`).
+- `{ "action": "wait", "frames": 60 }` — manté la sala (jugador congelat) N frames
+  (`WAIT=#06`), p. ex. entre les últimes paraules del boss i la porta que s'obre.
+
+La resta d'accions (`setFlag`, `giveKey`, `openDoor`, `showMessage`, `changeScreen`)
+són instantànies. Sense passos bloquejants el stream sencer corre al mateix frame de
+la finalització, byte a byte com sempre; amb ells l'intèrpret es converteix en una
+màquina d'estats per frames (estat 1 dispatch, 2 wait, 3 diàleg), bessona de la de la
+intro. `showMessage` continua sent el missatge sense espera (llegat).
+
 ```json
 {
   "onDefeated": [
-    { "action": "showMessage", "text": "Has derrotat el guardià." },
+    { "action": "wait", "frames": 30 },
+    { "action": "dialogue", "dialogueAssetId": "dlg_guardian_last_words" },
     { "action": "giveItem", "itemId": "blue_key" },
     { "action": "openDoor", "target": "east_door" },
     { "action": "setFlag", "flag": "boss_eye_guardian_defeated" }
