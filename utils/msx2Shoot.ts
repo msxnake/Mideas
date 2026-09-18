@@ -104,10 +104,21 @@ export function shootBulletCount(shoot: Pick<Msx2ShootDefinition, 'pattern' | 'b
  * ever adds a signed byte to a direction index.
  */
 export function shootWaveLayout(
-  shoot: Pick<Msx2ShootDefinition, 'pattern' | 'bulletCount' | 'spreadStep'>,
+  shoot: Pick<Msx2ShootDefinition, 'pattern' | 'bulletCount' | 'direction' | 'spreadStep' | 'angle' | 'angleEnd' | 'burstCount'>,
 ): { count: number; start: number; stride: number } {
   const count = shootBulletCount(shoot);
   if (shoot.pattern === 'radial') {
+    // A one-bullet radial burst can sweep a chosen angle range over its waves.
+    // The same signed stride is consumed by the runtime's spiral accumulator.
+    const waves = clampInt(shoot.burstCount, 1, MSX2_SHOOT_MAX_BURST, 1);
+    if (count === 1 && waves > 1 && Number.isFinite(Number(shoot.angleEnd))) {
+      const start = shootAngleIndex(shoot);
+      const end = ((Math.floor(Number(shoot.angleEnd)) % MSX2_SHOOT_RING) + MSX2_SHOOT_RING) % MSX2_SHOOT_RING;
+      let delta = end - start;
+      if (delta > MSX2_SHOOT_RING / 2) delta -= MSX2_SHOOT_RING;
+      if (delta < -MSX2_SHOOT_RING / 2) delta += MSX2_SHOOT_RING;
+      return { count, start: 0, stride: Math.max(-15, Math.min(15, Math.round(delta / (waves - 1)))) };
+    }
     // round() rather than floor() so counts that do not divide 16 (3, 5, 6...)
     // still spread out instead of bunching up on one side.
     const stride = Math.max(1, Math.round(MSX2_SHOOT_RING / count));
@@ -141,7 +152,7 @@ export function shootBurst(
  * that is what the spiral preview uses to draw successive burst waves.
  */
 export function shootVectors(
-  shoot: Pick<Msx2ShootDefinition, 'pattern' | 'bulletCount' | 'direction' | 'angle' | 'fixedAngle' | 'spreadStep'>,
+  shoot: Pick<Msx2ShootDefinition, 'pattern' | 'bulletCount' | 'direction' | 'angle' | 'angleEnd' | 'fixedAngle' | 'spreadStep' | 'burstCount'>,
   aimIndex: number,
   rotationSteps = 0,
 ): Array<{ dx: number; dy: number }> {

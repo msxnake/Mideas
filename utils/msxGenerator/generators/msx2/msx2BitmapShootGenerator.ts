@@ -150,6 +150,18 @@ export interface BitmapShootRuntimeOptions {
   destroySlotCount?: number;
   /** Scripted enemy FIRE SAT slots reserved immediately before player bullets. */
   enemyBulletSlotCount?: number;
+  /**
+   * Absolute SAT slot index (relative to satBase) where the player bullets
+   * begin, computed by the room generator from the REAL allocation chain.
+   * When set it replaces the legacy summed slot counts for both the SAT base
+   * and the colour blocks: the additive sum cannot express the boss bullets
+   * overwriting the enemy slot range (a project reserves 8 boss slots there
+   * while the enemy writer emits fewer), which placed the bullet writer INSIDE
+   * the boss/enemy range -- boss bullets and player bullets then fought over
+   * the same SAT entries and the appended #D8 terminator hid every later
+   * sprite for a frame (the reported ghost sprites during boss fights).
+   */
+  slotStartOverride?: number;
   /** Label the bullet-vs-enemy stub jumps to (e.g. the bitmap boss hit check).
    *  The target must preserve BC and IX (bullet loop counter + slot pointer). */
   enemyCollisionJumpLabel?: string;
@@ -257,9 +269,11 @@ export function buildBitmapBulletInitUploadAsm(
   // first slot left the 2nd+ simultaneous bullets with an uninitialised (black)
   // colour table.
   const colorUploads = Array.from({ length: maxBullets }, (_unused, i) => {
-    const colorSlot = opts.playerLayerCount + (opts.enemySlotCount || 0) + (opts.platformSlotCount || 0) + (opts.carrySlotCount || 0) + (opts.destroySlotCount || 0) + (opts.enemyBulletSlotCount || 0) + i;
+    const colorSlot = opts.slotStartOverride !== undefined
+      ? opts.slotStartOverride + i
+      : opts.playerLayerCount + (opts.enemySlotCount || 0) + (opts.platformSlotCount || 0) + (opts.carrySlotCount || 0) + (opts.destroySlotCount || 0) + (opts.enemyBulletSlotCount || 0) + i;
     const colorVram = opts.colorBase + colorSlot * 16;
-    return `    ; bullet colour -> sprite slot ${opts.playerLayerCount + i} (VRAM ${asmWord(colorVram)})
+    return `    ; bullet colour -> sprite slot ${colorSlot} (VRAM ${asmWord(colorVram)})
     ld hl, bitmap_bullet_color_data
     ld de, ${asmWord(colorVram)}
     ld bc, bitmap_bullet_color_data_end - bitmap_bullet_color_data
@@ -311,7 +325,9 @@ export function buildBitmapShootRuntimeAsm(
   // IX walks the pool one slot at a time; the stride grew with the life byte.
   const advanceSlot = Array.from({ length: stride }, () => '    inc ix').join('\n');
   const patternNumber = asmByte(opts.bulletPatternNumber);
-  const satStart = opts.satBase + ((opts.foregroundSlotCount || 0) + opts.playerLayerCount + (opts.enemySlotCount || 0) + (opts.platformSlotCount || 0) + (opts.carrySlotCount || 0) + (opts.destroySlotCount || 0) + (opts.enemyBulletSlotCount || 0)) * 4;
+  const satStart = opts.slotStartOverride !== undefined
+    ? opts.satBase + opts.slotStartOverride * 4
+    : opts.satBase + ((opts.foregroundSlotCount || 0) + opts.playerLayerCount + (opts.enemySlotCount || 0) + (opts.platformSlotCount || 0) + (opts.carrySlotCount || 0) + (opts.destroySlotCount || 0) + (opts.enemyBulletSlotCount || 0)) * 4;
   const gameYOffset = asmByte(opts.gameYOffset);
   const shootPressedRoutine = buildBitmapShootPressedRoutine(config);
   const borrowed = opts.borrowPlayerPatternGroups;
@@ -751,7 +767,7 @@ bitmap_update_bullet_sat:
 .sat_loop:
     ld a, (ix+0)
     or a
-    jp z, .sat_next
+    jp z, .sat_hidden
     ld a, (ix+2)
     add a, ${gameYOffset}
     out (VDP_DATA_PORT), a
@@ -760,6 +776,17 @@ bitmap_update_bullet_sat:
 ${borrowedPatternSelectAsm}
     out (VDP_DATA_PORT), a
     xor a
+    out (VDP_DATA_PORT), a
+    jp .sat_next
+.sat_hidden:
+    ; Always overwrite an inactive slot. Leaving the previous four SAT bytes
+    ; intact can resurrect a stale sprite at its old (or partially written)
+    ; coordinates for one frame when another SAT writer follows this block.
+    ld a, #D4
+    out (VDP_DATA_PORT), a
+    xor a
+    out (VDP_DATA_PORT), a
+    out (VDP_DATA_PORT), a
     out (VDP_DATA_PORT), a
 .sat_next:
 ${advanceSlot}

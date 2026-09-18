@@ -68,6 +68,8 @@ export function buildScreen5BitmapTileAsset(
     paletteId: string;
     existingAssets: ProjectAsset[];
     sourceType?: BitmapTileScreen5['sourceType'];
+    sourceRoomAssetId?: string;
+    sourceAtlasEntryId?: string;
   },
 ): ProjectAsset {
   const usedNames = new Set(params.existingAssets.map(asset => asset.name));
@@ -92,6 +94,8 @@ export function buildScreen5BitmapTileAsset(
     width,
     height,
     sourceType: params.sourceType ?? 'atlas-export',
+    ...(params.sourceRoomAssetId ? { sourceRoomAssetId: params.sourceRoomAssetId } : {}),
+    ...(params.sourceAtlasEntryId ? { sourceAtlasEntryId: params.sourceAtlasEntryId } : {}),
     paletteId: params.paletteId,
     pixelData,
     createdAt: now,

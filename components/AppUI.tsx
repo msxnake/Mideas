@@ -1446,7 +1446,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           {currentEditor === EditorType.Msx2BitmapStamp && activeAsset?.type === 'msx2bitmapstamp' && (
             <Msx2BitmapStampEditor
               stamp={activeAsset.data as Msx2BitmapStampAsset}
-              onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}
+              onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)}
               allAssets={assets}
               activeBitmapWorld={activeBitmapWorldAsset?.data as WorldMapGraph | undefined}
               onSelectAsset={onSelectAsset}

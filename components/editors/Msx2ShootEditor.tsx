@@ -163,7 +163,7 @@ export const Msx2ShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdat
             </div>
             {fansOut && shoot.fixedAngle === true && (
               <div>
-                <label className={label}>Angle</label>
+                <label className={label}>{shoot.pattern === 'radial' && (shoot.burstCount ?? 1) > 1 ? 'Start angle' : 'Angle'}</label>
                 <select className={input} value={shootAngleIndex(shoot)}
                   onChange={e => set('angle', Number(e.target.value))}>
                   {ANGLE_OPTIONS.map(option => (
@@ -172,6 +172,20 @@ export const Msx2ShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdat
                     </option>
                   ))}
                 </select>
+              </div>
+            )}
+            {shoot.pattern === 'radial' && shoot.fixedAngle === true && (shoot.burstCount ?? 1) > 1 && (
+              <div>
+                <label className={label}>End angle</label>
+                <select className={input} value={Number.isFinite(Number(shoot.angleEnd)) ? shootAngleIndex({ ...shoot, angle: shoot.angleEnd }) : shootAngleIndex(shoot)}
+                  onChange={e => set('angleEnd', Number(e.target.value))}>
+                  {ANGLE_OPTIONS.map(option => (
+                    <option key={option.slot} value={option.slot}>
+                      {option.degrees}°{option.name ? ` — ${option.name}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className={note}>With one bullet per wave, the burst sweeps this range in order.</p>
               </div>
             )}
           </div>
@@ -185,6 +199,11 @@ export const Msx2ShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdat
 
         <div className={card}>
           <h3 className="text-sm font-semibold mb-3">Burst</h3>
+          <button type="button" className="mb-3 px-2 py-1 text-xs rounded border border-msx-border text-msx-textprimary"
+            onClick={() => onUpdate({ ...shoot, pattern: 'radial', bulletCount: 1, fixedAngle: true, spin: true,
+              angle: 4, angleEnd: 8, burstCount: 5, burstInterval: 60 })}>
+            Preset: 5 bullets, 90° → 180°, every second
+          </button>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={label}>Waves per trigger (max {MSX2_SHOOT_MAX_BURST})</label>

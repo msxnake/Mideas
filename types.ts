@@ -325,6 +325,12 @@ export interface BitmapTileScreen5 {
   height: number;
   sourceType: 'png-import' | 'manual-edit' | 'generated' | 'atlas-export';
   sourceFileName?: string;
+  /** Authoring-only link to the project asset that supplied this tile. */
+  sourceAssetId?: string;
+  /** When exported from a SCREEN 5 room atlas, identifies the room that owns the source entry. */
+  sourceRoomAssetId?: string;
+  /** When exported from a SCREEN 5 room atlas, identifies the source entry inside that room. */
+  sourceAtlasEntryId?: string;
   paletteId: string;
   pixelData: number[];
   /** Optional SCREEN 5 bitmap-room collision flags carried by stamps/metatiles. */
@@ -1813,6 +1819,12 @@ export interface Msx2ShootDefinition {
    * keeps every pre-existing asset on its compass direction.
    */
   angle?: number;
+  /**
+   * Optional end of the authored angle range for a staggered radial burst.
+   * When a radial wave contains one bullet and has multiple burst waves, the
+   * runtime walks from `angle` to `angleEnd` one ring step per wave.
+   */
+  angleEnd?: number;
   /**
    * `spread`/`radial` only: centre the fan/ring on the authored `angle` instead
    * of following the player. The runtime record flags this in bit 7 of the

@@ -9,20 +9,32 @@
 
 - Firmo siempre como **ZCode**. No soy Claude ni ningún otro agente que haya
   pasado por el canal; nunca firmo con nombre ajeno.
-- El canal puede tener otros participantes (hoy: Codex, Jordi como usuario).
+- El canal puede tener otros participantes (hoy: Gemini y Codex;
+  Jordi como usuario).
   La atribución del historial es sagrada: lo firmado, lo firmó quien lo firmó.
+- El writer de Codex INSERTA en medio (reconfirmado el 2026-09-16: su [006]
+  quedó por delante del [005] de ZCode): los re-escaneos completos son
+  obligatorios, no opcionales.
+- Vigilante DESACTIVADO por orden de Jordi (2026-09-16, "detener walkie"):
+  la automatización `automation-5a0566a0-c3df-4788-84c2-22ef09e106bc` fue
+  eliminada. Para reactivarlo: recrear el cron cada minuto siguiendo el
+  prompt que quedó documentado en esta memoria (técnica del cursor V2).
 
 ## El canal: exchange.txt
 
 - **Append-only estricto**: solo se escribe físicamente AL FINAL. No se
   borra, reescribe, reordena ni inserta junto a separadores antiguos.
-- Cabecera de cada mensaje:
-  `[NNN] DE: <nombre> | <YYYY-MM-DDTHH:MM:SS>±HH:MM | <TIPO>`
+- Cabecera (PROTOCOLO V2, orden de Jordi del 2026-09-16, SIN números):
+  `DE: <nombre> | <YYYY-MM-DDTHH:MM:SS±HH:MM> | <TIPO>` (+ tag libre opcional)
   TIPO = PROPUESTA | RESPUESTA | DATOS | PREGUNTA | ACUERDO | PARCHE | ERROR.
-- Numeración: el siguiente número libre. Si dos mensajes comparten número
-  (colisión mecánica), NO renumerar nada: marcarlo en el siguiente mensaje
-  propio y seguir. Si un mensaje propio aparece fuera de orden físico, es
-  error mecánico: se marca, no se mueve.
+  Los SEGUNDOS son obligatorios: minuto suelto colisiona.
+- Referencias por remitente + hora: "respondo a GEMINI @ 20:16:00".
+- Posición de lectura: "he leído hasta <nombre @ HH:MM:SS>" o "hasta el final
+  del fichero". Nadie necesita saber cuántos mensajes hay para escribir.
+- Motivo del cambio: la numeración correlativa se rompió dos veces el
+  2026-09-16 (un [006] insertado antes de su [005] y dos [006] duplicados).
+  El historial antiguo numerado [001]-[007] NO se reescribe; sus referencias
+  por número siguen siendo válidas para ese tramo.
 - Separador entre mensajes: una línea de `=` tras el cierre de turno.
 
 ## Turnos (regla dura)
@@ -65,6 +77,13 @@
   build verde nunca basta.
 
 ## Inicio de nueva cooperación (disparador de Jordi)
+
+Cooperación vigente (2026-09-16): **sprites MSX2 16x16 con Gemini** — Gemini
+dibuja la rejilla ASCII, ZCode convierte con la skill `msx2-sprites`
+(`.msx2sprite.json` + preview PNG) y coordina el canal. Historial anterior
+(cooperación Codex: shoot definitions/aimed) en
+`exchange_backup_20260916_200134.txt`. Las entregas de arte de Gemini usan
+la leyenda de colores fijada en el [001] del canal actual.
 
 Cuando Jordi diga **"inicio cooperacion para ... tarea X"**:
 1. Backup del canal actual al siguiente `exchange_N.txt` libre
@@ -114,18 +133,17 @@ Cuando Jordi diga **"inicio cooperacion para ... tarea X"**:
   bueno que cerraba dos cabos que yo seguía reportando como abiertos).
   Ante cualquier anomalía de numeración: `grep -n "^\[" exchange.txt`
   completo y comparar longitudes de lista.
-- TÉCNICA DEL CURSOR (apunte de Jordi, 2026-08-22): como los mensajes
-  están numerados y las cabeceras son una por línea, el vigilante no
-  necesita medir bytes. Cursor = (número máximo leído, línea de la
-  última cabecera, recuento total de cabeceras), persistido en
-  `server/temp/walkie_cursor.txt`. Vigilar `grep -c "^\["` y la línea
-  de la última cabecera: cualquier mensaje nuevo —append arriba, abajo
-  o en medio— cambia el recuento o desplaza líneas. Al disparar, escaneo
-  completo de cabeceras y leer solo lo que haya más allá del cursor.
-  EXCEPCIÓN (matiz de Jordi): si el RECUENTO DECRECE, es una rotación
-  (clear del tema + tarea nueva): el cursor queda invalidado. Acción:
-  verificar que el historial viejo existe en su backup (exchange_N.txt
-  o exchange_backup_*), releer el fichero NUEVO completo (es una
-  presentación de cooperación distinta), resetear el cursor al estado
-  nuevo y seguir el procedimiento de inicio de cooperación (presentarse,
-  re-armar vigilancia, ESPERAR definición de tarea y turnos).
+- TÉCNICA DEL CURSOR (V2): como los mensajes empiezan con `DE: ` (o
+  `[NNN] DE:` en el tramo histórico), el vigilante cuenta cabeceras con
+  `grep -c -E "^(====)?(\[[^]]*\] )?DE: "`, anota la línea de la última y
+  su remitente+timestamp, persistido en `server/temp/walkie_cursor.txt`.
+  Cualquier mensaje nuevo —append arriba, abajo o en medio— cambia el
+  recuento o desplaza líneas. Al disparar, escaneo completo de cabeceras y
+  leer solo lo que haya más allá del cursor. EXCEPCIÓN (matiz de Jordi):
+  si el RECUENTO DECRECE, es una rotación (clear del tema + tarea nueva):
+  el cursor queda invalidado. Acción: verificar que el historial viejo
+  existe en su backup (exchange_N.txt o exchange_backup_*), releer el
+  fichero NUEVO completo (es una presentación de cooperación distinta),
+  resetear el cursor al estado nuevo y seguir el procedimiento de inicio
+  de cooperación (presentarse, re-armar vigilancia, ESPERAR definición de
+  tarea y turnos).

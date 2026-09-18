@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { BitmapTileScreen5, BitmapTileStampFrameVariantScreen5, BitmapTileStampScreen5, EditorType, Msx2BitmapStampAsset, Msx2Screen5BitmapRoom, PaletteAsset, ProjectAsset, Screen5PaletteSlot, WorldMapGraph } from '../../types';
+import { BitmapTileScreen5, BitmapTileStampFrameVariantScreen5, BitmapTileStampScreen5, ContextMenuItem, EditorType, Msx2BitmapStampAsset, Msx2Screen5BitmapRoom, PaletteAsset, ProjectAsset, Screen5PaletteSlot, WorldMapGraph } from '../../types';
 import { createDefaultScreen5PaletteSlots, ensureScreen5PaletteSlots, screen5SlotsToMsxColors } from '../../utils/msx2PaletteUtils';
-import { bitmapStampFrameCount, bitmapStampToPixelGrid, bitmapTileScreen5ToAtlasTile, resolveBitmapStampFrameTiles } from '../../utils/msx2Screen5BitmapTileLibrary';
+import { bitmapStampFrameCount, bitmapStampToPixelGrid, bitmapTileScreen5ToAtlasTile, buildScreen5BitmapTileAsset, resolveBitmapStampFrameTiles } from '../../utils/msx2Screen5BitmapTileLibrary';
 import { removeAtlasEntriesFromRoom } from '../../utils/msx2BitmapAtlasRemoval';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
+import { ContextMenu } from '../common/ContextMenu';
 import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { PencilIcon, TrashIcon } from '../icons/MsxIcons';
 
@@ -24,7 +25,7 @@ const btnFrame = 'px-2 py-0.5 text-[10px] rounded border border-msx-border hover
 
 interface Msx2BitmapStampEditorProps {
   stamp: Msx2BitmapStampAsset;
-  onUpdate: (data: Partial<Msx2BitmapStampAsset>) => void;
+  onUpdate: (data: Partial<Msx2BitmapStampAsset>, newAssets?: ProjectAsset[]) => void;
   allAssets: ProjectAsset[];
   activeBitmapWorld?: WorldMapGraph;
   onSelectAsset?: (assetId: string, editorType?: EditorType) => void;
@@ -79,6 +80,7 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
 
   const [selectedTileId, setSelectedTileId] = useState<string | undefined>(undefined);
   const [activeFrame, setActiveFrame] = useState(0);
+  const [cellContextMenu, setCellContextMenu] = useState<{ position: { x: number; y: number }; cellIndex: number } | null>(null);
   // Ctrl/Cmd+click marks source tiles for deletion (they are project assets or room atlas
   // entries, so this is a real delete, not a stamp-cell operation).
   const [deleteSelection, setDeleteSelection] = useState<string[]>([]);
@@ -97,8 +99,21 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
   // active SCREEN 5 world. Pulling every room makes the stamp brush noisy fast.
   const sourceTiles = useMemo<StampSourceTile[]>(() => {
     const seenPixelKeys = new Set<string>();
+    const linkedAtlasKeys = new Set(
+      allAssets
+        .filter(asset => asset.type === 'msx2bitmaptile')
+        .map(asset => {
+          const tile = asset.data as BitmapTileScreen5 | undefined;
+          return tile?.sourceRoomAssetId && tile.sourceAtlasEntryId
+            ? `${tile.sourceRoomAssetId}::${tile.sourceAtlasEntryId}`
+            : '';
+        })
+        .filter(Boolean),
+    );
     const addUnique = (tiles: StampSourceTile[], tile: StampSourceTile) => {
-      const key = tile.pixelData.join(',');
+      const key = tile.tags?.includes('animation-duplicate') && tile.sourceAssetId
+        ? `asset:${tile.sourceAssetId}`
+        : tile.pixelData.join(',');
       if (seenPixelKeys.has(key)) return;
       seenPixelKeys.add(key);
       tiles.push(tile);
@@ -122,6 +137,7 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
     const atlas = room?.atlas;
     if (room && atlas?.pixels && Array.isArray(atlas.entries)) {
       atlas.entries.forEach(entry => {
+        if (atlasRoomAsset?.id && linkedAtlasKeys.has(`${atlasRoomAsset.id}::${entry.id}`)) return;
         const w = Math.max(1, Number(entry.w) || TILE);
         const h = Math.max(1, Number(entry.h) || TILE);
         if (w !== TILE || h !== TILE) return;
@@ -158,6 +174,54 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
   }, [activeBitmapWorld, allAssets]);
   const selectedTile = sourceTiles.find(tile => tile.id === selectedTileId);
 
+  const tilePixelKey = (tile: BitmapTileScreen5 | undefined): string =>
+    Array.isArray(tile?.pixelData) ? tile.pixelData.join(',') : '';
+
+  const findLinkedBitmapTileAsset = (tile: BitmapTileScreen5 | null | undefined): ProjectAsset | undefined => {
+    if (!tile) return undefined;
+    if (tile.sourceAssetId) {
+      const direct = allAssets.find(asset => asset.id === tile.sourceAssetId && asset.type === 'msx2bitmaptile');
+      if (direct) return direct;
+    }
+    if (tile.sourceRoomAssetId && tile.sourceAtlasEntryId) {
+      const promoted = allAssets.find(asset => {
+        if (asset.type !== 'msx2bitmaptile') return false;
+        const candidate = asset.data as BitmapTileScreen5 | undefined;
+        return candidate?.sourceRoomAssetId === tile.sourceRoomAssetId
+          && candidate.sourceAtlasEntryId === tile.sourceAtlasEntryId;
+      });
+      if (promoted) return promoted;
+    }
+    return undefined;
+  };
+
+  /**
+   * Stamps created before sourceAssetId was persisted contain independent tile
+   * copies. Resolve those legacy cells by their original tile id or pixels so
+   * double-click navigation keeps working after loading an older project.
+   */
+  const resolveTileSourceAssetId = (tile: BitmapTileScreen5 | null | undefined): string | undefined => {
+    if (!tile) return undefined;
+    const linkedAsset = findLinkedBitmapTileAsset(tile);
+    if (linkedAsset) return linkedAsset.id;
+
+    const assetWithTileId = allAssets.find(asset => asset.type === 'msx2bitmaptile'
+      && (asset.data as BitmapTileScreen5 | undefined)?.id === tile.id);
+    if (assetWithTileId) return assetWithTileId.id;
+
+    const pixelKey = tilePixelKey(tile);
+    if (!pixelKey) return undefined;
+    return sourceTiles.find(candidate => candidate.sourceAssetId && tilePixelKey(candidate) === pixelKey)?.sourceAssetId;
+  };
+
+  const resolveLiveTile = (tile: BitmapTileScreen5 | null): BitmapTileScreen5 | null => {
+    if (!tile) return null;
+    const linkedAsset = findLinkedBitmapTileAsset(tile);
+    if (!linkedAsset?.data) return tile;
+    const current = linkedAsset.data as BitmapTileScreen5;
+    return { ...tile, ...current, id: tile.id, sourceAssetId: linkedAsset.id };
+  };
+
   // Working palette: the stamp's own palette, else default. Slots are what matter
   // for the ROM/portrait, so rendering everything with one palette stays faithful.
   const workingSlots: Screen5PaletteSlot[] = useMemo(() => {
@@ -172,15 +236,85 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
     const paletteAsset = tile.paletteId ? allAssets.find(asset => asset.id === tile.paletteId && asset.type === 'palette') : undefined;
     return ensureScreen5PaletteSlots((paletteAsset?.data as PaletteAsset | undefined)?.slots || workingSlots).slots;
   };
-  const commitStamp = (patch: Partial<BitmapTileStampScreen5>) => {
-    onUpdate({ stamp: { ...stampData, ...patch, updatedAt: new Date().toISOString() } });
+  const commitStamp = (patch: Partial<BitmapTileStampScreen5>, newAssets?: ProjectAsset[]) => {
+    onUpdate({ stamp: { ...stampData, ...patch, updatedAt: new Date().toISOString() } }, newAssets);
   };
 
   const frameCount = bitmapStampFrameCount(stampData);
   const activeFrameTiles = useMemo(
-    () => resolveBitmapStampFrameTiles(stampData, activeFrame),
-    [stampData, activeFrame],
+    () => resolveBitmapStampFrameTiles(stampData, activeFrame).map(resolveLiveTile),
+    [stampData, activeFrame, allAssets],
   );
+
+  const liveStampData = useMemo<BitmapTileStampScreen5>(() => ({
+    ...stampData,
+    tiles: (stampData.tiles || []).map(tile => resolveLiveTile(tile)),
+    frameVariants: (stampData.frameVariants || []).map(variant => ({
+      ...variant,
+      cells: (variant.cells || []).map(cell => ({ ...cell, tile: resolveLiveTile(cell.tile) })),
+    })),
+  }), [stampData, allAssets]);
+
+  const buildSourceLinkPatch = (index: number, tile: BitmapTileScreen5, sourceAssetId: string): Partial<BitmapTileStampScreen5> | undefined => {
+    const linkedTile = { ...tile, sourceAssetId };
+    if (activeFrame === 0) {
+      const tiles = (stampData.tiles || []).slice();
+      while (tiles.length < columns * rows) tiles.push(makeBlankTile(stampData.paletteId));
+      tiles[index] = linkedTile;
+      return { tiles };
+    }
+    const variantIndex = activeFrame - 1;
+    const variants = (stampData.frameVariants || []).map(variant => ({
+      ...variant,
+      cells: Array.isArray(variant.cells) ? variant.cells.map(cell => ({ ...cell, tile: cell.tile ? { ...cell.tile } : null })) : [],
+    }));
+    const variant = variants[variantIndex];
+    if (!variant) return undefined;
+    const cells = variant.cells.filter(cell => cell.index !== index);
+    cells.push({ index, tile: linkedTile });
+    cells.sort((a, b) => a.index - b.index);
+    variants[variantIndex] = { ...variant, cells };
+    return { frameVariants: variants };
+  };
+
+  const openTileEditor = (tile: BitmapTileScreen5 | null | undefined, cellIndex?: number) => {
+    const sourceAssetId = resolveTileSourceAssetId(tile);
+    if (sourceAssetId) {
+      onSelectAsset?.(sourceAssetId, EditorType.Msx2BitmapTile);
+      return;
+    }
+    if (!tile) return;
+
+    const atlasSource = tile as StampSourceTile;
+    if (!atlasSource.sourceRoomAssetId || !atlasSource.sourceAtlasEntryId) {
+      setStatusBarMessage?.('No se encontró el asset Bitmap Tile de origen para este tile.');
+      return;
+    }
+
+    // Atlas entries are room data, not standalone assets. Promote the selected
+    // 16×16 entry to an editable Bitmap Tile asset before opening its editor.
+    const pixels = Array.from({ length: TILE }, (_row, y) =>
+      Array.from({ length: TILE }, (_col, x) => Number(tile.pixelData[y * TILE + x]) || 0),
+    );
+    const newAsset = buildScreen5BitmapTileAsset({
+      name: tile.name,
+      width: TILE,
+      height: TILE,
+      pixels,
+      paletteId: tile.paletteId,
+      existingAssets: allAssets,
+      sourceType: 'atlas-export',
+      sourceRoomAssetId: atlasSource.sourceRoomAssetId,
+      sourceAtlasEntryId: atlasSource.sourceAtlasEntryId,
+    });
+    const sourceLinkPatch = cellIndex === undefined ? undefined : buildSourceLinkPatch(cellIndex, tile, newAsset.id);
+    if (sourceLinkPatch) {
+      commitStamp(sourceLinkPatch, [newAsset]);
+    } else {
+      onUpdate({}, [newAsset]);
+    }
+    onSelectAsset?.(newAsset.id, EditorType.Msx2BitmapTile);
+  };
 
   useEffect(() => {
     setActiveFrame(current => Math.max(0, Math.min(current, frameCount - 1)));
@@ -212,7 +346,7 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
     setActiveFrame(Math.min(activeFrame - 1, variants.length));
   };
 
-  const updateVariantCell = (index: number, tile: BitmapTileScreen5 | null) => {
+  const updateVariantCell = (index: number, tile: BitmapTileScreen5 | null, newAssets?: ProjectAsset[]) => {
     const variantIndex = activeFrame - 1;
     const variants = (stampData.frameVariants || []).map(variant => ({
       ...variant,
@@ -224,7 +358,70 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
     cells.push({ index, tile: tile ? { ...tile } : null });
     cells.sort((a, b) => a.index - b.index);
     variants[variantIndex] = { ...variant, cells };
-    commitStamp({ frameVariants: variants });
+    commitStamp({ frameVariants: variants }, newAssets);
+  };
+
+  /**
+   * Make the clicked cell independent from its source tile. This is useful for
+   * animation: editing the duplicate in a later frame must not modify the tile
+   * reused by the base frame or by another stamp.
+   */
+  const duplicateCellTile = (index: number, tile: BitmapTileScreen5 | null) => {
+    if (!tile || isBlankTile(tile)) {
+      setStatusBarMessage?.('Selecciona una celda con tile para duplicarla.');
+      return;
+    }
+
+    const sourceTile = resolveLiveTile(tile) || tile;
+    const pixels = Array.from({ length: TILE }, (_row, y) =>
+      Array.from({ length: TILE }, (_col, x) => Number(sourceTile.pixelData[y * TILE + x]) || 0),
+    );
+    const builtAsset = buildScreen5BitmapTileAsset({
+      name: `${sourceTile.name} (anim)`,
+      width: TILE,
+      height: TILE,
+      pixels,
+      paletteId: sourceTile.paletteId || stampData.paletteId,
+      existingAssets: allAssets,
+      sourceType: 'manual-edit',
+    });
+
+    // The builder already makes names unique. Add a random suffix to the id as
+    // well because two context-menu actions can happen within the same ms.
+    const duplicateId = `${builtAsset.id}_${Math.random().toString(36).slice(2, 7)}`;
+    const duplicateData: BitmapTileScreen5 = {
+      ...(builtAsset.data as BitmapTileScreen5),
+      id: duplicateId,
+      sourceType: 'manual-edit',
+      collisionFlags: sourceTile.collisionFlags,
+      behaviorCode: sourceTile.behaviorCode,
+      tags: Array.from(new Set([...(sourceTile.tags || []), 'animation-duplicate'])),
+    };
+    const duplicateAsset: ProjectAsset = {
+      ...builtAsset,
+      id: duplicateId,
+      data: duplicateData,
+    };
+    const cellTile: BitmapTileScreen5 = {
+      ...duplicateData,
+      id: `${stampData.id}_cell_${index}_${Date.now()}`,
+      sourceAssetId: duplicateId,
+    };
+
+    if (activeFrame === 0) {
+      const tiles = (stampData.tiles || []).slice();
+      while (tiles.length < columns * rows) tiles.push(makeBlankTile(stampData.paletteId));
+      tiles[index] = cellTile;
+      commitStamp({ tiles }, [duplicateAsset]);
+    } else {
+      updateVariantCell(index, cellTile, [duplicateAsset]);
+    }
+    setSelectedTileId(duplicateId);
+    setStatusBarMessage?.(
+      activeFrame === 0
+        ? 'Tile duplicado como base independiente. Añade un frame para animarlo.'
+        : `Tile duplicado en el frame ${activeFrame}; ya puedes editarlo sin afectar al original.`,
+    );
   };
 
   const setGridSize = (nextCols: number, nextRows: number) => {
@@ -269,10 +466,11 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
       setStatusBarMessage?.('Selecciona primero un tile 16×16 de la lista para colocarlo.');
       return;
     }
-    // Store a copy (keeping the source tile's paletteId) so later edits to the
-    // source tile do not silently mutate the stamp. The whole cell is REPLACED,
-    // so transparent (slot 0) pixels of the new tile erase whatever was there.
-    const { sourceAssetId: _sourceAssetId, sourceLabel: _sourceLabel, sourcePalette: _sourcePalette, ...tileToStore } = selectedTile;
+    // Store a copy (keeping the source tile's paletteId) so the Stamp owns its
+    // cell metadata. The sourceAssetId is retained deliberately: edits made in
+    // the Bitmap Tile Editor are propagated back to this cell. The whole cell is
+    // REPLACED, so transparent (slot 0) pixels of the new tile erase whatever was there.
+    const { sourceLabel: _sourceLabel, sourcePalette: _sourcePalette, ...tileToStore } = selectedTile;
     const nextTile: BitmapTileScreen5 = {
       ...tileToStore,
       id: `${stampData.id}_cell_${index}_${Date.now()}`,
@@ -298,7 +496,7 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
     });
   };
 
-  const compositePixels = useMemo(() => bitmapStampToPixelGrid({ ...stampData, columns, rows }, activeFrame), [stampData, columns, rows, activeFrame]);
+  const compositePixels = useMemo(() => bitmapStampToPixelGrid({ ...liveStampData, columns, rows }, activeFrame), [liveStampData, columns, rows, activeFrame]);
 
   // --- Deleting source tiles (Ctrl/Cmd+click selection) ---
 
@@ -373,6 +571,27 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
     setStatusBarMessage?.(`Stamp: paleta "${paletteAsset.name}" activada.`);
   };
 
+  const cellContextTile = cellContextMenu ? activeFrameTiles[cellContextMenu.cellIndex] : null;
+  const cellContextMenuItems: ContextMenuItem[] = [
+    {
+      label: 'Duplicar tile',
+      icon: <PencilIcon className="w-4 h-4" />,
+      disabled: !cellContextTile || isBlankTile(cellContextTile),
+      onClick: () => {
+        if (cellContextMenu) duplicateCellTile(cellContextMenu.cellIndex, cellContextTile);
+      },
+    },
+    { isSeparator: true },
+    {
+      label: 'Borrar tile',
+      icon: <TrashIcon className="w-4 h-4" />,
+      disabled: !cellContextTile || isBlankTile(cellContextTile),
+      onClick: () => {
+        if (cellContextMenu) assignCell(cellContextMenu.cellIndex, true);
+      },
+    },
+  ];
+
   return (
     <div className="flex h-full gap-2 p-2 overflow-auto text-msx-textprimary">
       {/* Left: source tiles */}
@@ -398,7 +617,7 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
                       }
                       setSelectedTileId(tile.id);
                     }}
-                    onDoubleClick={() => { if (tile.sourceAssetId) onSelectAsset?.(tile.sourceAssetId, EditorType.Msx2BitmapTile); }}
+                    onDoubleClick={() => openTileEditor(tile)}
                     className={`relative border ${marked ? 'border-msx-danger ring-1 ring-msx-danger' : selectedTileId === tile.id ? 'border-msx-accent ring-1 ring-msx-accent' : 'border-msx-border'} bg-msx-bgcolor p-0.5`}
                   >
                     <TileThumb tile={tile} colors={colors} zoom={3} />
@@ -545,13 +764,28 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
                       key={index}
                       className={`relative ${blank ? 'bg-msx-panelbg/40' : ''}`}
                       style={{ width: TILE * PREVIEW_ZOOM, height: TILE * PREVIEW_ZOOM, outline: '1px solid rgba(255,255,255,0.10)' }}
+                      title={blank ? 'Celda vacía' : 'Doble clic para abrir este tile en el editor Bitmap Tile'}
                       onMouseDown={event => {
-                        const erase = event.button === 2;
-                        paintingRef.current = { active: true, erase };
-                        assignCell(index, erase);
+                        if (event.button !== 0) return;
+                        paintingRef.current = { active: true, erase: false };
+                        assignCell(index, false);
                       }}
                       onMouseEnter={() => { if (paintingRef.current.active) assignCell(index, paintingRef.current.erase); }}
                       onMouseUp={() => { paintingRef.current.active = false; }}
+                      onDoubleClick={event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (!blank) openTileEditor(tile, index);
+                      }}
+                      onContextMenu={event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        paintingRef.current.active = false;
+                        setCellContextMenu({
+                          position: { x: event.clientX, y: event.clientY },
+                          cellIndex: index,
+                        });
+                      }}
                     >
                       {tile && !blank && <TileThumb tile={tile} colors={colors} zoom={PREVIEW_ZOOM} />}
                       {blank && <span className="absolute inset-0 flex items-center justify-center text-[9px] text-msx-textsecondary">·</span>}
@@ -592,6 +826,15 @@ export const Msx2BitmapStampEditor: React.FC<Msx2BitmapStampEditorProps> = ({ st
           </div>
         </Panel>
       </div>
+
+      {cellContextMenu && (
+        <ContextMenu
+          isOpen
+          position={cellContextMenu.position}
+          items={cellContextMenuItems}
+          onClose={() => setCellContextMenu(null)}
+        />
+      )}
 
       {isDeleteConfirmOpen && (
         <ConfirmationModal

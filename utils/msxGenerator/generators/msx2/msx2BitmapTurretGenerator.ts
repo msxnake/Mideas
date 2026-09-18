@@ -54,7 +54,11 @@ const EMPTY: BitmapTurretSystemAsm = {
 };
 
 export function bitmapTurretHardwareSlots(data: BitmapTurretRoomData | undefined): number {
-  return data?.maxSlots ? data.maxSlots * 2 + 1 : 0;
+  // One aim-marker sprite per turret plus the shared bullet slot. The turret
+  // BODY is authored room art (a tile under the turret), not a hardware
+  // sprite: the body sprite went away because it was pure static weight in
+  // the SAT chain (Jordi, 2026-09-16).
+  return data?.maxSlots ? data.maxSlots + 1 : 0;
 }
 
 export function bitmapTurretPatternGroups(data: BitmapTurretRoomData | undefined): number {
@@ -75,8 +79,10 @@ export function buildBitmapTurretSystemAsm(data: BitmapTurretRoomData, opts: Bit
   const tableBufAddr = opts.ramBase + 1 + poolBytes + 9;
   const ramBytes = 1 + poolBytes + 9 + (bankedTables ? TABLE_BYTES : 0);
   const bulletPattern = (opts.patternGroupBase + maxSlots * 2) * 4;
-  const bulletSat = opts.satBase + maxSlots * 8;
-  const bulletColor = opts.colorBase + maxSlots * 32;
+  // One aim-marker sprite per turret (the body is authored room art), so the
+  // shared bullet slot lives maxSlots SAT entries after the turret base.
+  const bulletSat = opts.satBase + maxSlots * 4;
+  const bulletColor = opts.colorBase + maxSlots * 16;
   const invuln = byte(Math.max(1, opts.damageInvulnFrames || 30));
   const maxHealth = byte(Math.max(1, opts.maxHealth || 1));
   const playerLeft = opts.playerHitbox.x || 0;
@@ -187,21 +193,11 @@ export function buildBitmapTurretSystemAsm(data: BitmapTurretRoomData, opts: Bit
 
   const satBlocks = Array.from({ length: maxSlots }, (_v, i) => {
     const pool = `bitmap_turret_pool + ${i * TURRET_STRIDE}`;
-    const basePattern = (opts.patternGroupBase + i * 2) * 4;
-    const headPattern = basePattern + 4;
+    const headPattern = (opts.patternGroupBase + i * 2) * 4 + 4;
     return `    ld a, (bitmap_turret_count)
     cp ${i + 1}
     jp c, .turret_sat_${i}_empty
     ld ix, ${pool}
-    ld a, (ix+1)
-    add a, ${byte(opts.gameYOffset)}
-    out (VDP_DATA_PORT), a
-    ld a, (ix+0)
-    out (VDP_DATA_PORT), a
-    ld a, ${byte(basePattern)}
-    out (VDP_DATA_PORT), a
-    xor a
-    out (VDP_DATA_PORT), a
     ld a, (ix+4)
     ld c, (ix+7)
     call bitmap_turret_direction_offset
@@ -218,15 +214,12 @@ export function buildBitmapTurretSystemAsm(data: BitmapTurretRoomData, opts: Bit
     out (VDP_DATA_PORT), a
     jp .turret_sat_${i}_done
 .turret_sat_${i}_empty:
-    ld b, 2
-.turret_sat_${i}_empty_loop:
     ld a, #D4
     out (VDP_DATA_PORT), a
     xor a
     out (VDP_DATA_PORT), a
     out (VDP_DATA_PORT), a
     out (VDP_DATA_PORT), a
-    djnz .turret_sat_${i}_empty_loop
 .turret_sat_${i}_done:
 `;
   }).join('');
@@ -251,7 +244,7 @@ bitmap_turret_table_buf     EQU ${word(tableBufAddr)}` : ''}
   const routinesAsm = `
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_load_turrets
-; PURPOSE: Load the current room's two-sprite turret records and upload their
+; PURPOSE: Load the current room's turret records and upload their
 ;   patterns/line colours. Also clears the single shared bullet.
 ; INPUT: current_screen_index. OUTPUT: bitmap_turret_count/pool.
 ; DESTROYS: AF, BC, DE, HL. PRESERVES: IY; IX is saved/restored.

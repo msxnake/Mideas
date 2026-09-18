@@ -13,6 +13,7 @@
  */
 
 import {
+  BitmapTileScreen5,
   Msx2BitmapRoomAtlasEntry,
   Msx2BitmapRoomCommand,
   Msx2Screen4EntityInstance,
@@ -23,6 +24,53 @@ import { pruneTerrainsForEntries } from './msx2Autotile';
 const SCREEN_W = 256;
 const SCREEN_H = 192;
 const GRID = 16;
+
+/**
+ * Mirrors an editable Bitmap Tile asset back into its original room-atlas entry.
+ * The entry identity and all room references stay intact; only its pixels/name change.
+ */
+export const updateAtlasEntryFromBitmapTile = (
+  room: Msx2Screen5BitmapRoom,
+  tile: BitmapTileScreen5,
+): Partial<Msx2Screen5BitmapRoom> | null => {
+  const entryId = tile.sourceAtlasEntryId;
+  if (!entryId || !room?.atlas) return null;
+  const entry = room.atlas.entries.find(item => item.id === entryId);
+  if (!entry) return null;
+
+  const atlasWidth = Math.max(1, Number(room.atlas.width) || SCREEN_W);
+  const atlasHeight = Math.max(1, Number(room.atlas.height) || 128);
+  const nextPixels = Array.from({ length: atlasHeight }, (_row, y) =>
+    Array.from({ length: atlasWidth }, (_col, x) => room.atlas.pixels?.[y]?.[x] ?? 0),
+  );
+  const width = Math.max(1, Number(entry.w) || GRID);
+  const height = Math.max(1, Number(entry.h) || GRID);
+  const tileWidth = Math.max(1, Number(tile.width) || GRID);
+  let pixelsChanged = false;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const px = entry.sx + x;
+      const py = entry.sy + y;
+      if (px < 0 || py < 0 || px >= atlasWidth || py >= atlasHeight) continue;
+      const nextValue = Math.max(0, Math.min(15, Math.trunc(Number(tile.pixelData[y * tileWidth + x]) || 0)));
+      if (nextPixels[py][px] !== nextValue) pixelsChanged = true;
+      nextPixels[py][px] = nextValue;
+    }
+  }
+
+  const nextName = String(tile.name || '').trim() || entry.name;
+  const nameChanged = nextName !== entry.name;
+  if (!pixelsChanged && !nameChanged) return null;
+  return {
+    atlas: {
+      ...room.atlas,
+      pixels: nextPixels,
+      entries: nameChanged
+        ? room.atlas.entries.map(item => item.id === entry.id ? { ...item, name: nextName } : item)
+        : room.atlas.entries,
+    },
+  };
+};
 
 /** Tile-map dimensions of a room: always 16 columns, 12 rows at 192px and 13 at 212px. */
 export const bitmapRoomGridSize = (room: Msx2Screen5BitmapRoom): { cols: number; rows: number } => ({

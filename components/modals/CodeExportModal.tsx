@@ -421,6 +421,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const [isPostAsmAnalyzing, setIsPostAsmAnalyzing] = useState(false);
   const [isPostAsmOptimizing, setIsPostAsmOptimizing] = useState(false);
   const [compilationResult, setCompilationResult] = useState<{ success: boolean; message: string; data?: string } | null>(null);
+  const [copyMessageStatus, setCopyMessageStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [asmCompressionResult, setAsmCompressionResult] = useState<any>(null);
   const [postAsmAnalysisResult, setPostAsmAnalysisResult] = useState<PostAsmAnalysisResult | null>(null);
   const [postAsmOptimizationResult, setPostAsmOptimizationResult] = useState<PostAsmAnalysisResult | null>(null);
@@ -486,6 +487,64 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       : '';
 
     return `${action} could not reach the backend at ${backendBaseUrl}. Check that server/server.js is running on port 3001.${mixedContentHint} Original error: ${details}`;
+  };
+
+  const buildCompilationCopyText = (result: any) => {
+    const fullDetails = result?.fullDetails;
+    const structuredDiagnostics = {
+      requestedRomConfig: result?.requestedRomConfig,
+      sourceRomConfig: result?.sourceRomConfig,
+      resolvedRomConfig: result?.resolvedRomConfig,
+      suggestedRomConfig: result?.suggestedRomConfig,
+      msx2CompileFailure: result?.msx2CompileFailure,
+      screenCompressionInfo: result?.screenCompressionInfo,
+      sourceConfigMismatchWarning: result?.sourceConfigMismatchWarning,
+      romModeConflictWarning: result?.romModeConflictWarning,
+    };
+    const hasStructuredDiagnostics = Object.values(structuredDiagnostics).some(value => value !== undefined);
+
+    return [
+      'Mideas build diagnostic',
+      `Project: ${currentProjectName || 'MSX_Game'}`,
+      `Status: ${result?.success ? 'success' : 'failed'}`,
+      result?.message ? `Message:\n${String(result.message)}` : '',
+      quickValidationSummary ? `Pipeline summary:\n${quickValidationSummary}` : '',
+      fullDetails?.command ? `Command:\n${fullDetails.command}` : '',
+      fullDetails?.fullStderr ? `STDERR:\n${fullDetails.fullStderr}` : '',
+      fullDetails?.fullStdout ? `STDOUT:\n${fullDetails.fullStdout}` : '',
+      hasStructuredDiagnostics
+        ? `Structured diagnostics:\n${JSON.stringify(structuredDiagnostics, null, 2)}`
+        : '',
+    ].filter(Boolean).join('\n\n');
+  };
+
+  const handleCopyCompilationMessage = async () => {
+    if (!compilationResult || compilationResult.success) return;
+
+    const text = buildCompilationCopyText(compilationResult);
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        const copied = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        if (!copied) throw new Error('Clipboard API unavailable');
+      }
+
+      setCopyMessageStatus('success');
+      window.setTimeout(() => setCopyMessageStatus('idle'), 2000);
+    } catch (error) {
+      console.error('Failed to copy compilation message:', error);
+      setCopyMessageStatus('error');
+      window.setTimeout(() => setCopyMessageStatus('idle'), 2000);
+    }
   };
 
   // Function to download ZIP with all modular files
@@ -1433,6 +1492,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
     setIsCompiling(true);
     setCompilationResult(null);
+    setCopyMessageStatus('idle');
     setQuickValidationSummary(null);
 
     try {
@@ -1473,6 +1533,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     setIsCompiling(true);
     setIsCompressingAsm(true);
     setCompilationResult(null);
+    setCopyMessageStatus('idle');
     setAsmCompressionResult(null);
     setPostAsmAnalysisResult(null);
     setPostAsmOptimizationResult(null);
@@ -2774,14 +2835,30 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
             {compilationResult && (
               <Panel title="ROM Build Result" className={compilationResult.success ? "border-green-500" : "border-red-500"}>
                 <div className="p-3">
-                  <div className={`text-sm ${compilationResult.success ? 'text-green-400' : 'text-red-400'}`}>
-                    {compilationResult.success
-                      ? 'Compilation successful'
-                      : (compilationResult as any).resolvedRomConfig?.resolvedRomMode === 'megarom_failed'
-                        ? 'MegaROM build failed'
-                      : (compilationResult as any).suggestedRomConfig
-                        ? 'ROM capacity limit reached'
-                        : 'Glass compilation failed'}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className={`text-sm ${compilationResult.success ? 'text-green-400' : 'text-red-400'}`}>
+                      {compilationResult.success
+                        ? 'Compilation successful'
+                        : (compilationResult as any).resolvedRomConfig?.resolvedRomMode === 'megarom_failed'
+                          ? 'MegaROM build failed'
+                        : (compilationResult as any).suggestedRomConfig
+                          ? 'ROM capacity limit reached'
+                          : 'Glass compilation failed'}
+                    </div>
+                    {!compilationResult.success && (
+                      <button
+                        type="button"
+                        onClick={handleCopyCompilationMessage}
+                        title="Copy the build diagnostic to send to an AI"
+                        className="shrink-0 px-3 py-1 bg-msx-highlight hover:bg-opacity-80 text-msx-bgcolor text-xs rounded transition-colors"
+                      >
+                        {copyMessageStatus === 'success'
+                          ? 'Copied!'
+                          : copyMessageStatus === 'error'
+                            ? 'Copy failed'
+                            : 'Copy message'}
+                      </button>
+                    )}
                   </div>
                   <div className="hidden">
                     {compilationResult.success ? '✓ Compilation successful!' : '✗ Glass compilation failed'}

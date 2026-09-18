@@ -37,9 +37,56 @@ import {
   buildStampAtlasIdentity,
   findStampAtlasEntries,
   removeAtlasEntriesFromRoom,
+  updateAtlasEntryFromBitmapTile,
 } from '../utils/msx2BitmapAtlasRemoval';
 
 const MSX2_HUD_FONT_CHARACTERS = ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:-/';
+const stampCellUsesBitmapTile = (cell: BitmapTileScreen5 | null | undefined, assetId: string, tile: BitmapTileScreen5): boolean => (
+  !!cell && (
+    cell.sourceAssetId === assetId
+    || (!!tile.sourceRoomAssetId
+      && !!tile.sourceAtlasEntryId
+      && cell.sourceRoomAssetId === tile.sourceRoomAssetId
+      && cell.sourceAtlasEntryId === tile.sourceAtlasEntryId)
+  )
+);
+
+/** Keep persisted Stamp cells in sync with the canonical Bitmap Tile asset they open. */
+const updateStampReferencesForBitmapTile = (
+  asset: ProjectAsset,
+  assetId: string,
+  tile: BitmapTileScreen5,
+): ProjectAsset => {
+  if (asset.type !== 'msx2bitmapstamp' || !asset.data) return asset;
+  const stampAsset = asset.data as Msx2BitmapStampAsset;
+  const replaceCell = (cell: BitmapTileScreen5 | null): BitmapTileScreen5 | null => {
+    if (!stampCellUsesBitmapTile(cell, assetId, tile)) return cell;
+    return { ...cell, ...tile, id: cell.id, sourceAssetId: assetId };
+  };
+  const nextTiles = (stampAsset.stamp.tiles || []).map(replaceCell) as BitmapTileScreen5[];
+  const nextVariants = (stampAsset.stamp.frameVariants || []).map(variant => ({
+    ...variant,
+    cells: (variant.cells || []).map(cell => ({ ...cell, tile: replaceCell(cell.tile) })),
+  }));
+  const changed = nextTiles.some((cell, index) => cell !== stampAsset.stamp.tiles?.[index])
+    || nextVariants.some((variant, index) => variant.cells.some((cell, cellIndex) => cell.tile !== stampAsset.stamp.frameVariants?.[index]?.cells?.[cellIndex]?.tile));
+  if (!changed) return asset;
+  const now = new Date().toISOString();
+  return {
+    ...asset,
+    data: {
+      ...stampAsset,
+      savedAt: Date.now(),
+      stamp: {
+        ...stampAsset.stamp,
+        tiles: nextTiles,
+        frameVariants: nextVariants,
+        updatedAt: now,
+      },
+    },
+  };
+};
+
 const DEFAULT_MSX2_HUD_FONT_PATTERNS: Record<string, number[]> = {
   ' ': [0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00],
   '0': [0x3C,0x66,0x6E,0x76,0x66,0x66,0x3C,0x00],
@@ -373,6 +420,16 @@ export const useAssetHandlers = ({
   const handleUpdateAsset = useCallback((assetId: string, updatedData: any, newAssetsToCreate?: ProjectAsset[]) => {
     const assetBeforeUpdate = assets.find(asset => asset.id === assetId);
     const originalUpdatedData = updatedData;
+    const isFunctionalUpdate = typeof updatedData === 'function';
+    const isDataUpdateNeeded = isFunctionalUpdate || (updatedData && (!(typeof updatedData === 'object' && Object.keys(updatedData).length === 0)));
+    const bitmapTileUpdate = !isFunctionalUpdate
+      && assetBeforeUpdate?.type === 'msx2bitmaptile'
+      && assetBeforeUpdate.data
+      && updatedData
+      && typeof updatedData === 'object'
+      && Object.keys(updatedData).length > 0
+      ? { ...(assetBeforeUpdate.data as BitmapTileScreen5), ...updatedData as Partial<BitmapTileScreen5> }
+      : undefined;
     setAssetsWithHistory(prevAssets => {
       let intermediateAssets = prevAssets;
       if (newAssetsToCreate && newAssetsToCreate.length > 0) {
@@ -384,14 +441,11 @@ export const useAssetHandlers = ({
         setStatusBarMessage(message);
       }
 
-      const isFunctionalUpdate = typeof updatedData === 'function';
-      const isDataUpdateNeeded = isFunctionalUpdate || (updatedData && (!(typeof updatedData === 'object' && Object.keys(updatedData).length === 0)));
-
       if (!isDataUpdateNeeded) {
         return intermediateAssets;
       }
 
-      return intermediateAssets.map(asset => {
+      intermediateAssets = intermediateAssets.map(asset => {
         if (asset.id === assetId) {
           let effectiveUpdatedData = isFunctionalUpdate
             ? updatedData(asset.data, asset)
@@ -429,6 +483,19 @@ export const useAssetHandlers = ({
         }
         return asset;
       });
+
+      if (bitmapTileUpdate) {
+        const sourceRoomAssetId = bitmapTileUpdate.sourceRoomAssetId;
+        if (sourceRoomAssetId) {
+          intermediateAssets = intermediateAssets.map(asset => {
+            if (asset.id !== sourceRoomAssetId || asset.type !== 'msx2bitmaproom' || !asset.data) return asset;
+            const patch = updateAtlasEntryFromBitmapTile(asset.data as Msx2Screen5BitmapRoom, bitmapTileUpdate);
+            return patch ? { ...asset, data: { ...(asset.data as Msx2Screen5BitmapRoom), ...patch } } : asset;
+          });
+        }
+        intermediateAssets = intermediateAssets.map(asset => updateStampReferencesForBitmapTile(asset, assetId, bitmapTileUpdate));
+      }
+      return intermediateAssets;
     });
     const createdTileBanks = (newAssetsToCreate || [])
       .filter(asset => asset.type === 'tilebank' && asset.data && Array.isArray((asset.data as TileBank).banks))
