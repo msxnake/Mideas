@@ -36,6 +36,16 @@ export const BOSS_DEFINITION_OWNED_PARAMS: ReadonlySet<string> = new Set([
   'bossThreadColor',
   'bossThreadRetractPx',
   'bossThreadReturnAfter',
+  'bossMoleMinX',
+  'bossMoleMaxX',
+  'bossMoleGroundOffsetPx',
+  'bossMoleHoleColor',
+  'bossMoleHiddenFrames',
+  'bossMoleEmergeFrames',
+  'bossMoleRetreatFrames',
+  'bossMoleRayRangePx',
+  'bossMoleRayAngleSteps',
+  'bossMoleRaySpeed',
   // --- chain barrier ---
   'bossBarrierTileId',
   // --- projectiles ---

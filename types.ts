@@ -2042,7 +2042,7 @@ export interface Msx2BossDefinition {
    * the patrols bounce between the bounds on that axis. Empty/undefined keeps
    * the movement authored on the placed entity.
    */
-  bossMovement?: 'static' | 'patrolX' | 'patrolY' | 'patrolXY' | 'randomPath';
+  bossMovement?: 'static' | 'patrolX' | 'patrolY' | 'patrolXY' | 'randomPath' | 'burrowRandom';
   /** Default `msx2bosspath` asset id; attack phases may override it. */
   bossPathId?: string;
   /** Patrol speed in px/frame; the 4px restore strips cap it at 2. */
@@ -2059,6 +2059,23 @@ export interface Msx2BossDefinition {
   bossThreadRetractPx?: number;
   /** Completed random branches before Spider retraces the entire web to spawn. */
   bossThreadReturnAfter?: number;
+  /** Random 16px-aligned emergence columns, inclusive. */
+  bossMoleMinX?: number;
+  bossMoleMaxX?: number;
+  /** Offset below the 32px body where the ground is opened. */
+  bossMoleGroundOffsetPx?: number;
+  /** SCREEN 5 palette index painted into the opened 32x16 ground strip. */
+  bossMoleHoleColor?: number;
+  /** Real 60Hz frames spent hidden, emerging and retreating. */
+  bossMoleHiddenFrames?: number;
+  bossMoleEmergeFrames?: number;
+  bossMoleRetreatFrames?: number;
+  /** Travel distance of each electric bolt, in pixels. */
+  bossMoleRayRangePx?: number;
+  /** Fan half-angle in 22.5-degree steps around vertical. */
+  bossMoleRayAngleSteps?: number;
+  /** Electric bolt speed in pixels per 60Hz frame. */
+  bossMoleRaySpeed?: number;
   /** Room Lock: 16x16 atlas tile that seals the room's empty perimeter cells. */
   bossBarrierTileId: string;
   /**
@@ -2108,7 +2125,7 @@ export interface Msx2BossDefinition {
     * the body's off-frames rather than every frame. 'aimed' keeps the original
    * raw-tick meaning so existing projects stay byte-identical.
    */
-  bossProjectilePattern?: 'aimed' | 'fallingRocks' | 'soapBubbles';
+  bossProjectilePattern?: 'aimed' | 'fallingRocks' | 'soapBubbles' | 'moleLightning';
   /** Soap bubbles rebound this many times against the playfield edges. */
   bossBubbleBounces?: number;
   /** Mouth position within the boss bitmap, in pixels. */
