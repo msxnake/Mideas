@@ -1727,6 +1727,8 @@ export interface Msx2BossPhase {
   /** Frames between shots. */
   interval: number;
   projectileSpeed: number;
+  /** Hardware projectile sprite for this phase. Empty selects the built-in blob. */
+  projectileSpriteId?: string;
   /**
    * Path followed during this phase: a `msx2bosspath` asset id, `'none'` to
    * stand still, or empty to inherit the boss's default path.
@@ -1810,7 +1812,7 @@ export type Msx2BossPathAction =
  * each axis, which is far cheaper than a real angle, and the odd slots exist so
  * fans and radials can land between the compass points.
  */
-export type Msx2ShootPattern = 'aimed' | 'linear' | 'spread' | 'radial';
+export type Msx2ShootPattern = 'aimed' | 'linear' | 'spread' | 'radial' | 'laser';
 
 /** Compass direction for `linear` shots, clockwise from up. */
 export type Msx2ShootDirection =
@@ -1823,9 +1825,17 @@ export interface Msx2ShootDefinition {
   /**
    * 'aimed' points at the player (turret style); 'linear' always fires the same
    * way; 'spread' fans several bullets around the aim; 'radial' shares them out
-   * around the whole circle.
+   * around the whole circle; 'laser' grows SCREEN 5 bitmap beams.
    */
   pattern: Msx2ShootPattern;
+  /** SCREEN 5 laser: 16×16 bitmap tile repeated as the beam grows. */
+  laserTileId?: string;
+  /** Frames between automatic laser waves. */
+  laserInterval?: number;
+  /** Beam length in pixels, rounded down to 16×16 segments. */
+  laserMaxLengthPx?: number;
+  /** Cardinal direction mask: bit 0=N, 1=E, 2=S, 3=W. */
+  laserDirectionMask?: number;
   /** Bullets per wave. More than the bullet pool holds are dropped (with a build warning). */
   bulletCount: number;
   /** `linear` only: which way the bullets go (legacy 8-compass authoring). */
@@ -2032,13 +2042,23 @@ export interface Msx2BossDefinition {
    * the patrols bounce between the bounds on that axis. Empty/undefined keeps
    * the movement authored on the placed entity.
    */
-  bossMovement?: 'static' | 'patrolX' | 'patrolY' | 'patrolXY';
+  bossMovement?: 'static' | 'patrolX' | 'patrolY' | 'patrolXY' | 'randomPath';
   /** Default `msx2bosspath` asset id; attack phases may override it. */
   bossPathId?: string;
   /** Patrol speed in px/frame; the 4px restore strips cap it at 2. */
   bossSpeed?: number;
   /** Travel distance from the spawn position, in px. 0 = use the room bounds. */
   bossRangePx?: number;
+  /** Branch extension in randomPath mode; vertical thread depth in legacy path mode. */
+  bossThreadLength?: number;
+  /** Palette index (0-15) of the spider thread. */
+  bossThreadColor?: number;
+  /** Whether the moving boss paints a web filament. Random movement can run without it. */
+  bossThreadEnabled?: boolean;
+  /** Pixels retraced along each generated branch before a new branch starts. */
+  bossThreadRetractPx?: number;
+  /** Completed random branches before Spider retraces the entire web to spawn. */
+  bossThreadReturnAfter?: number;
   /** Room Lock: 16x16 atlas tile that seals the room's empty perimeter cells. */
   bossBarrierTileId: string;
   /**
@@ -2074,18 +2094,26 @@ export interface Msx2BossDefinition {
   /**
    * How the projectile is launched.
    *  - 'aimed' (default): from the boss centre, 8-directionally at the player.
-   *  - 'fallingRocks': debris knocked loose from the ceiling. Spawns at the
+    *  - 'fallingRocks': debris knocked loose from the ceiling. Spawns at the
    *    first passable row above the player (random X in a band centred on
    *    them), falls straight down and dies on the floor. Always uses the
-   *    bitmap back-end and therefore needs `bossProjectileTileId`; it ignores
-   *    `bossProjectileKind`.
+    *    bitmap back-end and therefore needs `bossProjectileTileId`; it ignores
+    *    `bossProjectileKind`.
+    *  - 'soapBubbles': diagonal hardware-sprite bubbles launched from the
+    *    authored mouth offset; each reflects on the arena edge and expires
+    *    after `bossBubbleBounces` contacts.
    *
    * For 'fallingRocks' ONLY, `bossShootInterval` is read as real frames at
    * 60Hz and converted by the generator, because the shoot runtime ticks on
-   * the body's off-frames rather than every frame. 'aimed' keeps the original
+    * the body's off-frames rather than every frame. 'aimed' keeps the original
    * raw-tick meaning so existing projects stay byte-identical.
    */
-  bossProjectilePattern?: 'aimed' | 'fallingRocks';
+  bossProjectilePattern?: 'aimed' | 'fallingRocks' | 'soapBubbles';
+  /** Soap bubbles rebound this many times against the playfield edges. */
+  bossBubbleBounces?: number;
+  /** Mouth position within the boss bitmap, in pixels. */
+  bossBubbleMouthX?: number;
+  bossBubbleMouthY?: number;
   bossProjectileSpriteId: string;
   bossProjectileTileId: string;
   bossShootInterval: number;
@@ -2097,6 +2125,8 @@ export interface Msx2BossDefinition {
    * its Path node actions. Empty falls back to bossProjectileTileId.
    */
   bossLaserTileId?: string;
+  /** Reusable laser `msx2shoot` asset selected in Attack Phases. */
+  bossLaserShootId?: string;
   /** Frames between automatic laser waves (double-boss rooms only). */
   bossLaserInterval?: number;
   /** Maximum length of one growing laser in pixels (rounded to 16px cells). */

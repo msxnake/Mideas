@@ -692,7 +692,7 @@ seccions. Un autor pot configurar un boss complet des de l'editor d'entitats exi
 
 **Fet (diàleg dedicat):** `components/editors/Msx2BossEditor.tsx` — editor propi de
 l'asset `msx2boss` (la BossDefinition de la Fase C), amb navegació per seccions
-*General / Body & Graphics / Room Lock / Projectiles / Attack Phases / Damage Zones /
+*General / Body & Graphics / Room Lock / Attack Phases / Damage Zones /
 Defeat Actions*. Enganxat a `Toolbar` → `useAssetHandlers` (`createMsx2BossDefinition`) →
 `EditorType.Msx2Boss` a `AppUI.tsx`. Inclou:
 - **fases d'atac** (redissenyades el 2026-08-22): una targeta per fase amb la **banda
@@ -706,6 +706,10 @@ Defeat Actions*. Enganxat a `Toolbar` → `useAssetHandlers` (`createMsx2BossDef
   (`setFlag` / `giveKey` / `openDoor`, que són les que el generador sap emetre; el
   desplegable de portes només llista entitats `kind:'door'` reals),
 - selector de sprite/tile per a la bala segons `bossProjectileKind`,
+- `Attack Phases` és obligatori: l'editor crea una fase inicial al 100% d'HP i
+  impedeix eliminar l'última. Els paràmetres de projectil compartits són en aquesta
+  secció, i cada fase pot triar un sprite de bala propi. En canviar de fase, el
+  runtime carrega el nou patró i elimina les bales actives abans de tornar a disparar,
 - **editor visual de zones de dany**: s'arrossega el rectangle sobre el cos i les zones
   noves s'insereixen **al principi** de la llista, que és l'ordre que guanya en runtime
   (punt feble per damunt de l'armadura).
@@ -835,6 +839,13 @@ mesurar bé la longitud d'arc.
 Asset propi (`msx2shoot`, secció **MSX2 Shoots Definition** a Project Assets) on es defineix
 un **patró de tir** reutilitzable, i que un node del path dispara **pel seu nom**. Pensat
 també per a torretes i onades de naus més endavant.
+
+El patró `laser` concentra al mateix editor de Shoots el tile bitmap de 16×16,
+la longitud màxima, la màscara N/E/S/O i la cadència de les onades. A **Attack
+Phases** del Boss es tria un Laser Shoot compartit; `laserInterval` encara pot
+variar la cadència de cada fase. Sense asset seleccionat es preserven els camps
+antics `bossLaser*`, editables en un desplegable de compatibilitat. Els patrons
+de bales continuen sent independents i poden disparar alhora que el làser.
 
 - Patrons: `aimed` (torreta, apunta al jugador), `linear` (sempre la mateixa direcció) i
   `spread` (ventall de N bales al voltant de la mira).

@@ -230,9 +230,10 @@ checks.push(['Dedup never points a cell outside the emitted window rows',
       rows[0] > 512 && rows[rows.length - 1] + 16 <= dialogueRow]);
   }
 
+  // The deferred render queue now owns cadence redraws; the public draw entry
+  // still repaints unconditionally after room/dialogue/background changes.
   checks.push(['Only the cadence path may skip a repaint; everyone else is unconditional',
-  /bitmap_boss_draw_animated:/.test(animAsm)
-  && /call bitmap_boss_draw_animated/.test(animAsm)
+  /bitmap_boss_render_step:[\s\S]{0,3000}?call bitmap_boss_prepare_cell_render/.test(animAsm)
   && /^bitmap_boss_draw:[\s\S]{0,400}?jp nz, bitmap_boss_cells_full/m.test(animAsm)]);
   checks.push(['The runtime chooses between full and changed-cell repaint',
     /bitmap_boss_pick_cell_list:/.test(animAsm)

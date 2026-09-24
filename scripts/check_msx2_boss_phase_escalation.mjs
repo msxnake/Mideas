@@ -105,6 +105,17 @@ const buildAsm = data => gen.buildBitmapBossSystemAsm(data, {
 
 const plain = buildData(basePhases);
 const angry = buildData(angryPhases);
+const laserAssetData = gen.buildBitmapRoomBossData(
+  [{ name: 'laser asset room', atlas, entities: [{ kind: 'boss', position: { x: 64, y: 64 },
+    params: { ...bossParams(basePhases), bossLaserShootId: 'laser_west' } }] }],
+  () => undefined,
+  { hasKeys: false, doorOffsetById: new Map() },
+  new Map(), new Map(),
+  new Map([['laser_west', { id: 'laser_west', name: 'West laser', shoot: {
+    pattern: 'laser', laserTileId: 'laser16', laserInterval: 37,
+    laserMaxLengthPx: 64, laserDirectionMask: 0x08,
+  } }]]),
+);
 const plainAsm = buildAsm(plain);
 const angryAsm = buildAsm(angry);
 const plainText = `${plainAsm.equates}${plainAsm.routinesAsm}${plainAsm.dataAsm}`;
@@ -125,6 +136,12 @@ const editor = readFileSync(join(root, 'components', 'editors', 'Msx2BossEditor.
 const types = readFileSync(join(root, 'types.ts'), 'utf8').replace(/\r\n/g, '\n');
 
 const checks = [
+  ['A Laser Shoot asset overrides the legacy boss laser record',
+    laserAssetData.laserTables[0]?.[0] === 1
+    && laserAssetData.laserTables[0]?.[5] === 37
+    && laserAssetData.laserTables[0]?.[6] === 4
+    && laserAssetData.laserTables[0]?.[7] === 0x08
+    && laserAssetData.shootRecords.length === 0],
   // ---- data model -----------------------------------------------------------
   ['A phase can name a shot pattern, a laser cadence, a body cadence and a step count',
     types.includes('shootId?: string')

@@ -31,6 +31,11 @@ export const BOSS_DEFINITION_OWNED_PARAMS: ReadonlySet<string> = new Set([
   'bossMovement',
   'bossSpeed',
   'bossRangePx',
+  'bossThreadEnabled',
+  'bossThreadLength',
+  'bossThreadColor',
+  'bossThreadRetractPx',
+  'bossThreadReturnAfter',
   // --- chain barrier ---
   'bossBarrierTileId',
   // --- projectiles ---
@@ -41,6 +46,7 @@ export const BOSS_DEFINITION_OWNED_PARAMS: ReadonlySet<string> = new Set([
   'bossProjectileSpeed',
   'bossProjectileDamage',
   'bossLaserTileId',
+  'bossLaserShootId',
   'bossLaserInterval',
   'bossLaserMaxLengthPx',
   'bossLaserDirectionMask',

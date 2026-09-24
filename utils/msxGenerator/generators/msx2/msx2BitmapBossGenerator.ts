@@ -161,6 +161,18 @@ export interface BitmapBossRoomData {
    */
   barrierTables: number[][];
   /**
+   * Per-room spider thread record, 6 bytes:
+   * [maxLen, color, anchorX, anchorY, retractPx, randomMode]. maxLen = px the boss lowers itself down
+   * its 1px thread from where it was placed before the path/patrol takes over
+   * (0 = no thread in this room); every time the route later brings the boss
+   * back down to that same depth it climbs back up and resumes. The thread is
+   * drawn from (anchorX, anchorY) to the body's top edge only while the boss is
+   * attached to it, is purely decorative, and only exists in the exported ROM.
+   * Slot 0 only: a second thread boss in the same room is ignored with a
+   * warning, because the thread RAM is outside the instance-swap block.
+   */
+  threadTables: number[][];
+  /**
    * Per-room Boss Intro / Room Lock bytecode. Layout:
    *   END (#00)
    *   CLOSE_BARRIER (#01, rasterLinesPerFrame; #FF = whole barrier this frame)
@@ -179,9 +191,10 @@ export interface BitmapBossRoomData {
    */
   introEntryX: number[];
   /**
-   * Per-room boss projectile config (Phase D). BITMAP_BOSS_PROJECTILE_STRIDE
-   * bytes: [present, sxLo, sxHi, syLo, syHi, w, h, interval, speed, damage, kind]
-   * where kind 0 = bitmap (HMMM blit) and 1 = hardware sprite.
+    * Per-room boss projectile config (Phase D). BITMAP_BOSS_PROJECTILE_STRIDE
+    * bytes: [present, sxLo, sxHi, syLo, syHi, w, h, interval, speed, damage,
+    * kind, bubbleBounces, mouthX, mouthY]. kind 0 = bitmap, 1 = sprite,
+    * 2 = falling rocks, 3 = bouncing soap bubbles.
    * When present, the boss fires a small bitmap projectile (HMMM-blitted, no
    * hardware sprites) toward the player every `interval` frames.
    */
@@ -202,16 +215,20 @@ export interface BitmapBossRoomData {
    * angrier as it loses health. An empty table ([0]) keeps the base cadence.
    *
    * When {@link phaseTablesExtended} is set every entry carries four more bytes
-   * — shoot pattern, laser interval, body cadence, movement steps — so a phase
-   * can escalate the whole attack instead of only its rhythm.
+   * — shoot pattern, laser interval, body cadence, movement steps. An explicit
+   * per-phase projectile sprite adds an eighth byte.
    */
   phaseTables: number[][];
   /**
    * Stride selector for {@link phaseTables}: false = the original 3 bytes per
-   * entry, true = 7. Set only when a project actually authors an escalation, so
+   * entry, true = 7 or 8 with a phase sprite. Set only when a project authors an escalation, so
    * every ROM built before the feature keeps its exact bytes.
    */
   phaseTablesExtended: boolean;
+  /** True when phase entries include an eighth byte selecting a projectile sprite. */
+  phaseTablesSpriteExtended: boolean;
+  /** Projectile sprite asset ids indexed by the eighth phase byte (1-based). Empty id = built-in blob. */
+  phaseSpriteIds: string[];
   /**
    * Baked path streams (Fase G), one per referenced `msx2bosspath` asset, in
    * first-seen order. Each stream is per-tick movement bytes with escaped
@@ -297,7 +314,7 @@ export interface BossDefeatCapabilities {
 }
 
 export const BITMAP_BOSS_BARRIER_STRIDE = 5;
-export const BITMAP_BOSS_PROJECTILE_STRIDE = 11;
+export const BITMAP_BOSS_PROJECTILE_STRIDE = 14;
 /** Bitmap projectile pool size (shared; one boss active at a time). */
 export const BITMAP_BOSS_PROJECTILE_SLOTS = 3;
 
@@ -593,6 +610,11 @@ export interface BitmapBossSpriteBulletOptions {
     frames: Array<{ patternBytes: number[]; colorBytes: number[] }>;
     delayFrames: number;
   };
+  /** Sprite alternatives selected by attack phases; index 1 is variants[0]. */
+  variants?: Array<{
+    frames: Array<{ patternBytes: number[]; colorBytes: number[] }>;
+    delayFrames: number;
+  } | undefined>;
 }
 
 export interface BitmapBossRuntimeOptions {
@@ -730,6 +752,13 @@ export function buildBitmapRoomBossData(
   // Shot patterns are shared the same way: baked once, referenced by index.
   const shootRecords: number[][] = [];
   const shootIndexById = new Map<string, number>();
+  const phaseSpriteIds: string[] = [];
+  const indexOfSprite = (id: string): number => {
+    const known = phaseSpriteIds.indexOf(id);
+    if (known >= 0) return known + 1;
+    phaseSpriteIds.push(id);
+    return phaseSpriteIds.length;
+  };
   const deathSoundStreams: number[][] = [];
   const deathSoundIndexByKey = new Map<string, number>();
   const indexOfDeathSound = (rawId: unknown, roomName: string): number => {
@@ -760,6 +789,10 @@ export function buildBitmapRoomBossData(
     const asset = shoots.get(id);
     if (!asset) {
       console.warn(`MSX2 bitmap boss: shoot pattern "${id}" not found; firing a single aimed bullet instead.`);
+      return 0;
+    }
+    if (asset.shoot.pattern === 'laser') {
+      console.warn(`MSX2 bitmap boss: laser shoot "${id}" cannot be used as a bullet pattern; firing a single aimed bullet instead.`);
       return 0;
     }
     shootRecords.push(bakeShootDefinition(asset.shoot));
@@ -834,6 +867,7 @@ export function buildBitmapRoomBossData(
     deathSoundIndex: 0,
     cells: [0, 0],
     cellsDelta: [0],
+    thread: [0, 0, 0, 0, 0, 0] as number[],
   });
   const perRoom = rooms.map(room => {
     const bosses = (room.entities || []).filter((entity: any) => entity?.kind === 'boss' && entity.position);
@@ -843,6 +877,9 @@ export function buildBitmapRoomBossData(
     const selectedBosses = bosses.slice(0, BITMAP_BOSS_MAX_INSTANCES);
     while (selectedBosses.length < BITMAP_BOSS_MAX_INSTANCES) selectedBosses.push(undefined as any);
     const entries = selectedBosses.map(entity => entity ? buildEntry(room, entity) : emptyEntry());
+    if (entries.length > 1 && entries[0].thread[0] > 0 && entries[1].thread[0] > 0) {
+      console.warn(`MSX2 bitmap room "${room.name}": both bosses set a spider thread; only slot 0's is implemented (the thread state is not part of the two-boss swap), so slot 1's was ignored.`);
+    }
     return { entries };
   });
 
@@ -1035,6 +1072,25 @@ export function buildBitmapRoomBossData(
     // a two-boss encounter on one path drew both bodies on top of each other.
     const finalX = x0;
     const finalY = y0;
+    // Spider thread (Jordi 2026-09-22): anchored at the body's horizontal
+    // centre on the spawn point. The author sets how far the boss lowers
+    // itself; the record bakes that limit, the colour and the anchor so the
+    // runtime needs no per-frame maths. Slot 0 only -- a second thread boss in
+    // one room would fight over the shared thread RAM, which sits outside the
+    // instance-swap block on purpose.
+    const randomThread = params.bossMovement === 'randomPath';
+    const threadLen = randomThread
+      ? clampInt(params.bossThreadLength, 2, 64, 32) & ~1
+      : (params.bossThreadEnabled === false ? 0 : clampInt(params.bossThreadLength, 0, 191, 0));
+    const thread = [
+      threadLen,
+      params.bossThreadEnabled === false ? 0 : clampInt(params.bossThreadColor, 1, 15, 14),
+      x0 + (width >> 1),
+      y0,
+      randomThread ? (clampInt(params.bossThreadRetractPx, 0, threadLen, 16) & ~1) : 0,
+      randomThread ? 1 : 0,
+      randomThread ? clampInt(params.bossThreadReturnAfter, 1, 8, 5) : 0,
+    ];
     const sx = atlasX;
     const sy = 512 + atlasY; // atlas lives at VRAM rows 512+
     enabled = true;
@@ -1046,11 +1102,23 @@ export function buildBitmapRoomBossData(
     // Phase D projectiles: optional small bitmap bullet the boss fires at the
     // player (HMMM-blitted, no hardware sprites).
     const projectile = resolveProjectile(params, room, even);
-    const laser = resolveLaser(params, room, even, bodyStampPlacements);
+    const laserShootId = String(params.bossLaserShootId || '').trim();
+    const laserShoot = laserShootId ? shoots.get(laserShootId)?.shoot : undefined;
+    if (laserShootId && (!laserShoot || laserShoot.pattern !== 'laser')) {
+      console.warn(`MSX2 bitmap room "${room.name}": laser shoot "${laserShootId}" is missing or is not a laser; using the boss's legacy laser settings.`);
+    }
+    const laserParams = laserShoot?.pattern === 'laser' ? {
+      ...params,
+      bossLaserTileId: laserShoot.laserTileId || '',
+      bossLaserInterval: laserShoot.laserInterval ?? 90,
+      bossLaserMaxLengthPx: laserShoot.laserMaxLengthPx ?? 128,
+      bossLaserDirectionMask: laserShoot.laserDirectionMask ?? 0x0f,
+    } : params;
+    const laser = resolveLaser(laserParams, room, even, bodyStampPlacements);
     // Phase D attack phases: HP thresholds that retune the firing cadence, and
     // optionally the shot pattern, the laser cadence, the body cadence and how
     // many movement steps one body update takes.
-    const phases = buildPhaseTable(params.bossPhases, hp, projectile, room.name, indexOfShoot);
+    const phases = buildPhaseTable(params.bossPhases, hp, projectile, room.name, indexOfShoot, indexOfSprite);
     // Phase E damage zones: weak points / armour, in boss-local pixels.
     const zones = buildDamageZoneTable(params.damageZones ?? params.bossDamageZones, width, height, room.name, indexOfDeathSound);
     // Formal defeat presentation: several transparent bitmap stamps scattered
@@ -1130,6 +1198,7 @@ export function buildBitmapRoomBossData(
       deathSoundIndex,
       cells: cellBlob.length ? cellBlob : [0, 0],
       cellsDelta: cellDeltaBlob.length ? cellDeltaBlob : [0],
+      thread,
     };
   }
   const perRoomPrimary = perRoom.map(room => room.entries[0]);
@@ -1146,7 +1215,8 @@ export function buildBitmapRoomBossData(
     projectileTables: perRoom.flatMap(room => room.entries.map(entry => entry.projectile)),
     ...(() => {
       const phases = stripPhaseEscalation(perRoom.flatMap(room => room.entries.map(entry => entry.phases)));
-      return { phaseTables: phases.tables, phaseTablesExtended: phases.extended };
+      return { phaseTables: phases.tables, phaseTablesExtended: phases.extended,
+        phaseTablesSpriteExtended: phases.spriteExtended, phaseSpriteIds };
     })(),
     damageZoneTables: perRoom.flatMap(room => room.entries.map(entry => entry.zones)),
     pathStreams,
@@ -1161,6 +1231,7 @@ export function buildBitmapRoomBossData(
     cellDeltaTables: perRoom.flatMap(room => room.entries.map(entry => entry.cellsDelta)),
     deathSoundStreams,
     laserTables: perRoom.flatMap(room => room.entries.map(entry => entry.laser)),
+    threadTables: perRoomPrimary.map(entry => entry.thread),
   };
 }
 
@@ -1209,20 +1280,20 @@ export const BITMAP_BOSS_PHASE_ENTRY_BASE = 3;
  * default", except `moveSteps`, where the neutral value is 1.
  */
 export const BITMAP_BOSS_PHASE_ENTRY_FULL = 7;
+const BITMAP_BOSS_PHASE_ENTRY_SPRITE = 8;
 
 /** Cap on the steps a phase may take per body update (see `moveStepMultiplier`). */
 const PHASE_MAX_MOVE_STEPS = 3;
 
 /**
  * Compile `bossPhases` into the runtime table
- * [count, (hpAtOrBelow, interval, projSpeed, shoot, laserInt, bodyInt, moveSteps) * count].
+ * [count, (hpAtOrBelow, interval, projSpeed, shoot, laserInt, bodyInt, moveSteps, sprite) * count].
  * Authoring uses `enterWhenHpBelowPercent` (design doc §6); it is converted to an
  * absolute HP threshold against the boss's own HP so the runtime only needs a
  * byte compare. Entries are sorted most-damaged-first so the first match wins.
  *
- * The four escalation bytes are always emitted here and trimmed back to the
- * original 3-byte stride by {@link stripPhaseEscalation} when NO room in the
- * project uses them, which is what keeps existing ROMs byte-identical.
+ * The escalation and sprite bytes are trimmed back to 7 or 3 by
+ * {@link stripPhaseEscalation} when the project does not use them.
  *
  * NOTE on movement: a single step stays capped at 2px because the body's trail
  * cleanup restores strips around the old rectangle. `moveSteps` does not lift
@@ -1235,13 +1306,14 @@ function buildPhaseTable(
   projectile: number[],
   roomName: string,
   indexOfShoot: (id: unknown) => number,
+  indexOfSprite: (id: string) => number,
 ): number[] {
   if (!Array.isArray(bossPhases) || !bossPhases.length) return [0];
   const baseInterval = projectile[7] || 90;
   const baseSpeed = projectile[8] || 2;
   const entries: Array<{
     threshold: number; interval: number; speed: number;
-    shoot: number; laserInterval: number; bodyInterval: number; moveSteps: number;
+    shoot: number; laserInterval: number; bodyInterval: number; moveSteps: number; sprite: number;
   }> = [];
   for (const raw of bossPhases) {
     if (!raw || typeof raw !== 'object') continue;
@@ -1258,6 +1330,11 @@ function buildPhaseTable(
       laserInterval: clampInt(phase.laserInterval, 0, 255, 0),
       bodyInterval: clampInt(phase.bodyInterval, 0, 16, 0),
       moveSteps: clampInt(phase.moveStepMultiplier, 1, PHASE_MAX_MOVE_STEPS, 1),
+      // An explicit per-phase selection is always encoded, including the
+      // built-in blob. The old boss-wide sprite is only a legacy fallback:
+      // another room's boss may have supplied the shared default pattern.
+      sprite: projectile[0] === 1 && projectile[10] === 1 && phase.projectileSpriteId !== undefined
+        ? indexOfSprite(String(phase.projectileSpriteId || '').trim()) : 0,
     });
   }
   if (!entries.length) return [0];
@@ -1268,7 +1345,7 @@ function buildPhaseTable(
   entries.sort((a, b) => a.threshold - b.threshold); // most damaged first
   return [entries.length, ...entries.flatMap(e => [
     e.threshold & 0xff, e.interval & 0xff, e.speed & 0xff,
-    e.shoot & 0xff, e.laserInterval & 0xff, e.bodyInterval & 0xff, e.moveSteps & 0xff,
+    e.shoot & 0xff, e.laserInterval & 0xff, e.bodyInterval & 0xff, e.moveSteps & 0xff, e.sprite & 0xff,
   ])];
 }
 
@@ -1289,23 +1366,29 @@ function phaseEntryEscalates(entry: number[]): boolean {
  * not pay a single ROM byte, and the runtime picks its stride from the same
  * flag, so the two can never disagree.
  */
-function stripPhaseEscalation(tables: number[][]): { tables: number[][]; extended: boolean } {
+function stripPhaseEscalation(tables: number[][]): { tables: number[][]; extended: boolean; spriteExtended: boolean } {
   const entriesOf = (table: number[]): number[][] => {
     const count = table[0] || 0;
     const out: number[][] = [];
     for (let i = 0; i < count; i++) {
-      out.push(table.slice(1 + i * BITMAP_BOSS_PHASE_ENTRY_FULL, 1 + (i + 1) * BITMAP_BOSS_PHASE_ENTRY_FULL));
+      out.push(table.slice(1 + i * BITMAP_BOSS_PHASE_ENTRY_SPRITE, 1 + (i + 1) * BITMAP_BOSS_PHASE_ENTRY_SPRITE));
     }
     return out;
   };
+  const spriteExtended = tables.some(table => entriesOf(table || [0]).some(entry => (entry[7] || 0) > 0));
+  if (spriteExtended) return { tables, extended: true, spriteExtended };
   const extended = tables.some(table => entriesOf(table || [0]).some(phaseEntryEscalates));
-  if (extended) return { tables, extended };
+  if (extended) return {
+    tables: tables.map(table => [table[0] || 0, ...entriesOf(table || [0]).flatMap(entry => entry.slice(0, BITMAP_BOSS_PHASE_ENTRY_FULL))]),
+    extended, spriteExtended: false,
+  };
   return {
     tables: tables.map(table => [
       table[0] || 0,
       ...entriesOf(table || [0]).flatMap(entry => entry.slice(0, BITMAP_BOSS_PHASE_ENTRY_BASE)),
     ]),
     extended: false,
+    spriteExtended: false,
   };
 }
 
@@ -1322,6 +1405,7 @@ const PATH_SEL_INHERIT = 0xff;
  * #FF = inherit the default).
  */
 function buildPathSelTable(params: any, hp: number, indexOfPath: (id: unknown, startNode?: number) => number): number[] {
+  if (params.bossMovement === 'randomPath') return [];
   // Per-encounter entry point into the route. Phase paths share it: a boss that
   // swaps routes mid-fight keeps the offset it was authored with.
   const startNode = Math.max(0, Math.floor(Number(params.bossPathStartNode) || 0));
@@ -1563,18 +1647,23 @@ function resolveProjectile(params: any, room: { name: string; atlas?: { entries?
   // Ceiling debris is a launch PATTERN, not a back-end: it always blits, so it
   // overrides bossProjectileKind rather than being a third value of it.
   const fallingRocks = String(params.bossProjectilePattern || 'aimed').trim() === 'fallingRocks';
+  const soapBubbles = String(params.bossProjectilePattern || 'aimed').trim() === 'soapBubbles';
   // Default to hardware sprites: they never erase the background and several
   // can fly at once. 'bitmap' stays available for slow multicolour bombs and
   // homing rockets, where the blit cost is irrelevant.
-  const wantsBitmap = fallingRocks
-    || String(params.bossProjectileKind || 'sprite').trim() === 'bitmap';
+  const wantsBitmap = !soapBubbles && (fallingRocks
+    || String(params.bossProjectileKind || 'sprite').trim() === 'bitmap');
   const id = String(params.bossProjectileTileId || '').trim();
 
   if (!wantsBitmap) {
     // Hardware sprite: the 16x16 pattern is generated (8x8 blob centred), so no
     // atlas tile is needed. Shooting is opt-in via bossShootInterval/kind.
     if (!id && params.bossShootInterval === undefined && params.bossProjectileKind === undefined) return empty;
-    return [1, 0, 0, 0, 0, 16, 16, interval & 0xff, speed & 0xff, damage & 0xff, 1];
+    return [1, 0, 0, 0, 0, 16, 16, interval & 0xff, speed & 0xff, damage & 0xff,
+      soapBubbles ? 3 : 1,
+      soapBubbles ? clampInt(params.bossBubbleBounces, 1, 15, 5) : 0,
+      soapBubbles ? clampInt(params.bossBubbleMouthX, 0, 127, 18) : 0,
+      soapBubbles ? clampInt(params.bossBubbleMouthY, 0, 95, 44) : 0];
   }
 
   if (!id) {
@@ -1599,7 +1688,7 @@ function resolveProjectile(params: any, room: { name: string; atlas?: { entries?
   const psx = even(clampInt(entry.sx, 0, 4096, 0));
   const psy = 512 + clampInt(entry.sy, 0, 4096, 0);
   if (!fallingRocks) {
-    return [1, psx & 0xff, (psx >> 8) & 0xff, psy & 0xff, (psy >> 8) & 0xff, w & 0xff, h & 0xff, interval & 0xff, speed & 0xff, damage & 0xff, 0];
+    return [1, psx & 0xff, (psx >> 8) & 0xff, psy & 0xff, (psy >> 8) & 0xff, w & 0xff, h & 0xff, interval & 0xff, speed & 0xff, damage & 0xff, 0, 0, 0, 0];
   }
   // The shoot runtime only ticks on the body's OFF-frames (see
   // bitmap_boss_off_frame), so a cooldown byte is NOT a count of 60Hz frames:
@@ -1611,7 +1700,7 @@ function resolveProjectile(params: any, room: { name: string; atlas?: { entries?
   if (bodyInterval <= 1) {
     console.warn(`MSX2 bitmap room "${room.name}": bossInterval 1 leaves no off-frames, so falling rocks can never update. Use 2 or more.`);
   }
-  return [1, psx & 0xff, (psx >> 8) & 0xff, psy & 0xff, (psy >> 8) & 0xff, w & 0xff, h & 0xff, ticks & 0xff, speed & 0xff, damage & 0xff, 2];
+  return [1, psx & 0xff, (psx >> 8) & 0xff, psy & 0xff, (psy >> 8) & 0xff, w & 0xff, h & 0xff, ticks & 0xff, speed & 0xff, damage & 0xff, 2, 0, 0, 0];
 }
 
 /**
@@ -1964,9 +2053,13 @@ export function buildBitmapBossSystemAsm(
   // Two independent projectile back-ends; a project may use either (or neither).
   const hasBitmapProjectiles = hasAimedBitmapProjectiles || hasFallingRocks;
   const sprites = opts.spriteBullets;
-  const hasSpriteProjectiles = tables.some(t => t && t[0] === 1 && t[10] === 1)
+  const hasBubbleProjectiles = tables.some(t => t && t[0] === 1 && t[10] === 3);
+  const hasSpriteProjectiles = tables.some(t => t && t[0] === 1 && (t[10] === 1 || t[10] === 3))
     && !!sprites && sprites.maxSlots > 0;
   const hasProjectiles = hasBitmapProjectiles || hasSpriteProjectiles;
+  const spriteVariants = hasSpriteProjectiles ? [sprites?.sprite, ...(sprites?.variants || [])] : [];
+  const hasPhaseSpriteVariants = hasSpriteProjectiles && data.phaseTablesSpriteExtended === true
+    && spriteVariants.length > 1;
   const hasLaser = (data.laserTables || []).some(t => t && t[0] === 1);
   const projScratchY = opts.projScratchBaseY || 0;
   const spriteSlots = hasSpriteProjectiles ? (sprites as BitmapBossSpriteBulletOptions).maxSlots : 0;
@@ -1976,11 +2069,13 @@ export function buildBitmapBossSystemAsm(
   const spriteAnimDelay = hasSpriteProjectiles
     ? clampInt(sprites?.sprite?.delayFrames, 1, 255, 8)
     : 8;
-  const hasAnimatedSpriteBullet = hasSpriteProjectiles && spriteFrameCount > 1;
+  const hasAnimatedSpriteBullet = hasSpriteProjectiles
+    && (hasPhaseSpriteVariants ? spriteVariants.some(sprite => (sprite?.frames.length || 1) > 1) : spriteFrameCount > 1);
   const projRamBase = barrierRamBase + (hasBarrier ? 7 : 0);
   // Animated bullets own frame/tick bytes per live slot. Single-frame and
   // built-in bullets retain the original 9-byte layout byte-for-byte.
-  const BOSS_SBUL_SLOT_BYTES = hasAnimatedSpriteBullet ? 11 : 9;
+  const bubbleCountOffset = hasAnimatedSpriteBullet ? 11 : 9;
+  const BOSS_SBUL_SLOT_BYTES = bubbleCountOffset + (hasBubbleProjectiles ? 1 : 0);
   // The 9 projectile bytes exist only when a projectile back-end is emitted.
   // Adding them unconditionally desynchronised this cursor from `baseRamBytes`
   // below (which does gate them), so every block allocated after it — paths,
@@ -1989,7 +2084,8 @@ export function buildBitmapBossSystemAsm(
   // Single source of truth so that hazard cannot come back: both this cursor
   // and `baseRamBytes` below must add the SAME number. Falling rocks append one
   // byte of PRNG state to the block (absent, hence byte-identical, without them).
-  const PROJ_RAM_BYTES = (hasProjectiles ? 9 : 0) + (hasFallingRocks ? 1 : 0);
+  const PROJ_RAM_BYTES = (hasProjectiles ? 9 : 0) + (hasFallingRocks ? 1 : 0)
+    + (hasBubbleProjectiles ? 2 : 0);
   const spriteRamBase = projRamBase + PROJ_RAM_BYTES;
   // Fase G paths: entirely absent unless a boss references one, so a project
   // without paths keeps a byte-identical ROM.
@@ -2005,7 +2101,9 @@ export function buildBitmapBossSystemAsm(
   // builder already decided it, and two independent decisions would eventually
   // disagree and make the runtime read a phase entry at the wrong offset.
   const phasesExtended = data.phaseTablesExtended === true;
-  const phaseEntryBytes = phasesExtended ? BITMAP_BOSS_PHASE_ENTRY_FULL : BITMAP_BOSS_PHASE_ENTRY_BASE;
+  const phaseEntryBytes = data.phaseTablesSpriteExtended
+    ? BITMAP_BOSS_PHASE_ENTRY_SPRITE
+    : phasesExtended ? BITMAP_BOSS_PHASE_ENTRY_FULL : BITMAP_BOSS_PHASE_ENTRY_BASE;
   const phaseEntriesOf = (table: number[] | undefined): number[][] => {
     const rows: number[][] = [];
     const count = table?.[0] || 0;
@@ -2047,7 +2145,7 @@ export function buildBitmapBossSystemAsm(
   // of every boss update, so it is NOT part of the per-instance saved state the
   // two-boss dispatcher swaps -- and one scan per frame serves every consumer,
   // instead of each one walking the table again.
-  const PHASE_RAM_BYTES = 6;
+  const PHASE_RAM_BYTES = 6 + (hasPhaseSpriteVariants ? 5 : 0);
   const phaseRamBase = shootRamBase + (hasShoots ? shootRamBytesTotal : 0);
   const baseRamBytes = 12 + cellRenderRamBytes + 2 + 15 + defeatedBytes + flagCount + (hasBarrier ? 7 : 0)
     + PROJ_RAM_BYTES + spriteSlots * BOSS_SBUL_SLOT_BYTES
@@ -2088,6 +2186,20 @@ export function buildBitmapBossSystemAsm(
   // the cells that differ. #FF = nothing drawn yet, so the next draw is full.
   const CELLS_RAM_BYTES = 1;
   const cellsRamBase = laserRamBase + (hasLaser ? LASER_RAM_BYTES : 0);
+  // Spider thread (Jordi 2026-09-22): only emitted when a room arms one, so
+  // every ROM built before the feature keeps its exact RAM map. The thread
+  // state deliberately sits OUTSIDE the two-boss instance-swap block: the
+  // machine only makes sense for the boss hanging from its own anchor, and
+  // swapping it between slots would hand slot 1 a column it never loaded.
+  // Rooms that arm two thread bosses are warned about at build time and the
+  // second one's thread is ignored (slot 0 wins).
+  const hasThread = (data.threadTables || []).some(t => t && t[0] > 0);
+  const hasRandomThread = (data.threadTables || []).some(t => t && t[5] > 0);
+  // One byte records each two-pixel move (X sign and Y slope). Eight branches
+  // of 64px need at most 256 entries, including the frame before retraction.
+  const THREAD_HISTORY_CAPACITY = 8 * (64 / 2);
+  const THREAD_RAM_BYTES = hasRandomThread ? 17 + THREAD_HISTORY_CAPACITY : 6;
+  const threadRamBase = cellsRamBase + (hasBossCells ? CELLS_RAM_BYTES : 0);
   const bankedTables = opts.bankedTables === true;
   // The legacy routines keep one selected boss in the named RAM fields. Two
   // independent bosses are implemented by swapping that selected state around
@@ -2110,7 +2222,7 @@ export function buildBitmapBossSystemAsm(
     + (hasDeathFx ? 3 + (hasDeathAnim ? DEATH_ANIM_SLOTS * DEATH_ANIM_SLOT_BYTES + 2 : 0) : 0)
     + (hasHitBlast ? HIT_BLAST_RAM_BYTES : 0)
     + (hasLaser ? 6 : 0);
-  const instanceSelectorAddr = cellsRamBase + (hasBossCells ? CELLS_RAM_BYTES : 0);
+  const instanceSelectorAddr = threadRamBase + (hasThread ? THREAD_RAM_BYTES : 0);
   const instanceStateBase = instanceSelectorAddr + 1;
   // Shared by both selected boss instances. This latch prevents the second
   // boss from snapshotting the first boss as part of the clean page.
@@ -2122,6 +2234,7 @@ export function buildBitmapBossSystemAsm(
     + (hasHitBlast ? HIT_BLAST_RAM_BYTES : 0)
     + (hasLaser ? LASER_RAM_BYTES : 0)
     + (hasBossCells ? CELLS_RAM_BYTES : 0)
+    + (hasThread ? THREAD_RAM_BYTES : 0)
     + 1 + INSTANCE_STATE_BYTES * bossInstanceCount + 1
     + (bankedTables ? roomTableBytes : 0);
   const bossTableBufAddr = opts.ramBase + totalRamBytes - (bankedTables ? roomTableBytes : 0);
@@ -2320,6 +2433,19 @@ bitmap_boss_shoot_wave:
     inc hl
     ld a, (hl)                 ; signed ring step between bullets
     ld (boss_shoot_step), a
+${hasBubbleProjectiles ? `    push ix
+    call bitmap_boss_proj_config_ix
+    ld a, (ix+10)
+    pop ix
+    cp 3
+    jr nz, .bsw_no_bubble_angle
+    ld a, (boss_bubble_angle)
+    ld hl, boss_shoot_dir
+    add a, (hl)
+    and #0F
+    ld (hl), a
+.bsw_no_bubble_angle:
+` : ''}
 ${hasPreciseAimed ? `    ld a, c
     and #33                    ; aimed without authored spray; freeze flag is independent
     jr nz, .bsw_ring
@@ -2780,6 +2906,17 @@ bitmap_boss_sbul_spawn_dir:
     add a, b
     sub 8
     ld (iy+2), a
+${hasBubbleProjectiles ? `    ld a, (ix+10)
+    cp 3
+    jr nz, .bsd_centre_done
+    ld a, (boss_x)
+    add a, (ix+12)
+    ld (iy+1), a
+    ld a, (boss_y)
+    add a, (ix+13)
+    ld (iy+2), a
+.bsd_centre_done:
+` : ''}
     pop de
     ld (iy+3), d
     ld (iy+4), e
@@ -2790,6 +2927,9 @@ bitmap_boss_sbul_spawn_dir:
     ld (iy+7), a               ; B is the slot-search counter, so it cannot ride
     ld a, (boss_sbul_dyf)      ; in a register
     ld (iy+8), a
+${hasBubbleProjectiles ? `    xor a
+    ld (iy+${bubbleCountOffset}), a
+` : ''}
 ${hasAnimatedSpriteBullet ? `    xor a
     ld (iy+9), a               ; patterned volleys also start on frame 0
     ld (iy+10), a
@@ -2818,7 +2958,25 @@ boss_render_phase EQU ${asmWord(ram + 28)} ; 0 idle, 1 restore X, 2 restore Y, 3
 ${!hasBossCells ? '' : `boss_render_cells_ptr EQU ${asmWord(ram + 29)} ; current cell-run record cursor
 boss_render_cells_left EQU ${asmWord(ram + 31)} ; records left in the deferred body
 boss_cells_shown EQU ${asmWord(cellsRamBase)}  ; frame currently on screen, #FF = none
-`}boss_defeated   EQU ${asmWord(ram + 29 + cellRenderRamBytes)}  ; ${defeatedBytes} active-world/instance bytes, 1 = killed
+`}${hasThread ? `boss_thread_phase EQU ${asmWord(threadRamBase + 0)} ; 0 path/patrol, 1 descend, 2 align X, 3 climb
+boss_thread_len  EQU ${asmWord(threadRamBase + 1)}  ; rows of thread currently on screen
+boss_thread_x    EQU ${asmWord(threadRamBase + 2)}  ; thread column (play-field X)
+boss_thread_top  EQU ${asmWord(threadRamBase + 3)}  ; anchor Y = the spawn Y
+boss_thread_max  EQU ${asmWord(threadRamBase + 4)}  ; authored depth limit (0 = thread off)
+boss_thread_color EQU ${asmWord(threadRamBase + 5)} ; palette index of the thread
+${hasRandomThread ? `boss_thread_retract EQU ${asmWord(threadRamBase + 6)} ; pixels to backtrack
+boss_thread_mode EQU ${asmWord(threadRamBase + 7)} ; 1 = random branching
+boss_thread_dir_x EQU ${asmWord(threadRamBase + 8)} ; signed 2px branch X step
+boss_thread_dir_y EQU ${asmWord(threadRamBase + 9)} ; signed 2px branch Y step
+boss_thread_progress EQU ${asmWord(threadRamBase + 10)} ; branch extension so far
+boss_thread_op EQU ${asmWord(threadRamBase + 11)} ; 1 = grow, 2 = retract
+boss_thread_seed EQU ${asmWord(threadRamBase + 12)} ; changing random seed
+boss_thread_return_after EQU ${asmWord(threadRamBase + 13)} ; completed branches per attack
+boss_thread_branch_count EQU ${asmWord(threadRamBase + 14)} ; completed branches this attack
+boss_thread_history_len EQU ${asmWord(threadRamBase + 15)} ; 16-bit count of retained steps
+boss_thread_history EQU ${asmWord(threadRamBase + 17)} ; ${THREAD_HISTORY_CAPACITY} encoded steps
+` : ''}
+` : ''}boss_defeated   EQU ${asmWord(ram + 29 + cellRenderRamBytes)}  ; ${defeatedBytes} active-world/instance bytes, 1 = killed
 boss_slot       EQU ${asmWord(instanceSelectorAddr)} ; selected boss instance (0 or 1)
 boss_instance_state EQU ${asmWord(instanceStateBase)} ; saved selected-state blocks
 BOSS_INSTANCE_STATE_BYTES EQU ${INSTANCE_STATE_BYTES}
@@ -2838,6 +2996,8 @@ boss_proj_dy    EQU ${asmWord(projRamBase + 6)}
 boss_proj_cd    EQU ${asmWord(projRamBase + 7)}  ; frames until next shot
 boss_phase_speed EQU ${asmWord(projRamBase + 8)}  ; projectile speed of the active attack phase
 ` : ''}${hasFallingRocks ? `boss_rock_seed  EQU ${asmWord(projRamBase + 9)}  ; 8-bit PRNG state for the rock drop column
+` : ''}${hasBubbleProjectiles ? `boss_bubble_angle EQU ${asmWord(projRamBase + 9 + (hasFallingRocks ? 1 : 0))} ; 0..2 fan rotation per volley
+boss_bubble_windup EQU ${asmWord(projRamBase + 10 + (hasFallingRocks ? 1 : 0))} ; 2 = wait for body tick, 1 = wait for visible open mouth
 ` : ''}${hasSpriteProjectiles ? `BOSS_SBUL_SLOT  EQU ${BOSS_SBUL_SLOT_BYTES}
 boss_sbul_pool  EQU ${asmWord(spriteRamBase)}  ; ${spriteSlots} x ${BOSS_SBUL_SLOT_BYTES} bytes
 ;   +0 active, +1 x, +2 y, +3 dx, +4 dy (whole pixels, as before),
@@ -2845,6 +3005,8 @@ boss_sbul_pool  EQU ${asmWord(spriteRamBase)}  ; ${spriteSlots} x ${BOSS_SBUL_SL
 ;   point (int byte + frac byte), which is what buys 16 directions:
 ;   a diagonal is no longer forced to a whole pixel on both axes.
 ${hasAnimatedSpriteBullet ? `;   +9 animation frame, +10 animation tick (${spriteFrameCount} frames, ${spriteAnimDelay} ticks/frame).
+` : ''}
+${hasBubbleProjectiles ? `;   +${bubbleCountOffset} rebounds so far (soap bubbles only).
 ` : ''}
 ` : ''}${hasPaths ? `boss_path_ptr   EQU ${asmWord(pathRamBase)}  ; word: start of the active path stream
 boss_path_cur   EQU ${asmWord(pathRamBase + 2)}  ; word: read cursor into it
@@ -2873,6 +3035,11 @@ boss_phase_shoot EQU ${asmWord(phaseRamBase + 2)}  ; shoot pattern (0 = single a
 boss_phase_laser_int EQU ${asmWord(phaseRamBase + 3)}  ; laser cadence override
 boss_phase_body_int EQU ${asmWord(phaseRamBase + 4)}  ; body cadence override
 boss_phase_move EQU ${asmWord(phaseRamBase + 5)}  ; movement steps per body update
+${hasPhaseSpriteVariants ? `boss_sbul_variant EQU ${asmWord(phaseRamBase + 6)}  ; loaded projectile sprite variant
+boss_sbul_frame_count EQU ${asmWord(phaseRamBase + 7)}
+boss_sbul_frame_delay EQU ${asmWord(phaseRamBase + 8)}
+boss_sbul_color_ptr EQU ${asmWord(phaseRamBase + 9)}  ; word: active frame colour table
+` : ''}
 ` : ''}${hasIntro ? `boss_intro_state EQU ${asmWord(introRamBase + 0)}  ; 0 fight/idle, 1 dispatch, 2 wait, 3 dialogue, 4 barrier, 5 auto-walk
 boss_intro_ptr EQU ${asmWord(introRamBase + 1)}  ; word: next opcode or active-step argument
 boss_intro_counter EQU ${asmWord(introRamBase + 3)}  ; wait frames / raster scanlines left this frame
@@ -3024,6 +3191,7 @@ ${hasDeathAnim ? Array.from({ length: DEATH_ANIM_SLOTS }, (_v, i) => `    ld (bo
     'boss_phase_speed',
   );
   if (hasFallingRocks) stateByteFields.push('boss_rock_seed');
+  if (hasBubbleProjectiles) stateByteFields.push('boss_bubble_angle', 'boss_bubble_windup');
   if (hasPaths) {
     stateWordFields.push('boss_path_ptr', 'boss_path_cur');
     stateByteFields.push(
@@ -3222,6 +3390,9 @@ ${hasHitBlast ? `    ld a, (ix+20)              ; authored blast hold (0 = this 
     ld (boss_anim_frame), a
     ld (boss_int_tick), a
     ld (boss_render_phase), a
+${hasBubbleProjectiles ? `    ld (boss_bubble_angle), a
+    ld (boss_bubble_windup), a
+` : ''}
 ${hasBossCells ? `    ld (boss_render_cells_left), a
     ld hl, 0
     ld (boss_render_cells_ptr), hl
@@ -3255,7 +3426,67 @@ ${hasLaser ? `    ; Each boss owns its laser timer. Offset slot 1 by half a cade
     ld (boss_laser_cd), a
 .boss_laser_load_done:
 ` : ''}
-    ; ---- clean-background snapshot (once per room entry) ----
+${hasThread ? `    ; ---- spider thread: load this room's record and start hanging ----
+    ; [maxLen, colour, column X, anchor Y, retract, randomMode, returnAfter] per room. The boss enters ON the
+    ; thread and lowers itself on the next cadence ticks; a zero limit means
+    ; this room's boss has no thread at all.
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_boss_thread_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    ld a, (hl)
+    or a
+    jr nz, .boss_thread_arm
+    xor a
+    ld (boss_thread_phase), a  ; no thread here: kill any stale phase from another room
+${hasRandomThread ? `    ld (boss_thread_mode), a
+    ld (boss_thread_op), a
+` : ''}
+    jr .boss_thread_load_done
+.boss_thread_arm:
+    ld (boss_thread_max), a
+    inc hl
+    ld a, (hl)
+    ld (boss_thread_color), a
+    inc hl
+    ld a, (hl)
+    ld (boss_thread_x), a
+    inc hl
+    ld a, (hl)
+    ld (boss_thread_top), a
+${hasRandomThread ? `    inc hl
+    ld a, (hl)
+    ld (boss_thread_retract), a
+    inc hl
+    ld a, (hl)
+    ld (boss_thread_mode), a
+    inc hl
+    ld a, (hl)
+    ld (boss_thread_return_after), a
+    xor a
+    ld (boss_thread_progress), a
+    ld (boss_thread_op), a
+    ld (boss_thread_dir_x), a
+    ld (boss_thread_dir_y), a
+    ld (boss_thread_branch_count), a
+    ld (boss_thread_history_len), a
+    ld (boss_thread_history_len+1), a
+    ld a, (#FC9E)
+    or #5B
+    ld (boss_thread_seed), a
+` : ''}
+    xor a
+    ld (boss_thread_len), a    ; nothing on screen yet; it grows as the boss lowers
+    ld a, 1
+    ld (boss_thread_phase), a  ; 1 = descend from the anchor
+.boss_thread_load_done:
+` : ''}    ; ---- clean-background snapshot (once per room entry) ----
     ; The boss repairs the background it uncovers by copying strips from the
     ; page it is NOT drawing on. After a room flip that page still holds the
     ; PREVIOUS room (and at boot it was never composed at all), so the trail
@@ -3307,8 +3538,8 @@ ${hasFallingRocks ? `    ; Seed the drop-column PRNG from the BIOS frame counter
 .boss_rock_seed_ok:
     ld (boss_rock_seed), a
 ` : ''}${hasSpriteProjectiles ? `    ld a, (ix+10)
-    ${hasFallingRocks ? `cp 1                       ; kind 2 (rocks) must NOT load sprite bullets
-    call z, bitmap_boss_sbul_load    ; upload bullet pattern/colours, clear pool` : `or a
+    ${hasFallingRocks ? `cp 2                       ; only kind 2 (rocks) skips sprite upload
+    call nz, bitmap_boss_sbul_load` : `or a
     call nz, bitmap_boss_sbul_load   ; upload bullet pattern/colours, clear pool`}
 ` : ''}` : ''}${hasIntro ? `    ld a, (boss_slot)
     or a
@@ -3412,6 +3643,8 @@ ${hasBarrier ? `    ; The chain could not seal the doorway the player entered th
     call bitmap_boss_barrier_apply   ; reseals whatever the player has left
 .no_barrier_resweep:
 ` : ''}    call bitmap_boss_table_ix  ; IX -> room table (preserves state regs)
+${phasesExtended ? `    call bitmap_boss_phase_apply   ; resolve HP even while a body redraw is pending
+` : ''}
 ${hasBossCells ? `    ; Cell-composed bosses use the same deferred renderer, while an idle cell
     ; body continues through the normal cadence path.
     call bitmap_boss_cells_config
@@ -3435,7 +3668,6 @@ ${true ? `    ; A mono boss is rendered through a one-command-per-frame queue. T
     jp bitmap_boss_touch
 .boss_render_idle:
 ` : ''}${hasBossCells ? `.boss_cells_update:
-` : ''}${phasesExtended ? `    call bitmap_boss_phase_apply   ; before the laser and the cadence gate: both read it
 ` : ''}${hasLaser ? `    call bitmap_boss_laser_tick
     ld a, (boss_laser_mask)
     or a
@@ -3496,7 +3728,108 @@ ${hasSpriteProjectiles ? `    ; ---- Jordi's hold rule (2026-09-15): while boss 
     ld a, (boss_y)
     ld (boss_old_y), a
 
-${hasPaths ? `    ; ---- authored path (Fase G) wins over the patrol ----
+${hasThread ? `    ; ---- spider thread state machine (Jordi 2026-09-22) ----
+${hasRandomThread ? `    ld a, (boss_thread_mode)
+    or a
+    jr z, .thread_vertical
+    call bitmap_boss_random_branch_step
+    jp .no_y
+.thread_vertical:
+` : ''}
+    ; 0 = path/patrol as usual; 1 = lowering on the thread; 2 = walk back to
+    ; the thread column; 3 = climb it. A thread phase owns the movement and
+    ; falls straight through to the animation step; the depth limit the author
+    ; set is what sends the boss back up once its route brings it down again.
+    ld a, (boss_thread_phase)
+    or a
+    jp z, .thread_roam
+    dec a
+    jp z, .thread_descend
+    dec a
+    jp z, .thread_align
+    ; phase 3: climb. The thread shrinks with the body; the render step paints
+    ; whichever length difference it finds, so nothing to do for it here.
+    ld a, (boss_y)
+    ld c, a
+    sub 2
+    jp c, .thread_climb_top         ; borrow: already at the top edge
+    ld b, a
+    ld a, (boss_thread_top)
+    cp b
+    jr nc, .thread_climb_top        ; anchor at/below the candidate: clamp there
+    ld a, b
+    ld (boss_y), a
+    jp .no_y
+.thread_climb_top:
+    ld a, (boss_thread_top)
+    ld (boss_y), a
+    xor a
+    ld (boss_thread_phase), a       ; back at the anchor: resume the same path
+    jp .no_y
+.thread_align:
+    ; walk horizontally back to the thread column in 2px steps
+    ld a, (boss_thread_x)
+    ld c, a
+    ld a, (boss_x)
+    cp c
+    jp z, .thread_arrive
+    jp c, .thread_align_right       ; boss left of the column: move right
+    sub 2
+    jp nc, .thread_align_left_ok
+    xor a
+.thread_align_left_ok:
+    cp c
+    jp nc, .thread_align_store
+    ld a, c
+    jr .thread_align_store
+.thread_align_right:
+    add a, 2
+    cp c
+    jp c, .thread_align_store
+    ld a, c
+.thread_align_store:
+    ld (boss_x), a
+    cp c
+    jp nz, .no_y                    ; not there yet: keep walking next tick
+.thread_arrive:
+    ld a, 3
+    ld (boss_thread_phase), a       ; aligned: start climbing
+    jp .no_y
+.thread_descend:
+    ld a, (boss_thread_max)
+    ld b, a
+    ld a, (boss_thread_top)
+    add a, b
+    ld c, a                         ; the authored limit Y
+    ld a, (boss_y)
+    add a, 2
+    jp c, .thread_descend_arrive    ; 8-bit overflow: land on the limit
+    cp c
+    jp nc, .thread_descend_arrive
+    ld (boss_y), a
+    jp .no_y
+.thread_descend_arrive:
+    ld a, c
+    ld (boss_y), a
+    xor a
+    ld (boss_thread_phase), a       ; depth reached: hand over to the path
+    jp .no_y
+.thread_roam:
+    ld a, (boss_thread_max)
+    or a
+    jp z, .thread_roam_go           ; no thread armed: the path is all there is
+    ld c, a
+    ld a, (boss_thread_top)
+    add a, c
+    ld c, a                         ; the limit Y
+    ld a, (boss_y)
+    cp c
+    jp c, .thread_roam_go           ; above the limit: keep roaming
+    ld a, 2
+    ld (boss_thread_phase), a       ; back down at the limit: go back up
+    jp .thread_align
+.thread_roam_go:
+` : ''}${hasPaths ? `    ; ---- authored path (Fase G) wins over the patrol ----
 ${shootFreezeUsed ? `    ld a, (boss_burst_idx)
     or a
     jp nz, .no_y               ; a burst is in flight: hold still while firing
@@ -3568,6 +3901,32 @@ ${hasPhaseMoveSteps ? `    ld a, (boss_dy)
 .no_y:
 
     ; ---- animation step: boss_sx = frame SX (base + frame*W) ----
+${hasBubbleProjectiles ? `    push ix
+    call bitmap_boss_proj_config_ix
+    ld a, (ix+10)
+    pop ix
+    cp 3
+    jr nz, .normal_anim
+    ; Soap-bubble mouth is event driven: it stays open for five body ticks
+    ; after a volley, then closes until every bubble has burst.
+    ld a, (boss_anim_frame)
+    or a
+    jr z, .anim_done
+    ld a, (boss_bubble_windup)
+    or a
+    jr nz, .anim_done          ; keep mouth open until the deferred draw finishes
+    ld a, (boss_anim_tick)
+    dec a
+    ld (boss_anim_tick), a
+    jr nz, .anim_done
+    xor a
+    ld (boss_anim_frame), a
+    ld l, (ix+9)
+    ld h, (ix+10)
+    ld (boss_sx), hl
+    jr .anim_done
+.normal_anim:
+` : ''}
     ld a, (ix+15)              ; frame count
     cp 2
     jr c, .anim_done
@@ -3603,20 +3962,256 @@ ${hasBossCells ? `    call bitmap_boss_cells_config
     ld a, (hl)
     or a
     jr nz, .boss_body_cells
-` : ''}    ld a, 1
+` : ''}    ld a, ${hasRandomThread ? 5 : 1}
     ld (boss_render_phase), a
     call bitmap_boss_render_step
     jr .boss_body_done
 ${hasBossCells ? `.boss_body_cells:
     xor a
     ld (boss_render_cells_left), a
-    ld a, 1
+    ld a, ${hasRandomThread ? 5 : 1}
     ld (boss_render_phase), a
     call bitmap_boss_render_step
 ` : ''}${hasHitBlast && hasBossCells ? `    call bitmap_boss_hit_blast_draw   ; over the body just painted; next redraw erases it
 ` : ''}.boss_body_done:
+${hasBubbleProjectiles ? `    ld a, (boss_bubble_windup)
+    cp 2
+    jr nz, .boss_body_touch
+    dec a
+    ld (boss_bubble_windup), a ; the open frame has reached the body renderer
+.boss_body_touch:
+` : ''}
     jp bitmap_boss_touch
 
+${hasRandomThread ? `; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_random_branch_step
+; PURPOSE: Extend generated branches, undo each tip, and after the configured
+;   number of branches retrace the entire retained route to spawn. Every 2px
+;   step is recorded so boundary bounces are reversible too.
+; INPUT: IX -> selected room boss; boss and thread state in RAM.
+; OUTPUT: boss_x/y, boss_thread_op (1 grow, 2 retract, 0 still).
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY, SP.
+; SIDE EFFECTS: Changes boss/thread RAM; no VDP calls.
+; ------------------------------------------------------------
+bitmap_boss_random_branch_step:
+    xor a
+    ld (boss_thread_op), a
+    ld a, (boss_thread_phase)
+    cp 4
+    jp z, .random_return_home
+    cp 3
+    jp z, .random_backtrack
+    ld a, (boss_thread_progress)
+    or a
+    call z, bitmap_boss_random_choose
+    ld a, (boss_thread_dir_x)
+    ld b, a
+    ld a, (boss_x)
+    add a, b
+    cp (ix+5)
+    jr c, .random_flip_x
+    cp (ix+6)
+    jr c, .random_x_ready
+    jr z, .random_x_ready
+.random_flip_x:
+    ld a, b
+    neg
+    ld b, a
+    ld (boss_thread_dir_x), a
+    ld a, (boss_x)
+    add a, b
+.random_x_ready:
+    ld (boss_x), a
+    ld a, (boss_thread_dir_y)
+    ld b, a
+    ld a, (boss_y)
+    add a, b
+    cp (ix+7)
+    jr c, .random_flip_y
+    cp (ix+8)
+    jr c, .random_y_ready
+    jr z, .random_y_ready
+.random_flip_y:
+    ld a, b
+    neg
+    ld b, a
+    ld (boss_thread_dir_y), a
+    ld a, (boss_y)
+    add a, b
+.random_y_ready:
+    ld (boss_y), a
+    ld a, 1
+    ld (boss_thread_op), a
+    call bitmap_boss_random_push_step
+    ld a, (boss_thread_progress)
+    add a, 2
+    ld (boss_thread_progress), a
+    ld b, a
+    ld a, (boss_thread_max)
+    cp b
+    jr c, .random_extension_done
+    jr z, .random_extension_done
+    ret
+.random_extension_done:
+    ld a, (boss_thread_retract)
+    or a
+    jr z, .random_complete_branch
+    ld (boss_thread_len), a
+    ld a, 3
+    ld (boss_thread_phase), a
+    ret
+.random_complete_branch:
+    xor a
+    ld (boss_thread_progress), a
+    ld a, (boss_thread_branch_count)
+    inc a
+    ld (boss_thread_branch_count), a
+    ld b, a
+    ld a, (boss_thread_return_after)
+    cp b
+    jr c, .random_begin_return
+    jr z, .random_begin_return
+    ld a, 1
+    ld (boss_thread_phase), a
+    ret
+.random_begin_return:
+    ld a, 4
+    ld (boss_thread_phase), a
+    ret
+.random_backtrack:
+    ld a, (boss_thread_len)
+    or a
+    jr z, .random_complete_branch
+    call bitmap_boss_random_pop_step
+    ld a, (boss_thread_len)
+    sub 2
+    ld (boss_thread_len), a
+    ret nz
+    jp .random_complete_branch
+.random_return_home:
+    ld hl, (boss_thread_history_len)
+    ld a, h
+    or l
+    jr z, .random_at_home
+    call bitmap_boss_random_pop_step
+    ret
+.random_at_home:
+    xor a
+    ld (boss_thread_branch_count), a
+    ld (boss_thread_progress), a
+    ld a, 1
+    ld (boss_thread_phase), a
+    ret
+
+; One byte per move: bit 0 = negative X; bits 1/2 = positive/negative Y.
+; INPUT: boss_thread_dir_x/y. OUTPUT: history length and entry appended.
+; DESTROYS: AF, C, DE, HL. PRESERVES: B, IX, IY, SP.
+bitmap_boss_random_push_step:
+    ld c, 0
+    ld a, (boss_thread_dir_x)
+    bit 7, a
+    jr z, .random_push_y
+    inc c
+.random_push_y:
+    ld a, (boss_thread_dir_y)
+    or a
+    jr z, .random_push_store
+    bit 7, a
+    jr nz, .random_push_up
+    set 1, c
+    jr .random_push_store
+.random_push_up:
+    set 2, c
+.random_push_store:
+    ld hl, (boss_thread_history_len)
+    ld de, boss_thread_history
+    add hl, de
+    ld (hl), c
+    ld hl, (boss_thread_history_len)
+    inc hl
+    ld (boss_thread_history_len), hl
+    ret
+
+; Pop the most recent real step, move backwards and expose its ORIGINAL
+; direction to the XOR filament renderer, which addresses the same pixels.
+; INPUT: nonempty history. OUTPUT: boss_x/y, dir_x/y, op=2, history length.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY, SP.
+bitmap_boss_random_pop_step:
+    ld hl, (boss_thread_history_len)
+    dec hl
+    ld (boss_thread_history_len), hl
+    ld de, boss_thread_history
+    add hl, de
+    ld c, (hl)
+    ld a, c
+    and 1
+    ld b, 2
+    jr z, .random_pop_x_ready
+    ld b, #FE
+.random_pop_x_ready:
+    ld a, b
+    ld (boss_thread_dir_x), a
+    neg
+    ld b, a
+    ld a, (boss_x)
+    add a, b
+    ld (boss_x), a
+    ld a, c
+    and 6
+    ld b, 0
+    jr z, .random_pop_y_ready
+    ld b, 2
+    cp 2
+    jr z, .random_pop_y_ready
+    ld b, #FE
+.random_pop_y_ready:
+    ld a, b
+    ld (boss_thread_dir_y), a
+    neg
+    ld b, a
+    ld a, (boss_y)
+    add a, b
+    ld (boss_y), a
+    ld a, 2
+    ld (boss_thread_op), a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_random_choose
+; PURPOSE: Alternate X sign; vary Y slope from a changing frame-based seed.
+; INPUT: boss_thread_dir_x, boss_thread_seed.
+; OUTPUT: boss_thread_dir_x/y, boss_thread_seed.
+; DESTROYS: AF, B. PRESERVES: C, DE, HL, IX, IY, SP.
+; ------------------------------------------------------------
+bitmap_boss_random_choose:
+    ld a, (boss_thread_dir_x)
+    neg
+    jr nz, .random_sign_ready
+    ld a, 2
+.random_sign_ready:
+    ld (boss_thread_dir_x), a
+    ld a, (boss_thread_seed)
+    rlca
+    xor #B8
+    ld b, a
+    ld a, (#FC9E)
+    xor b
+    ld (boss_thread_seed), a
+    and 3
+    jr z, .random_slope_up
+    dec a
+    jr z, .random_slope_flat
+    ld a, 2
+    jr .random_slope_store
+.random_slope_up:
+    ld a, #FE
+    jr .random_slope_store
+.random_slope_flat:
+    xor a
+.random_slope_store:
+    ld (boss_thread_dir_y), a
+    ret
+` : ''}
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_off_frame
 ; ------------------------------------------------------------
@@ -4314,11 +4909,15 @@ bitmap_boss_try_launch_cmd:
 ; ------------------------------------------------------------
 bitmap_boss_render_step:
     ld a, (boss_render_phase)
+${hasRandomThread ? `    cp 5
+    jp z, .boss_render_random_thread
+` : ''}
     cp 1
     jp z, .boss_render_x
     cp 2
     jp z, .boss_render_y
-    cp 3
+    cp 4
+${hasThread ? '    jp z, .boss_render_thread\n' : ''}    cp 3
     ret nz
 
 ${hasBossCells ? `    ; Cell-composed bodies use the same strip phases, then consume
@@ -4333,7 +4932,12 @@ ${hasBossCells ? `    ; Cell-composed bodies use the same strip phases, then con
     call bitmap_boss_prepare_cell_render
     ld a, (boss_render_cells_left)
     or a
-    ret z
+    jr nz, .boss_render_cell_cmd
+    ; A stationary tick can have no changed cells. Finish this render queue;
+    ; otherwise phase 3 repeats forever and the boss cannot move again.
+    ld a, ${hasThread ? 4 : 0}
+    ld (boss_render_phase), a
+    ret
 .boss_render_cell_cmd:
     call bitmap_boss_cell_render_step
     ret
@@ -4367,10 +4971,137 @@ ${visiblePageH}
     ld (boss_cmd_buf + 14), a
     call bitmap_boss_try_launch_cmd
     ret nz
-    xor a
+    ld a, ${hasThread ? 4 : 0}
     ld (boss_render_phase), a
     ret
 
+${hasRandomThread ? `; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_render_step / random web phase
+; PURPOSE: XOR the exact two-pixel branch segment into the hidden clean page.
+;   On a backtrack the same segment is XORed again, restoring its old pixels.
+;   The following strip HMMMs reveal the updated filament behind the body.
+; INPUT: IX -> boss record; boss_old_x/y, boss_x/y and thread direction/op.
+; OUTPUT: boss_render_phase = 1 after a successful command.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY, SP.
+; SIDE EFFECTS: Starts one V9938 LINE command on the hidden page.
+; ------------------------------------------------------------
+.boss_render_random_thread:
+    ld a, (boss_slot)
+    or a
+    jp nz, .random_web_skip
+    ld a, (boss_thread_mode)
+    or a
+    jp z, .random_web_skip
+    ld a, (boss_thread_op)
+    or a
+    jp z, .random_web_skip
+    ld a, (boss_thread_color)
+    or a
+    jp z, .random_web_skip
+    ld hl, 0
+    ld (boss_cmd_buf + 0), hl
+    ld (boss_cmd_buf + 2), hl
+    ; Start at the near point plus one pixel in the branch direction.
+    ; Both growth and retraction address the SAME pixels, which makes XOR
+    ; reversible even over a patterned background.
+    ld a, (boss_thread_op)
+    cp 2
+    jr z, .random_web_near_new_x
+    ld a, (boss_old_x)
+    jr .random_web_near_x
+.random_web_near_new_x:
+    ld a, (boss_x)
+.random_web_near_x:
+    ld b, a
+    ; The ceiling thread ends at the body's TOP CENTRE. Keep that same
+    ; attachment point for every branch direction: choosing the trailing
+    ; left/right face on a horizontal step jumps by a whole body width when
+    ; the next branch reverses, leaving a visible break in the filament.
+    ld a, (ix+13)
+    srl a
+    add a, b
+    ld b, a
+    ld a, (boss_thread_dir_x)
+    sra a
+    add a, b
+    ld (boss_cmd_buf + 4), a
+    xor a
+    ld (boss_cmd_buf + 5), a
+    ld a, (boss_thread_op)
+    cp 2
+    jr z, .random_web_near_new_y
+    ld a, (boss_old_y)
+    jr .random_web_near_y
+.random_web_near_new_y:
+    ld a, (boss_y)
+.random_web_near_y:
+    ld b, a
+    ld a, (boss_thread_dir_y)
+    sra a
+    add a, b
+    add a, ${asmByte(gameY)}
+    ld (boss_cmd_buf + 6), a
+    ld a, (bitmap_displayed_page)
+    xor 1
+    ld (boss_cmd_buf + 7), a
+    ; ARG direction bits: DIX=#04, DIY=#08, MAJ=#01.
+    ld d, 0
+    ld b, 0
+    ld c, 0
+    ld a, (boss_thread_dir_x)
+    or a
+    jr z, .random_web_x_axis_done
+    ld b, 1
+    bit 7, a
+    jr z, .random_web_x_axis_done
+    ld d, 4
+.random_web_x_axis_done:
+    ld a, (boss_thread_dir_y)
+    or a
+    jr z, .random_web_y_axis_done
+    ld c, 1
+    bit 7, a
+    jr z, .random_web_y_axis_done
+    ld a, d
+    or 8
+    ld d, a
+.random_web_y_axis_done:
+    ld a, c
+    or a
+    jr z, .random_web_x_major
+    ld a, 1
+    ld (boss_cmd_buf + 8), a
+    ld a, b
+    ld (boss_cmd_buf + 10), a
+    ld a, d
+    or 1
+    jr .random_web_arg_ready
+.random_web_x_major:
+    ld a, b
+    ld (boss_cmd_buf + 8), a
+    xor a
+    ld (boss_cmd_buf + 10), a
+    ld a, d
+.random_web_arg_ready:
+    ld (boss_cmd_buf + 13), a
+    xor a
+    ld (boss_cmd_buf + 9), a
+    ld (boss_cmd_buf + 11), a
+    ld a, (boss_thread_color)
+    and #0F
+    ld (boss_cmd_buf + 12), a
+    ld a, #73                 ; V9938 LINE with XOR logical operation
+    ld (boss_cmd_buf + 14), a
+    call bitmap_boss_try_launch_cmd
+    ret nz
+    ld a, 1
+    ld (boss_render_phase), a
+    ret
+.random_web_skip:
+    ld a, 1
+    ld (boss_render_phase), a
+    jp .boss_render_x
+` : ''}
 .boss_render_x:
     ld a, (boss_x)
     ld b, a
@@ -4453,7 +5184,148 @@ ${visiblePageH}
     ld a, 3
     ld (boss_render_phase), a
     ret
-${hasBossCells ? `
+${hasThread ? `
+.boss_render_thread:
+${hasRandomThread ? `    ld a, (boss_thread_mode)
+    or a
+    jp nz, .boss_thread_settle
+` : ''}
+    ; ------------------------------------------------------------
+    ; One step of spider-thread upkeep (Jordi 2026-09-22). Compares the length
+    ; the body's top edge implies right now against what is on screen:
+    ;   shorter/hidden -> one HMMM from the clean page restores the column,
+    ;   longer         -> one LINE paints the extra rows (SCREEN 5 expands the
+    ;                     colour byte per pixel, so a single-column line is
+    ;                     exactly 1px wide: high nibble = even columns).
+    ; Runs last in the render chain, so at most one extra game tick per body
+    ; move; a busy command engine simply retries, like every other phase.
+    ; INPUT: IX -> room record (unused). DESTROYS: AF, BC, DE, HL. PRESERVES: IX.
+    ; ------------------------------------------------------------
+    ld a, (boss_thread_phase)
+    cp 1
+    jr z, .boss_thread_len_body
+    cp 3
+    jr z, .boss_thread_len_body
+    xor a                       ; off the thread: the column must vanish
+    jr .boss_thread_want
+.boss_thread_len_body:
+    ld a, (boss_y)
+    ld b, a
+    ld a, (boss_thread_top)
+    ld c, a
+    ld a, b
+    sub c                       ; wanted = body top - anchor
+    jp nc, .boss_thread_want
+    xor a                       ; above the anchor: nothing to show
+.boss_thread_want:
+    ld b, a                     ; B = wanted length
+    ld hl, boss_thread_len
+    ld a, b
+    cp (hl)
+    jp z, .boss_thread_settle
+    jp c, .boss_thread_grow
+    ; ---- shrink: rows [wanted .. len-1] come back from the clean page ----
+    ld a, (hl)                  ; A = current on-screen length
+    sub b                       ; rows to restore = current - wanted
+    ld (boss_cmd_buf + 10), a   ; NY lo
+    xor a
+    ld (boss_cmd_buf + 11), a   ; NY hi
+    ld a, (boss_thread_top)
+    add a, b
+    add a, ${asmByte(gameY)}
+    ld e, a
+    ld a, (bitmap_displayed_page)
+    ld d, a
+    ld (boss_cmd_buf + 6), de   ; DY = visible page, first uncovered row
+    xor 1
+    ld d, a
+    ld (boss_cmd_buf + 2), de   ; SY = clean page, same row
+    ld a, (boss_thread_x)
+    and #FE                     ; whole VRAM byte: both pixels of the pair
+    ld e, a
+    ld d, 0
+    ld (boss_cmd_buf + 0), de   ; SX = clean page column
+    ld (boss_cmd_buf + 4), de   ; DX = visible page column
+    ld hl, 2
+    ld (boss_cmd_buf + 8), hl   ; NX = 2 (one VRAM byte)
+    xor a
+    ld (boss_cmd_buf + 12), a
+    ld (boss_cmd_buf + 13), a
+    ld a, #D0                   ; HMMM
+    ld (boss_cmd_buf + 14), a
+    push bc
+    call bitmap_boss_try_launch_cmd
+    pop bc                      ; B = wanted length (try_launch clobbers BC)
+    ret nz                      ; engine busy: retry on a later tick
+    ld a, b
+    ld (boss_thread_len), a
+    xor a
+    ld (boss_render_phase), a
+    ret
+.boss_thread_grow:
+    ; LINE from the current tip down to the new length; rows painted = NY+1,
+    ; so the delta carries a -1 for the tip pixel already on screen.
+    ld a, b
+    sub (hl)                    ; rows still to paint (>= 1: old < wanted)
+    dec a
+    ld e, a                     ; E = NY delta
+    ld (boss_cmd_buf + 10), a
+    xor a
+    ld (boss_cmd_buf + 11), a
+    push bc
+    ld a, (boss_thread_top)
+    add a, (hl)                 ; first row to paint = anchor + current length
+    add a, ${asmByte(gameY)}
+    ld c, a
+    ld a, (bitmap_displayed_page)
+    ld d, a
+    ld a, c
+    ld l, a
+    ld h, d
+    ld (boss_cmd_buf + 2), hl   ; SY = start point (page<<8 | row)
+    ld a, (boss_thread_x)
+    ld (boss_cmd_buf + 0), a    ; SX = the thread column
+    xor a
+    ld (boss_cmd_buf + 1), a
+    ld (boss_cmd_buf + 4), a    ; DX = same column
+    ld (boss_cmd_buf + 5), a
+    ld a, e
+    add a, l
+    ld l, a
+    ld (boss_cmd_buf + 6), hl   ; DY = start row + NY (end point)
+    xor a
+    ld (boss_cmd_buf + 8), a    ; NX = 0: purely vertical
+    ld (boss_cmd_buf + 9), a
+    ld a, (boss_thread_x)
+    rrca
+    jr c, .boss_thread_odd
+    ld a, (boss_thread_color)
+    add a, a                    ; <<4: even columns take the high nibble
+    add a, a
+    add a, a
+    add a, a
+    jr .boss_thread_col_done
+.boss_thread_odd:
+    ld a, (boss_thread_color)
+.boss_thread_col_done:
+    ld (boss_cmd_buf + 12), a   ; colour, nibble-expanded by the VDP
+    ld a, #70                   ; ARG: Y is the long axis, drawing downward
+    ld (boss_cmd_buf + 13), a
+    ld a, #E0                   ; LINE, logical op replace
+    ld (boss_cmd_buf + 14), a
+    call bitmap_boss_try_launch_cmd
+    pop bc
+    ret nz
+    ld a, b
+    ld (boss_thread_len), a
+    xor a
+    ld (boss_render_phase), a
+    ret
+.boss_thread_settle:
+    xor a
+    ld (boss_render_phase), a
+    ret
+` : ''}${hasBossCells ? `
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_prepare_cell_render
 ; ------------------------------------------------------------
@@ -4859,10 +5731,7 @@ bitmap_boss_draw_animated:
     jp bitmap_boss_draw_mono
 
 `}bitmap_boss_draw:
-${!hasBossCells ? '' : `    ; FASE 3: a body split into 16x16 cells has no single rectangle to copy.
-    ; Its cells live wherever the packer deduped them, so the frame is composed
-    ; cell by cell. A room whose blob starts with 0 frames keeps the old path.
-    ; Unconditional on purpose: see bitmap_boss_draw_animated above.
+${!hasBossCells ? '' : `    ; Packed cell bodies draw every cell; empty blobs use the mono path.
     call bitmap_boss_cells_config
     ld a, (hl)
     or a
@@ -6531,7 +7400,40 @@ ${hasIntro ? `    ld (boss_intro_state), a
     or (hl)
     jr z, .boss_pair_not_defeated
 ${hasDefeatActions ? '    call bitmap_boss_run_defeat_actions   ; Phase A onDefeated bytecode; WAIT/DIALOGUE steps then span frames\n' : ''}${hasBarrier ? '    call bitmap_boss_barrier_remove   ; Phase B: drop the chain (collision + graphics)\n' : ''}.boss_pair_not_defeated:
-    ; full-rect restore from page 1
+${hasThread ? `    ; The thread dies with its spider: erase any painted column first, then
+    ; let the body's full-rect restore run exactly as it always did.
+${hasRandomThread ? `    ld a, (boss_thread_mode)
+    or a
+    jr nz, .boss_thread_death_clean ; random branches live in the clean page
+` : ''}
+    ld a, (boss_thread_len)
+    or a
+    jr z, .boss_thread_death_clean
+    ld (boss_cmd_buf + 10), a   ; NY = the whole painted length
+    xor a
+    ld (boss_cmd_buf + 11), a
+    ld a, (boss_thread_top)
+    add a, ${asmByte(gameY)}
+    ld e, a
+    ld a, (bitmap_displayed_page)
+    ld d, a
+    ld (boss_cmd_buf + 6), de   ; DY = visible page
+    xor 1
+    ld d, a
+    ld (boss_cmd_buf + 2), de   ; SY = clean page
+    ld a, (boss_thread_x)
+    and #FE
+    ld e, a
+    ld d, 0
+    ld (boss_cmd_buf + 0), de
+    ld (boss_cmd_buf + 4), de
+    ld hl, 2
+    ld (boss_cmd_buf + 8), hl   ; NX = 2 (one VRAM byte)
+    call bitmap_boss_finish_hmmm
+    xor a
+    ld (boss_thread_len), a
+.boss_thread_death_clean:
+` : ''}    ; full-rect restore from page 1
     call bitmap_boss_table_ix_shadow   ; HL -> width
     ld a, (boss_x)
     and #FE
@@ -7380,7 +8282,7 @@ bitmap_boss_phase_apply:
     ret z                      ; count 0 -> this boss has no phases
     ld b, a                    ; B = phase count
     inc hl
-    ld de, ${BITMAP_BOSS_PHASE_ENTRY_FULL}
+    ld de, ${phaseEntryBytes}
 .bpa_scan:
     ld a, (boss_hp)
     cp (hl)                    ; boss_hp <= hpAtOrBelow ?
@@ -7408,8 +8310,18 @@ bitmap_boss_phase_apply:
     inc hl
     ld a, (hl)                 ; movement steps per body update
     or a
-    ret z                      ; a 0 here would freeze the body; keep the 1
+    ${hasPhaseSpriteVariants ? `jr z, .bpa_sprite          ; a 0 here would freeze the body; keep the 1` : `ret z                      ; a 0 here would freeze the body; keep the 1`}
     ld (boss_phase_move), a
+${hasPhaseSpriteVariants ? `.bpa_sprite:
+    inc hl
+    ld a, (hl)                 ; sprite variant selected by this phase
+    ld b, a
+    ld a, (boss_sbul_variant)
+    cp b
+    ret z
+    ld a, b
+    jp bitmap_boss_sbul_select_variant
+` : ''}
     ret
 ${hasPhaseMoveSteps ? `
 ; ------------------------------------------------------------
@@ -7465,8 +8377,11 @@ bitmap_boss_shoot_update:
     or a
     ret z                      ; this room's boss does not shoot
 ${hasSpriteProjectiles ? `    ld a, (ix+10)
-    ${hasFallingRocks ? `cp 1                       ; only kind 1 is a hardware sprite; 2 = rocks
-    jp z, bitmap_boss_sbul_update` : `or a
+    ${hasFallingRocks ? `cp 1                       ; kind 1 = sprite, 2 = rocks, 3 = bouncing bubbles
+    jp z, bitmap_boss_sbul_update
+${hasBubbleProjectiles ? `    cp 3
+    jp z, bitmap_boss_sbul_update
+` : ''}` : `or a
     jp nz, bitmap_boss_sbul_update   ; hardware-sprite bullets`}
 ` : ''}${hasBitmapProjectiles ? `    ld a, (boss_proj_active)
     or a
@@ -8031,6 +8946,50 @@ ${hasShoots ? `    call bitmap_boss_burst_tick   ; outside the loop: a wave rewr
 ` : ''}${hasPaths ? `    ld a, (boss_path_fire_mode)
     or a
     ret nz                     ; path-driven firing: the node scripts shoot
+` : ''}${hasBubbleProjectiles ? `    ld a, (ix+10)
+    cp 3
+    jr nz, .sb_bubble_clear
+    ld a, (boss_bubble_windup)
+    cp 2
+    ret z                     ; no body tick has drawn the open mouth yet
+    or a
+    jr z, .sb_bubble_scan_start
+    ld a, (boss_render_phase)
+    or a
+    ret nz                    ; deferred body commands are still queued
+${hasBossCells ? `    ld a, (boss_cells_shown)
+    cp 1
+    ret nz
+    ld a, (boss_render_cells_left)
+    or a
+    ret nz
+` : ''}    call read_vdp_status_2
+    and 1
+    ld b, a
+    xor a
+    ld e, a
+    ld a, #0F
+    call vdp_write_register   ; restore status register selection
+    ld a, b
+    or a
+    ret nz                    ; final open-mouth VDP command is still running
+    xor a
+    ld (boss_bubble_windup), a
+    jp .sb_launch_now
+.sb_bubble_scan_start:
+    ; Wait for the whole volley to disappear before opening the mouth again.
+    ld iy, boss_sbul_pool
+    ld b, ${spriteSlots}
+.sb_bubble_scan:
+    ld a, (iy+0)
+    or a
+    ret nz
+    push bc
+    ld bc, BOSS_SBUL_SLOT
+    add iy, bc
+    pop bc
+    djnz .sb_bubble_scan
+.sb_bubble_clear:
 ` : ''}    ld a, (boss_proj_cd)
     or a
     jr z, .sb_fire
@@ -8040,6 +8999,35 @@ ${hasShoots ? `    call bitmap_boss_burst_tick   ; outside the loop: a wave rewr
 .sb_fire:
     call bitmap_boss_phase_resolve   ; A = interval for the current HP phase
     ld (boss_proj_cd), a
+${hasBubbleProjectiles ? `    ld a, (ix+10)
+    cp 3
+    jr nz, .sb_not_bubble_fire
+    ld a, (boss_bubble_angle)
+    inc a
+    cp 3
+    jr c, .sb_bubble_angle_ready
+    xor a
+.sb_bubble_angle_ready:
+    ld (boss_bubble_angle), a
+    ld a, 1
+    ld (boss_anim_frame), a
+    ld a, 5
+    ld (boss_anim_tick), a
+    push ix
+    call bitmap_boss_table_ix
+    ld l, (ix+9)
+    ld h, (ix+10)
+    ld e, (ix+13)
+    ld d, 0
+    add hl, de
+    ld (boss_sx), hl
+    pop ix
+    ld a, 2
+    ld (boss_bubble_windup), a
+    ret                       ; spawn only after the open mouth is visible
+.sb_not_bubble_fire:
+` : ''}
+.sb_launch_now:
 ${hasPhaseShoots ? `    ; A phase may fire a whole authored pattern (fan, ring, burst) instead of
     ; the single aimed bullet: that is how a boss shoots MORE, not just faster.
     ld a, (boss_phase_shoot)
@@ -8060,16 +9048,38 @@ ${hasPhaseShoots ? `    ; A phase may fire a whole authored pattern (fan, ring, 
 ; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
 ; ------------------------------------------------------------
 bitmap_boss_sbul_step:
+${hasBubbleProjectiles ? `    ld a, (ix+10)
+    cp 3
+    jp z, bitmap_boss_bubble_step
+` : ''}
 ${hasAnimatedSpriteBullet ? `    ld a, (iy+10)
     inc a
-    cp ${spriteAnimDelay}
+${hasPhaseSpriteVariants ? `    ld c, a
+    ld a, (boss_sbul_frame_delay)
+    cp c
+    jr z, .sb_tick_reset
+    jr c, .sb_tick_reset
+    ld a, c
+    jp .sb_anim_store_tick
+.sb_tick_reset:
+` : `    cp ${spriteAnimDelay}
     jp c, .sb_anim_store_tick
+`}
     xor a
     ld (iy+10), a
     ld a, (iy+9)
     inc a
-    cp ${spriteFrameCount}
+${hasPhaseSpriteVariants ? `    ld c, a
+    ld a, (boss_sbul_frame_count)
+    cp c
+    jr z, .sb_frame_reset
+    jr c, .sb_frame_reset
+    ld a, c
+    jp .sb_anim_store_frame
+.sb_frame_reset:
+` : `    cp ${spriteFrameCount}
     jp c, .sb_anim_store_frame
+`}
     xor a
 .sb_anim_store_frame:
     ld (iy+9), a
@@ -8124,6 +9134,80 @@ ${hasAnimatedSpriteBullet ? `    ld a, (iy+10)
     ld (iy+0), a
     ret
 
+${hasBubbleProjectiles ? `; Bubble flight uses the same 8.8 slot, but reflects at the visible arena
+; edges. B marks either-axis contact, so a corner costs one rebound.
+; INPUT: IY=slot, IX=projectile config. DESTROYS AF, BC, HL.
+bitmap_boss_bubble_step:
+    ld b, 0
+    ld a, (iy+5)
+    add a, (iy+7)
+    ld (iy+5), a
+    ld a, (iy+1)
+    adc a, (iy+3)
+    ld (iy+1), a
+    cp 233
+    jr nc, .bubble_right
+    cp 4
+    jr c, .bubble_left
+    jr .bubble_y
+.bubble_right:
+    ld a, 232
+    jr .bubble_x_reflect
+.bubble_left:
+    ld a, 4
+.bubble_x_reflect:
+    ld (iy+1), a
+    ld a, (iy+7)
+    cpl
+    add a, 1
+    ld (iy+7), a
+    ld a, (iy+3)
+    cpl
+    adc a, 0
+    ld (iy+3), a
+    ld b, 1
+.bubble_y:
+    ld a, (iy+6)
+    add a, (iy+8)
+    ld (iy+6), a
+    ld a, (iy+2)
+    adc a, (iy+4)
+    ld (iy+2), a
+    cp 169
+    jr nc, .bubble_bottom
+    cp 2
+    jr c, .bubble_top
+    jr .bubble_count
+.bubble_bottom:
+    ld a, 168
+    jr .bubble_y_reflect
+.bubble_top:
+    ld a, 2
+.bubble_y_reflect:
+    ld (iy+2), a
+    ld a, (iy+8)
+    cpl
+    add a, 1
+    ld (iy+8), a
+    ld a, (iy+4)
+    cpl
+    adc a, 0
+    ld (iy+4), a
+    ld b, 1
+.bubble_count:
+    ld a, b
+    or a
+    jp z, bitmap_boss_sbul_hit
+    ld a, (iy+${bubbleCountOffset})
+    inc a
+    ld (iy+${bubbleCountOffset}), a
+    cp (ix+11)
+    jp c, bitmap_boss_sbul_hit
+    xor a
+    ld (iy+0), a
+    ret
+
+` : ''}
 ; Player-vs-bullet AABB (IY -> slot). The visible blob is the centred 8x8.
 bitmap_boss_sbul_hit:
     ld a, (player_invuln)
@@ -8352,7 +9436,7 @@ ${Array.from({ length: spriteSlots }, (_v, i) => `    ld iy, boss_sbul_pool + ${
     add a, a                  ; frame * 16-byte line-colour table
     ld e, a
     ld d, 0
-    ld hl, bitmap_boss_sbul_frame_colors
+    ${hasPhaseSpriteVariants ? `ld hl, (boss_sbul_color_ptr)` : `ld hl, bitmap_boss_sbul_frame_colors`}
     add hl, de
     ld de, ${asmWord((sprites ? sprites.colorBase : 0) + i * 16)}
     ld bc, 16
@@ -8369,6 +9453,53 @@ ${Array.from({ length: spriteSlots }, (_v, i) => `    ld iy, boss_sbul_pool + ${
 ; DESTROYS: AF, BC, DE, HL.
 ; ------------------------------------------------------------
 bitmap_boss_sbul_load:
+${hasPhaseSpriteVariants ? `    xor a
+    jp bitmap_boss_sbul_select_variant
+
+; INPUT: A = variant index (0 = the old boss-wide sprite). All active bullets
+; are cleared before the VRAM patterns change. Preserves IX and IY.
+bitmap_boss_sbul_select_variant:
+    push ix
+    push iy
+    ld (boss_sbul_variant), a
+${spriteVariants.slice(1).map((_sprite, index) => `    cp ${index + 1}
+    jp z, .sb_variant_${index + 1}`).join('\n')}
+.sb_variant_0:
+    ld hl, bitmap_boss_sbul_pattern
+    ld de, ${asmWord(sprites ? sprites.patternAddr : 0)}
+    ld bc, ${32 * spriteFrameCount}
+    call copy_to_vram_ext
+    ld hl, ${hasAnimatedSpriteBullet && sprites?.sprite ? 'bitmap_boss_sbul_frame_colors' : 'bitmap_boss_sbul_colors'}
+    ld (boss_sbul_color_ptr), hl
+    ld a, ${spriteFrameCount}
+    ld (boss_sbul_frame_count), a
+    ld a, ${spriteAnimDelay}
+    ld (boss_sbul_frame_delay), a
+    jp .sb_variant_colors
+${spriteVariants.slice(1).map((sprite, index) => `.sb_variant_${index + 1}:
+    ld hl, bitmap_boss_sbul_variant_pattern_${index + 1}
+    ld de, ${asmWord(sprites ? sprites.patternAddr : 0)}
+    ld bc, ${32 * clampInt(sprite?.frames.length, 1, 8, 1)}
+    call copy_to_vram_ext
+    ld hl, bitmap_boss_sbul_variant_colors_${index + 1}
+    ld (boss_sbul_color_ptr), hl
+    ld a, ${clampInt(sprite?.frames.length, 1, 8, 1)}
+    ld (boss_sbul_frame_count), a
+    ld a, ${clampInt(sprite?.delayFrames, 1, 255, 8)}
+    ld (boss_sbul_frame_delay), a
+    jp .sb_variant_colors`).join('\n')}
+.sb_variant_colors:
+    xor a
+${Array.from({ length: spriteSlots }, (_v, i) => `    ld (boss_sbul_pool + ${i * BOSS_SBUL_SLOT_BYTES}), a`).join('\n')}
+${hasShoots ? `    ld (boss_burst_idx), a
+` : ''}${Array.from({ length: spriteSlots }, (_v, i) => `    ld hl, (boss_sbul_color_ptr)
+    ld de, ${asmWord((sprites ? sprites.colorBase : 0) + i * 16)}
+    ld bc, 16
+    call copy_to_vram_ext`).join('\n')}
+    pop iy
+    pop ix
+    ret
+` : `
     xor a
 ${Array.from({ length: spriteSlots }, (_v, i) => `    ld (boss_sbul_pool + ${i * BOSS_SBUL_SLOT_BYTES}), a`).join('\n')}
 ${hasShoots ? `    ld (boss_burst_idx), a     ; a burst owed by the previous boss dies with it
@@ -8379,7 +9510,7 @@ ${hasShoots ? `    ld (boss_burst_idx), a     ; a burst owed by the previous bos
     ld hl, bitmap_boss_sbul_colors
     ld de, ${asmWord(sprites ? sprites.colorBase : 0)}
     ld bc, ${16 * spriteSlots}
-    jp copy_to_vram_ext
+    jp copy_to_vram_ext`}
 ` : ''}${hasPaths ? `
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_path_wanted
@@ -8685,8 +9816,10 @@ ${hasShoots ? `    ld (boss_shoot_cnt), a     ; parked here until the config is 
     jr z, .bpf_done            ; this room's boss does not shoot
     call bitmap_boss_phase_resolve   ; keep the phase's bullet speed
 ${hasSpriteProjectiles ? `    ld a, (ix+10)
-    ${hasFallingRocks ? `cp 1                       ; kind 2 (rocks) blits like kind 0
-    jr nz, .bpf_bitmap` : `or a
+    ${hasFallingRocks ? `cp 2                       ; kind 2 (rocks) blits like kind 0
+    jr z, .bpf_bitmap
+    or a
+    jr z, .bpf_bitmap` : `or a
     jr z, .bpf_bitmap`}
 ${hasShoots ? `    ld a, (boss_shoot_cnt)
     or a
@@ -8737,6 +9870,12 @@ ${data.barrierTables.map((table, index) => `bitmap_boss_barrier_room_${index}:
     db ${table.map(value => asmByte(value)).join(', ')}`).join('\n')}
 bitmap_boss_barrier_ptr_table:
 ${data.barrierTables.map((_, index) => `    dw bitmap_boss_barrier_room_${index}`).join('\n')}
+` : ''}${hasThread ? `
+; ---- boss spider thread per room: [maxLen, colour, column X, anchor Y, retract, randomMode, returnAfter] ----
+${data.threadTables.map((table, index) => `bitmap_boss_thread_room_${index}:
+    db ${table.map(value => asmByte(value)).join(', ')}`).join('\n')}
+bitmap_boss_thread_ptr_table:
+${data.threadTables.map((_, index) => `    dw bitmap_boss_thread_room_${index}`).join('\n')}
 ` : ''}${hasIntro ? `
 ; ---- boss Room Lock bytecode per room ----
 ; #00 END, #01 CLOSE_BARRIER/rasterLinesPerFrame, #02 DIALOGUE/index, #03 WAIT/frames.
@@ -8843,6 +9982,19 @@ bitmap_boss_sbul_frame_colors:
 ${sprites.sprite.frames.map((frame, index) => `    ; authored projectile colours frame ${index}
     db ${frame.colorBytes.map(v => asmByte(v)).join(', ')}`).join('\n')}
 ` : ''}
+${hasPhaseSpriteVariants ? spriteVariants.slice(1).map((sprite, index) => `; Phase projectile sprite ${index + 1}
+bitmap_boss_sbul_variant_pattern_${index + 1}:
+${sprite
+  ? sprite.frames.map(frame => `    db ${frame.patternBytes.slice(0, 16).map(v => asmByte(v)).join(', ')}
+    db ${frame.patternBytes.slice(16, 32).map(v => asmByte(v)).join(', ')}`).join('\n')
+  : `    db #00, #00, #00, #00, #0F, #0F, #0F, #0F
+    db #0F, #0F, #0F, #0F, #00, #00, #00, #00
+    db #00, #00, #00, #00, #F0, #F0, #F0, #F0
+    db #F0, #F0, #F0, #F0, #00, #00, #00, #00`}
+bitmap_boss_sbul_variant_colors_${index + 1}:
+${sprite
+  ? sprite.frames.map(frame => `    db ${frame.colorBytes.map(v => asmByte(v)).join(', ')}`).join('\n')
+  : `    db ${new Array(16).fill(asmByte(sprites ? sprites.color : 10)).join(', ')}`}`).join('\n') : ''}
 ` : ''}${hasPaths ? `
 ; ---- boss paths (Fase G): one baked stream per authored path asset ----
 ; #00..#EF = movement step (high nibble dx+8, low nibble dy+8, one per body

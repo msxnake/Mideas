@@ -6,6 +6,7 @@ import {
   Msx2BossDefinition,
   Msx2BossPhase,
   Msx2BossRoomLockStep,
+  Msx2ShootDefinition,
   Msx2Screen5BitmapRoom,
   ProjectAsset,
   Screen5PaletteSlot,
@@ -37,15 +38,8 @@ interface Msx2BossEditorProps {
   setStatusBarMessage?: (message: string) => void;
 }
 
-const NAV_ITEMS = ['General', 'Body & Graphics', 'Movement', 'Room Lock', 'Projectiles', 'Laser Attack', 'Attack Phases', 'Damage Zones', 'Death FX', 'Defeat Actions', 'Encounters'] as const;
+const NAV_ITEMS = ['General', 'Body & Graphics', 'Movement', 'Room Lock', 'Attack Phases', 'Damage Zones', 'Death FX', 'Defeat Actions', 'Encounters'] as const;
 type Section = typeof NAV_ITEMS[number];
-
-const LASER_DIRECTIONS = [
-  { key: 'N', label: 'North', bit: 0, lineStyle: { left: '50%', top: 0, width: 3, height: '50%', transform: 'translateX(-50%)' } },
-  { key: 'E', label: 'East', bit: 1, lineStyle: { right: 0, top: '50%', width: '50%', height: 3, transform: 'translateY(-50%)' } },
-  { key: 'S', label: 'South', bit: 2, lineStyle: { left: '50%', bottom: 0, width: 3, height: '50%', transform: 'translateX(-50%)' } },
-  { key: 'O', label: 'West', bit: 3, lineStyle: { left: 0, top: '50%', width: '50%', height: 3, transform: 'translateY(-50%)' } },
-] as const;
 
 /** MSX2 palette approximation, good enough for the zone-editor preview. */
 const MSX2_PREVIEW_BG = '#101018';
@@ -58,6 +52,8 @@ interface BossAttackCapabilities {
   spriteBullets: boolean;
   /** Ceiling debris: aimed-shot wording (and shoot patterns) do not apply. */
   fallingRocks: boolean;
+  /** Hardware-sprite soap bubbles that rebound and expire after authored hits. */
+  soapBubbles: boolean;
   /** A growing cardinal laser will be emitted for this boss. */
   laser: boolean;
 }
@@ -75,9 +71,11 @@ function resolveBossAttacks(
   atlasEntries: AtlasEntryRef[],
   bodyW: number,
   bodyH: number,
+  shootAssets: ProjectAsset[],
 ): BossAttackCapabilities {
   const fallingRocks = (boss.bossProjectilePattern || 'aimed') === 'fallingRocks';
-  const wantsBitmap = fallingRocks || (boss.bossProjectileKind || 'sprite') === 'bitmap';
+  const soapBubbles = (boss.bossProjectilePattern || 'aimed') === 'soapBubbles';
+  const wantsBitmap = !soapBubbles && (fallingRocks || (boss.bossProjectileKind || 'sprite') === 'bitmap');
   const projectileId = String(boss.bossProjectileTileId || '').trim();
   const projectileEntry = projectileId
     ? atlasEntries.find(entry => entry.id === projectileId)
@@ -91,7 +89,9 @@ function resolveBossAttacks(
     && (!!projectileId || boss.bossShootInterval !== undefined || boss.bossProjectileKind !== undefined);
   const bullets = spriteBullets || (wantsBitmap && projectileFits);
 
-  const laserId = String(boss.bossLaserTileId || '').trim();
+  const laserShoot = shootAssets.find(asset => asset.id === boss.bossLaserShootId)?.data as Msx2ShootDefinition | undefined;
+  const authoredLaser = laserShoot?.pattern === 'laser' ? laserShoot : undefined;
+  const laserId = String(authoredLaser?.laserTileId ?? boss.bossLaserTileId ?? '').trim();
   const laserEntry = laserId ? atlasEntries.find(entry => entry.id === laserId) : undefined;
   const explicitLaser = !!laserEntry && laserEntry.w === 16 && laserEntry.h === 16;
   // Automatic fallback, in the generator's order: the projectile tile if it is
@@ -99,8 +99,8 @@ function resolveBossAttacks(
   const fallbackLaser = !laserId
     && ((!!projectileEntry && projectileEntry.w === 16 && projectileEntry.h === 16)
       || (bodyW === 16 && bodyH === 16));
-  const laser = (explicitLaser || fallbackLaser) && (boss.bossLaserDirectionMask ?? 0x0f) !== 0;
-  return { bullets, spriteBullets, fallingRocks, laser };
+  const laser = (explicitLaser || fallbackLaser) && (authoredLaser?.laserDirectionMask ?? boss.bossLaserDirectionMask ?? 0x0f) !== 0;
+  return { bullets, spriteBullets, fallingRocks, soapBubbles, laser };
 }
 
 const card = 'bg-msx-panel border border-msx-border rounded p-3 mb-3';
@@ -450,9 +450,27 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
   const set = <K extends keyof Msx2BossDefinition>(key: K, value: Msx2BossDefinition[K]) =>
     onUpdate({ ...boss, [key]: value });
 
+  useEffect(() => {
+    if (!boss.bossPhases?.length) {
+      onUpdate({ ...boss, bossPhases: [{
+        id: 'phase_1', enterWhenHpBelowPercent: 100,
+        interval: boss.bossShootInterval || 90,
+        projectileSpeed: boss.bossProjectileSpeed || 2,
+        projectileSpriteId: boss.bossProjectileSpriteId || '',
+      }] });
+    } else if (!boss.bossPhases.some(phase => Number(phase.enterWhenHpBelowPercent) === 100)) {
+      const highest = boss.bossPhases.reduce((best, phase, index) =>
+        Number(phase.enterWhenHpBelowPercent) > Number(boss.bossPhases[best].enterWhenHpBelowPercent)
+          ? index : best, 0);
+      onUpdate({ ...boss, bossPhases: boss.bossPhases.map((phase, index) =>
+        index === highest ? { ...phase, enterWhenHpBelowPercent: 100 } : phase) });
+    }
+  }, [boss, onUpdate]);
+
   // The body drives the zone editor canvas size: zones are authored in
   // boss-local pixels, so the preview must match the real body rectangle.
   const bodyStamp = bodyStamps.find(s => s.id === boss.bossStampAssetId);
+  const threadPalette = bodyStamp?.palette || createDefaultScreen5PaletteSlots();
   const stampFrameCount = bodyStamp && bodyStamp.frameCount > 1 ? bodyStamp.frameCount : 0;
   const frames = stampFrameCount || Math.max(1, Number(boss.bossFrames) || 1);
   // Pre-stamp bosses name a room atlas tile instead. The generator still
@@ -475,10 +493,6 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
     : bodyAtlasEntry ? Math.max(16, Math.min(96, bodyAtlasEntry.h)) : 64;
   const bodyPreviewScale = Math.max(1, Math.min(4, Math.floor(160 / Math.max(bodyW, 1))));
   const barrierEntry = atlasEntries.find(e => e.id === boss.bossBarrierTileId);
-  const projectileEntry = atlasEntries.find(e => e.id === boss.bossProjectileTileId);
-  const laserEntry = atlasEntries.find(e => e.id === boss.bossLaserTileId);
-  const laserEntries = atlasEntries.filter(e => e.w === 16 && e.h === 16);
-  const laserMask = boss.bossLaserDirectionMask ?? 0x0f;
   const activePath = pathAssets.find(asset => asset.id === boss.bossPathId);
   const activePathFiring = (activePath?.data as any)?.firing;
   // What this boss can actually DO, resolved exactly like the generator does
@@ -486,13 +500,9 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
   // showing a bullet cadence to a boss that only fires a laser is not a small
   // cosmetic problem -- those fields genuinely do nothing for it.
   const attacks = useMemo(
-    () => resolveBossAttacks(boss, atlasEntries, bodyW, bodyH),
-    [boss, atlasEntries, bodyW, bodyH],
+    () => resolveBossAttacks(boss, atlasEntries, bodyW, bodyH, shootAssets),
+    [boss, atlasEntries, bodyW, bodyH, shootAssets],
   );
-
-  const toggleLaserDirection = (bit: number) => {
-    set('bossLaserDirectionMask', laserMask ^ (1 << bit));
-  };
 
   return (
     <div className="flex h-full text-msx-textprimary">
@@ -647,7 +657,7 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
             <h3 className="text-sm font-semibold mb-3">Movement</h3>
             <div className="mb-3">
               <label className={label}>Path (a route asset the boss walks)</label>
-              <select className={input} value={boss.bossPathId || ''}
+              <select className={input} value={boss.bossPathId || ''} disabled={boss.bossMovement === 'randomPath'}
                 onChange={e => set('bossPathId', e.target.value)}>
                 <option value="">— none, use the simple movement below —</option>
                 {pathAssets.map(asset => (
@@ -655,39 +665,49 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
                 ))}
               </select>
               <p className="text-xs text-msx-textsecondary mt-2">
-                A path wins over the simple movement, and each attack phase can switch to a
-                different one. Author routes in <strong>MSX2 Paths</strong>.
+                {boss.bossMovement === 'randomPath'
+                  ? 'Random path generates its own branches and ignores authored routes.'
+                  : <>A path wins over the simple movement, and each attack phase can switch to a different one. Author routes in <strong>MSX2 Paths</strong>.</>}
               </p>
             </div>
 
             <div className={`grid grid-cols-3 gap-3 ${boss.bossPathId ? 'opacity-50' : ''}`}>
               <div>
                 <label className={label}>Mode</label>
-                <select className={input} value={boss.bossMovement || ''} disabled={!!boss.bossPathId}
-                  onChange={e => set('bossMovement', (e.target.value || undefined) as Msx2BossDefinition['bossMovement'])}>
+                <select className={input} value={boss.bossMovement || ''}
+                  onChange={e => {
+                    const movement = (e.target.value || undefined) as Msx2BossDefinition['bossMovement'];
+                    onUpdate({ ...boss, bossMovement: movement,
+                      bossPathId: movement === 'randomPath' ? '' : boss.bossPathId,
+                      bossThreadLength: movement === 'randomPath' ? (boss.bossThreadLength ?? 32) : boss.bossThreadLength,
+                      bossThreadRetractPx: movement === 'randomPath' ? (boss.bossThreadRetractPx ?? 16) : boss.bossThreadRetractPx,
+                      bossThreadReturnAfter: movement === 'randomPath' ? (boss.bossThreadReturnAfter ?? 5) : boss.bossThreadReturnAfter,
+                      bossThreadEnabled: movement === 'randomPath' ? (boss.bossThreadEnabled ?? true) : boss.bossThreadEnabled });
+                  }}>
                   <option value="">Inherit from the placed boss</option>
                   <option value="static">Static — never moves, only shoots</option>
                   <option value="patrolX">Patrol horizontally</option>
                   <option value="patrolY">Patrol vertically</option>
                   <option value="patrolXY">Patrol diagonally (bounces on both axes)</option>
+                  <option value="randomPath">Random path — alternating web branches</option>
                 </select>
               </div>
               <div>
                 <label className={label}>Speed (px/frame)</label>
                 <input type="number" min={1} max={2} className={input}
-                  disabled={!!boss.bossPathId || !boss.bossMovement || boss.bossMovement === 'static'}
+                   disabled={!!boss.bossPathId || !boss.bossMovement || boss.bossMovement === 'static' || boss.bossMovement === 'randomPath'}
                   value={boss.bossSpeed ?? 2}
                   onChange={e => set('bossSpeed', Number(e.target.value))} />
               </div>
               <div>
                 <label className={label}>Travel from spawn (px, 0 = whole room)</label>
                 <input type="number" min={0} max={255} className={input}
-                  disabled={!!boss.bossPathId || boss.bossMovement === 'static'}
+                   disabled={!!boss.bossPathId || boss.bossMovement === 'static' || boss.bossMovement === 'randomPath'}
                   value={boss.bossRangePx ?? 0}
                   onChange={e => set('bossRangePx', Number(e.target.value))} />
               </div>
             </div>
-            {boss.bossPathId && (
+            {boss.bossPathId && boss.bossMovement !== 'randomPath' && (
               <p className="text-xs text-msx-accent mt-3">
                 The simple movement is off while a path is selected: the route decides
                 where the boss goes. Clear the path above to patrol instead.
@@ -701,9 +721,54 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
               4-pixel strips, so anything faster leaves a smear.
             </p>
             <p className="text-xs text-msx-textsecondary mt-2">
-              Movement is a straight bounce between two bounds. Free-form waypoint paths would
-              need a new runtime mode in the boss ASM; they are not available yet.
+              Random path generates alternating branches at runtime; no authored path is needed.
             </p>
+
+            <div className="mt-4 pt-3 border-t border-msx-border">
+              <h4 className="text-sm font-semibold mb-2">Web branches</h4>
+              <label className="flex items-center gap-2 text-sm mb-3">
+                <input type="checkbox" checked={boss.bossThreadEnabled ?? ((boss.bossThreadLength ?? 0) > 0)}
+                  onChange={e => set('bossThreadEnabled', e.target.checked)} />
+                Draw a web filament while moving
+              </label>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className={label}>Branch extension (px)</label>
+                  <input type="number" min={2} max={64} step={2} className={input}
+                    value={boss.bossThreadLength ?? 32}
+                    onChange={e => set('bossThreadLength', Math.max(2, Math.min(64, (Number(e.target.value) || 2) & ~1)))} />
+                </div>
+                <div>
+                  <label className={label}>Retract along branch (px)</label>
+                  <input type="number" min={0} max={boss.bossThreadLength ?? 32} step={2} className={input}
+                    value={boss.bossThreadRetractPx ?? 16}
+                    onChange={e => set('bossThreadRetractPx', Math.max(0, Math.min(boss.bossThreadLength ?? 32, (Number(e.target.value) || 0) & ~1)))} />
+                </div>
+                <div>
+                  <label className={label}>Thread colour (SCREEN 5)</label>
+                  <select className={input} disabled={boss.bossThreadEnabled === false}
+                    value={boss.bossThreadColor ?? 14}
+                    onChange={e => set('bossThreadColor', Number(e.target.value))}>
+                    {Array.from({ length: 15 }, (_, i) => i + 1).map(index => (
+                      <option key={index} value={index}>{index} — {threadPalette[index]?.hex || 'palette colour'}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="mt-3 max-w-xs">
+                <label className={label}>Return to spawn after branches</label>
+                <input type="number" min={1} max={8} step={1} className={input}
+                  disabled={boss.bossMovement !== 'randomPath'}
+                  value={boss.bossThreadReturnAfter ?? 5}
+                  onChange={e => set('bossThreadReturnAfter', Math.max(1, Math.min(8, Number(e.target.value) || 1)))} />
+              </div>
+              <p className="text-xs text-msx-textsecondary mt-2">
+                Random path chooses a new direction for each branch. The boss advances by the extension
+                distance, retraces the configured pixels while removing that part of the filament,
+                then starts another branch. After the selected number of branches it retraces the
+                whole route to spawn, erases the web and attacks again. The thread has no collision.
+              </p>
+            </div>
           </div>
         )}
 
@@ -755,233 +820,10 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
           </div>
         )}
 
-        {section === 'Projectiles' && (
-          <div className={card}>
-            <h3 className="text-sm font-semibold mb-3">Projectiles</h3>
-            <label className={label}>Launch pattern</label>
-            <select className={input} value={boss.bossProjectilePattern || 'aimed'}
-              onChange={e => set('bossProjectilePattern', e.target.value as 'aimed' | 'fallingRocks')}>
-              <option value="aimed">Aimed at the player — fired from the boss centre (default)</option>
-              <option value="fallingRocks">Falling rocks — debris drops from the ceiling</option>
-            </select>
-            {(boss.bossProjectilePattern || 'aimed') === 'fallingRocks' && (
-              <p className="text-xs text-msx-textsecondary mt-2">
-                Rocks spawn just under the ceiling at a random X in a 32px band over the
-                player, fall straight down and vanish on the floor. They always use the
-                bitmap blitter, so <strong>a bullet atlas tile is required</strong>.
-              </p>
-            )}
-
-            {(boss.bossProjectilePattern || 'aimed') !== 'fallingRocks' && (
-              <>
-                <label className={`${label} mt-3`}>Kind</label>
-                <select className={input} value={boss.bossProjectileKind}
-                  onChange={e => set('bossProjectileKind', e.target.value as 'sprite' | 'bitmap')}>
-                  <option value="sprite">Hardware sprite — fast, several at once (default)</option>
-                  <option value="bitmap">Bitmap blit — slow multicolour bombs / homing rockets</option>
-                </select>
-              </>
-            )}
-
-            {boss.bossProjectileKind === 'sprite' && (boss.bossProjectilePattern || 'aimed') !== 'fallingRocks' ? (
-              <div className="mt-3">
-                <label className={label}>Bullet sprite (empty = built-in small blob)</label>
-                <select className={input} value={boss.bossProjectileSpriteId}
-                  onChange={e => set('bossProjectileSpriteId', e.target.value)}>
-                  <option value="">— built-in 8×8 blob —</option>
-                  {spriteAssets.map(asset => (
-                    <option key={asset.id} value={asset.id}>{asset.name}</option>
-                  ))}
-                </select>
-                <p className="text-xs text-msx-textsecondary mt-2">
-                  Sprite bullets reuse the enemy sprite slots, so the boss room must have
-                  <strong> no regular enemies</strong> (that is the normal design anyway).
-                </p>
-              </div>
-            ) : (
-              <div className="mt-3">
-                <label className={label}>Bullet atlas tile (8..16 px)</label>
-                <div className="max-h-80 overflow-y-auto border border-msx-border rounded p-2 mb-2">
-                  <div className="flex flex-wrap gap-2">
-                    <button className={`${btn} ${boss.bossProjectileTileId === '' ? 'border-msx-accent' : ''}`} onClick={() => set('bossProjectileTileId', '')}>
-                      None
-                    </button>
-                    {atlasEntries.filter(e => e.w <= 16 && e.h <= 16).map(entry => {
-                      const scale = Math.max(1, Math.floor(70 / Math.max(entry.w, entry.h, 1)));
-                      return (
-                        <button key={entry.id} onClick={() => set('bossProjectileTileId', entry.id)}
-                          className={`flex flex-col items-center justify-center gap-1 p-1 rounded border ${boss.bossProjectileTileId === entry.id ? 'border-msx-accent' : 'border-msx-border hover:bg-msx-hover'}`}
-                          style={{ background: MSX2_PREVIEW_BG, width: 80 }}
-                          title={`${entry.label}${entry.roomCount > 1 ? ` — used in ${entry.roomCount} rooms` : ` — ${entry.roomName}`}`}>
-                          <div className="flex-1 flex items-center justify-center" style={{ minHeight: 70 }}>
-                            <AtlasEntryCanvas entry={entry} scale={scale} />
-                          </div>
-                          <span className="text-[8px] leading-tight text-msx-textprimary truncate w-full text-center">{entry.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="mt-2">
-                  <AtlasPreviewBox entry={projectileEntry} scale={4} emptyHint="Pick a bullet tile." />
-                </div>
-                <p className="text-xs text-msx-textsecondary mt-2">
-                  Bitmap bullets are drawn by the VDP blitter and can use the full palette,
-                  which suits slow bombs and rockets.
-                </p>
-              </div>
-            )}
-
-            <div className="grid grid-cols-3 gap-3 mt-3">
-              <div>
-                <label className={label}>
-                  {(boss.bossProjectilePattern || 'aimed') === 'fallingRocks' ? 'Frames between rocks (60 = 1s)' : 'Frames between shots'}
-                </label>
-                <input type="number" min={20} max={255} className={input}
-                  value={boss.bossShootInterval} onChange={e => set('bossShootInterval', Number(e.target.value))} />
-              </div>
-              <div>
-                <label className={label}>Speed (px/frame)</label>
-                <input type="number" min={1} max={4} className={input}
-                  value={boss.bossProjectileSpeed} onChange={e => set('bossProjectileSpeed', Number(e.target.value))} />
-              </div>
-              <div>
-                <label className={label}>Damage (hearts)</label>
-                <input type="number" min={0} max={8} className={input}
-                  value={boss.bossProjectileDamage} onChange={e => set('bossProjectileDamage', Number(e.target.value))} />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {section === 'Laser Attack' && (
-          <div className={card}>
-            <h3 className="text-sm font-semibold mb-3">Laser Attack — growing bitmap beams</h3>
-            <p className="text-xs text-msx-textsecondary mb-3">
-              This is the special attack for the double-boss encounter. Each boss owns its
-              own laser state, grows one 16×16 bitmap cell at a time and stays still while
-              the beam is visible. When the beam is erased, that boss can move again; the
-              other boss continues independently.
-            </p>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={label}>Frames between laser waves</label>
-                <input type="number" min={1} max={255} className={input}
-                  value={boss.bossLaserInterval ?? 90}
-                  onChange={e => set('bossLaserInterval', Number(e.target.value))} />
-                <p className="text-xs text-msx-textsecondary mt-1">
-                  Used in automatic firing mode. 60 frames is approximately one second.
-                </p>
-              </div>
-              <div>
-                <label className={label}>Maximum length (pixels)</label>
-                <input type="number" min={16} max={240} step={16} className={input}
-                  value={boss.bossLaserMaxLengthPx ?? 128}
-                  onChange={e => set('bossLaserMaxLengthPx', Number(e.target.value))} />
-                <p className="text-xs text-msx-textsecondary mt-1">
-                  Rounded to 16×16 cells by the MSX2 renderer.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <label className={label}>Laser bitmap tile — exactly 16×16</label>
-              <div className="max-h-72 overflow-y-auto border border-msx-border rounded p-2">
-                <div className="flex flex-wrap gap-2">
-                  <button type="button"
-                    className={`${btn} ${!boss.bossLaserTileId ? 'border-msx-accent' : ''}`}
-                    onClick={() => set('bossLaserTileId', '')}
-                    title="Use the boss projectile tile if it is 16x16; otherwise use the 16x16 boss body cell">
-                    Automatic fallback
-                  </button>
-                  {laserEntries.map(entry => {
-                    const scale = Math.max(2, Math.floor(70 / Math.max(entry.w, entry.h, 1)));
-                    return (
-                      <button type="button" key={entry.id} onClick={() => set('bossLaserTileId', entry.id)}
-                        className={`flex flex-col items-center justify-center gap-1 p-1 rounded border ${boss.bossLaserTileId === entry.id ? 'border-msx-accent' : 'border-msx-border hover:bg-msx-hover'}`}
-                        style={{ background: MSX2_PREVIEW_BG, width: 80 }}
-                        title={`${entry.label}${entry.roomCount > 1 ? ` — used in ${entry.roomCount} rooms` : ` — ${entry.roomName}`}`}>
-                        <div className="flex-1 flex items-center justify-center" style={{ minHeight: 70 }}>
-                          <AtlasEntryCanvas entry={entry} scale={scale} />
-                        </div>
-                        <span className="text-[8px] leading-tight text-msx-textprimary truncate w-full text-center">{entry.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {laserEntries.length === 0 && (
-                  <p className="text-xs text-msx-textsecondary p-2">
-                    No 16×16 atlas tile is available. The automatic fallback can still use
-                    the body when this Boss is a 16×16 Bitmap Stamp.
-                  </p>
-                )}
-              </div>
-              <div className="mt-2">
-                <AtlasPreviewBox entry={laserEntry} scale={4} emptyHint="Automatic: projectile tile, then 16×16 body cell." />
-              </div>
-              <p className="text-xs text-msx-textsecondary mt-2">
-                Leave this on <strong>Automatic fallback</strong> for a small 16×16 Boss to
-                reuse its body cell. Pick a separate tile when the laser should have its own
-                bitmap. Larger tiles are deliberately excluded because every beam segment is
-                one 16×16 cell.
-              </p>
-            </div>
-
-            <div className="mt-4">
-              <label className={label}>Directions fired by each wave</label>
-              <div className="flex flex-wrap gap-2">
-                {LASER_DIRECTIONS.map(direction => (
-                  <label key={direction.key}
-                    className={`inline-flex items-center gap-2 px-2 py-1 rounded border cursor-pointer ${laserMask & (1 << direction.bit) ? 'border-msx-accent bg-msx-hover' : 'border-msx-border'}`}>
-                    <input type="checkbox" checked={!!(laserMask & (1 << direction.bit))}
-                      onChange={() => toggleLaserDirection(direction.bit)} />
-                    <span>{direction.key} — {direction.label}</span>
-                  </label>
-                ))}
-              </div>
-              {laserMask === 0 && (
-                <p className="text-xs text-yellow-400 mt-2">Select at least one direction or the laser will be visually disabled.</p>
-              )}
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-4 items-start">
-              <div>
-                <label className={label}>Preview</label>
-                <div className="relative w-28 h-28 border border-msx-border rounded" style={{ background: MSX2_PREVIEW_BG }}>
-                  {LASER_DIRECTIONS.filter(direction => laserMask & (1 << direction.bit)).map(direction => (
-                    <span key={direction.key} className="absolute bg-msx-accent rounded"
-                      style={direction.lineStyle} />
-                  ))}
-                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded border-2 border-white flex items-center justify-center text-[9px] text-white">
-                    16×16
-                  </div>
-                </div>
-              </div>
-              <div className="flex-1 min-w-[220px] text-xs text-msx-textsecondary">
-                <label className={label}>Path connection</label>
-                {activePath ? (
-                  <p>
-                    Selected path: <strong>{activePath.name}</strong>. Its firing mode is{' '}
-                    <strong>{activePathFiring === 'path' ? 'node scripts' : 'automatic cadence'}</strong>.
-                  </p>
-                ) : (
-                  <p>Select a path in <strong>Movement</strong> to place laser shots on route nodes.</p>
-                )}
-                <p className="mt-2">
-                  To fire at a node: open the selected asset in <strong>MSX2 Paths</strong>,
-                  choose <strong>Only the node scripts shoot</strong>, select a node and press
-                  <strong> + Fire</strong>. The laser wave starts on arrival; while it grows,
-                  that Boss is held in place.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {section === 'Attack Phases' && (
           <PhasesPanel boss={boss} onUpdate={onUpdate} pathAssets={pathAssets}
-            shootAssets={shootAssets} attacks={attacks} activePathFiring={activePathFiring} />
+            shootAssets={shootAssets} spriteAssets={spriteAssets} atlasEntries={atlasEntries}
+            attacks={attacks} activePathFiring={activePathFiring} />
         )}
 
         {section === 'Damage Zones' && (
@@ -1251,19 +1093,35 @@ const PhasesPanel: React.FC<{
   onUpdate: (b: Msx2BossDefinition) => void;
   pathAssets: ProjectAsset[];
   shootAssets: ProjectAsset[];
+  spriteAssets: ProjectAsset[];
+  atlasEntries: AtlasEntryRef[];
   attacks: BossAttackCapabilities;
   /** `'path'` means the node scripts fire and the phase cadence is ignored. */
   activePathFiring?: string;
-}> = ({ boss, onUpdate, pathAssets, shootAssets, attacks, activePathFiring }) => {
+}> = ({ boss, onUpdate, pathAssets, shootAssets, spriteAssets, atlasEntries, attacks, activePathFiring }) => {
   const phases = boss.bossPhases || [];
-  const update = (next: Msx2BossPhase[]) => onUpdate({ ...boss, bossPhases: next });
+  const update = (next: Msx2BossPhase[]) => {
+    if (!next.length) return;
+    const covered = next.some(phase => Number(phase.enterWhenHpBelowPercent) === 100);
+    const complete = covered ? next : next.map((phase, index) => index === next.reduce((best, item, at) =>
+      Number(item.enterWhenHpBelowPercent) > Number(next[best].enterWhenHpBelowPercent) ? at : best, 0)
+      ? { ...phase, enterWhenHpBelowPercent: 100 } : phase);
+    onUpdate({ ...boss, bossPhases: complete });
+  };
   const patch = (index: number, changes: Partial<Msx2BossPhase>) =>
     update(phases.map((phase, i) => i === index ? { ...phase, ...changes } : phase));
+  const set = <K extends keyof Msx2BossDefinition>(key: K, value: Msx2BossDefinition[K]) =>
+    onUpdate({ ...boss, [key]: value });
+  const projectileEntry = atlasEntries.find(entry => entry.id === boss.bossProjectileTileId);
 
   const maxHp = Math.max(1, Number(boss.bossHp) || 1);
   const baseBodyInterval = Math.max(1, Number(boss.bossInterval) || 3);
   const baseStepPx = Math.max(1, Math.min(2, Number(boss.bossSpeed) || 2));
-  const baseLaserInterval = Number(boss.bossLaserInterval ?? 90);
+  const laserAssets = shootAssets.filter(asset => (asset.data as Msx2ShootDefinition)?.pattern === 'laser');
+  const bulletShootAssets = shootAssets.filter(asset => (asset.data as Msx2ShootDefinition)?.pattern !== 'laser');
+  const selectedLaser = laserAssets.find(asset => asset.id === boss.bossLaserShootId)?.data as Msx2ShootDefinition | undefined;
+  const baseLaserInterval = Number(selectedLaser?.laserInterval ?? boss.bossLaserInterval ?? 90);
+  const legacyLaserTile = atlasEntries.find(entry => entry.id === boss.bossLaserTileId);
   /** Same conversion the generator makes: a percentage becomes an absolute HP. */
   const hpOf = (percent: number) =>
     Math.max(1, Math.min(255, Math.ceil((maxHp * Math.max(1, Math.min(100, percent || 100))) / 100)));
@@ -1298,11 +1156,13 @@ const PhasesPanel: React.FC<{
       enterWhenHpBelowPercent: percent,
       interval: boss.bossShootInterval || 90,
       projectileSpeed: boss.bossProjectileSpeed || 2,
+      projectileSpriteId: phases[phases.length - 1]?.projectileSpriteId ?? boss.bossProjectileSpriteId ?? '',
     }]);
   };
 
   const firesLabel = attacks.bullets && attacks.laser ? 'bullets and laser'
     : attacks.laser ? 'laser only'
+      : attacks.soapBubbles ? 'soap bubbles'
       : attacks.fallingRocks ? 'falling rocks'
         : attacks.bullets ? 'bullets'
           : 'nothing yet';
@@ -1312,6 +1172,122 @@ const PhasesPanel: React.FC<{
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-semibold">Attack Phases</h3>
         <button className={btn} onClick={add}>+ Add phase</button>
+      </div>
+
+      <div className="border border-msx-border rounded p-2 mb-3">
+        <h4 className="text-xs font-semibold mb-2">Projectile setup shared by the phases</h4>
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <label className={label}>Launch pattern</label>
+            <select className={input} value={boss.bossProjectilePattern || 'aimed'}
+              onChange={e => set('bossProjectilePattern', e.target.value as 'aimed' | 'fallingRocks' | 'soapBubbles')}>
+              <option value="aimed">Aimed at the player</option>
+              <option value="fallingRocks">Falling rocks from the ceiling</option>
+              <option value="soapBubbles">Soap bubbles — diagonal rebounds</option>
+            </select>
+          </div>
+          <div>
+            <label className={label}>Kind</label>
+            <select className={input} value={boss.bossProjectileKind || 'sprite'}
+              disabled={boss.bossProjectilePattern === 'fallingRocks' || boss.bossProjectilePattern === 'soapBubbles'}
+              onChange={e => set('bossProjectileKind', e.target.value as 'sprite' | 'bitmap')}>
+              <option value="sprite">Hardware sprite</option>
+              <option value="bitmap">Bitmap blit</option>
+            </select>
+          </div>
+          <div>
+            <label className={label}>Damage (hearts)</label>
+            <input type="number" min={0} max={8} className={input} value={boss.bossProjectileDamage}
+              onChange={e => set('bossProjectileDamage', Number(e.target.value))} />
+          </div>
+        </div>
+        {boss.bossProjectilePattern === 'soapBubbles' && (
+          <div className="grid grid-cols-3 gap-2 mt-2">
+            <div>
+              <label className={label}>Rebounds per bubble</label>
+              <input type="number" min={1} max={15} className={input}
+                value={boss.bossBubbleBounces ?? 5}
+                onChange={e => set('bossBubbleBounces', Number(e.target.value))} />
+            </div>
+            <div>
+              <label className={label}>Mouth X (boss px)</label>
+              <input type="number" min={0} max={127} className={input}
+                value={boss.bossBubbleMouthX ?? 18}
+                onChange={e => set('bossBubbleMouthX', Number(e.target.value))} />
+            </div>
+            <div>
+              <label className={label}>Mouth Y (boss px)</label>
+              <input type="number" min={0} max={95} className={input}
+                value={boss.bossBubbleMouthY ?? 44}
+                onChange={e => set('bossBubbleMouthY', Number(e.target.value))} />
+            </div>
+            <p className="col-span-3 text-xs text-msx-textsecondary">The head opens on each volley, the bubbles reflect diagonally, and a new fan rotates its launch angles after the whole volley has vanished.</p>
+          </div>
+        )}
+        {(boss.bossProjectilePattern === 'fallingRocks' || boss.bossProjectileKind === 'bitmap') && (
+          <div className="mt-2">
+            <label className={label}>Bullet atlas tile (8..16 px)</label>
+            <select className={input} value={boss.bossProjectileTileId}
+              onChange={e => set('bossProjectileTileId', e.target.value)}>
+              <option value="">Choose a tile</option>
+              {atlasEntries.filter(entry => entry.w >= 8 && entry.w <= 16 && entry.h >= 8 && entry.h <= 16)
+                .map(entry => <option key={entry.id} value={entry.id}>{entry.label}</option>)}
+            </select>
+            <div className="mt-2"><AtlasPreviewBox entry={projectileEntry} scale={4} emptyHint="Pick a bullet tile." /></div>
+            {boss.bossProjectilePattern === 'fallingRocks' && (
+              <p className="text-xs text-msx-textsecondary mt-1">Falling rocks always use the bitmap blitter and require a tile.</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="border border-msx-border rounded p-2 mb-3">
+        <h4 className="text-xs font-semibold mb-2">Laser shoot shared by the phases</h4>
+        <label className={label}>Laser pattern</label>
+        <select className={input} value={boss.bossLaserShootId ?? ''}
+          onChange={e => set('bossLaserShootId', e.target.value)}>
+          <option value="">Legacy boss laser settings</option>
+          {laserAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+        </select>
+        {boss.bossLaserShootId && !selectedLaser && (
+          <p className="text-xs text-yellow-400 mt-2">The selected Laser Shoot is missing. The ROM will use the legacy boss settings.</p>
+        )}
+        {selectedLaser ? (
+          <p className="text-xs text-msx-textsecondary mt-2">Edit tile, length, direction and wave interval in the selected MSX2 Shoots asset. Each phase can override its wave interval below.</p>
+        ) : (
+          <details className="mt-2">
+            <summary className="text-xs cursor-pointer">Edit legacy laser settings</summary>
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <div>
+                <label className={label}>Frames between waves</label>
+                <input type="number" min={1} max={255} className={input} value={boss.bossLaserInterval ?? 90}
+                  onChange={e => set('bossLaserInterval', Number(e.target.value))} />
+              </div>
+              <div>
+                <label className={label}>Maximum length (pixels)</label>
+                <input type="number" min={16} max={240} step={16} className={input} value={boss.bossLaserMaxLengthPx ?? 128}
+                  onChange={e => set('bossLaserMaxLengthPx', Number(e.target.value))} />
+              </div>
+            </div>
+            <label className={`${label} mt-2`}>Bitmap tile (16×16)</label>
+            <select className={input} value={boss.bossLaserTileId ?? ''} onChange={e => set('bossLaserTileId', e.target.value)}>
+              <option value="">Automatic: projectile tile or 16×16 boss body</option>
+              {atlasEntries.filter(entry => entry.w === 16 && entry.h === 16)
+                .map(entry => <option key={entry.id} value={entry.id}>{entry.label}</option>)}
+            </select>
+            {legacyLaserTile && <div className="mt-2"><AtlasPreviewBox entry={legacyLaserTile} scale={3} emptyHint="" /></div>}
+            <label className={`${label} mt-2`}>Directions</label>
+            <div className="flex gap-3 text-xs">
+              {['North', 'East', 'South', 'West'].map((direction, bit) => (
+                <label key={direction} className="flex items-center gap-1">
+                  <input type="checkbox" checked={!!((boss.bossLaserDirectionMask ?? 0x0f) & (1 << bit))}
+                    onChange={() => set('bossLaserDirectionMask', (boss.bossLaserDirectionMask ?? 0x0f) ^ (1 << bit))} />
+                  {direction}
+                </label>
+              ))}
+            </div>
+          </details>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
@@ -1333,13 +1309,6 @@ const PhasesPanel: React.FC<{
           The boss path is set to <strong>only the node scripts shoot</strong>, so the
           firing cadence below is ignored while that path is active. Fire from the path
           nodes, or switch the path to the automatic cadence.
-        </p>
-      )}
-
-      {phases.length === 0 && (
-        <p className="text-xs text-msx-textsecondary">
-          No phases: the boss keeps a single rhythm for the whole fight, the one
-          authored in Projectiles / Laser Attack.
         </p>
       )}
 
@@ -1385,7 +1354,7 @@ const PhasesPanel: React.FC<{
                   </span>
                 </div>
               </div>
-              <button className={btn} onClick={() => update(phases.filter((_, i) => i !== index))}>Remove</button>
+              {phases.length > 1 && <button className={btn} onClick={() => update(phases.filter((_, i) => i !== index))}>Remove</button>}
             </div>
 
             {/* --- what it shoots: only the back-ends this boss actually has --- */}
@@ -1408,11 +1377,25 @@ const PhasesPanel: React.FC<{
                   <select className={input} value={phase.shootId ?? ''}
                     onChange={e => patch(index, { shootId: e.target.value })}>
                     <option value="">One bullet, aimed at the player</option>
-                    {shootAssets.map(asset => (
+                    {bulletShootAssets.map(asset => (
                       <option key={asset.id} value={asset.id}>{asset.name}</option>
                     ))}
                   </select>
                 </div>
+              </div>
+            )}
+
+            {attacks.spriteBullets && (
+              <div className="mb-2">
+                <label className={label}>Projectile sprite for this phase</label>
+                <select className={input} value={phase.projectileSpriteId ?? boss.bossProjectileSpriteId ?? ''}
+                  onChange={e => patch(index, { projectileSpriteId: e.target.value })}>
+                  <option value="">Built-in small blob</option>
+                  {spriteAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+                </select>
+                <p className="text-[10px] text-msx-textsecondary mt-1">
+                  The sprite changes when this HP phase becomes active. Boss bullets use the enemy sprite slots.
+                </p>
               </div>
             )}
 

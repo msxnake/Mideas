@@ -1,5 +1,6 @@
-import React from 'react';
-import { Msx2ShootDefinition, Msx2ShootPattern } from '../../types';
+import React, { useMemo } from 'react';
+import { Msx2ShootDefinition, Msx2ShootPattern, ProjectAsset } from '../../types';
+import { collectAtlasEntries } from '../../utils/msx2AtlasEntries';
 import {
   MSX2_SHOOT_MAX_BULLETS,
   MSX2_SHOOT_MAX_BURST,
@@ -29,6 +30,7 @@ import {
 interface Msx2ShootEditorProps {
   shoot: Msx2ShootDefinition;
   onUpdate: (shoot: Msx2ShootDefinition) => void;
+  allAssets: ProjectAsset[];
 }
 
 const card = 'bg-msx-panel border border-msx-border rounded p-3 mb-3';
@@ -48,9 +50,92 @@ const ANGLE_OPTIONS = Array.from({ length: MSX2_SHOOT_RING }, (_unused, slot) =>
 /** Sample bearing for ring-based patterns. */
 const SAMPLE_AIM = 6;
 
-export const Msx2ShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdate }) => {
+const LASER_DIRECTIONS = [
+  { label: 'North', bit: 0, x2: 90, y2: 14 },
+  { label: 'East', bit: 1, x2: 166, y2: 90 },
+  { label: 'South', bit: 2, x2: 90, y2: 166 },
+  { label: 'West', bit: 3, x2: 14, y2: 90 },
+] as const;
+
+const LaserShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdate, allAssets }) => {
+  const tiles = useMemo(() => collectAtlasEntries(allAssets).filter(entry => entry.w === 16 && entry.h === 16), [allAssets]);
+  const selected = tiles.find(entry => entry.id === shoot.laserTileId);
+  const mask = shoot.laserDirectionMask ?? 0x0f;
   const set = <K extends keyof Msx2ShootDefinition>(key: K, value: Msx2ShootDefinition[K]) =>
     onUpdate({ ...shoot, [key]: value });
+  return (
+    <div className="flex h-full text-msx-textprimary overflow-y-auto">
+      <div className="flex-1 p-4">
+        <div className={card}>
+          <h3 className="text-sm font-semibold mb-3">Shot type</h3>
+          <label className={label}>Kind</label>
+          <select className={input} value="laser" onChange={e => set('pattern', e.target.value as Msx2ShootPattern)}>
+            <option value="aimed">Aimed at the player (turret)</option>
+            <option value="linear">Always the same direction</option>
+            <option value="spread">Spread — a fan around the aim</option>
+            <option value="radial">Radial — shared out around the circle</option>
+            <option value="laser">Laser — growing bitmap beams</option>
+          </select>
+        </div>
+        <div className={card}>
+          <h3 className="text-sm font-semibold mb-3">Laser</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={label}>Frames between waves</label>
+              <input type="number" min={1} max={255} className={input} value={shoot.laserInterval ?? 90}
+                onChange={e => set('laserInterval', Number(e.target.value))} />
+            </div>
+            <div>
+              <label className={label}>Maximum length (pixels)</label>
+              <input type="number" min={16} max={240} step={16} className={input} value={shoot.laserMaxLengthPx ?? 128}
+                onChange={e => set('laserMaxLengthPx', Number(e.target.value))} />
+            </div>
+          </div>
+          <div className="mt-3">
+            <label className={label}>Bitmap tile (16×16)</label>
+            <select className={input} value={shoot.laserTileId ?? ''} onChange={e => set('laserTileId', e.target.value)}>
+              <option value="">Automatic: projectile tile or 16×16 boss body</option>
+              {tiles.map(entry => <option key={entry.id} value={entry.id}>{entry.label}</option>)}
+            </select>
+            <p className={note}>{selected ? `Selected: ${selected.label}` : 'Each beam segment repeats this 16×16 tile.'}</p>
+          </div>
+          <div className="mt-3">
+            <label className={label}>Directions fired by each wave</label>
+            <div className="flex flex-wrap gap-3">
+              {LASER_DIRECTIONS.map(direction => (
+                <label key={direction.bit} className="flex items-center gap-1 text-sm">
+                  <input type="checkbox" checked={!!(mask & (1 << direction.bit))}
+                    onChange={() => set('laserDirectionMask', mask ^ (1 << direction.bit))} />
+                  {direction.label}
+                </label>
+              ))}
+            </div>
+            {mask === 0 && <p className="text-xs text-yellow-400 mt-2">Choose a direction to make the laser visible.</p>}
+          </div>
+          <p className={note}>The boss pauses while the beam grows. Path nodes can trigger a wave, or it fires automatically at this interval.</p>
+        </div>
+      </div>
+      <div className="w-80 shrink-0 border-l border-msx-border p-3">
+        <div className={card}>
+          <h3 className="text-sm font-semibold mb-3">Preview</h3>
+          <svg width="180" height="180" style={{ background: '#101018' }} className="border border-msx-border rounded">
+            {LASER_DIRECTIONS.filter(direction => mask & (1 << direction.bit)).map(direction => (
+              <line key={direction.bit} x1="90" y1="90" x2={direction.x2} y2={direction.y2} stroke="#b5b5c6" strokeWidth="8" />
+            ))}
+            <rect x="82" y="82" width="16" height="16" fill="#50c8ff" />
+          </svg>
+          <p className={note}>SCREEN 5 bitmap beams grow in 16 pixel steps.</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const Msx2ShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdate, allAssets }) => {
+  const set = <K extends keyof Msx2ShootDefinition>(key: K, value: Msx2ShootDefinition[K]) =>
+    onUpdate({ ...shoot, [key]: value });
+
+  if (shoot.pattern === 'laser') return <LaserShootEditor shoot={shoot} onUpdate={onUpdate} allAssets={allAssets} />;
 
   const fixedBase = shoot.pattern !== 'aimed' && shootUsesAuthoredAngle(shoot);
   const spinOn = shoot.pattern !== 'aimed' && shoot.spin === true;
@@ -94,6 +179,7 @@ export const Msx2ShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdat
                 <option value="linear">Always the same direction</option>
                 <option value="spread">Spread — a fan around the aim</option>
                 <option value="radial">Radial — shared out around the circle</option>
+                <option value="laser">Laser — growing bitmap beams</option>
               </select>
             </div>
             <div>

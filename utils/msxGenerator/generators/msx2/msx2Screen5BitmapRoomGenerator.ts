@@ -13615,33 +13615,32 @@ function resolveBitmapBossBulletSprite(
       const params = resolveBossParams(entity, definitions);
       const assetId = String(params?.bossProjectileSpriteId || '').trim();
       if (!assetId) continue;
-      const sprite = resolveMsx2SpriteById(analysis, assetId);
-      if (!sprite) {
-        console.warn(`MSX2 bitmap boss: projectile sprite "${assetId}" not found; using the built-in bullet pattern.`);
-        continue;
-      }
-      const frames = getBitmapRoomSpriteFrameIndices(sprite).map(frameIndex => {
-        const primary = buildHardwareSpriteLayersForFrame(
-          sprite,
-          BITMAP_ROOM_DEFAULT_SPRITE_COLOR,
-          frameIndex,
-        ).find(layer => Array.isArray(layer.pattern) && layer.pattern.length === 32);
-        if (!primary) return undefined;
-        const colors = (primary.colors || []).slice(0, 16);
-        while (colors.length < 16) colors.push(BITMAP_ROOM_DEFAULT_SPRITE_COLOR);
-        return {
-          patternBytes: primary.pattern.map((v: number) => v & 0xff),
-          colorBytes: colors.map((v: number) => v & 0xff),
-        };
-      }).filter((frame): frame is { patternBytes: number[]; colorBytes: number[] } => !!frame);
-      if (!frames.length) continue;
-      return {
-        frames,
-        delayFrames: getBitmapRoomSpriteAnimationDelayFrames(sprite),
-      };
+      const resolved = resolveBitmapBossBulletSpriteById(analysis, assetId);
+      if (resolved) return resolved;
     }
   }
   return undefined;
+}
+
+function resolveBitmapBossBulletSpriteById(analysis: ProjectAnalysis, assetId: string): {
+  frames: Array<{ patternBytes: number[]; colorBytes: number[] }>;
+  delayFrames: number;
+} | undefined {
+  if (!assetId) return undefined;
+  const sprite = resolveMsx2SpriteById(analysis, assetId);
+  if (!sprite) {
+    console.warn(`MSX2 bitmap boss: projectile sprite "${assetId}" not found; using the built-in bullet pattern.`);
+    return undefined;
+  }
+  const frames = getBitmapRoomSpriteFrameIndices(sprite).map(frameIndex => {
+    const primary = buildHardwareSpriteLayersForFrame(sprite, BITMAP_ROOM_DEFAULT_SPRITE_COLOR, frameIndex)
+      .find(layer => Array.isArray(layer.pattern) && layer.pattern.length === 32);
+    if (!primary) return undefined;
+    const colors = (primary.colors || []).slice(0, 16);
+    while (colors.length < 16) colors.push(BITMAP_ROOM_DEFAULT_SPRITE_COLOR);
+    return { patternBytes: primary.pattern.map((v: number) => v & 0xff), colorBytes: colors.map((v: number) => v & 0xff) };
+  }).filter((frame): frame is { patternBytes: number[]; colorBytes: number[] } => !!frame);
+  return frames.length ? { frames, delayFrames: getBitmapRoomSpriteAnimationDelayFrames(sprite) } : undefined;
 }
 
 /**
@@ -15926,8 +15925,12 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   // down towards the other tenants. Anchoring it there keeps it independent of
   // the carry/projectile scratch chain, which is only sized after the boss data
   // exists -- otherwise the window and the boss data would each need the other.
-  // One window serves every boss in the project: they are never resident at the
-  // same time, which is exactly what turns O(N) into O(1).
+  // One window serves every boss in the project, but it does not grow with the
+  // boss COUNT: bodies whose rooms never overlap share the same rows (the band
+  // upload on room entry overwrites the previous occupant, which by
+  // construction that room no longer needs), so the reservation is proportional
+  // to the MAXIMUM number of stamp bodies one room can hold at once, not to
+  // the number of bosses in the project.
   // Size it by the DEDUPED cell count, which is what the packing loop below
   // actually stores. Sizing by `columns * rows` reserved a slot for every cell
   // of the strip, duplicates included -- so a body whose frames share most of
@@ -15942,10 +15945,56 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
       / BOSS_WINDOW_CELLS_PER_BAND,
     ) * TILE_GRID_SIZE
     : 0;
-  // Different body stamps occupy different bands simultaneously when two
-  // bosses share a room. A reused stamp still costs one band only.
-  const bossWindowBlobCount = bossWindowActive ? bossStampCollection.bodyGrids.size : 0;
-  const bossWindowRows = bossWindowRowsPerBlob * bossWindowBlobCount;
+  // The demand side of that sizing: which body stamps each room can have
+  // resident at once (at most two boss entities per room, deduped by stamp;
+  // stamps without a cell grid are excluded -- they never enter the window).
+  // The room -> stamp answer is also what the per-room upload pointer table
+  // emits further down, so both sides always see the same room set.
+  const bossWindowDefinitions = new Map<string, BossDefinitionAsset>();
+  for (const asset of ((analysis as any)?.assets || []) as any[]) {
+    const type = String(asset?.type || '').toLowerCase();
+    if (type !== 'msx2boss' && type !== 'bossdefinition') continue;
+    const id = String(asset?.id || '').trim();
+    if (!id) continue;
+    bossWindowDefinitions.set(id, {
+      id,
+      name: asset?.name,
+      params: (asset?.data?.params || asset?.data?.boss?.params || asset?.data || {}) as Record<string, unknown>,
+    });
+  }
+  const bossWindowRoomStampIds = bossWindowActive
+    ? sharedAtlas.rooms.map(roomData => {
+      const ids: string[] = [];
+      for (const entity of (roomData.entities || []).filter((candidate: any) => candidate?.kind === 'boss').slice(0, 2)) {
+        const resolved = resolveBossParams(entity, bossWindowDefinitions);
+        const stampId = String(resolved?.bossStampAssetId || '').trim();
+        if (bossStampCollection.bodyGrids.has(stampId) && !ids.includes(stampId)) ids.push(stampId);
+      }
+      return ids;
+    })
+    : [];
+  // Colour the stamps into band groups: stamps that co-occur in some room take
+  // different groups, everything else collides freely. A stamp placed in
+  // several rooms still costs one group only.
+  const bossWindowBandByStamp = new Map<string, number>();
+  for (const stampId of bossStampCollection.bodyGrids.keys()) {
+    const taken = new Set<number>();
+    for (const ids of bossWindowRoomStampIds) {
+      if (!ids.includes(stampId)) continue;
+      for (const other of ids) {
+        if (other === stampId) continue;
+        const band = bossWindowBandByStamp.get(other);
+        if (band !== undefined) taken.add(band);
+      }
+    }
+    let band = 0;
+    while (taken.has(band)) band += 1;
+    bossWindowBandByStamp.set(stampId, band);
+  }
+  const bossWindowBandCount = bossWindowActive
+    ? [...bossWindowBandByStamp.values()].reduce((deepest, band) => Math.max(deepest, band), 0) + 1
+    : 0;
+  const bossWindowRows = bossWindowRowsPerBlob * bossWindowBandCount;
   const bossWindowBaseY = dialogueVramBaseRow - bossWindowRows;
   if (bossWindowActive && bossWindowBaseY < postAtlasBaseY + BOSS_WINDOW_SCRATCH_RESERVE_ROWS) {
     throw new Error(
@@ -15959,7 +16008,7 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   // turns a placement into `512 + sy`, so offsetting by (windowBaseY - 512) makes
   // its cell table point into the window with no change on that side.
   const bossWindowPlacements = new Map<string, SharedAtlasPlacement>();
-  const bossWindowBlobs: Array<{ stampId: string; index: number; bytes: number[] }> = [];
+  const bossWindowBlobs: Array<{ stampId: string; index: number; band: number; bytes: number[] }> = [];
   if (bossWindowActive) {
     let blobIndex = 0;
     for (const [stampId, grid] of bossStampCollection.bodyGrids) {
@@ -15991,7 +16040,7 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
         bossWindowPlacements.set(bossBodyCellKey(stampId, cellIndex), {
           sx: slot.sx,
           sy: bossWindowBaseY - BITMAP_ROOM_ATLAS_BASE_Y
-            + blobIndex * bossWindowRowsPerBlob + slot.localY,
+            + (bossWindowBandByStamp.get(stampId) ?? 0) * bossWindowRowsPerBlob + slot.localY,
           w: TILE_GRID_SIZE,
           h: TILE_GRID_SIZE,
         });
@@ -16002,7 +16051,7 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
           bytes.push(((row[x] & 0x0f) << 4) | (row[x + 1] & 0x0f));
         }
       }
-      bossWindowBlobs.push({ stampId, index: blobIndex, bytes });
+      bossWindowBlobs.push({ stampId, index: blobIndex, band: bossWindowBandByStamp.get(stampId) ?? 0, bytes });
       blobIndex += 1;
     }
   }
@@ -16208,13 +16257,14 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   if (!isKonamiMegaRom && introEncodedBytes > 16384) {
     throw new Error(`MSX2 bitmap-room GameFlow intro needs ${introEncodedBytes} bytes of presentation RLE data and cannot fit a simple 32KB ROM; export as Konami MegaROM instead.`);
   }
-  // FASE 4: one RLE blob per boss body, all aimed at the SAME window rows. Only
-  // the one whose room is being entered is ever uploaded, so they share the VRAM.
+  // FASE 4: one RLE blob per boss body, aimed at the rows of its band group.
+  // Only the blobs of the room being entered are ever uploaded, so band groups
+  // whose rooms never overlap share the same VRAM rows.
   const bossWindowBlobData = bossWindowBlobs.map(blob => ({
     ...blob,
     rleChunks: buildRleChunksForVram(
       blob.bytes,
-      (bossWindowBaseY + blob.index * bossWindowRowsPerBlob) * ROW_BYTES,
+      (bossWindowBaseY + blob.band * bossWindowRowsPerBlob) * ROW_BYTES,
       `bitmap_boss_window${blob.index}_rle_chunk`,
     ),
   }));
@@ -16448,31 +16498,14 @@ ${airAnimBodyAsm}`;
         `Boss body cells #${blob.index} (${blob.stampId}), transient window, destination VRAM ${hexVram(bossWindowBaseY * ROW_BYTES)}`,
       )).join('');
   // One upload routine per body, plus a per-room pointer table: entering a room
-  // uploads that room's boss into the shared window and nothing else.
-  // Local copy: the compiler's own definition map is built further down, and a
-  // boss's body is definition-owned, so the room -> stamp answer needs the merge.
-  const bossWindowDefinitions = new Map<string, BossDefinitionAsset>();
-  for (const asset of ((analysis as any)?.assets || []) as any[]) {
-    const type = String(asset?.type || '').toLowerCase();
-    if (type !== 'msx2boss' && type !== 'bossdefinition') continue;
-    const id = String(asset?.id || '').trim();
-    if (!id) continue;
-    bossWindowDefinitions.set(id, {
-      id,
-      name: asset?.name,
-      params: (asset?.data?.params || asset?.data?.boss?.params || asset?.data || {}) as Record<string, unknown>,
-    });
-  }
-  const bossWindowRoomBlobIndices = sharedAtlas.rooms.map(roomData => {
-    const indices: number[] = [];
-    for (const entity of (roomData.entities || []).filter((candidate: any) => candidate?.kind === 'boss').slice(0, 2)) {
-      const resolved = resolveBossParams(entity, bossWindowDefinitions);
-      const stampId = String(resolved?.bossStampAssetId || '').trim();
-      const blob = bossWindowBlobData.find(candidate => candidate.stampId === stampId);
-      if (blob && !indices.includes(blob.index)) indices.push(blob.index);
-    }
-    return indices;
-  });
+  // uploads that room's boss into the shared window and nothing else. The
+  // room -> stamp scan already ran before the window was sized (it defines the
+  // band groups); here it only resolves those stamps to blob indices.
+  const bossWindowRoomBlobIndices = bossWindowRoomStampIds.map(ids =>
+    ids
+      .map(stampId => bossWindowBlobData.find(candidate => candidate.stampId === stampId)?.index)
+      .filter((index): index is number => index !== undefined),
+  );
   const bossWindowUploadAsm = !bossWindowActive ? '' : `
 ${bossWindowBlobData.map(blob => `; ---- upload boss body #${blob.index} into the transient window ----
 ; window-safe: this block is emitted near the end of the runtime and lands
@@ -17001,8 +17034,11 @@ ${bossWindowRoomBlobIndices.map((indices, roomIndex) => (indices.length === 0
   const bossBulletSprite = bossSpriteBulletSlots > 0
     ? resolveBitmapBossBulletSprite(analysis, rooms, bossDefinitions)
     : undefined;
+  const bossBulletVariants = bossSpriteBulletSlots > 0
+    ? (bossData.phaseSpriteIds || []).map(id => resolveBitmapBossBulletSpriteById(analysis, id))
+    : [];
   const bossBulletPatternGroups = bossSpriteBulletSlots > 0
-    ? Math.max(1, bossBulletSprite?.frames.length || 1)
+    ? Math.max(1, bossBulletSprite?.frames.length || 1, ...bossBulletVariants.map(sprite => sprite?.frames.length || 1))
     : 0;
   const bossBulletPatternGroup = allocatePatternRange(bossBulletPatternGroups, roomHasBoss);
   if (bossSpriteBulletSlots > 0) {
@@ -17693,6 +17729,7 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
       color: 10,
       // Sprite chosen in the Boss Editor; undefined = built-in centred blob.
       sprite: bossBulletSprite,
+      variants: bossBulletVariants,
     } : undefined,
     gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
     gameHeight: SCREEN_HEIGHT_DEFAULT,
@@ -18011,7 +18048,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     });
   }
   if (bossWindowActive) {
-    vramTenants.push({ from: bossWindowBaseY, to: bossWindowBaseY + bossWindowRows - 1, what: `boss transient window (${bossStampCollection.bodyGrids.size} boss bod[y/ies] reuse it)` });
+    vramTenants.push({ from: bossWindowBaseY, to: bossWindowBaseY + bossWindowRows - 1, what: `boss transient window (${bossStampCollection.bodyGrids.size} boss bod[y/ies] in ${bossWindowBandCount} band group(s))` });
   }
   if (dialogueData) {
     vramTenants.push({
