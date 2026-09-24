@@ -82,15 +82,15 @@ const shoots = new Map([[SHOOT_ID, {
   shoot: { pattern: 'spread', bulletCount: 2, direction: 'down', speed: 0, burstCount: 2, burstInterval: 8 },
 }]]);
 
-const buildData = phases => gen.buildBitmapRoomBossData(
-  [{ name: 'boss room', atlas, entities: [{ kind: 'boss', position: { x: 64, y: 64 }, params: bossParams(phases) }] }],
+const buildData = (phases, shootAssets = shoots, overrides = {}) => gen.buildBitmapRoomBossData(
+  [{ name: 'boss room', atlas, entities: [{ kind: 'boss', position: { x: 64, y: 64 }, params: { ...bossParams(phases), ...overrides } }] }],
   () => undefined,
   { hasKeys: false, doorOffsetById: new Map() },
   new Map(),
   new Map(),
-  shoots,
+  shootAssets,
 );
-const buildAsm = data => gen.buildBitmapBossSystemAsm(data, {
+const buildAsm = (data, variants = [], sprite) => gen.buildBitmapBossSystemAsm(data, {
   ramBase: 0xd000,
   gameYOffset: 24,
   playerHitbox: { x: 4, y: 0, w: 8, h: 16 },
@@ -99,12 +99,26 @@ const buildAsm = data => gen.buildBitmapBossSystemAsm(data, {
   projScratchBaseY: 800,
   spriteBullets: {
     satBase: 0x9c00, colorBase: 0x9800, patternAddr: 0x9000,
-    patternNumber: 0, maxSlots: 2, color: 8,
+    patternNumber: 0, maxSlots: 2, color: 8, variants, sprite,
   },
 });
 
 const plain = buildData(basePhases);
 const angry = buildData(angryPhases);
+const spriteShoots = new Map([[SHOOT_ID, {
+  ...shoots.get(SHOOT_ID),
+  shoot: { ...shoots.get(SHOOT_ID).shoot, projectileSpriteId: 'shoot_sprite' },
+}]]);
+const spritePhases = [
+  { ...basePhases[0], projectileSpriteId: 'phase_sprite' },
+  { ...basePhases[1], shootId: SHOOT_ID, projectileSpriteId: 'overridden_sprite' },
+];
+const spriteData = buildData(spritePhases, spriteShoots);
+const bubbleData = buildData(
+  [{ ...basePhases[0], shootId: SHOOT_ID, projectileSpriteId: 'bubble_sprite' }],
+  shoots,
+  { bossProjectilePattern: 'soapBubbles', bossProjectileSpriteId: 'electric_sprite', bossBubbleBounces: 5 },
+);
 const laserAssetData = gen.buildBitmapRoomBossData(
   [{ name: 'laser asset room', atlas, entities: [{ kind: 'boss', position: { x: 64, y: 64 },
     params: { ...bossParams(basePhases), bossLaserShootId: 'laser_west' } }] }],
@@ -118,8 +132,19 @@ const laserAssetData = gen.buildBitmapRoomBossData(
 );
 const plainAsm = buildAsm(plain);
 const angryAsm = buildAsm(angry);
+const spriteFrame = { patternBytes: Array(32).fill(0xaa), colorBytes: Array(16).fill(8) };
+const spriteAsm = buildAsm(spriteData, [undefined, { frames: [spriteFrame], delayFrames: 8 }]);
+const electricFrame = { patternBytes: Array(32).fill(0xaa), colorBytes: Array(16).fill(8) };
+const bubbleFrame = { patternBytes: Array(32).fill(0x55), colorBytes: Array(16).fill(15) };
+const bubbleAsm = buildAsm(
+  bubbleData,
+  [{ frames: [bubbleFrame], delayFrames: 8 }],
+  { frames: [electricFrame], delayFrames: 8 },
+);
 const plainText = `${plainAsm.equates}${plainAsm.routinesAsm}${plainAsm.dataAsm}`;
 const angryText = `${angryAsm.equates}${angryAsm.routinesAsm}${angryAsm.dataAsm}`;
+const spriteText = `${spriteAsm.equates}${spriteAsm.routinesAsm}${spriteAsm.dataAsm}`;
+const bubbleText = `${bubbleAsm.equates}${bubbleAsm.routinesAsm}${bubbleAsm.dataAsm}`;
 
 /** The phase entries of the first room slot that actually carries a boss. */
 const phaseEntries = (data, stride) => {
@@ -131,8 +156,11 @@ const phaseEntries = (data, stride) => {
 
 const plainRows = phaseEntries(plain, gen.BITMAP_BOSS_PHASE_ENTRY_BASE);
 const angryRows = phaseEntries(angry, gen.BITMAP_BOSS_PHASE_ENTRY_FULL);
+const spriteRows = phaseEntries(spriteData, 8);
+const bubbleRows = phaseEntries(bubbleData, 8);
 
 const editor = readFileSync(join(root, 'components', 'editors', 'Msx2BossEditor.tsx'), 'utf8').replace(/\r\n/g, '\n');
+const shootEditor = readFileSync(join(root, 'components', 'editors', 'Msx2ShootEditor.tsx'), 'utf8').replace(/\r\n/g, '\n');
 const types = readFileSync(join(root, 'types.ts'), 'utf8').replace(/\r\n/g, '\n');
 
 const checks = [
@@ -148,6 +176,26 @@ const checks = [
     && types.includes('laserInterval?: number')
     && types.includes('bodyInterval?: number')
     && types.includes('moveStepMultiplier?: number')],
+  ['A Shoot Definition owns a projectile sprite and the Pattern editor offers it',
+    types.includes('projectileSpriteId?: string')
+    && shootEditor.includes("set('projectileSpriteId'")],
+  ['A Shoot sprite overrides its phase sprite; phases without one keep their own choice',
+    spriteData.phaseTablesSpriteExtended === true
+    && spriteData.phaseSpriteIds.join(',') === 'phase_sprite,shoot_sprite'
+    && spriteRows[0][3] === 1 && spriteRows[0][7] === 2
+    && spriteRows[1][3] === 0 && spriteRows[1][7] === 1],
+  ['The selected Shoot sprite is emitted as a switchable hardware pattern',
+    spriteText.includes('bitmap_boss_sbul_select_variant:')
+    && spriteText.includes('bitmap_boss_sbul_variant_pattern_2:')
+    && spriteText.includes('db #AA, #AA')],
+  ['Soap bubbles select their phase sprite instead of another boss\'s default pattern',
+    bubbleData.projectileTables[0]?.[10] === 3
+    && bubbleData.phaseTablesSpriteExtended === true
+    && bubbleData.phaseSpriteIds.join(',') === 'bubble_sprite'
+    && bubbleRows[0][7] === 1
+    && bubbleText.includes('bitmap_boss_sbul_select_variant:')
+    && bubbleText.includes('bitmap_boss_sbul_variant_pattern_1:')
+    && bubbleText.includes('db #55, #55')],
 
   // ---- the escalating build -------------------------------------------------
   ['Escalating phases switch the table to the 7-byte stride',

@@ -1152,7 +1152,7 @@ export function buildBitmapRoomBossData(
     // Phase D attack phases: HP thresholds that retune the firing cadence, and
     // optionally the shot pattern, the laser cadence, the body cadence and how
     // many movement steps one body update takes.
-    const phases = buildPhaseTable(params.bossPhases, hp, projectile, room.name, indexOfShoot, indexOfSprite);
+    const phases = buildPhaseTable(params.bossPhases, hp, projectile, room.name, indexOfShoot, indexOfSprite, shoots);
     // Phase E damage zones: weak points / armour, in boss-local pixels.
     const zones = buildDamageZoneTable(params.damageZones ?? params.bossDamageZones, width, height, room.name, indexOfDeathSound);
     // Formal defeat presentation: several transparent bitmap stamps scattered
@@ -1343,6 +1343,7 @@ function buildPhaseTable(
   roomName: string,
   indexOfShoot: (id: unknown) => number,
   indexOfSprite: (id: string) => number,
+  shoots: Map<string, BossShootAsset>,
 ): number[] {
   if (!Array.isArray(bossPhases) || !bossPhases.length) return [0];
   const baseInterval = projectile[7] || 90;
@@ -1357,20 +1358,26 @@ function buildPhaseTable(
     const percent = clampInt(phase.enterWhenHpBelowPercent, 1, 100, 100);
     // Absolute HP at or below which this phase is active.
     const threshold = Math.max(1, Math.min(255, Math.ceil((hp * percent) / 100)));
+    const shoot = indexOfShoot(phase.shootId) & 0xff;
+    const shootSpriteId = shoot > 0
+      ? String(shoots.get(String(phase.shootId || '').trim())?.shoot.projectileSpriteId || '').trim()
+      : '';
     entries.push({
       threshold,
       interval: clampInt(phase.interval ?? phase.attack?.interval, 10, 255, baseInterval),
       speed: clampInt(phase.projectileSpeed ?? phase.attack?.projectileSpeed, 1, 4, baseSpeed),
       // A missing / unknown shoot asset resolves to 0, i.e. the plain aimed shot.
-      shoot: indexOfShoot(phase.shootId) & 0xff,
+      shoot,
       laserInterval: clampInt(phase.laserInterval, 0, 255, 0),
       bodyInterval: clampInt(phase.bodyInterval, 0, 16, 0),
       moveSteps: clampInt(phase.moveStepMultiplier, 1, PHASE_MAX_MOVE_STEPS, 1),
-      // An explicit per-phase selection is always encoded, including the
-      // built-in blob. The old boss-wide sprite is only a legacy fallback:
-      // another room's boss may have supplied the shared default pattern.
-      sprite: projectile[0] === 1 && projectile[10] === 1 && phase.projectileSpriteId !== undefined
-        ? indexOfSprite(String(phase.projectileSpriteId || '').trim()) : 0,
+      // A Shoot Definition owns its projectile appearance when it names a
+      // sprite. Otherwise the phase choice (including the built-in blob) wins.
+      // Soap bubbles (kind 3) use the same hardware sprite pool as ordinary
+      // bullets (kind 1), so their phase must select the authored pattern too.
+      sprite: projectile[0] === 1 && (projectile[10] === 1 || projectile[10] === 3)
+        && (shootSpriteId || phase.projectileSpriteId !== undefined)
+        ? indexOfSprite(shootSpriteId || String(phase.projectileSpriteId || '').trim()) : 0,
     });
   }
   if (!entries.length) return [0];

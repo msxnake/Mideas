@@ -134,6 +134,8 @@ const LaserShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdate, all
 export const Msx2ShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdate, allAssets }) => {
   const set = <K extends keyof Msx2ShootDefinition>(key: K, value: Msx2ShootDefinition[K]) =>
     onUpdate({ ...shoot, [key]: value });
+  const spriteAssets = allAssets.filter(asset => asset.type === 'msx2sprite');
+  const selectedSprite = spriteAssets.find(asset => asset.id === shoot.projectileSpriteId);
 
   if (shoot.pattern === 'laser') return <LaserShootEditor shoot={shoot} onUpdate={onUpdate} allAssets={allAssets} />;
 
@@ -188,6 +190,20 @@ export const Msx2ShootEditor: React.FC<Msx2ShootEditorProps> = ({ shoot, onUpdat
                 disabled={!fansOut}
                 value={shoot.bulletCount}
                 onChange={e => set('bulletCount', Number(e.target.value))} />
+            </div>
+            <div className="col-span-2">
+              <label className={label}>Projectile sprite</label>
+              <select className={input} value={shoot.projectileSpriteId ?? ''}
+                onChange={e => set('projectileSpriteId', e.target.value)}>
+                <option value="">Use the boss phase sprite</option>
+                {shoot.projectileSpriteId && !selectedSprite && (
+                  <option value={shoot.projectileSpriteId}>Missing: {shoot.projectileSpriteId}</option>
+                )}
+                {spriteAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+              </select>
+              {shoot.projectileSpriteId && !selectedSprite && (
+                <p className="text-xs text-yellow-400 mt-1">This sprite no longer exists; the built-in bullet will be used.</p>
+              )}
             </div>
             {shoot.pattern !== 'aimed' && (
               <div>

@@ -1347,6 +1347,10 @@ const PhasesPanel: React.FC<{
       {phases.map((phase, index) => {
         const band = bandOf(index);
         const shootAsset = shootAssets.find(asset => asset.id === phase.shootId);
+        const shootDefinition = shootAsset?.data as Msx2ShootDefinition | undefined;
+        const shootSpriteId = shootDefinition?.pattern !== 'laser'
+          ? String(shootDefinition?.projectileSpriteId || '').trim() : '';
+        const shootSprite = spriteAssets.find(asset => asset.id === shootSpriteId);
         const moveSteps = Math.max(1, Math.min(3, Number(phase.moveStepMultiplier) || 1));
         const bodyInterval = Number(phase.bodyInterval) || 0;
         return (
@@ -1420,13 +1424,17 @@ const PhasesPanel: React.FC<{
             {attacks.spriteBullets && (
               <div className="mb-2">
                 <label className={label}>Projectile sprite for this phase</label>
-                <select className={input} value={phase.projectileSpriteId ?? boss.bossProjectileSpriteId ?? ''}
+                <select className={input} disabled={!!shootSpriteId}
+                  value={shootSpriteId || (phase.projectileSpriteId ?? boss.bossProjectileSpriteId ?? '')}
                   onChange={e => patch(index, { projectileSpriteId: e.target.value })}>
                   <option value="">Built-in small blob</option>
+                  {shootSpriteId && !shootSprite && <option value={shootSpriteId}>Missing: {shootSpriteId}</option>}
                   {spriteAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
                 </select>
                 <p className="text-[10px] text-msx-textsecondary mt-1">
-                  The sprite changes when this HP phase becomes active. Boss bullets use the enemy sprite slots.
+                  {shootSpriteId
+                    ? `${shootSprite?.name || 'Missing sprite'} comes from the selected Shoot Definition.`
+                    : 'The sprite changes when this HP phase becomes active. Boss bullets use the enemy sprite slots.'}
                 </p>
               </div>
             )}

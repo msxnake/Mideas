@@ -1828,6 +1828,8 @@ export interface Msx2ShootDefinition {
    * around the whole circle; 'laser' grows SCREEN 5 bitmap beams.
    */
   pattern: Msx2ShootPattern;
+  /** Hardware sprite drawn by this bullet pattern; takes priority over the boss phase sprite. */
+  projectileSpriteId?: string;
   /** SCREEN 5 laser: 16×16 bitmap tile repeated as the beam grows. */
   laserTileId?: string;
   /** Frames between automatic laser waves. */
