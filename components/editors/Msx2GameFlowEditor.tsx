@@ -1399,7 +1399,11 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   };
 
   return (
-    <Panel title="MSX2 Game Flow" className="min-h-0 flex-grow flex flex-col">
+    <Panel
+      title="MSX2 Game Flow"
+      className="min-h-0 flex-grow flex flex-col overflow-hidden"
+      bodyClassName="min-h-0 flex-grow flex flex-col overflow-hidden"
+    >
       <div className="shrink-0 flex flex-wrap items-center gap-2 p-2 border-b border-msx-border bg-msx-panelbg">
         {/* Two backends, two buttons. What a SCREEN 5 flow builds — a game or a
             standalone presentation — follows from the project's assets, not from
@@ -1490,7 +1494,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         <div className="flex-grow" />
       </div>
 
-      <div className="min-h-0 flex-grow overflow-hidden grid grid-cols-[1fr_300px]">
+      <div className="min-h-0 flex-grow overflow-hidden grid grid-cols-[1fr_300px] grid-rows-[minmax(0,1fr)]">
         <div className="relative min-h-0 overflow-hidden bg-[#101018]" onClick={() => setContextMenu(null)}>
           {contextMenu && (
             <div
@@ -1513,7 +1517,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
             width="100%"
             height="100%"
             viewBox={viewBox}
-            className="block min-h-[520px]"
+            className="absolute inset-0 block w-full h-full"
             onWheel={handleSvgWheel}
             onMouseDown={handleSvgMouseDown}
             onMouseMove={handleSvgMouseMove}
