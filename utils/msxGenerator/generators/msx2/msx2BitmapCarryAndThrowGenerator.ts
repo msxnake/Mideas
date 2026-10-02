@@ -165,6 +165,13 @@ export interface BitmapCarryAndThrowRuntimeOptions {
   bitmapAtlasBaseY?: number;
   bitmapScratchBaseY?: number;
   pauseGateAsm?: string;
+  /**
+   * RAM address of bitmap_carry_held. Defaults to #C1FC (the safe-gap byte before
+   * player_health) which is only valid while no other system owns it; the room
+   * generator passes a dedicated chain byte when the classic hearts HUD or the
+   * multi-world pool index are active, because both write #C1FC every frame / room.
+   */
+  heldAddress?: number;
 }
 
 export interface BitmapCarryAndThrowSystemAsm {
@@ -202,6 +209,7 @@ export function buildBitmapCarryAndThrowEquates(
   config: Msx2CarryAndThrowConfig | undefined,
   data: BitmapCarryAndThrowRoomData | undefined,
   ramBase: number,
+  heldAddress?: number,
 ): string {
   if (!bitmapCarryAndThrowEnabled(config, data)) return '';
   const slots = data!.maxSlots;
@@ -239,9 +247,13 @@ bitmap_carry_old_x    EQU ${asmWord(oldX)}
 bitmap_carry_old_y    EQU ${asmWord(oldY)}
 ${data!.bitmapSlots > 0 ? `bitmap_carry_cmd_buffer EQU ${asmWord(commandBuffer)}
 ` : ''}
-; Shared HUD state. #C1FC is the classic hearts dirty byte when no linked HUD
+${heldAddress === undefined
+    ? `; Shared HUD state. #C1FC is the classic hearts dirty byte when no linked HUD
 ; exists; linked carry HUDs disable that legacy renderer, so the byte is safe.
-bitmap_carry_held     EQU #C1FC
+bitmap_carry_held     EQU #C1FC`
+    : `; Shared HUD state, relocated to its own chain byte: #C1FC is already owned by the
+; classic hearts dirty flag / multi-world pool index in this ROM.
+bitmap_carry_held     EQU ${asmWord(heldAddress)}`}
 BITMAP_MAX_CARRY_AND_THROW_SLOTS EQU ${slots}
 BITMAP_CARRY_BITMAP_SLOTS EQU ${data!.bitmapSlots}
 `;
@@ -939,7 +951,7 @@ ${satSlots}
   return {
     enabled: true,
     ramBytes: bitmapCarryAndThrowRamBytes(config, data),
-    equates: buildBitmapCarryAndThrowEquates(config, data, opts.ramBase),
+    equates: buildBitmapCarryAndThrowEquates(config, data, opts.ramBase, opts.heldAddress),
     loadCallAsm: '    call bitmap_load_carry_objects\n',
     updateCallAsm: '    call update_bitmap_carry_and_throw\n',
     satCallAsm: '    call bitmap_update_carry_sat\n',

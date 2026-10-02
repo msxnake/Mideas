@@ -12424,8 +12424,8 @@ function buildBitmapHeartsHudAsm(maxHealthRaw: number, heartUploadAsm: string): 
   const emptySx = BITMAP_HUD_HEART_EMPTY_SX;
   const firstX = BITMAP_HUD_HEART_FIRST_X;
   const destY = BITMAP_HUD_HEART_DEST_Y;
-  // EQUs: 1 byte dirty-flag (#C1FC, the last free gap before player_health) +
-  // 15-byte command scratch (#C2C0, right after the 192-byte behavior map).
+  // EQUs: 1 byte dirty-flag (#C1FC, the last free gap before player_health; the other
+  // #C1FC users relocate to the RAM chain) + 15-byte command scratch (#C2C0, right after the 192-byte behavior map).
   const equates = `; Hearts HUD (SCREEN 5 bitmap). Dirty-flag + 15-byte V9938 command scratch.
 hud_hearts_drawn EQU #C1FC
 hud_cmd_block    EQU #C2C0
@@ -17762,10 +17762,25 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
     musicResumeAsm: musicRuntimeEmitted ? '    call music_resume' : undefined,
   });
   hudLinkedRamCursor += bossSystem.ramBytes;
+  // #C1FC is ONE safe-gap byte claimed by three unrelated systems: the classic hearts
+  // dirty flag (hud_hearts_drawn), bitmap_carry_held and the multi-world
+  // bitmap_room_pool_index. The first active owner (in that order) keeps it, so ROMs
+  // with a single owner stay byte-identical; every further active owner gets its own
+  // chain byte instead of silently aliasing it (carry_held read 5 = the hearts value,
+  // and a hearts redraw would overwrite the boss/pickup pool index).
+  let sharedGapTaken = heartsHud.equates !== '';
+  let carryHeldAddress: number | undefined;
+  if (bitmapCarryAndThrowEnabled(carryAndThrowConfig, carryAndThrowData)) {
+    if (sharedGapTaken) carryHeldAddress = hudLinkedRamCursor++;
+    sharedGapTaken = true;
+  }
+  let roomPoolIndexAddress: number | undefined;
+  if (multiWorld && sharedGapTaken) roomPoolIndexAddress = hudLinkedRamCursor++;
   // CARRY & THROW skill: SCREEN 5 ballistic object runtime. It is chained after
   // platforms so its RAM and SAT/pattern ranges cannot overlap existing systems.
   const carryAndThrowSystem = buildBitmapCarryAndThrowSystemAsm(carryAndThrowConfig, carryAndThrowData, {
     ramBase: hudLinkedRamCursor,
+    heldAddress: carryHeldAddress,
     satBase: carrySatBase,
     colorBase: carryColorBase,
     patternGroupBase: carryPatternGroupBase,
@@ -18586,8 +18601,8 @@ player_vx                         EQU #C1F7
 ; Always emitted (harmless zero); lives in the last free safe-gap byte before blink_phase.
 bitmap_gameflow_exit_flag         EQU #C1F8
 bitmap_game_over_flag             EQU bitmap_gameflow_exit_flag
-; Active-world local room index for reusable SCREEN 5 pickup/boss pools.
-bitmap_room_pool_index             EQU #C1FC
+; Active-world local room index for reusable SCREEN 5 pickup/boss pools.${roomPoolIndexAddress === undefined ? '' : ' Relocated to the RAM chain: #C1FC is owned by another system in this ROM.'}
+bitmap_room_pool_index             EQU ${roomPoolIndexAddress === undefined ? '#C1FC' : hexWord(roomPoolIndexAddress)}
 ; Sub-pixel gravity accumulator (low byte of the 8.8 gravityStrength from the Player
 ; Config). Added to player_vy_frac every frame; player_vy only rises by 1 when this
 ; carries, so the fall/jump arc accelerates gradually like SCREEN 4 (default 0.25

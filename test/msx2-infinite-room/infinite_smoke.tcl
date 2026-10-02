@@ -30,7 +30,8 @@
 # real key presses; pokes are only used to position the player (and as a labelled fallback).
 # Screenshots are taken >= 0.3 emulated seconds after the state they show has settled and the
 # state at the moment of the shot is logged next to it.
-# NOTE: bitmap_carry_held (#C1FC) is shared with the hearts-HUD dirty byte, so it is not asserted.
+# NOTE: bitmap_carry_held used to alias the hearts-HUD dirty byte (#C1FC); it now has its own chain byte
+# when the classic hearts HUD is active. It is still not asserted here (see test/msx2-ram-aliasing/c1fc_probe.tcl).
 
 proc envdef {name default} { if {[info exists ::env($name)]} { return $::env($name) } else { return $default } }
 set result_path [envdef INF_RESULT "test/msx2-infinite-room/infinite_result.txt"]
