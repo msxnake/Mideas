@@ -9,6 +9,7 @@ export type Msx2ComponentId =
   | 'msx2_collectible'
   | 'msx2_door_exit'
   | 'msx2_world_exit'
+  | 'msx2_trigger_zone'
   | 'msx2_hazard'
   | 'msx2_ai'
   | 'msx2_animation'
@@ -149,6 +150,13 @@ export const MSX2_COMPONENT_FIELD_EDITORS: Partial<Record<Msx2ComponentId, Recor
     offsetY: { label: 'Hitbox offset Y', min: 0, max: 31 },
     hitboxW: { label: 'Hitbox width', min: 1, max: 32 },
     hitboxH: { label: 'Hitbox height', min: 1, max: 32 },
+  },
+  msx2_trigger_zone: {
+    enabled: { kind: 'boolean', label: 'Enabled' },
+    w: { label: 'Width (px)', min: 1, max: 255 },
+    h: { label: 'Height (px)', min: 1, max: 255 },
+    condition: { kind: 'select', options: ['carryable', 'player'], label: 'Condition' },
+    targetEntityId: { label: 'Target carryable ID (empty = any)' },
   },
   msx2_pressure_button: {
     enabled: { kind: 'boolean', label: 'Enabled' },
@@ -336,6 +344,7 @@ export type Msx2RuntimeEngine =
   | 'spike'
   | 'door'
   | 'worldExit'
+  | 'triggerZone'
   | 'pressureButton'
   | 'jumper'
   | 'wallJumper'
@@ -437,6 +446,12 @@ export const MSX2_COMPONENT_REPERTOIRE: Msx2ComponentDefinition[] = [
     label: 'World Exit',
     description: 'SCREEN 5 trigger that leaves the active WorldLink and continues the GameFlow.',
     defaults: { enabled: true, atlasEntryId: '', offsetX: 0, offsetY: 0, hitboxW: 16, hitboxH: 16 },
+  },
+  {
+    id: 'msx2_trigger_zone',
+    label: 'Trigger Zone',
+    description: 'SCREEN 5 rectangle (pixels) satisfied while a resting carryable has its centre inside. In an Infinite Room it inverts the loop level. condition "player" is reserved for later.',
+    defaults: { enabled: true, w: 32, h: 32, condition: 'carryable', targetEntityId: '' },
   },
   {
     id: 'msx2_hazard',
@@ -1131,6 +1146,23 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       runtime: 'MSX2',
       engine: 'worldExit',
       worldExit: { enabled: true, atlasEntryId: '', offsetX: 0, offsetY: 0, hitboxW: 16, hitboxH: 16 },
+    },
+  },
+  {
+    id: 'trigger_zone',
+    label: 'MSX2 Trigger Zone',
+    kind: 'custom',
+    runtime: 'MSX2',
+    engine: 'triggerZone',
+    description: 'SCREEN 5 trigger rectangle. Satisfied while a resting carryable (carry_and_throw) has its centre inside; in an Infinite Room it inverts the loop. Inert otherwise.',
+    components: {
+      msx2_transform: {},
+      msx2_trigger_zone: { enabled: true, w: 32, h: 32, condition: 'carryable', targetEntityId: '' },
+    },
+    params: {
+      runtime: 'MSX2',
+      engine: 'triggerZone',
+      triggerZone: { enabled: true, w: 32, h: 32, condition: 'carryable', targetEntityId: '' },
     },
   },
   {

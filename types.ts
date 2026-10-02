@@ -671,6 +671,16 @@ export interface Msx2Screen5BitmapRoom {
   foregroundTiles?: Msx2BitmapRoomForegroundTile[];
   /** Optional MSX2 runtime metadata (HUD widgets, movement engine). */
   runtime?: Msx2Screen4Runtime;
+  /**
+   * Infinite Room (Lost Woods loop). While the loop is active, leaving through ANY edge brings the
+   * player back into this same room from the opposite edge. loop_active = initialLoopActive XOR
+   * (a resting carryable has its centre inside the room's trigger zone entity). Absent = off.
+   */
+  infiniteRoom?: {
+    enabled: boolean;
+    /** Loop level while the trigger zone is NOT satisfied. Default true. */
+    initialLoopActive?: boolean;
+  };
   notes?: string;
 }
 

@@ -295,6 +295,10 @@ import {
   buildBitmapCarryAndThrowData,
 } from './msx2BitmapCarryAndThrowGenerator';
 import {
+  buildBitmapInfiniteRoomData,
+  buildBitmapInfiniteRoomSystemAsm,
+} from './msx2BitmapInfiniteRoomGenerator';
+import {
   BITMAP_MAX_TURRET_SLOTS,
   BitmapTurretRoomData,
   bitmapTurretHardwareSlots,
@@ -1638,6 +1642,7 @@ function normalizeRoom(room: Msx2Screen5BitmapRoom | undefined): Msx2Screen5Bitm
     playerEntries: room?.playerEntries || [],
     foregroundTiles: Array.isArray(room?.foregroundTiles) ? room!.foregroundTiles : undefined,
     runtime: room?.runtime,
+    infiniteRoom: room?.infiniteRoom,
     notes: room?.notes,
   };
 }
@@ -3428,6 +3433,8 @@ function buildRuntimeAsm(
     /** The player may step down through one-way platforms (skill enabled). */
     platformDrop?: boolean;
     shaftOverride?: boolean;
+    /** Infinite Room: snippet that turns the destination into the current room while the loop is active. */
+    infiniteRailHookAsm?: string;
     multiWorld?: boolean;
     /** Pre-dimmed twin of the atlas: VRAM rows [baseY, baseY + rows). */
     darkAtlas?: { baseY: number; rows: number };
@@ -4892,7 +4899,7 @@ start_room_transition:
     ld hl, bitmap_room_transition_table
     add hl, de
     ld a, (hl)
-${shaftTransitionOverrideAsm}    cp #FF
+${options.infiniteRailHookAsm || ''}${shaftTransitionOverrideAsm}    cp #FF
     jp z, .no_rail
     ld (bitmap_pending_room), a
     ld a, c
@@ -17850,6 +17857,19 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
   const multiWorldRamBase = hudLinkedRamCursor;
   const multiWorldRamBytes = multiWorld ? 12 : 0;
   hudLinkedRamCursor += multiWorldRamBytes;
+  // INFINITE ROOM: appended at the very END of the RAM chain so no existing system moves.
+  // Emits nothing (empty strings, 0 bytes) unless some room is flagged infiniteRoom.enabled.
+  const infiniteRoomSystem = buildBitmapInfiniteRoomSystemAsm(
+    rooms.length,
+    buildBitmapInfiniteRoomData(rooms, carryAndThrowSystem.enabled),
+    {
+      ramBase: hudLinkedRamCursor,
+      carrySlots: carryAndThrowSystem.enabled ? carryAndThrowData.maxSlots : 0,
+      bankedRle: isKonamiMegaRom,
+      shaftOverride: shaftEnabled,
+    },
+  );
+  hudLinkedRamCursor += infiniteRoomSystem.ramBytes;
   const multiWorldEquates = multiWorld
     ? `; Multi-world Game Flow: the world currently loaded, and the start room +
 ; spawn that bitmap_prepare_world published for the shared boot-init sequence.
@@ -17952,7 +17972,7 @@ ${keyDoorSystem.enabled ? `    ld a, (bitmap_world_saved_keys)
   const combinedGlowingColors = useGlowingTailColors
     ? combinedColors.map(intensifyBitmapPlayerSpriteColor)
     : [];
-  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || healSystem.enabled || perceptionSystem.enabled || jumperSystem.enabled || wallJumperSystem.enabled || crumbleSystem.enabled || swaySystem.enabled || bitmapAtlasAnimationSystem.enabled || dialogueSystem.enabled || enemySystem.enabled || turretSystem.enabled || platformSystem.enabled || bossSystem.enabled || carryAndThrowSystem.enabled || playerStateMachine.enabled || lightingSystem.enabled || multiWorld) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
+  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || healSystem.enabled || perceptionSystem.enabled || jumperSystem.enabled || wallJumperSystem.enabled || crumbleSystem.enabled || swaySystem.enabled || bitmapAtlasAnimationSystem.enabled || dialogueSystem.enabled || enemySystem.enabled || turretSystem.enabled || platformSystem.enabled || bossSystem.enabled || carryAndThrowSystem.enabled || playerStateMachine.enabled || lightingSystem.enabled || infiniteRoomSystem.enabled || multiWorld) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
     throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}" needs too much RAM for dynamic HUD/key-door/gem/perception/jumper/wall-jumper/dialogue/enemy/platform/boss/carry/state-machine/lighting systems: dedicated RAM chain (${hexWord(hudLinkedRamCursor)}) would overflow its ${hexWord(HUD_LINKED_RAM_BASE)}..${hexWord(HUD_LINKED_RAM_CEILING - 1)} window. Reduce dynamic HUD widgets, disable air timer, or reduce pickups/enemies/platforms/carryable objects.`);
   }
   const tileDataBySourceIndex = new Map(linkedHudTileData.map(entry => [entry.index, entry]));
@@ -18092,6 +18112,7 @@ ${vramFree.map(gap => `;   rows ${String(gap.from).padStart(4)}..${String(gap.to
     platformDrop: bitmapPlatformDropEnabled(platformDropConfig),
     shaftOverride: shaftEnabled,
     multiWorld,
+    infiniteRailHookAsm: infiniteRoomSystem.railHookAsm,
     darkAtlas: darkAtlasEnabled ? { baseY: darkAtlasBaseY, rows: darkTwinRows } : undefined,
     bossWindow: needsWindowSafeRle,
   }, playerPhysics, playerHitbox, {
@@ -18103,7 +18124,7 @@ ${vramFree.map(gap => `;   rows ${String(gap.from).padStart(4)}..${String(gap.to
     gravityHookAsm: gravityHooks,
     landClearAsm: landClearHooks,
     leaveGroundAsm: leaveGroundHooks,
-  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${healSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}${crumbleSystem.pendingPageDrawCall}${swaySystem.pendingPageDrawCall}${bitmapAtlasAnimationSystem.pendingPageDrawCall}${destroyTileApplyPendingCall}${lightingSystem.pendingPageCallAsm}`, keyDoorSystem.solidProbeCallAsm, `${shaftSystem.preLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${bossWindowLoadCallAsm}${bossSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}${shaftSystem.commitCallAsm}`);
+  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${healSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}${crumbleSystem.pendingPageDrawCall}${swaySystem.pendingPageDrawCall}${bitmapAtlasAnimationSystem.pendingPageDrawCall}${destroyTileApplyPendingCall}${lightingSystem.pendingPageCallAsm}`, keyDoorSystem.solidProbeCallAsm, `${shaftSystem.preLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${bossWindowLoadCallAsm}${bossSystem.loadCallAsm}${infiniteRoomSystem.commitCarryLoadAsm(carryAndThrowSystem.loadCallAsm)}${infiniteRoomSystem.loadCallAsm}${shaftSystem.commitCallAsm}`);
   // Foreground sprite load routine + its per-room dispatch/data tables (only when
   // some room actually defines foreground tiles).
   const foregroundLoadRoutineAsm = foregroundCount > 0 ? buildBitmapLoadForegroundSpritesAsm(foregroundContext) : '';
@@ -18188,7 +18209,7 @@ ${vramFree.map(gap => `;   rows ${String(gap.from).padStart(4)}..${String(gap.to
     ; HUD/system init (further down, after load_room) meant that booting STRAIGHT
     ; INTO a boss room read uninitialised RAM: garbage there reads as "already
     ; killed" and the boss never spawns.
-${bossSystem.initAsm}` : ''}${healSystem.initAsm ? `    ; Same reason as the boss scratch above: the health pickup flags MUST be
+${bossSystem.initAsm}` : ''}${infiniteRoomSystem.preLoadInitAsm}${healSystem.initAsm ? `    ; Same reason as the boss scratch above: the health pickup flags MUST be
     ; cleared before the start room draws its overlays. bitmap_apply_heals_visible
     ; runs a few lines below and SKIPS any pickup whose flag is non-zero, so
     ; clearing them with the rest of the HUD/system init (further down, after
@@ -18227,7 +18248,7 @@ ${darkAtlasEnabled ? '    call prepare_dark_atlas   ; the dimmed twin belongs to
     ; alternate rooms"). Harmless on the plain boot path (idempotent re-upload).
     call init_bitmap_hud_band
 
-${shaftSystem.initCallAsm}${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}    ; Place the player at the room spawn point.
+${shaftSystem.initCallAsm}${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}${infiniteRoomSystem.loadCallAsm}    ; Place the player at the room spawn point.
 ${multiWorld
   ? `    ld a, (bitmap_world_spawn_y)
     ld (player_y), a
@@ -18590,7 +18611,7 @@ ${platformDropEquates}; Active room behavior map copied here by load_room (16x12
 ; Used by surface skills such as ice_slide. Kept away from the compact player
 ; state/skill chain so future optional skills do not overlap it.
 bitmap_room_behavior_map EQU #C200
-${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equates}${turretSystem.equates}${platformSystem.equates}${shaftSystem.equates}${bossSystem.equates}${carryAndThrowSystem.equates}${destroyTileEquates}${multiWorldEquates}
+${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equates}${turretSystem.equates}${platformSystem.equates}${shaftSystem.equates}${bossSystem.equates}${carryAndThrowSystem.equates}${infiniteRoomSystem.equates}${destroyTileEquates}${multiWorldEquates}
 ; Mideas channel-C convention: gameplay SFX own PSG channel C. Every
 ; fire-and-forget SFX stores its R7 bits for C here (bit2 tone, bit5 noise);
 ; the music mixer merges them so its per-frame R7 heal never cuts a blip.
@@ -18654,7 +18675,7 @@ ${playerColorsUpdateCall}${enemySystem.colorCallAsm}${bossSystem.colorCallAsm}${
 ${platformSystem.updateCallAsm}${shaftSystem.updateCallAsm}${bossSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${bossSystem.playerGateAsm}${perceptionSystem.inventoryGateAsm}${platformDropGate}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
 ${playerStateMachine.mainLoopCall}${playerAirAnimCall}${dashGate}${shootGate}${lightingSystem.bulletLanternCall}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}${destroyTileGate}${platformSystem.detectCallAsm}${shaftSystem.detectCallAsm}.skip_player_movement:
-${worldExitSystem.mainLoopCall}${perceptionSystem.mainLoopCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${turretSystem.updateCallAsm}${carryAndThrowSystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}${carryAndThrowSystem.bitmapDrawCallAsm}${lightingSystem.mainLoopCall}${musicUpdateCall}    jp bitmap_enter_game_loop
+${worldExitSystem.mainLoopCall}${perceptionSystem.mainLoopCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${turretSystem.updateCallAsm}${carryAndThrowSystem.updateCallAsm}${infiniteRoomSystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}${carryAndThrowSystem.bitmapDrawCallAsm}${lightingSystem.mainLoopCall}${musicUpdateCall}    jp bitmap_enter_game_loop
 ${sccMusic ? `.bitmap_gameflow_exit:
     ; This loop is the ONLY thing ticking music_update. Leaving it with the song
     ; mid-note left the SCC/PSG holding whatever registers the last frame wrote,
@@ -18694,7 +18715,7 @@ ${wallJumpRuntime}
 ${powerStompRuntime}
 ${shootRuntime}
 ${carryAndThrowSystem.routinesAsm}
-${wallClimbRuntime}
+${infiniteRoomSystem.routinesAsm}${wallClimbRuntime}
 ${teleportRuntime}
 ${slashRuntime}
 ${grabRuntime}
@@ -18716,7 +18737,7 @@ ${turretSystem.routinesAsm}
 ${platformSystem.routinesAsm}
 ${shaftSystem.routinesAsm}
 ${bossSystem.routinesAsm}
-${carryAndThrowSystem.dataAsm}
+${carryAndThrowSystem.dataAsm}${infiniteRoomSystem.dataAsm}
 ${bitmapEndRuntime.routinesAsm}
 ${formatBytes('screen5_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
 ${multiWorldDataAsm}${intro.dataAsm}bitmap_room_hud_seed_data:

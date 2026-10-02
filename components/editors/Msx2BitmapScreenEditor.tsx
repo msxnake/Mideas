@@ -245,6 +245,43 @@ const normalizeLockedDoorConfig = (value: unknown): Msx2LockedDoorConfig => {
   };
 };
 
+const isTriggerZoneEntity = (entity: Msx2Screen4EntityInstance | null | undefined): boolean => {
+  if (!entity) return false;
+  const engine = String(entity.params?.engine || '').replace(/[\s_-]+/g, '').toLowerCase();
+  return engine === 'triggerzone' || Boolean(entity.params?.triggerZone || entity.components?.msx2_trigger_zone);
+};
+
+interface TriggerZoneConfig {
+  enabled: boolean;
+  w: number;
+  h: number;
+  condition: 'carryable' | 'player';
+  targetEntityId: string;
+}
+
+const normalizeTriggerZoneConfig = (value: unknown): TriggerZoneConfig => {
+  const raw = value && typeof value === 'object' ? value as Record<string, any> : {};
+  const span = (input: unknown, fallback: number) => Math.max(1, Math.min(255, Math.floor(Number(input) || fallback)));
+  return {
+    enabled: raw.enabled !== false && raw.enabled !== 'false',
+    w: span(raw.w, 32),
+    h: span(raw.h, 32),
+    condition: raw.condition === 'player' ? 'player' : 'carryable',
+    targetEntityId: typeof raw.targetEntityId === 'string' ? raw.targetEntityId : '',
+  };
+};
+
+const isCarryableEntity = (entity: Msx2Screen4EntityInstance): boolean => Boolean(
+  entity.components?.msx2_carryable?.enabled !== false
+  && entity.components?.msx2_carryable?.enabled !== 'false'
+  && (
+    entity.components?.msx2_carryable
+    || entity.params?.carryable === true
+    || entity.params?.carryable === 'true'
+    || (entity.kind as string) === 'carryable'
+  )
+);
+
 const normalizeWorldExitConfig = (value: unknown): Msx2WorldExitConfig => {
   const raw = value && typeof value === 'object' ? value as Partial<Msx2WorldExitConfig> : {};
   const clampOffset = (input: unknown) => Math.max(0, Math.min(31, Math.floor(Number(input) || 0)));
@@ -1263,18 +1300,19 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const [openBudget, setOpenBudget] = useState(true);
   const [openHud, setOpenHud] = useState(true);
   const [openLighting, setOpenLighting] = useState(true);
+  const [openInfinite, setOpenInfinite] = useState(true);
 
   // "Contraer/expandir todo", scoped per sidebar column (the centre minimap panel keeps its own toggle).
   const anyLeftPanelOpen = openTools || openAtlas || openAutotile || openStamps || openBitmapTiles
     || openCategories || openLayers || openForeground || openPlacement;
-  const anyRightPanelOpen = openConfig || openHud || openLighting || openGridOptions || openTarget
+  const anyRightPanelOpen = openConfig || openHud || openLighting || openInfinite || openGridOptions || openTarget
     || openPalette || openBudget;
   const setLeftPanelsOpen = (open: boolean) => {
     for (const setOpen of [setOpenTools, setOpenAtlas, setOpenAutotile, setOpenStamps, setOpenBitmapTiles,
       setOpenCategories, setOpenLayers, setOpenForeground, setOpenPlacement]) setOpen(open);
   };
   const setRightPanelsOpen = (open: boolean) => {
-    for (const setOpen of [setOpenConfig, setOpenHud, setOpenLighting, setOpenGridOptions, setOpenTarget,
+    for (const setOpen of [setOpenConfig, setOpenHud, setOpenLighting, setOpenInfinite, setOpenGridOptions, setOpenTarget,
       setOpenPalette, setOpenBudget]) setOpen(open);
   };
 
@@ -1315,6 +1353,18 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     );
   };
 
+  // Infinite Room: with the loop active every edge leads back into this room.
+  const infiniteRoomConfig = room.infiniteRoom;
+  const isInfiniteRoom = infiniteRoomConfig?.enabled === true;
+  const infiniteInitialActive = infiniteRoomConfig?.initialLoopActive !== false;
+  const updateInfiniteRoom = (patch: { enabled?: boolean; initialLoopActive?: boolean }) => {
+    onUpdate({
+      infiniteRoom: {
+        enabled: patch.enabled ?? isInfiniteRoom,
+        initialLoopActive: patch.initialLoopActive ?? infiniteInitialActive,
+      },
+    });
+  };
   const handleLinkHudAsset = (nextId: string) => {
     const nextHudAsset = nextId ? hudAssets.find(asset => asset.id === nextId) : undefined;
     onUpdate({ runtime: withHudAssetId(nextId || undefined) });
@@ -1550,6 +1600,19 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       || selectedPlacedEntity.kind === 'carryable'
     )
   ));
+  const roomTriggerZoneCount = placedEntities.filter(entity => isTriggerZoneEntity(entity)).length;
+  const carrySkillActive = useMemo(
+    () => playerAssets.some(asset => {
+      const player: any = parseMsx2PlayerImport(asset.data);
+      return Array.isArray(player?.activeSkills) && player.activeSkills.includes('carry_and_throw');
+    }),
+    [playerAssets],
+  );
+  const roomCarryables = useMemo(() => placedEntities.filter(entity => isCarryableEntity(entity)), [placedEntities]);
+  const selectedIsTriggerZone = isTriggerZoneEntity(selectedPlacedEntity);
+  const selectedTriggerZoneConfig = selectedIsTriggerZone
+    ? normalizeTriggerZoneConfig(selectedPlacedEntity?.params?.triggerZone || selectedPlacedEntity?.components?.msx2_trigger_zone)
+    : null;
   const carryableBitmapEntries = useMemo(
     () => (room.atlas?.entries || []).filter(entry => Number(entry.w) >= 16 && Number(entry.h) >= 16),
     [room.atlas?.entries],
@@ -1942,6 +2005,30 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
             ctx.fillRect(endX + cell / 2 - 3, endY + cell / 2 - 3, 6, 6);
             ctx.restore();
           }
+        }
+        if (isTriggerZoneEntity(entity)) {
+          // Trigger zone: a pixel rectangle anchored at the entity cell, dashed outline + 'Z'.
+          const zone = normalizeTriggerZoneConfig(entity.params?.triggerZone || entity.components?.msx2_trigger_zone);
+          const zx = cx * GRID * zoom;
+          const zy = cy * GRID * zoom;
+          const zw = zone.w * zoom;
+          const zh = zone.h * zoom;
+          const zoneSelected = selectedPlacedId === entity.id;
+          ctx.save();
+          ctx.fillStyle = zone.enabled ? 'rgba(255,208,64,0.22)' : 'rgba(160,160,160,0.18)';
+          ctx.fillRect(zx, zy, zw, zh);
+          ctx.strokeStyle = zoneSelected ? '#FFD24A' : '#FFC040';
+          ctx.lineWidth = zoneSelected ? 2 : 1;
+          ctx.setLineDash([6, 4]);
+          ctx.strokeRect(zx + 0.5, zy + 0.5, zw - 1, zh - 1);
+          ctx.setLineDash([]);
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = `${Math.max(8, Math.floor(cell * 0.5))}px monospace`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('Z', zx + Math.min(zw, cell) / 2, zy + Math.min(zh, cell) / 2);
+          ctx.restore();
+          return;
         }
         const isEnemy = entity.kind === 'enemy';
         const isBoss = entity.kind === 'boss';
@@ -2431,6 +2518,12 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     const entity = placedEntities.find(item => item.id === id);
     const current = normalizeLockedDoorConfig(entity?.params?.lockedDoor);
     updatePlacedEntityParams(id, { lockedDoor: { ...current, ...patch } });
+  };
+
+  const updateTriggerZoneConfig = (id: string, patch: Partial<TriggerZoneConfig>) => {
+    const entity = placedEntities.find(item => item.id === id);
+    const current = normalizeTriggerZoneConfig(entity?.params?.triggerZone || entity?.components?.msx2_trigger_zone);
+    updatePlacedEntityParams(id, { triggerZone: { ...current, ...patch } });
   };
 
   const updateWorldExitConfig = (id: string, patch: Partial<Msx2WorldExitConfig>) => {
@@ -6368,6 +6461,58 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                     </div>
                   )}
 
+                  {selectedPlacedEntity && selectedTriggerZoneConfig && (
+                    <div className="rounded border border-amber-500/60 bg-amber-950/20 p-2 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-[0.7rem] text-amber-300">Zona disparadora</div>
+                        <label className="flex items-center gap-1 text-[0.65rem] text-msx-textsecondary">
+                          <input
+                            type="checkbox"
+                            checked={selectedTriggerZoneConfig.enabled}
+                            onChange={event => updateTriggerZoneConfig(selectedPlacedEntity.id, { enabled: event.target.checked })}
+                          />
+                          Activa
+                        </label>
+                      </div>
+                      <div className="text-[0.6rem] text-msx-textsecondary leading-tight">
+                        Se cumple mientras el centro de un objeto transportable <span className="text-msx-textprimary">en reposo</span> (no
+                        llevado ni en vuelo) esta dentro del rectangulo. En una Sala infinita invierte el bucle. La esquina
+                        superior izquierda es la celda de la entidad.
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="block text-[0.6rem] text-msx-textsecondary">
+                          Ancho (px)
+                          <input type="number" min={1} max={255} value={selectedTriggerZoneConfig.w}
+                            onChange={event => updateTriggerZoneConfig(selectedPlacedEntity.id, { w: Math.max(1, Math.min(255, Math.floor(Number(event.target.value) || 32))) })}
+                            className="mt-0.5 w-full rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-xs text-msx-textprimary" />
+                        </label>
+                        <label className="block text-[0.6rem] text-msx-textsecondary">
+                          Alto (px)
+                          <input type="number" min={1} max={255} value={selectedTriggerZoneConfig.h}
+                            onChange={event => updateTriggerZoneConfig(selectedPlacedEntity.id, { h: Math.max(1, Math.min(255, Math.floor(Number(event.target.value) || 32))) })}
+                            className="mt-0.5 w-full rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-xs text-msx-textprimary" />
+                        </label>
+                      </div>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Objeto que la cumple
+                        <select
+                          value={selectedTriggerZoneConfig.targetEntityId}
+                          onChange={event => updateTriggerZoneConfig(selectedPlacedEntity.id, { targetEntityId: event.target.value })}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                          aria-label="Carryable que cumple la zona"
+                        >
+                          <option value="">Cualquier carryable de la sala</option>
+                          {roomCarryables.map(entity => (
+                            <option key={entity.id} value={entity.id}>{entity.name || entity.id}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="text-[0.6rem] text-msx-textsecondary leading-tight">
+                        v1: solo una zona por sala (se usa la primera) y solo la condicion "objeto transportable".
+                      </div>
+                    </div>
+                  )}
+
                   {selectedPlacedEntity
                     && selectedPressureButtonConfig
                     && (
@@ -7443,6 +7588,50 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                 intensos 0..7 de la paleta emparejada. Al agotarse el tiempo, recupera sus colores
                 normales y las setas comidas regeneran su tile y vuelven a brillar. Sin la skill,
                 el jugador lleva una lámpara siempre encendida.
+              </div>
+            )}
+          </CollapsiblePanel>
+
+          <CollapsiblePanel title="Sala infinita" isOpen={openInfinite} onToggle={() => setOpenInfinite(v => !v)}>
+            <label className="flex items-center gap-2 text-xs text-msx-textsecondary">
+              <input
+                type="checkbox"
+                checked={isInfiniteRoom}
+                onChange={event => updateInfiniteRoom({ enabled: event.target.checked })}
+              />
+              Sala infinita (bucle estilo Bosque Perdido)
+            </label>
+            <label className={`mt-2 flex items-center gap-2 text-xs ${isInfiniteRoom ? 'text-msx-textsecondary' : 'text-msx-textsecondary/50'}`}>
+              <input
+                type="checkbox"
+                checked={infiniteInitialActive}
+                disabled={!isInfiniteRoom}
+                onChange={event => updateInfiniteRoom({ initialLoopActive: event.target.checked })}
+              />
+              Bucle activo al entrar
+            </label>
+            <div className="mt-2 text-[0.65rem] text-msx-textsecondary leading-tight">
+              Con el bucle activo, salir por cualquier borde (N, S, E, O) devuelve al jugador a esta misma
+              sala por el borde opuesto. Una <span className="text-msx-textprimary">Zona disparadora</span>{' '}
+              con un objeto transportable en reposo dentro invierte el bucle (suena un aviso cada vez).
+              Al volver a la sala, el objeto sigue donde lo dejaste.
+            </div>
+            {isInfiniteRoom && roomTriggerZoneCount === 0 && (
+              <div className="mt-2 rounded border border-msx-warning bg-msx-bgcolor p-2 text-[0.65rem] text-msx-textsecondary leading-tight">
+                <span className="text-msx-warning font-semibold">Sin zona disparadora:</span> el bucle sera
+                constante ({infiniteInitialActive ? 'siempre activo, el jugador no podra salir' : 'siempre apagado'}).
+                Coloca una "MSX2 Trigger Zone" en la sala.
+              </div>
+            )}
+            {isInfiniteRoom && roomTriggerZoneCount > 1 && (
+              <div className="mt-2 rounded border border-msx-warning bg-msx-bgcolor p-2 text-[0.65rem] text-msx-textsecondary leading-tight">
+                <span className="text-msx-warning font-semibold">Varias zonas:</span> en v1 solo se usa la primera.
+              </div>
+            )}
+            {isInfiniteRoom && roomTriggerZoneCount > 0 && !carrySkillActive && (
+              <div className="mt-2 rounded border border-msx-warning bg-msx-bgcolor p-2 text-[0.65rem] text-msx-textsecondary leading-tight">
+                <span className="text-msx-warning font-semibold">Falta la skill carry_and_throw</span> en el Player:
+                sin ella la zona no se evalua y el bucle queda en su estado inicial.
               </div>
             )}
           </CollapsiblePanel>
