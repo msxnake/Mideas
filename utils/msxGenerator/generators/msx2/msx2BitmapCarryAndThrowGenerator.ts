@@ -553,7 +553,14 @@ ${setCommandSourceAtlasY(slot)}${setCommandDestinationCurrent(slot)}${setCommand
     cp b
     jp z, .carry_bitmap_slot_${slot}_done
 .carry_bitmap_slot_${slot}_changed:
-${restore}
+    ; Nothing of this slot is on the displayed page yet (first draw after a room
+    ; load / page flip, drawn = 0): the scratch rectangle and old X/Y are stale
+    ; (cold boot = zeros, old X/Y = 0,0). Restoring them would paste the stale
+    ; scratch over game cell (0,0) and blank/fragment the top-left tile.
+    ld a, (${slotAddress(drawnOff, slot)})
+    or a
+    jp z, .carry_bitmap_slot_${slot}_no_restore
+${restore}.carry_bitmap_slot_${slot}_no_restore:
 ${save}    ld a, (${slotAddress(xOff, slot)})
     ld (${slotAddress(oldXOff, slot)}), a
     ld a, (${slotAddress(yOff, slot)})

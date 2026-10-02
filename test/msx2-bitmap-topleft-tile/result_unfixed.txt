@@ -1,0 +1,11 @@
+SHOT t01_boot screen=0 state=0 px=48 py=160 R2=1f
+FAIL boot: cell(0,0) page0 matches green brick mismatched_rows=16
+FAIL boot: cell(0,0) page0 no zero bytes zero_bytes=64
+SHOT t02_roomB screen=1 state=0 px=6 py=168 R2=3f
+B cell rows: 1111111111111111 1fffffff1ffffff1 1fffffff1ffffff1 1fffffff1ffffff1 1fffffff1ffffff1 1fffffff1ffffff1 1fffffff1ffffff1 1fffffff1ffffff1 1111111111111111 1ffffffffffffff1 1ffffffffffffff1 1ffffffffffffff1 1ffffffffffffff1 1ffffffffffffff1 1ffffffffffffff1 1111111111111111
+PASS roomB: cell(0,0) is the white brick (golden with c->f) 
+PASS roomB: cell(0,0) no zero bytes zero_bytes=0
+SHOT t03_back_roomA screen=0 state=0 px=232 py=160 R2=1f
+FAIL A->B->A: cell(0,0) page0 matches green brick mismatched_rows=15 rows=1111111111111111 7777777777777777 4466666666666644 4466666666666644 4466119911996644 4466119911996644 5566119911996655 55ffffffffff6655 1166119911996611 7766119911996677 4466119911996644 4466119911996644 4466119911996644 44ffffffffff6644 5566119911996655 5566119911996655
+PASS A->B->A: cell(0,0) no zero bytes zero_bytes=0
+RESULT 6 checks, 3 failed
