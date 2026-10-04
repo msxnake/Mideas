@@ -91,6 +91,7 @@ export interface Msx2PlayerDocument {
     health: Msx2PlayerDefinition['health'];
     weapons?: Msx2PlayerDefinition['weapons'];
     equippedWeaponId?: string;
+    weaponSwitchKey?: Msx2PlayerDefinition['weaponSwitchKey'];
     combat: {
       attack: Msx2PlayerDefinition['attack'];
       attackHitbox?: Msx2PlayerDefinition['hitboxes']['attack'];
@@ -289,6 +290,7 @@ export const buildDetailedMsx2PlayerDocument = (
       health: normalized.health,
       weapons: normalized.weapons || [],
       equippedWeaponId: normalized.equippedWeaponId,
+      ...(normalized.weaponSwitchKey ? { weaponSwitchKey: normalized.weaponSwitchKey } : {}),
       combat: {
         attack: normalized.attack,
         attackHitbox: normalized.hitboxes.attack,
@@ -338,6 +340,7 @@ export const mergeMsx2PlayerUpdate = (
     health: partialPatch.health ? { ...base.health, ...partialPatch.health } : base.health,
     weapons: partialPatch.weapons ?? base.weapons,
     equippedWeaponId: partialPatch.equippedWeaponId ?? base.equippedWeaponId,
+    weaponSwitchKey: partialPatch.weaponSwitchKey ?? base.weaponSwitchKey,
     attack: partialPatch.attack ? { ...base.attack, ...partialPatch.attack } : base.attack,
     interaction: partialPatch.interaction ? { ...base.interaction, ...partialPatch.interaction } : base.interaction,
     sounds: partialPatch.sounds ? { ...(base.sounds || {}), ...partialPatch.sounds } : base.sounds,

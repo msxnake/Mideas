@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Msx2BitmapStampAsset, Msx2DialogueAsset, Msx2DialogueLine, Msx2DialoguePortrait, Msx2HudFontAsset, ProjectAsset, Screen5PaletteSlot } from '../../types';
+import { getMsx2HudFontGlyphWidth } from '../../utils/msx2HudFontUtils';
 import { createDefaultScreen5PaletteSlots, screen5SlotsToMsxColors } from '../../utils/msx2PaletteUtils';
 import { bitmapStampToPixelGrid, buildScreen5BitmapStampAsset, createScreen5PaletteAssetForTile, findMatchingScreen5PaletteAsset } from '../../utils/msx2Screen5BitmapTileLibrary';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { PencilIcon, PlayIcon, PlusCircleIcon, SaveFloppyIcon, TrashIcon } from '../icons/MsxIcons';
+import { PencilIcon, PlayIcon, PlusCircleIcon, SaveIcon, TrashIcon } from '../icons/MsxIcons';
 
 /**
  * Editor for 'msx2dialogue' assets: pixel-based NPC dialogues for the SCREEN 5
@@ -86,16 +87,24 @@ export const Msx2DialogueEditor: React.FC<Msx2DialogueEditorProps> = ({ dialogue
   const [previewNonce, setPreviewNonce] = useState(0);
   const previewAudioContextRef = useRef<AudioContext | null>(null);
 
-  const palette = useMemo(() => {
-    const slots = paletteSlots && paletteSlots.length === 16 ? paletteSlots : createDefaultScreen5PaletteSlots();
-    return screen5SlotsToMsxColors(slots).map(color => color.hex);
-  }, [paletteSlots]);
+  const activePaletteSlots = useMemo(() => {
+    const linked = allAssets.find(asset => asset.type === 'palette' && asset.id === dialogue.paletteAssetId);
+    const linkedSlots = (linked?.data as { slots?: Screen5PaletteSlot[] } | undefined)?.slots;
+    if (linkedSlots?.length === 16) return linkedSlots;
+    return paletteSlots && paletteSlots.length === 16 ? paletteSlots : createDefaultScreen5PaletteSlots();
+  }, [allAssets, dialogue.paletteAssetId, paletteSlots]);
+  const palette = useMemo(
+    () => screen5SlotsToMsxColors(activePaletteSlots).map(color => color.hex),
+    [activePaletteSlots]
+  );
 
   const fontAssets = useMemo(() => allAssets.filter(asset => asset.type === 'msx2hudfont'), [allAssets]);
   const fontAsset = useMemo(() => {
     const byId = dialogue.fontAssetId ? fontAssets.find(asset => asset.id === dialogue.fontAssetId) : undefined;
     return (byId || fontAssets[0])?.data as Msx2HudFontAsset | undefined;
   }, [dialogue.fontAssetId, fontAssets]);
+  // Typewriter advance: 8, or 4 for a half-width (4x8) SCREEN 5 font.
+  const glyphW = getMsx2HudFontGlyphWidth(fontAsset);
 
   const selectedPortrait = portraits.find(portrait => portrait.id === selectedPortraitId) || portraits[0];
 
@@ -164,10 +173,6 @@ export const Msx2DialogueEditor: React.FC<Msx2DialogueEditorProps> = ({ dialogue
 
   // ---- Head metatile round-trip against SCREEN 5 bitmap stamps (msx2bitmapstamp). ----
   const stampAssets = useMemo(() => allAssets.filter(asset => asset.type === 'msx2bitmapstamp'), [allAssets]);
-  const activePaletteSlots = useMemo(
-    () => (paletteSlots && paletteSlots.length === 16 ? paletteSlots : createDefaultScreen5PaletteSlots()),
-    [paletteSlots]
-  );
 
   /** Pour a chosen stamp metatile into the active frame, resizing the portrait to
    *  the stamp's dimensions (clamped to the 48px portrait ceiling = up to 3x3 tiles). */
@@ -254,10 +259,10 @@ export const Msx2DialogueEditor: React.FC<Msx2DialogueEditorProps> = ({ dialogue
     const textAvailW = side === 'right'
       ? (porMaxW === 0 ? interiorW - 2 * padding : porX - padding - textX)
       : interiorX + interiorW - padding - textX;
-    const textCols = Math.floor(textAvailW / 8);
+    const textCols = Math.floor(textAvailW / glyphW);
     const textRows = Math.floor((interiorH - 2 * padding) / 8);
     return { boxX, boxY, boxW, boxH, padding, porX, porY, porMaxW, porMaxH, textX, textY: interiorY + padding, textCols, textRows };
-  }, [box, portraits]);
+  }, [box, portraits, glyphW]);
 
   // ---- Preview: typewriter + mouth animation on a 2x canvas. ----
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -278,7 +283,7 @@ export const Msx2DialogueEditor: React.FC<Msx2DialogueEditorProps> = ({ dialogue
       if (fontAsset?.vdpMode === 'SCREEN5' && Array.isArray(bitmap)) {
         const fontBg = clampSlot(fontAsset.screen5BackgroundSlot, 0);
         for (let y = 0; y < 8; y++) {
-          for (let x = 0; x < 8; x++) {
+          for (let x = 0; x < glyphW; x++) {
             const slot = clampSlot(bitmap[y]?.[x], fontBg);
             ctx.fillStyle = slot === fontBg ? bg : palette[slot];
             ctx.fillRect((px + x) * 2, (py + y) * 2, 2, 2);
@@ -289,7 +294,7 @@ export const Msx2DialogueEditor: React.FC<Msx2DialogueEditorProps> = ({ dialogue
       const pattern = fontAsset?.patterns?.[char] || FALLBACK_PATTERNS[char];
       if (pattern) {
         for (let y = 0; y < 8; y++) {
-          for (let x = 0; x < 8; x++) {
+          for (let x = 0; x < glyphW; x++) {
             ctx.fillStyle = ((Number(pattern[y]) || 0) & (0x80 >> x)) ? textColor : bg;
             ctx.fillRect((px + x) * 2, (py + y) * 2, 2, 2);
           }
@@ -372,7 +377,7 @@ export const Msx2DialogueEditor: React.FC<Msx2DialogueEditorProps> = ({ dialogue
 
     const startLine = () => {
       ctx.fillStyle = bg;
-      ctx.fillRect(layout.textX * 2, layout.textY * 2, layout.textCols * 16, layout.textRows * 16);
+      ctx.fillRect(layout.textX * 2, layout.textY * 2, layout.textCols * glyphW * 2, layout.textRows * 16);
       drawPortraitFrame(plan[lineIndex].portrait, false);
       mouthOpen = false;
       rowIndex = 0;
@@ -403,7 +408,7 @@ export const Msx2DialogueEditor: React.FC<Msx2DialogueEditorProps> = ({ dialogue
           colIndex = 0;
         } else {
           const char = rows[rowIndex][colIndex];
-          drawGlyph(char, layout.textX + colIndex * 8, layout.textY + rowIndex * 8);
+          drawGlyph(char, layout.textX + colIndex * glyphW, layout.textY + rowIndex * 8);
           colIndex++;
           charCount++;
           if (mouthEvery > 0 && charCount % mouthEvery === 0) {
@@ -422,7 +427,7 @@ export const Msx2DialogueEditor: React.FC<Msx2DialogueEditorProps> = ({ dialogue
       disposed = true;
       cancelAnimationFrame(frameHandle);
     };
-  }, [previewNonce, lines, portraits, layout, palette, box, exportOptions, fontAsset, dialogue.defaultPortraitId]);
+  }, [previewNonce, lines, portraits, layout, palette, box, exportOptions, fontAsset, glyphW, dialogue.defaultPortraitId]);
 
   // ---- Portrait frame canvas painting. ----
   const frameCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -652,7 +657,7 @@ export const Msx2DialogueEditor: React.FC<Msx2DialogueEditorProps> = ({ dialogue
                         <option key={asset.id} value={asset.id}>{asset.name}</option>
                       ))}
                     </select>
-                    <Button size="sm" variant="ghost" icon={<SaveFloppyIcon className="w-3 h-3" />} onClick={exportFrameToStamp}>
+                    <Button size="sm" variant="ghost" icon={<SaveIcon className="w-3 h-3" />} onClick={exportFrameToStamp}>
                       Exportar frame → stamp
                     </Button>
                     <span className="text-[9px] text-msx-textsecondary leading-tight">

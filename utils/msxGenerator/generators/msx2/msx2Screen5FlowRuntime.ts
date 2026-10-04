@@ -39,12 +39,18 @@ export interface Screen5FlowRuntimeFeatures {
   wipeMirror: boolean;
   wipeDiagonal: boolean;
   psgSilence: boolean;
+  /**
+   * gf_wait_key / gf_wait_frames without the text engine (a flow made only of
+   * presentations and transitions). Ignored when the text engine is emitted,
+   * which already contains them.
+   */
+  waits?: boolean;
 }
 
 const hexByte = (value: number): string => `#${(value & 0xff).toString(16).toUpperCase().padStart(2, '0')}`;
 
 /** RAM equates. `base` must leave 0x600 free bytes below the ZX0 staging buffer. */
-export function generateScreen5FlowRamEquates(base: number, textBufferBase: number): string {
+export function generateScreen5FlowRamEquates(base: number, textBufferBase: number, withTransitionSceneHook = false): string {
   const at = (offset: number) => `#${(base + offset).toString(16).toUpperCase().padStart(4, '0')}`;
   return `; ---- SCREEN 5 GameFlow runtime RAM ----
 GF_FG_PIX        EQU ${at(0x00)}   ; foreground palette index used by gf_print
@@ -56,7 +62,10 @@ GF_MENU_INDEX    EQU ${at(0x06)}   ; highlighted SubMenu option
 GF_MENU_PREV     EQU ${at(0x07)}   ; previous GTSTCK value (edge detection)
 GF_SCROLL_BG     EQU ${at(0x08)}   ; palette index used to clear the scroll band
 GF_MIRROR_X      EQU ${at(0x0A)}   ; word: mirror wipe cursor
-GF_CMD_PARAMS    EQU ${at(0x10)}   ; 15 bytes mirroring VDP R#32..R#46
+${withTransitionSceneHook ? `GF_TFX_MODE      EQU ${at(0x0C)}   ; 0 idle, 1 fade next scene in, 2 next scene keeps palette
+GF_TFX_FADE_FPS  EQU ${at(0x0D)}   ; frames per step of the pending fade in
+GF_TFX_FADE_PTR  EQU ${at(0x0E)}   ; word: palette the pending fade in starts from
+` : ''}GF_CMD_PARAMS    EQU ${at(0x10)}   ; 15 bytes mirroring VDP R#32..R#46
 GF_CMD_SX        EQU GF_CMD_PARAMS + 0
 GF_CMD_SY        EQU GF_CMD_PARAMS + 2
 GF_CMD_DX        EQU GF_CMD_PARAMS + 4
@@ -417,7 +426,12 @@ gf_expand_pick:
 gf_expand_pick_bg:
     ld a, (GF_BG_PIX)
     ret
+${generateWaitHelpers()}`;
+}
 
+/** gf_wait_key / gf_wait_frames (part of the text engine, or standalone). */
+function generateWaitHelpers(): string {
+  return `
 ; ------------------------------------------------------------------
 ; gf_wait_key / gf_wait_frames
 ; ------------------------------------------------------------------
@@ -732,7 +746,7 @@ ${chunkedDb(fontBytes)}
   return [
     generateVdpCommandHelpers(),
     generatePaletteHelpers(features.fade),
-    features.text || features.menu || features.scroll ? generateTextEngine() : '',
+    features.text || features.menu || features.scroll ? generateTextEngine() : features.waits ? generateWaitHelpers() : '',
     features.menu ? generateMenuHelpers() : '',
     features.scroll ? generateScrollHelpers() : '',
     generateWipeHelpers(features),

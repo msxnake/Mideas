@@ -1,9 +1,10 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { DataFormat, Msx2HudFontAsset, PaletteAsset, Point, ProjectAsset, Screen5PaletteSlot } from '../../types';
 import { createDefaultScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
+import { DEFAULT_HUD_FONT_4X8_PATTERNS, MSX2_HUD_FONT_4X8_EXTRA_CHARS, getMsx2HudFontGlyphWidth } from '../../utils/msx2HudFontUtils';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { CodeIcon, FolderOpenIcon, LoadIcon, PencilIcon, SaveFloppyIcon } from '../icons/MsxIcons';
+import { CodeIcon, FolderOpenIcon, LoadIcon, PencilIcon, SaveIcon } from '../icons/MsxIcons';
 
 const CHAR_WIDTH = 8;
 const CHAR_HEIGHT = 8;
@@ -76,6 +77,7 @@ const buildGradientBitmap = (
   backgroundSlot: number,
   angleDeg: number,
   stops: number[],
+  cols = 8,
 ): number[][] => {
   const safeStops = stops.map(stop => stop & 0x0f).filter(stop => Number.isFinite(stop));
   if (safeStops.length === 0) return bitmap.map(row => [...row]);
@@ -84,9 +86,9 @@ const buildGradientBitmap = (
   const dy = Math.sin(radians);
   const corners = [
     { x: 0, y: 0 },
-    { x: 7, y: 0 },
+    { x: cols - 1, y: 0 },
     { x: 0, y: 7 },
-    { x: 7, y: 7 },
+    { x: cols - 1, y: 7 },
   ].map(point => (point.x * dx) + (point.y * dy));
   const minProjection = Math.min(...corners);
   const maxProjection = Math.max(...corners);
@@ -166,6 +168,8 @@ const SingleCharPreview: React.FC<{
   vdpMode: 'SCREEN4' | 'SCREEN5';
   paletteSlots: Screen5PaletteSlot[];
   isSelected?: boolean;
+  /** Visible glyph columns: 8, or 4 for a half-width SCREEN 5 font. */
+  cols?: number;
 }> = ({
   pattern,
   bitmapPattern,
@@ -174,6 +178,7 @@ const SingleCharPreview: React.FC<{
   vdpMode,
   paletteSlots,
   isSelected,
+  cols = CHAR_WIDTH,
 }) => {
   const fg = msx2PaletteHex((colorByte >> 4) & 0x0f);
   const bg = msx2PaletteHex(colorByte & 0x0f);
@@ -183,16 +188,16 @@ const SingleCharPreview: React.FC<{
     <div
       className={`grid border ${isSelected ? 'border-msx-danger' : 'border-msx-border'}`}
       style={{
-        gridTemplateColumns: `repeat(8, ${scale}px)`,
+        gridTemplateColumns: `repeat(${cols}, ${scale}px)`,
         gridTemplateRows: `repeat(8, ${scale}px)`,
-        width: CHAR_WIDTH * scale,
+        width: cols * scale,
         height: CHAR_HEIGHT * scale,
         imageRendering: 'pixelated',
       }}
     >
-      {Array.from({ length: 64 }, (_unused, index) => {
-        const y = Math.floor(index / 8);
-        const x = index % 8;
+      {Array.from({ length: cols * CHAR_HEIGHT }, (_unused, index) => {
+        const y = Math.floor(index / cols);
+        const x = index % cols;
         const lit = Boolean((pattern[y] || 0) & (0x80 >> x));
         const color = vdpMode === 'SCREEN5'
           ? paletteHex(paletteSlots, bitmap[y]?.[x] ?? 0)
@@ -211,7 +216,8 @@ const FontPixelGrid: React.FC<{
   colorByte: number;
   vdpMode: 'SCREEN4' | 'SCREEN5';
   paletteSlots: Screen5PaletteSlot[];
-}> = ({ pattern, bitmapPattern, onPixelClick, pixelSize, colorByte, vdpMode, paletteSlots }) => {
+  cols?: number;
+}> = ({ pattern, bitmapPattern, onPixelClick, pixelSize, colorByte, vdpMode, paletteSlots, cols = CHAR_WIDTH }) => {
   const fg = msx2PaletteHex((colorByte >> 4) & 0x0f);
   const bg = msx2PaletteHex(colorByte & 0x0f);
 
@@ -219,17 +225,17 @@ const FontPixelGrid: React.FC<{
     <div
       className="grid border border-msx-border shadow-inner"
       style={{
-        gridTemplateColumns: `repeat(8, ${pixelSize}px)`,
+        gridTemplateColumns: `repeat(${cols}, ${pixelSize}px)`,
         gridTemplateRows: `repeat(8, ${pixelSize}px)`,
-        width: CHAR_WIDTH * pixelSize,
+        width: cols * pixelSize,
         height: CHAR_HEIGHT * pixelSize,
         imageRendering: 'pixelated',
         cursor: 'pointer',
       }}
     >
-      {Array.from({ length: 64 }, (_unused, index) => {
-        const y = Math.floor(index / 8);
-        const x = index % 8;
+      {Array.from({ length: cols * CHAR_HEIGHT }, (_unused, index) => {
+        const y = Math.floor(index / cols);
+        const x = index % cols;
         const lit = Boolean((pattern[y] || 0) & (0x80 >> x));
         const color = vdpMode === 'SCREEN5'
           ? paletteHex(paletteSlots, bitmapPattern[y]?.[x] ?? 0)
@@ -271,6 +277,8 @@ export const Msx2HudFontEditor: React.FC<Msx2HudFontEditorProps> = ({ font, onUp
 
   const colorByte = Math.max(0, Math.min(255, Number(font.colorByte ?? 0xF1) || 0xF1));
   const vdpMode: 'SCREEN4' | 'SCREEN5' = font.vdpMode === 'SCREEN5' ? 'SCREEN5' : 'SCREEN4';
+  // Half-width (4x8) fonts only exist in SCREEN 5; columns 4-7 are ignored there.
+  const glyphCols = getMsx2HudFontGlyphWidth(font);
   const currentPattern = normalizePattern(font.patterns?.[selectedChar]);
   const fg = (colorByte >> 4) & 0x0f;
   const bg = colorByte & 0x0f;
@@ -330,7 +338,9 @@ export const Msx2HudFontEditor: React.FC<Msx2HudFontEditorProps> = ({ font, onUp
   };
   const handleInvertCharacter = () => {
     if (vdpMode === 'SCREEN5') {
-      updateBitmapPattern(selectedChar, currentBitmapPattern.map(row => row.map(value => value === screen5BackgroundSlot ? selectedScreen5Color : screen5BackgroundSlot)));
+      updateBitmapPattern(selectedChar, currentBitmapPattern.map(row => row.map((value, x) => (
+        x >= glyphCols || value !== screen5BackgroundSlot ? screen5BackgroundSlot : selectedScreen5Color
+      ))));
     } else {
       updatePattern(selectedChar, currentPattern.map(byte => (~byte) & 0xff));
     }
@@ -341,9 +351,9 @@ export const Msx2HudFontEditor: React.FC<Msx2HudFontEditorProps> = ({ font, onUp
       for (let y = 0; y < 8; y++) {
         const sourceY = y - dy;
         if (sourceY < 0 || sourceY > 7) continue;
-        for (let x = 0; x < 8; x++) {
+        for (let x = 0; x < glyphCols; x++) {
           const sourceX = x - dx;
-          if (sourceX < 0 || sourceX > 7) continue;
+          if (sourceX < 0 || sourceX >= glyphCols) continue;
           next[y][x] = currentBitmapPattern[sourceY]?.[sourceX] ?? screen5BackgroundSlot;
         }
       }
@@ -415,7 +425,7 @@ export const Msx2HudFontEditor: React.FC<Msx2HudFontEditorProps> = ({ font, onUp
   const applyGradientToCurrentChar = () => {
     if (vdpMode !== 'SCREEN5') return;
     const stops = gradientStops.slice(0, gradientStopCount);
-    updateBitmapPattern(selectedChar, buildGradientBitmap(currentBitmapPattern, screen5BackgroundSlot, gradientAngle, stops));
+    updateBitmapPattern(selectedChar, buildGradientBitmap(currentBitmapPattern, screen5BackgroundSlot, gradientAngle, stops, glyphCols));
   };
 
   const updateMode = (nextMode: 'SCREEN4' | 'SCREEN5') => {
@@ -433,6 +443,27 @@ export const Msx2HudFontEditor: React.FC<Msx2HudFontEditorProps> = ({ font, onUp
       });
       onUpdate({ vdpMode: 'SCREEN4', patterns: nextPatterns });
     }
+  };
+
+  const updateGlyphWidth = (nextWidth: 4 | 8) => {
+    onUpdate({ glyphWidth: nextWidth });
+  };
+
+  // Overwrites every glyph with the built-in 3x5 font (drawn in the current
+  // paint colour) and adds the punctuation it covers, so dialogues can use it.
+  const loadDefault4x8Font = () => {
+    if (!window.confirm('Replace every glyph of this font with the built-in 4x8 font?')) return;
+    const nextCharacters = characters.join('') + Array.from(MSX2_HUD_FONT_4X8_EXTRA_CHARS).filter(char => !characters.includes(char)).join('');
+    const nextPatterns: Record<string, number[]> = { ...(font.patterns || {}) };
+    const nextBitmapPatterns: Record<string, number[][]> = { ...(font.bitmapPatterns || {}) };
+    Array.from(nextCharacters).forEach(char => {
+      const pattern = DEFAULT_HUD_FONT_4X8_PATTERNS[char];
+      if (!pattern) return;
+      nextPatterns[char] = [...pattern];
+      nextBitmapPatterns[char] = bitmapFromPattern(pattern, selectedScreen5Color, screen5BackgroundSlot);
+    });
+    onUpdate({ glyphWidth: 4, characters: nextCharacters, patterns: nextPatterns, bitmapPatterns: nextBitmapPatterns });
+    setImportStatus('Loaded the built-in 4x8 font (3x5 glyphs).');
   };
 
   const exportJson = () => {
@@ -479,6 +510,7 @@ export const Msx2HudFontEditor: React.FC<Msx2HudFontEditorProps> = ({ font, onUp
           bitmapPatterns: nextBitmapPatterns,
           paletteAssetId: typeof parsed.paletteAssetId === 'string' ? parsed.paletteAssetId : font.paletteAssetId,
           screen5BackgroundSlot: nextScreen5BackgroundSlot,
+          glyphWidth: parsed.glyphWidth === 4 ? 4 : 8,
           colorByte: nextColorByte,
           notes: String(parsed.notes || font.notes || ''),
         });
@@ -617,6 +649,7 @@ export const Msx2HudFontEditor: React.FC<Msx2HudFontEditorProps> = ({ font, onUp
         colorByte={colorByte}
         vdpMode={vdpMode}
         paletteSlots={paletteSlots}
+        cols={glyphCols}
       />
     );
   });
@@ -627,7 +660,7 @@ export const Msx2HudFontEditor: React.FC<Msx2HudFontEditorProps> = ({ font, onUp
         const bitmap = normalizeBitmapPattern(font.bitmapPatterns?.[char], normalizePattern(font.patterns?.[char]), fg, screen5BackgroundSlot);
         const bytes: number[] = [];
         for (let y = 0; y < 8; y++) {
-          for (let x = 0; x < 8; x += 2) {
+          for (let x = 0; x < glyphCols; x += 2) {
             bytes.push(((bitmap[y][x] & 0x0f) << 4) | (bitmap[y][x + 1] & 0x0f));
           }
         }
@@ -635,7 +668,7 @@ export const Msx2HudFontEditor: React.FC<Msx2HudFontEditorProps> = ({ font, onUp
       });
       return [
         '; MSX2 SCREEN 5 HUD bitmap font',
-        '; 4bpp glyphs, 8x8 pixels, 32 bytes per character, high nibble = left pixel',
+        `; 4bpp glyphs, ${glyphCols}x8 pixels, ${glyphCols * 4} bytes per character, high nibble = left pixel`,
         `; Palette asset: ${font.paletteAssetId || 'default'}`,
         'MSX2_HUD_FONT_SCREEN5_BITMAPS:',
         `    DB ${bitmapBytes.map(value => formatByte(value, dataOutputFormat)).join(',')}`,
@@ -651,7 +684,7 @@ export const Msx2HudFontEditor: React.FC<Msx2HudFontEditorProps> = ({ font, onUp
       'MSX2_HUD_FONT_COLORS:',
       `    DB ${colorBytes.map(value => formatByte(value, dataOutputFormat)).join(',')}`,
     ].join('\n');
-  }, [characters, colorByte, dataOutputFormat, fg, font.baseChar, font.bitmapPatterns, font.paletteAssetId, font.patterns, screen5BackgroundSlot, vdpMode]);
+  }, [characters, colorByte, dataOutputFormat, fg, font.baseChar, font.bitmapPatterns, font.paletteAssetId, font.patterns, glyphCols, screen5BackgroundSlot, vdpMode]);
 
   return (
     <Panel title="MSX2 Font Editor" icon={<PencilIcon />} className="flex-grow flex flex-col bg-msx-bgcolor">
@@ -659,7 +692,7 @@ export const Msx2HudFontEditor: React.FC<Msx2HudFontEditorProps> = ({ font, onUp
       <input type="file" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" ref={fontFileInputRef} onChange={handleFontFileSelected} style={{ display: 'none' }} />
       <input type="file" accept=".ch8,.bin,.fnt,.raw,application/octet-stream" ref={zxBinaryInputRef} onChange={handleZxBinarySelected} style={{ display: 'none' }} />
       <div className="p-2 border-b border-msx-border flex items-center space-x-2 flex-wrap gap-1">
-        <Button onClick={exportJson} size="sm" variant="secondary" icon={<SaveFloppyIcon />}>Save Font (.json)</Button>
+        <Button onClick={exportJson} size="sm" variant="secondary" icon={<SaveIcon />}>Save Font (.json)</Button>
         <Button onClick={() => fileInputRef.current?.click()} size="sm" variant="secondary" icon={<FolderOpenIcon />}>Load Font (.json)</Button>
         <Button onClick={() => fontFileInputRef.current?.click()} size="sm" variant="secondary" icon={<LoadIcon />}>Import TTF</Button>
         <Button onClick={() => zxBinaryInputRef.current?.click()} size="sm" variant="secondary" icon={<LoadIcon />}>Import ZX .ch8</Button>
@@ -676,6 +709,21 @@ export const Msx2HudFontEditor: React.FC<Msx2HudFontEditorProps> = ({ font, onUp
               <option value="SCREEN5">SCREEN 5</option>
             </select>
           </label>
+          <label className="flex items-center gap-1" title="4x8 = half-width font: two letters per 8 px cell (SCREEN 5 only)">
+            <span>Width</span>
+            <select
+              value={glyphCols}
+              disabled={vdpMode !== 'SCREEN5'}
+              onChange={event => updateGlyphWidth(Number(event.target.value) === 4 ? 4 : 8)}
+              className="bg-msx-bgcolor border border-msx-border rounded px-1 py-0.5 text-msx-textprimary disabled:opacity-50"
+            >
+              <option value={8}>8x8</option>
+              <option value={4}>4x8 (half)</option>
+            </select>
+          </label>
+          {glyphCols === 4 && (
+            <Button onClick={loadDefault4x8Font} size="sm" variant="secondary" icon={<LoadIcon />}>Load 4x8 base font</Button>
+          )}
           <span>Base: #{(font.baseChar || 0xC0).toString(16).toUpperCase().padStart(2, '0')}</span>
           <span>Glyphs: {characters.length}</span>
         </div>
@@ -705,6 +753,7 @@ export const Msx2HudFontEditor: React.FC<Msx2HudFontEditorProps> = ({ font, onUp
                     vdpMode={vdpMode}
                     paletteSlots={paletteSlots}
                     isSelected={selectedChar === char}
+                    cols={glyphCols}
                   />
                   <span className="mt-0.5 truncate block w-full text-center">{char === ' ' ? 'SP' : char}</span>
                 </button>
@@ -727,6 +776,7 @@ export const Msx2HudFontEditor: React.FC<Msx2HudFontEditorProps> = ({ font, onUp
             colorByte={colorByte}
             vdpMode={vdpMode}
             paletteSlots={paletteSlots}
+            cols={glyphCols}
           />
           <div className="mt-3 flex flex-wrap justify-center gap-2">
             <Button onClick={handleClearCharacter} variant="danger" size="sm">Clear Char</Button>
@@ -776,6 +826,7 @@ export const Msx2HudFontEditor: React.FC<Msx2HudFontEditorProps> = ({ font, onUp
             colorByte={colorByte}
             vdpMode={vdpMode}
             paletteSlots={paletteSlots}
+            cols={glyphCols}
           />
 
           <div className={`w-full ${vdpMode === 'SCREEN4' ? '' : 'opacity-60'}`}>
@@ -933,7 +984,7 @@ export const Msx2HudFontEditor: React.FC<Msx2HudFontEditorProps> = ({ font, onUp
             placeholder="Type to preview..."
             maxLength={20}
           />
-          <div className="p-1 border border-msx-border rounded min-h-[32px] w-full flex flex-wrap gap-px justify-center bg-black">
+          <div className={`p-1 border border-msx-border rounded min-h-[32px] w-full flex flex-wrap ${glyphCols === 4 ? '' : 'gap-px'} justify-center bg-black`}>
             {renderPreviewGlyphs()}
           </div>
           {font.notes && <p className="text-[0.65rem] text-msx-textsecondary">{font.notes}</p>}

@@ -4,7 +4,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { MSXFont, MSXCharacterPattern, Point, MSXFontColorAttributes, MSXFontRowColorAttributes, MSX1ColorValue, DataFormat } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { PencilIcon, SaveFloppyIcon, FolderOpenIcon, CodeIcon } from '../icons/MsxIcons';
+import { PencilIcon, SaveIcon, FolderOpenIcon, CodeIcon } from '../icons/MsxIcons';
 import { DEFAULT_MSX_FONT, EDITABLE_CHAR_CODES_SUBSET, ALL_CHAR_CODES_FOR_SELECTOR } from '../utils/msxFontRenderer';
 import { ExportFontASMModal } from '../modals/ExportFontASMModal';
 import { MSX1_PALETTE_IDX_MAP, MSX1_PALETTE_MAP, DEFAULT_SCREEN2_BG_COLOR, DEFAULT_SCREEN2_FG_COLOR } from '../../constants';
@@ -605,7 +605,7 @@ export const FontEditor: React.FC<FontEditorProps> = ({
     <Panel title="MSX1 Font Editor" icon={<PencilIcon />} className="flex-grow flex flex-col bg-msx-bgcolor">
       <input type="file" accept=".json" ref={fileInputRef} onChange={handleFileSelected} style={{ display: 'none' }} />
       <div className="p-2 border-b border-msx-border flex items-center space-x-2 flex-wrap gap-1">
-        <Button onClick={handleSaveFont} size="sm" variant="secondary" icon={<SaveFloppyIcon />}>Save Font (.json)</Button>
+        <Button onClick={handleSaveFont} size="sm" variant="secondary" icon={<SaveIcon />}>Save Font (.json)</Button>
         <Button onClick={handleLoadFontClick} size="sm" variant="secondary" icon={<FolderOpenIcon />}>Load Font (.json)</Button>
         <Button onClick={handleOpenExportAsmModal} size="sm" variant="secondary" icon={<CodeIcon />}>Export Font ASM</Button>
         <label className="flex items-center text-xs pixel-font text-msx-textsecondary ml-2">

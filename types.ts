@@ -279,6 +279,28 @@ export interface Msx2HardwareSpriteSettings {
   useOrColor?: boolean;
 }
 
+/** One row per frame of the owner sprite: which weapon frame is shown and where. */
+export interface Msx2WeaponBindingFrame {
+  /** Frame index inside the weapon sprite. */
+  weaponFrame: number;
+  /** Weapon position relative to the owner sprite's top-left corner (pixels, may be negative). */
+  offsetX: number;
+  offsetY: number;
+  /** true = weapon drawn over the owner sprite; false = behind it. */
+  inFront: boolean;
+  /** true = this frame damages (SCREEN 5 weapon runtime). No frame marked = the last frame hits. */
+  hits?: boolean;
+}
+
+/** Combination of an owner sprite (e.g. player_attack) with a weapon/tool sprite (e.g. Maza). */
+export interface Msx2WeaponBinding {
+  id: string;
+  /** Asset id of the weapon msx2sprite. */
+  weaponSpriteId: string;
+  /** Indexed by owner frame. Mirroring (facing the other way) is derived automatically. */
+  frames: Msx2WeaponBindingFrame[];
+}
+
 export interface Msx2Sprite {
   id: string;
   name: string;
@@ -303,6 +325,8 @@ export interface Msx2Sprite {
     offsetY: number;
   };
   hardware: Msx2HardwareSpriteSettings;
+  /** Weapon/tool sprites combined with this sprite, each with its own per-frame mapping and offsets. */
+  weaponBindings?: Msx2WeaponBinding[];
 }
 
 export interface Msx2Bitmap {
@@ -789,6 +813,11 @@ export type Msx2PlayerWeaponType = 'melee' | 'projectile' | 'arc' | 'bomb' | 'ma
 export type Msx2PlayerWeaponButton = 'a' | 'b';
 export type Msx2PlayerWeaponHitboxSource = 'attackByFacing' | 'custom' | 'none';
 export type Msx2PlayerWeaponAvailability = 'owned' | 'pickup' | 'locked';
+/**
+ * Keyboard key that cycles through the weapons the player owns (SCREEN 5
+ * bitmap rooms). 'none' disables cycling; picking up a weapon still equips it.
+ */
+export type Msx2PlayerWeaponSwitchKey = 'm' | 'b' | 'c' | 'x' | 'z' | 'tab' | 'none';
 export type Msx2PlayerWeaponEmptyBehavior = 'block' | 'unequip' | 'switchState';
 export type Msx2PlayerWeaponBreakBehavior = 'unequip' | 'remove' | 'keepBroken';
 
@@ -970,9 +999,15 @@ export interface Msx2PlayerDefinition {
      */
     deadlyInstantRespawn?: boolean;
   };
-  /** Declarative weapon definitions. Not consumed by MSX2 ASM yet. */
+  /**
+   * Weapon definitions. SCREEN 5 bitmap rooms run 'melee' weapons (hardware
+   * sprite drawn in front of the player for the attack frames) and use
+   * 'projectile' weapons as the shoot skill's selectable mode.
+   */
   weapons?: Msx2PlayerWeaponDefinition[];
   equippedWeaponId?: string;
+  /** Key that cycles through owned weapons (default 'm'). */
+  weaponSwitchKey?: Msx2PlayerWeaponSwitchKey;
   attack: {
     type: 'none' | 'melee' | 'projectile' | 'whip' | 'swordArc' | 'shot' | 'bomb';
     damage: number;
@@ -1083,6 +1118,8 @@ export type Msx2HudWidgetBinding =
   | 'carriedObject'
   /** Nuts in hand = shoot ammunition (SCREEN 5 bitmap rooms, bitmap_nut_count). */
   | 'ammo'
+  /** Currently equipped player weapon (icon widget; one icon per weapon via weaponIcons). */
+  | 'equippedWeapon'
   | 'custom';
 
 export interface Msx2HudWidget {
@@ -1170,6 +1207,12 @@ export interface Msx2HudElement {
   atlasEntryId?: string;
   /** Empty/background icon variant used by iconRow slots (e.g. lives pips). */
   emptyAtlasEntryId?: string;
+  /**
+   * equippedWeapon-bound icon widget: HUD icon id per player weapon id. The
+   * widget shows the equipped weapon's icon, or emptyAtlasEntryId (blank when
+   * unset) while no weapon is equipped.
+   */
+  weaponIcons?: Record<string, string>;
   /** @deprecated keyItem HUD widgets now reflect the shared key count
    *  (bitmap_key_count): the icon toggles empty (0 keys) / full (≥1 key) and a
    *  counter shows the total. This per-bit selector is no longer read; kept only
@@ -2054,7 +2097,7 @@ export interface Msx2BossDefinition {
    * the patrols bounce between the bounds on that axis. Empty/undefined keeps
    * the movement authored on the placed entity.
    */
-  bossMovement?: 'static' | 'patrolX' | 'patrolY' | 'patrolXY' | 'randomPath' | 'burrowRandom';
+  bossMovement?: 'static' | 'patrolX' | 'patrolY' | 'patrolXY' | 'randomPath' | 'burrowRandom' | 'chickCharge';
   /** Default `msx2bosspath` asset id; attack phases may override it. */
   bossPathId?: string;
   /** Patrol speed in px/frame; the 4px restore strips cap it at 2. */
@@ -2074,11 +2117,13 @@ export interface Msx2BossDefinition {
   /** Random 16px-aligned emergence columns, inclusive. */
   bossMoleMinX?: number;
   bossMoleMaxX?: number;
-  /** Offset below the 32px body where the ground is opened. */
+  /** Offset below the 32px body, retained for older El Topo projects. */
   bossMoleGroundOffsetPx?: number;
-  /** SCREEN 5 palette index painted into the opened 32x16 ground strip. */
+  /** Legacy opened-ground colour; ignored by the permanent-floor animation. */
   bossMoleHoleColor?: number;
-  /** Real 60Hz frames spent hidden, emerging and retreating. */
+  /** SCREEN 5 palette index for the warning sparks above the floor. */
+  bossMoleSparkColor?: number;
+  /** Real 60Hz frames spent warning/hidden, emerging and retreating. */
   bossMoleHiddenFrames?: number;
   bossMoleEmergeFrames?: number;
   bossMoleRetreatFrames?: number;
@@ -2088,6 +2133,12 @@ export interface Msx2BossDefinition {
   bossMoleRayAngleSteps?: number;
   /** Electric bolt speed in pixels per 60Hz frame. */
   bossMoleRaySpeed?: number;
+  /** Approximate peak height of El Topo's thrown rock; flight lasts 64 real frames. */
+  bossMoleRockArcHeightPx?: 40 | 60 | 80;
+  /** Pollito: wind-up, dizzy stomp window and pause after a successful peck, in 60 Hz frames. */
+  bossChickWindupFrames?: number;
+  bossChickStunFrames?: number;
+  bossChickRecoveryFrames?: number;
   /** Room Lock: 16x16 atlas tile that seals the room's empty perimeter cells. */
   bossBarrierTileId: string;
   /**
@@ -2137,7 +2188,7 @@ export interface Msx2BossDefinition {
     * the body's off-frames rather than every frame. 'aimed' keeps the original
    * raw-tick meaning so existing projects stay byte-identical.
    */
-  bossProjectilePattern?: 'aimed' | 'fallingRocks' | 'soapBubbles' | 'moleLightning';
+  bossProjectilePattern?: 'aimed' | 'fallingRocks' | 'soapBubbles' | 'moleLightning' | 'moleRock';
   /** Soap bubbles rebound this many times against the playfield edges. */
   bossBubbleBounces?: number;
   /** Mouth position within the boss bitmap, in pixels. */
@@ -3726,6 +3777,8 @@ export interface Msx2DialogueAsset {
   id: string;
   name: string;
   target: 'MSX2';
+  /** Palette used while editing/previewing portraits; runtime uses the room palette. */
+  paletteAssetId?: string;
   lines: Msx2DialogueLine[];
   box: Msx2DialogueBoxConfig;
   portraits: Msx2DialoguePortrait[];
@@ -3740,6 +3793,92 @@ export interface Msx2DialogueAsset {
     stripUnsupportedChars: boolean;
   };
 }
+
+// --- MSX2 SCREEN 5 Intro (illustrated slides + typewriter text) ---
+export interface Msx2IntroRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Image placed on a slide: `crop` of the source presentation scaled into `dest`. */
+export interface Msx2IntroImage {
+  id: string;
+  name: string;
+  /** `msx2presentation` asset that supplies the indexed pixels. */
+  sourceAssetId?: string;
+  /** Source rectangle (source pixels). */
+  crop: Msx2IntroRect;
+  /** Screen rectangle. x and w are kept even (SCREEN 5 = 2 px per byte). */
+  dest: Msx2IntroRect;
+  /**
+   * 1 bit per pixel image (a quarter of the ROM of 4 bpp): every pixel becomes `ink` or `paper`,
+   * whichever colour of the slide palette is closer to the source pixel. Undefined = full colour.
+   */
+  mono?: { ink: number; paper: number };
+}
+
+export interface Msx2IntroTextZone {
+  id: string;
+  name: string;
+  /** Screen rectangle. x and w are kept even. */
+  rect: Msx2IntroRect;
+  /** Palette slot of the glyphs. */
+  fg: number;
+  /** Palette slot painted behind the glyphs (the zone is opaque). */
+  bg: number;
+  /** Vertical distance between text lines, 8..16 px. */
+  lineSpacing: number;
+  /** Frames between typed characters. */
+  charDelayFrames: number;
+  /** `msx2hudfont` asset for this zone; undefined = the intro's font. */
+  fontAssetId?: string;
+}
+
+/** One typewriter beat: types `text` into `zoneId`, then waits for SPACE. */
+export interface Msx2IntroStep {
+  id: string;
+  zoneId: string;
+  text: string;
+  /** Fill the zone with its background before typing. */
+  clearBefore: boolean;
+  /** 0 = wait for SPACE / fire; N = advance by itself N frames after the text is complete. */
+  autoAdvanceFrames: number;
+}
+
+export type Msx2IntroTransition = 'cut' | 'fade';
+
+export interface Msx2IntroSlide {
+  id: string;
+  name: string;
+  /** Palette slot that fills the whole screen before the images are drawn. */
+  backgroundColor: number;
+  /** One 16-colour palette shared by every image and text of the slide. */
+  palette: Screen5PaletteSlot[];
+  images: Msx2IntroImage[];
+  textZones: Msx2IntroTextZone[];
+  steps: Msx2IntroStep[];
+  transitionIn: Msx2IntroTransition;
+  transitionOut: Msx2IntroTransition;
+}
+
+export interface Msx2IntroAsset {
+  id: string;
+  name: string;
+  target: 'MSX2';
+  /** Default `msx2hudfont` asset for every text zone; undefined = built-in 6x8 GameFlow font. */
+  fontAssetId?: string;
+  /**
+   * Music while the intro plays (SCREEN 5 bitmap export). Same convention as the WorldLink's
+   * "Music on entry": undefined = leave whatever is playing untouched, MSX2_WORLDLINK_MUSIC_NONE
+   * ('__none') = silence, otherwise the `track` asset that starts (looped) when the intro begins.
+   * The music is left playing when the intro ends; the next node decides what happens to it.
+   */
+  musicTrackAssetId?: string;
+  slides: Msx2IntroSlide[];
+}
+// --- End MSX2 SCREEN 5 Intro ---
 
 /** Params bag stored on an Msx2Screen4EntityInstance with kind 'npc'. */
 export interface Msx2NpcDialogueParams {
@@ -4031,7 +4170,7 @@ export interface GameFlowGraph {
 
 // --- MSX2 Game Flow Types ---
 
-export type Msx2GameFlowNodeType = 'Start' | 'Globals' | 'Screen5Presentation' | 'Screen4Screen' | 'SubMenu' | 'Controls' | 'Text' | 'TextScroll' | 'TextScrollColor' | 'WorldLink' | 'Waypoint' | 'IfThenElse' | 'Music' | 'Transition' | 'Restart' | 'End';
+export type Msx2GameFlowNodeType = 'Start' | 'Globals' | 'Screen5Presentation' | 'Screen4Screen' | 'SubMenu' | 'CodeEntry' | 'Controls' | 'Text' | 'TextScroll' | 'TextScrollColor' | 'WorldLink' | 'Waypoint' | 'IfThenElse' | 'Music' | 'Intro' | 'Transition' | 'Restart' | 'End';
 
 export interface Msx2GameFlowNode_Base {
   id: string;
@@ -4078,6 +4217,13 @@ export interface Msx2GameFlowTextScrollNode extends Msx2GameFlowNode_Base {
   backgroundColorIndex?: number;
   /** Frames each scrolled line stays before the window shifts up again. */
   scrollStepFrames?: number;
+  /**
+   * SCREEN 5 only. 'step' (default) jumps a whole text line at a time;
+   * 'smooth' scrolls pixel by pixel with a raster split (any MSX2 VDP);
+   * 'marquee' runs the text right-to-left along one line (hardware horizontal
+   * scroll on V9958 / MSX2+, VRAM copy on V9938).
+   */
+  scrollMode?: 'step' | 'smooth' | 'marquee';
   waitForKey?: boolean;
   waitFrames?: number;
 }
@@ -4091,6 +4237,13 @@ export interface Msx2GameFlowTextScrollColorNode extends Msx2GameFlowNode_Base {
   backgroundColorIndex?: number;
   /** Frames each scrolled line stays before the window shifts up again. */
   scrollStepFrames?: number;
+  /**
+   * SCREEN 5 only. 'step' (default) jumps a whole text line at a time;
+   * 'smooth' scrolls pixel by pixel with a raster split (any MSX2 VDP);
+   * 'marquee' runs the text right-to-left along one line (hardware horizontal
+   * scroll on V9958 / MSX2+, VRAM copy on V9938).
+   */
+  scrollMode?: 'step' | 'smooth' | 'marquee';
   waitForKey?: boolean;
   waitFrames?: number;
 }
@@ -4108,6 +4261,58 @@ export interface Msx2GameFlowSubMenuNode extends Msx2GameFlowNode_Base {
   /** SCREEN 5 palette indices for the idle and highlighted option rows. */
   textColorIndex?: number;
   backgroundColorIndex?: number;
+  highlightColorIndex?: number;
+  highlightBackgroundIndex?: number;
+  // ---- SCREEN 5 layout / cursor (optional; defaults keep the classic look) ----
+  /** 'bar' = highlight bar only (classic), 'arrow' = cursor glyph only, 'arrow_bar' = both. */
+  cursorStyle?: 'bar' | 'arrow' | 'arrow_bar';
+  /** Single printable character used as cursor (default '>'). */
+  cursorChar?: string;
+  /** 'vertical' (up/down) or 'horizontal' (left/right). */
+  layout?: 'vertical' | 'horizontal';
+  /** Horizontal alignment of the option block when menuX is not set. */
+  align?: 'center' | 'left';
+  /** Left edge of the option block in pixels (0..250). Unset = aligned by `align`. */
+  menuX?: number;
+  /** Y of the first option row in pixels (0..200). */
+  menuY?: number;
+  /** Pixels between option rows (vertical layout, 10..40). */
+  optionSpacing?: number;
+  /** Y of the title in pixels (0..200). */
+  titleY?: number;
+}
+
+/** Output port (connection `from.sourceId`) a CodeEntry follows on a wrong code or ESC. */
+export const MSX2_CODE_ENTRY_WRONG_PORT = '__wrong';
+export const MSX2_CODE_ENTRY_MIN_LENGTH = 3;
+export const MSX2_CODE_ENTRY_MAX_LENGTH = 8;
+export const MSX2_CODE_ENTRY_MAX_CODES = 8;
+
+export interface Msx2GameFlowCodeEntryCode {
+  /** Also the id of the output port (`from.sourceId`) this code leads through. */
+  id: string;
+  /** A-Z / 0-9, exactly `codeLength` characters. */
+  code: string;
+}
+
+/**
+ * Password screen (SCREEN 5 bitmap route): the player types a fixed-length code
+ * (keyboard, or cursor keys / joystick to cycle letters) and the flow follows the
+ * port of the matching code, typically into a WorldLink. A wrong code (or ESC)
+ * follows the MSX2_CODE_ENTRY_WRONG_PORT port; left unwired, the screen asks again.
+ */
+export interface Msx2GameFlowCodeEntryNode extends Msx2GameFlowNode_Base {
+  type: 'CodeEntry';
+  title: string;
+  codeLength: number;
+  codes: Msx2GameFlowCodeEntryCode[];
+  /** Shown for about a second when no code matches (empty = no message). */
+  errorText?: string;
+  /** Help line under the code slots (empty = none). */
+  hintText?: string;
+  textColorIndex?: number;
+  backgroundColorIndex?: number;
+  /** Colours of the slot under the cursor. */
   highlightColorIndex?: number;
   highlightBackgroundIndex?: number;
 }
@@ -4162,6 +4367,12 @@ export interface Msx2GameFlowIfThenElseNode extends Msx2GameFlowNode_Base {
   operator?: '==' | '!=' | '>' | '<' | '>=' | '<=';
 }
 
+/** Plays an `msx2intro` asset (illustrated slides + typewriter text) and continues. */
+export interface Msx2GameFlowIntroNode extends Msx2GameFlowNode_Base {
+  type: 'Intro';
+  introAssetId?: string;
+}
+
 export interface Msx2GameFlowMusicNode extends Msx2GameFlowNode_Base {
   type: 'Music';
   stop?: boolean;
@@ -4170,10 +4381,81 @@ export interface Msx2GameFlowMusicNode extends Msx2GameFlowNode_Base {
   autoPlay?: boolean;
 }
 
+/** Direction/order of a SCREEN 5 block transition (wipe, blinds, iris). */
+export type Msx2TransitionDirection =
+  | 'left_to_right'
+  | 'right_to_left'
+  | 'top_to_bottom'
+  | 'bottom_to_top'
+  | 'center_out_h'
+  | 'edges_in_h'
+  | 'center_out_v'
+  | 'edges_in_v'
+  | 'diagonal_tl'
+  | 'diagonal_tr'
+  | 'diagonal_bl'
+  | 'diagonal_br';
+
+/** Built-in dissolve patterns for `screen5_pattern` (tiled order maps). */
+export type Msx2TransitionPatternId =
+  | 'checker'
+  | 'bayer4'
+  | 'bayer8'
+  | 'lines_h'
+  | 'lines_v'
+  | 'diamond'
+  | 'circle'
+  | 'spiral'
+  | 'random'
+  | 'custom';
+
+export type Msx2TransitionIrisShape = 'circle' | 'diamond' | 'box';
+
+/**
+ * User-drawn dissolve mask: a size x size grid (row-major) where every cell holds
+ * the step (1-based) in which that cell is filled. 0 = never filled by the mask.
+ */
+export interface Msx2TransitionCustomPattern {
+  size: 4 | 8;
+  order: number[];
+}
+
+/** 3-bit V9938 RGB (0..7 per component). */
+export interface Msx2TransitionRgb {
+  r: number;
+  g: number;
+  b: number;
+}
+
 export interface Msx2GameFlowTransitionNode extends Msx2GameFlowNode_Base {
   type: 'Transition';
-  effect: 'cls' | 'fade_to_black' | 'screen5_vertical_pixel_wipe' | 'screen5_horizontal_pixel_wipe' | 'screen5_diagonal_pixel_wipe' | 'screen5_mirror_pixel_wipe' | 'dissolve_pixels' | 'dissolve_chars' | 'horizontal_lines' | 'vertical_lines' | 'spiral' | 'fill_white_squares' | 'diagonal_clear' | 'diagonal_inverse' | 'checkerboard' | 'doors' | 'center_curtain' | 'venetian_blinds' | 'radial_wipe' | 'block4_shuffle' | 'zoom_box' | 'raster_bars' | 'raster_split_wipe' | 'raster_scanlines' | 'raster_palette_fade' | 'raster_bands_down' | 'raster_bands_up' | 'raster_center_bands' | 'raster_wave_bands' | 'raster_corner_wipe' | 'raster_diagonal_corner';
+  effect: 'cls' | 'fade_to_black' | 'screen5_vertical_pixel_wipe' | 'screen5_horizontal_pixel_wipe' | 'screen5_diagonal_pixel_wipe' | 'screen5_mirror_pixel_wipe'
+    | 'screen5_wipe' | 'screen5_blinds' | 'screen5_pattern' | 'screen5_iris'
+    | 'palette_fade_out' | 'palette_fade_in' | 'palette_fade_out_in' | 'palette_crossfade' | 'palette_flash'
+    | 'dissolve_pixels' | 'dissolve_chars' | 'horizontal_lines' | 'vertical_lines' | 'spiral' | 'fill_white_squares' | 'diagonal_clear' | 'diagonal_inverse' | 'checkerboard' | 'doors' | 'center_curtain' | 'venetian_blinds' | 'radial_wipe' | 'block4_shuffle' | 'zoom_box' | 'raster_bars' | 'raster_split_wipe' | 'raster_scanlines' | 'raster_palette_fade' | 'raster_bands_down' | 'raster_bands_up' | 'raster_center_bands' | 'raster_wave_bands' | 'raster_corner_wipe' | 'raster_diagonal_corner';
   durationFrames?: number;
+  // ---- SCREEN 5 advanced transition parameters (all optional) ----
+  // Legacy SCREEN 5 effects ignore these unless one is set, so old projects keep
+  // generating byte-identical ASM.
+  /** Order of the block effects (wipe / blinds / iris). */
+  direction?: Msx2TransitionDirection;
+  /** Band / slat / cell size in pixels (2, 4, 8, 16, 32 or 64 depending on the effect). */
+  blockSize?: number;
+  /** SCREEN 5 palette index (0..15) painted by block effects. Default 0. */
+  fillColorIndex?: number;
+  /** Frames waited after each step (1..30). */
+  framesPerStep?: number;
+  /** Play the step order backwards. */
+  reverse?: boolean;
+  /** `screen5_pattern` only. */
+  patternId?: Msx2TransitionPatternId;
+  customPattern?: Msx2TransitionCustomPattern;
+  /** `screen5_iris` only. */
+  irisShape?: Msx2TransitionIrisShape;
+  /** Palette effects: the colour faded to / from (flash colour for palette_flash). */
+  fadeColor?: Msx2TransitionRgb;
+  /** `palette_flash` only: number of flashes (1..4). */
+  flashCount?: number;
 }
 
 export interface Msx2GameFlowWaypointNode extends Msx2GameFlowNode_Base {
@@ -4200,6 +4482,7 @@ export type Msx2GameFlowNode =
   | Msx2GameFlowScreen5PresentationNode
   | Msx2GameFlowScreen4ScreenNode
   | Msx2GameFlowSubMenuNode
+  | Msx2GameFlowCodeEntryNode
   | Msx2GameFlowControlsNode
   | Msx2GameFlowWorldLinkNode
   | Msx2GameFlowTextNode
@@ -4208,6 +4491,7 @@ export type Msx2GameFlowNode =
   | Msx2GameFlowWaypointNode
   | Msx2GameFlowIfThenElseNode
   | Msx2GameFlowMusicNode
+  | Msx2GameFlowIntroNode
   | Msx2GameFlowTransitionNode
   | Msx2GameFlowRestartNode
   | Msx2GameFlowEndNode;
@@ -4267,6 +4551,7 @@ export enum EditorType {
   GameFlow = "GameFlow",
   Dialogue = "Dialogue",
   Msx2Dialogue = "Msx2Dialogue",
+  Msx2Intro = "Msx2Intro",
   Portrait = "Portrait",
   MainMenu = "MainMenu",
   PresentationScreen = "PresentationScreen",
@@ -4302,9 +4587,9 @@ export interface ProjectAsset {
   /** The name of the asset. */
   name: string;
   /** The type of the asset. */
-  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2bitmaptile' | 'msx2bitmapstamp' | 'msx2bitmapterrain' | 'msx2screen' | 'msx2bitmaproom' | 'msx2player' | 'msx2enemy' | 'msx2enemybehavior' | 'msx2boss' | 'msx2bosspath' | 'msx2shoot' | 'msx2hudfont' | 'msx2hud' | 'msx2presentation' | 'msx2gameflow' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'msx2dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
+  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2bitmaptile' | 'msx2bitmapstamp' | 'msx2bitmapterrain' | 'msx2screen' | 'msx2bitmaproom' | 'msx2player' | 'msx2enemy' | 'msx2enemybehavior' | 'msx2boss' | 'msx2bosspath' | 'msx2shoot' | 'msx2hudfont' | 'msx2hud' | 'msx2presentation' | 'msx2gameflow' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'msx2dialogue' | 'msx2intro' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
   /** The data associated with the asset, which varies by type. */
-  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | BitmapTileScreen5 | Msx2BitmapStampAsset | Msx2BitmapTerrainAsset | Msx2Screen4TileScreen | Msx2Screen5BitmapRoom | Msx2PlayerDefinition | EnemyDefinition | Msx2BossDefinition | Msx2BossPath | Msx2ShootDefinition | Msx2HudFontAsset | Msx2HudAsset | Msx2Screen5PresentationConfig | Msx2GameFlowGraph | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | Msx2DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
+  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | BitmapTileScreen5 | Msx2BitmapStampAsset | Msx2BitmapTerrainAsset | Msx2Screen4TileScreen | Msx2Screen5BitmapRoom | Msx2PlayerDefinition | EnemyDefinition | Msx2BossDefinition | Msx2BossPath | Msx2ShootDefinition | Msx2HudFontAsset | Msx2HudAsset | Msx2Screen5PresentationConfig | Msx2GameFlowGraph | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | Msx2DialogueAsset | Msx2IntroAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
 }
 
 export interface Point { x: number; y: number; }
@@ -4341,6 +4626,11 @@ export interface Msx2HudFontAsset {
   screen5BackgroundSlot?: number;
   /** SCREEN 5 4bpp bitmap glyphs: one 8x8 palette-slot matrix per character. */
   bitmapPatterns?: Record<string, number[][]>;
+  /**
+   * SCREEN 5 only: glyph advance in pixels. 4 = half-width font (two letters
+   * per 8 px cell; only the left 4 columns of each glyph are used). Absent = 8.
+   */
+  glyphWidth?: 4 | 8;
   /** SCREEN 4 color byte per glyph row: fg nibble << 4 | bg nibble. */
   colorByte: number;
   /** Optional note for authors. */

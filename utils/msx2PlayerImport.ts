@@ -78,6 +78,7 @@ const flattenDetailedPlayerPayload = (
     render: player.render,
     weapons: player.weapons,
     equippedWeaponId: player.equippedWeaponId,
+    ...(player.weaponSwitchKey ? { weaponSwitchKey: player.weaponSwitchKey } : {}),
     animations: player.animations
       ? Object.entries(player.animations).reduce((result, [name, animation]) => {
         const {

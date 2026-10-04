@@ -130,7 +130,7 @@ export const Msx2BossPathEditor: React.FC<Msx2BossPathEditorProps> = ({ path, on
 
   const rooms = useMemo(() => allAssets.filter(a => a.type === 'msx2bitmaproom'), [allAssets]);
   const hudAsset = useMemo(() => allAssets.find(a => a.type === 'msx2hud'), [allAssets]);
-  const shootAssets = useMemo(() => allAssets.filter(a => a.type === 'msx2shoot'), [allAssets]);
+  const shootAssets = useMemo(() => allAssets.filter(a => a.type === 'msx2shoot' && (a.data as any)?.pattern !== 'laser'), [allAssets]);
   const onionRoom = useMemo(
     () => (rooms.find(a => a.id === onionRoomId) || rooms[0])?.data as Msx2Screen5BitmapRoom | undefined,
     [rooms, onionRoomId],

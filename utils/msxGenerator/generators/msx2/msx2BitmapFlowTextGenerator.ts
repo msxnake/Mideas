@@ -15,6 +15,22 @@ import {
   sanitizeScreen5FlowText,
   wrapScreen5FlowText,
 } from './msx2Screen5FlowFont';
+import {
+  generateSmoothScrollRuntime,
+  smoothScrollNodeData,
+  smoothScrollRamEquates,
+  smoothScrollStripTexts,
+  marqueeNodeData,
+  marqueeRamEquates,
+  SMOOTH_SCROLL_LINE_STEP,
+  type Screen5SmoothScrollHost,
+} from './screen5SmoothScroll';
+import {
+  MSX2_CODE_ENTRY_MAX_CODES,
+  MSX2_CODE_ENTRY_MAX_LENGTH,
+  MSX2_CODE_ENTRY_WRONG_PORT,
+} from '../../../../types';
+import { clampMsx2CodeLength, normalizeMsx2Code } from '../../../msx2GameFlowCodeEntry';
 
 export const BF_LINE_BYTES = 128;
 export const BF_CHAR_WIDTH_BYTES = 3; // 6 px cell
@@ -63,20 +79,60 @@ const clampPaletteIndex = (value: unknown, fallback: number): number => {
 };
 
 /** Node types this module implements inside the bitmap-room dispatcher. */
-export const BITMAP_FLOW_TEXT_NODE_TYPES = new Set(['Text', 'TextScroll', 'TextScrollColor', 'SubMenu']);
+export const BITMAP_FLOW_TEXT_NODE_TYPES = new Set(['Text', 'TextScroll', 'TextScrollColor', 'SubMenu', 'CodeEntry']);
 
 export interface BitmapFlowTextFeatures {
   text: boolean;
   menu: boolean;
   scroll: boolean;
+  /** A CodeEntry (password) node exists. Absent keeps older ROMs byte-identical. */
+  code?: boolean;
+  /** A TextScroll node uses the pixel-smooth raster-split scroll. */
+  smooth?: boolean;
+  /** A TextScroll node uses the horizontal marquee. */
+  marquee?: boolean;
 }
 
-export function collectBitmapFlowTextFeatures(nodes: Array<{ type?: string }>): BitmapFlowTextFeatures {
+export function collectBitmapFlowTextFeatures(nodes: Array<{ type?: string; scrollMode?: string }>): BitmapFlowTextFeatures {
   const types = new Set(nodes.map(node => String(node?.type || '')));
   const scroll = types.has('TextScroll') || types.has('TextScrollColor');
   const menu = types.has('SubMenu');
-  return { text: types.has('Text') || scroll || menu, menu, scroll };
+  const isScroll = (node: { type?: string }) => node?.type === 'TextScroll' || node?.type === 'TextScrollColor';
+  const smooth = nodes.some(node => isScroll(node) && node.scrollMode === 'smooth');
+  const marquee = nodes.some(node => isScroll(node) && node.scrollMode === 'marquee');
+  const code = types.has('CodeEntry');
+  const base: BitmapFlowTextFeatures = { text: types.has('Text') || scroll || menu || code, menu, scroll };
+  if (code) base.code = true;
+  return smooth || marquee ? { ...base, smooth, marquee } : base;
 }
+
+/**
+ * Host description for the shared pixel-smooth scroll (screen5SmoothScroll.ts):
+ * text screens pin the display to page 0, so page 1 carries the text ring.
+ */
+const BITMAP_SMOOTH_SCROLL_HOST: Screen5SmoothScrollHost = {
+  prefix: 'bitmap_vs',
+  ramBase: BF_RAM_BASE + 0x40,
+  interrupts: false,
+  vblankKind: 'status',
+  mainPage: 0,
+  ringPage: 1,
+  windowTop: BF_SCROLL_TOP,
+  windowHeight: BF_SCROLL_HEIGHT,
+  bgVar: 'bitmap_flow_bg',
+  cmdSx: 'bitmap_flow_cmd_sx',
+  cmdSy: 'bitmap_flow_cmd_sy',
+  cmdDx: 'bitmap_flow_cmd_dx',
+  cmdDy: 'bitmap_flow_cmd_dy',
+  cmdNx: 'bitmap_flow_cmd_nx',
+  cmdNy: 'bitmap_flow_cmd_ny',
+  setFillColorCall: 'call bitmap_flow_set_clr',
+  runFillAsm: '    ld a, #C0                  ; HMMV\n    call bitmap_flow_run_cmd',
+  runCopyAsm: '    ld a, #D0                  ; HMMM\n    call bitmap_flow_run_cmd',
+  // R#1: #62 = display on + IE0 + 16x16 sprites (init_screen5_bitmap_vdp value).
+  displayOffAsm: '    ld a, #01\n    ld e, #22\n    call vdp_write_register',
+  displayOnAsm: '    ld a, #01\n    ld e, #62\n    call vdp_write_register',
+};
 
 export function bitmapFlowTextEquates(features: BitmapFlowTextFeatures, bankedFont = false): string {
   if (!features.text) return '';
@@ -102,7 +158,7 @@ bitmap_flow_cmd_arg    EQU bitmap_flow_cmd + 13
 bitmap_flow_cmd_cmd    EQU bitmap_flow_cmd + 14
 ${bankedFont ? `bitmap_flow_glyph      EQU ${at(0x20)}   ; one glyph staged out of the banked font
 ` : ''}bitmap_flow_textbuf    EQU ${hexWord(BF_TEXTBUF_BASE)}
-`;
+${features.code ? codeEntryRamEquates() : ''}${features.smooth || features.marquee ? smoothScrollRamEquates(BITMAP_SMOOTH_SCROLL_HOST) : ''}${features.marquee ? marqueeRamEquates(BITMAP_SMOOTH_SCROLL_HOST) : ''}`;
 }
 
 /** Shared runtime routines + font data. Emitted only when a text node exists. */
@@ -508,7 +564,7 @@ bitmap_flow_wait_frames_loop:
     pop bc
     djnz bitmap_flow_wait_frames_loop
     ret
-${scrollRoutines}${menuRoutines}
+${scrollRoutines}${menuRoutines}${features.code ? codeEntryRuntime() : ''}${features.smooth || features.marquee ? generateSmoothScrollRuntime(BITMAP_SMOOTH_SCROLL_HOST, { vertical: features.smooth, marquee: features.marquee }) : ''}
 ; 6x8 GameFlow font: 59 glyphs (ASCII 32..90), 8 rows each, 5 pixels
 ; left-aligned on bits 7..3 so bit 2 becomes the inter-character gap.
 ${bankedFont ? '; Emitted in a Konami MegaROM data bank; bitmap_flow_draw_char_inner stages one glyph at a time.' : `bitmap_flow_font:
@@ -555,7 +611,7 @@ function printCall(
   foreground: number,
   background: number,
   context: EmitContext,
-  options: { spanCharacters?: number } = {}
+  options: { spanCharacters?: number; column?: number } = {}
 ): string {
   const sanitized = sanitizeScreen5FlowText(text, BF_MAX_COLUMNS);
   const spanCharacters = Math.min(
@@ -563,7 +619,7 @@ function printCall(
     Math.max(options.spanCharacters ?? sanitized.length, sanitized.length, 1)
   );
   const padded = sanitized.padEnd(spanCharacters, ' ');
-  const column = centeredColumn(spanCharacters);
+  const column = options.column ?? centeredColumn(spanCharacters);
   const label = stringData(padded, context.pushData);
   return `    ld a, ${hexByte(foreground)}
     ld (bitmap_flow_fg), a
@@ -623,6 +679,7 @@ ${context.jumpToNext}`;
 
 /** `TextScroll` / `TextScrollColor`: credits-style window scrolled with HMMM. */
 export function emitBitmapFlowTextScrollNode(node: any, context: EmitContext): string {
+  if (node.scrollMode === 'smooth' || node.scrollMode === 'marquee') return emitBitmapFlowSmoothScrollNode(node, context);
   const safeId = sanitizeLabel(String(node.id || 'scroll'));
   const foreground = clampPaletteIndex(node.textColorIndex, context.defaultTextColor);
   const background = clampPaletteIndex(node.backgroundColorIndex, 0);
@@ -650,6 +707,39 @@ bitmap_flow_tail_${safeId}:
     call bitmap_flow_wait_frames
     pop bc
     djnz bitmap_flow_tail_${safeId}
+${waitCall(node.waitForKey, node.waitFrames)}    call bitmap_flow_sprites_on
+${context.jumpToNext}`;
+}
+
+/** Pixel-smooth `TextScroll` (raster split, text ring on page 1). */
+function emitBitmapFlowSmoothScrollNode(node: any, context: EmitContext): string {
+  const foreground = clampPaletteIndex(node.textColorIndex, context.defaultTextColor);
+  const background = clampPaletteIndex(node.backgroundColorIndex, 0);
+  const stepFrames = Math.max(SMOOTH_SCROLL_LINE_STEP, clampByte(node.scrollStepFrames, 18) || 18);
+  const lines = wrapScreen5FlowText(node.text || '', BF_MAX_COLUMNS - 2, 32);
+  const marquee = node.scrollMode === 'marquee';
+  const data = marquee
+    ? (() => {
+        const text = marqueeNodeData(`bitmap_vsm_${sanitizeLabel(String(node.id || 'scroll'))}`, lines);
+        return { tableLabel: text.textLabel, dataAsm: text.dataAsm, totalPixels: text.totalPixels - BF_SCROLL_HEIGHT };
+      })()
+    : smoothScrollNodeData(`bitmap_vs_${sanitizeLabel(String(node.id || 'scroll'))}`, lines, BF_MAX_COLUMNS);
+  context.pushData(data.dataAsm);
+  const title = sanitizeScreen5FlowText(node.title || '', BF_MAX_COLUMNS);
+  const strip = smoothScrollStripTexts();
+  const stripY = strip.firstRowY(BF_SCROLL_TOP);
+  const stripAsm = strip.rows
+    .map((row, index) => printCall(row, stripY + index * 8, foreground, background, context, { column: 0, spanCharacters: BF_MAX_COLUMNS }))
+    .join('');
+  return `    call bitmap_flow_use_page0
+    call bitmap_flow_sprites_off
+${fillRect(0, 0, 256, BF_VISIBLE_LINES, background)}${title ? printCall(title, BF_SCROLL_TOP - 20, foreground, background, context) : ''}${BITMAP_SMOOTH_SCROLL_HOST.displayOffAsm}
+${stripAsm}    ld a, ${hexByte(background)}
+    ld (bitmap_flow_bg), a
+    ld hl, ${data.tableLabel}
+    ld de, ${data.totalPixels + BF_SCROLL_HEIGHT}
+    ld a, ${stepFrames}
+    call ${marquee ? 'bitmap_vsm_run' : 'bitmap_vs_run'}
 ${waitCall(node.waitForKey, node.waitFrames)}    call bitmap_flow_sprites_on
 ${context.jumpToNext}`;
 }
@@ -751,4 +841,472 @@ bitmap_flow_menu_trigger_${safeId}:
 ${dispatch}    jp bitmap_flow_menu_loop_${safeId}
 ${dispatchTargets}
 ${drawRoutine}`;
+}
+
+// ---------------------------------------------------------------------------
+// CodeEntry (password screen)
+// ---------------------------------------------------------------------------
+
+/** Output port a CodeEntry follows on a wrong code / ESC. */
+export const BF_CODE_WRONG_PORT = MSX2_CODE_ENTRY_WRONG_PORT;
+export const BF_CODE_MAX_CODES = MSX2_CODE_ENTRY_MAX_CODES;
+const BF_CODE_MAX_LENGTH = MSX2_CODE_ENTRY_MAX_LENGTH;
+/** Glyph shown in a slot the player has not filled yet. */
+const BF_CODE_EMPTY_CHAR = '-';
+const BF_CODE_TITLE_Y = 40;
+const BF_CODE_SLOTS_Y = 80;
+const BF_CODE_ERROR_Y = 108;
+const BF_CODE_HINT_Y = 150;
+/** Two character cells per slot: the glyph and a gap. */
+const BF_CODE_SLOT_BYTES = 2 * BF_CHAR_WIDTH_BYTES;
+/** Frames the error message stays on screen. */
+const BF_CODE_ERROR_FRAMES = 60;
+/** Held direction: frames before the first repeat, then frames between repeats. */
+const BF_CODE_REPEAT_DELAY = 20;
+const BF_CODE_REPEAT_RATE = 5;
+
+// #E050..#E064: free between the smooth-scroll block (#E040..#E04F) and the End
+// screen state (#E0C0).
+function codeEntryRamEquates(): string {
+  const at = (offset: number) => hexWord(BF_RAM_BASE + offset);
+  return `bitmap_flow_code_buf   EQU ${at(0x50)}   ; ${BF_CODE_MAX_LENGTH} bytes: the code being typed
+bitmap_flow_code_len   EQU ${at(0x58)}
+bitmap_flow_code_pos   EQU ${at(0x59)}   ; slot under the cursor (0..len-1)
+bitmap_flow_code_key   EQU ${at(0x5A)}   ; letter/digit key seen last frame (0 = none)
+bitmap_flow_code_ctl   EQU ${at(0x5B)}   ; control bits seen last frame
+bitmap_flow_code_rep   EQU ${at(0x5C)}   ; held-direction repeat countdown
+bitmap_flow_code_fg    EQU ${at(0x5D)}
+bitmap_flow_code_bg    EQU ${at(0x5E)}
+bitmap_flow_code_hfg   EQU ${at(0x5F)}
+bitmap_flow_code_hbg   EQU ${at(0x60)}
+bitmap_flow_code_de    EQU ${at(0x61)}   ; word: page byte offset of slot 0
+bitmap_flow_code_chr   EQU ${at(0x63)}   ; 2 bytes: one-character string for bitmap_flow_print
+`;
+}
+
+/**
+ * International MSX keyboard matrix, rows 0..5, bit 0 first: the ASCII each key
+ * types into a code slot (0 = not a code key).
+ */
+const CODE_KEYMAP_ROWS: string[] = [
+  '01234567',
+  '89\0\0\0\0\0\0',
+  '\0\0\0\0\0\0AB',
+  'CDEFGHIJ',
+  'KLMNOPQR',
+  'STUVWXYZ',
+];
+
+/**
+ * Control bits returned by bitmap_flow_code_read_ctl (active-high):
+ *   0 UP  1 DOWN  2 LEFT  3 RIGHT  4 CONFIRM  5 CANCEL  6 BACKSPACE
+ * Bits 0..4 line up with PSG R#14 (joystick: up, down, left, right, trigger A).
+ * Pairs are [key bit in the matrix row, control bit].
+ */
+const CODE_CTL_ROW8: Array<[number, number]> = [
+  [0, 4], // SPACE -> confirm
+  [3, 6], // DEL -> backspace
+  [4, 2], // LEFT
+  [5, 0], // UP
+  [6, 1], // DOWN
+  [7, 3], // RIGHT
+];
+const CODE_CTL_ROW7: Array<[number, number]> = [
+  [2, 5], // ESC -> cancel
+  [5, 6], // BS -> backspace
+  [7, 4], // RETURN -> confirm
+];
+
+function codeEntryRuntime(): string {
+  const keymapBytes = CODE_KEYMAP_ROWS.flatMap(row => [...row].map(ch => ch.charCodeAt(0)));
+  const keymapData: string[] = [];
+  for (let offset = 0; offset < keymapBytes.length; offset += 8) {
+    keymapData.push(`    DB ${keymapBytes.slice(offset, offset + 8).map(hexByte).join(',')}`);
+  }
+  let ctlLabel = 0;
+  const mapBits = (pairs: Array<[number, number]>): string => pairs.map(([keyBit, ctlBit]) => {
+    const skip = `bitmap_flow_code_ctl_${ctlLabel++}`;
+    return `    bit ${keyBit}, b
+    jp z, ${skip}
+    set ${ctlBit}, c
+${skip}:
+`;
+  }).join('');
+  const empty = hexByte(BF_CODE_EMPTY_CHAR.charCodeAt(0));
+
+  return `
+; ------------------------------------------------------------
+; CodeEntry (password) runtime. Keyboard: A-Z / 0-9 type, BS/DEL erase,
+; SPACE/RETURN confirm, ESC cancel. Cursor keys / joystick 1: UP/DOWN cycle the
+; slot's character (held = repeat), LEFT/RIGHT move, trigger A confirms.
+; No BIOS: PPI for the keyboard, PSG R#14 for the joystick.
+; ------------------------------------------------------------
+
+; bitmap_flow_code_scan_key: A = ASCII of the first code key held on keyboard
+; rows 0..5, or 0. Clobbers AF, BC, DE, HL.
+bitmap_flow_code_scan_key:
+    ld hl, bitmap_flow_code_keymap
+    ld d, 0
+bitmap_flow_code_scan_row:
+    in a, (PPI_C)
+    and #F0
+    or d
+    out (PPI_C), a
+    in a, (PPI_B)
+    cpl
+    ld e, a
+    ld b, 8
+bitmap_flow_code_scan_bit:
+    srl e
+    jp nc, bitmap_flow_code_scan_next
+    ld a, (hl)
+    or a
+    ret nz
+bitmap_flow_code_scan_next:
+    inc hl
+    djnz bitmap_flow_code_scan_bit
+    inc d
+    ld a, d
+    cp 6
+    jp c, bitmap_flow_code_scan_row
+    xor a
+    ret
+
+; bitmap_flow_code_read_ctl: A = control bits (see the table above).
+; Clobbers AF, BC.
+bitmap_flow_code_read_ctl:
+    ld a, 15                   ; PSG R#15 bit 6 = 0 -> joystick port 1
+    out (#A0), a
+    in a, (#A2)
+    and #BF
+    out (#A1), a
+    ld a, 14
+    out (#A0), a
+    in a, (#A2)                ; R#14: 0 = pressed
+    cpl
+    and #1F                    ; up, down, left, right, trigger A
+    ld c, a
+    in a, (PPI_C)
+    and #F0
+    or 8
+    out (PPI_C), a
+    in a, (PPI_B)
+    cpl
+    ld b, a
+${mapBits(CODE_CTL_ROW8)}    in a, (PPI_C)
+    and #F0
+    or 7
+    out (PPI_C), a
+    in a, (PPI_B)
+    cpl
+    ld b, a
+${mapBits(CODE_CTL_ROW7)}    ld a, c
+    ret
+
+; bitmap_flow_code_slot: HL = address of the slot under the cursor. Clobbers AF, DE.
+bitmap_flow_code_slot:
+    ld a, (bitmap_flow_code_pos)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_flow_code_buf
+    add hl, de
+    ret
+
+; bitmap_flow_code_draw: redraw every slot, the one under the cursor inverted.
+; Clobbers AF, BC, DE, HL.
+bitmap_flow_code_draw:
+    ld c, 0
+bitmap_flow_code_draw_loop:
+    ld a, (bitmap_flow_code_len)
+    cp c
+    ret z
+    push bc
+    ld a, (bitmap_flow_code_pos)
+    cp c
+    jp z, bitmap_flow_code_draw_hl
+    ld a, (bitmap_flow_code_fg)
+    ld (bitmap_flow_fg), a
+    ld a, (bitmap_flow_code_bg)
+    ld (bitmap_flow_bg), a
+    jp bitmap_flow_code_draw_char
+bitmap_flow_code_draw_hl:
+    ld a, (bitmap_flow_code_hfg)
+    ld (bitmap_flow_fg), a
+    ld a, (bitmap_flow_code_hbg)
+    ld (bitmap_flow_bg), a
+bitmap_flow_code_draw_char:
+    ld b, 0
+    ld hl, bitmap_flow_code_buf
+    add hl, bc
+    ld a, (hl)
+    ld (bitmap_flow_code_chr), a
+    xor a
+    ld (bitmap_flow_code_chr + 1), a
+    ld a, c                    ; DE = slot 0 + C * ${BF_CODE_SLOT_BYTES}
+    add a, a
+    ld b, a
+    add a, a
+    add a, b
+    ld e, a
+    ld d, 0
+    ld hl, (bitmap_flow_code_de)
+    add hl, de
+    ex de, hl
+    ld hl, bitmap_flow_code_chr
+    ld b, ${BF_CHAR_WIDTH_BYTES}
+    call bitmap_flow_print
+    pop bc
+    inc c
+    jp bitmap_flow_code_draw_loop
+
+; bitmap_flow_code_edit: clear the slots and let the player type until CONFIRM
+; (A = 0) or CANCEL (A = 1). Keys held on entry are ignored until released.
+; Clobbers AF, BC, DE, HL.
+bitmap_flow_code_edit:
+    ld hl, bitmap_flow_code_buf
+    ld (hl), ${empty}
+    ld de, bitmap_flow_code_buf + 1
+    ld bc, ${BF_CODE_MAX_LENGTH - 1}
+    ldir
+    xor a
+    ld (bitmap_flow_code_pos), a
+    call bitmap_flow_code_scan_key
+    ld (bitmap_flow_code_key), a
+    call bitmap_flow_code_read_ctl
+    ld (bitmap_flow_code_ctl), a
+    call bitmap_flow_code_draw
+bitmap_flow_code_loop:
+    call bitmap_wait_vblank
+    ; Typed letter/digit: act once per new key.
+    call bitmap_flow_code_scan_key
+    ld hl, bitmap_flow_code_key
+    cp (hl)
+    jp z, bitmap_flow_code_controls
+    ld (hl), a
+    or a
+    jp z, bitmap_flow_code_controls
+    ld b, a
+    call bitmap_flow_code_slot
+    ld (hl), b
+    ld a, (bitmap_flow_code_len)
+    dec a
+    ld b, a
+    ld a, (bitmap_flow_code_pos)
+    cp b
+    jp nc, bitmap_flow_code_typed
+    inc a
+    ld (bitmap_flow_code_pos), a
+bitmap_flow_code_typed:
+    call bitmap_flow_code_draw
+bitmap_flow_code_controls:
+    call bitmap_flow_code_read_ctl
+    ld b, a                    ; B = held now
+    ld a, (bitmap_flow_code_ctl)
+    cpl
+    and b
+    ld d, a                    ; D = pressed this frame
+    ld a, b
+    ld (bitmap_flow_code_ctl), a
+    bit 4, d
+    jp nz, bitmap_flow_code_confirm
+    bit 5, d
+    jp nz, bitmap_flow_code_cancel
+    bit 6, d
+    jp nz, bitmap_flow_code_backspace
+    ld a, b
+    and #0F
+    jp z, bitmap_flow_code_loop
+    ld a, d
+    and #0F
+    jp nz, bitmap_flow_code_dir_first
+    ld hl, bitmap_flow_code_rep
+    dec (hl)
+    jp nz, bitmap_flow_code_loop
+    ld (hl), ${BF_CODE_REPEAT_RATE}
+    ld a, b
+    jp bitmap_flow_code_dir
+bitmap_flow_code_dir_first:
+    ld a, ${BF_CODE_REPEAT_DELAY}
+    ld (bitmap_flow_code_rep), a
+    ld a, d
+bitmap_flow_code_dir:
+    bit 0, a
+    jp nz, bitmap_flow_code_char_next
+    bit 1, a
+    jp nz, bitmap_flow_code_char_prev
+    bit 2, a
+    jp nz, bitmap_flow_code_left
+    ; RIGHT
+    ld a, (bitmap_flow_code_len)
+    dec a
+    ld b, a
+    ld a, (bitmap_flow_code_pos)
+    cp b
+    jp nc, bitmap_flow_code_loop
+    inc a
+    ld (bitmap_flow_code_pos), a
+    jp bitmap_flow_code_redraw
+bitmap_flow_code_left:
+    ld a, (bitmap_flow_code_pos)
+    or a
+    jp z, bitmap_flow_code_loop
+    dec a
+    ld (bitmap_flow_code_pos), a
+    jp bitmap_flow_code_redraw
+; A..Z then 0..9, wrapping; an empty slot starts at A going up, at 9 going down.
+bitmap_flow_code_char_next:
+    call bitmap_flow_code_slot
+    ld a, (hl)
+    cp ${empty}
+    jp z, bitmap_flow_code_set_a
+    cp 'Z'
+    jp z, bitmap_flow_code_set_0
+    cp '9'
+    jp z, bitmap_flow_code_set_a
+    inc a
+    jp bitmap_flow_code_store
+bitmap_flow_code_char_prev:
+    call bitmap_flow_code_slot
+    ld a, (hl)
+    cp ${empty}
+    jp z, bitmap_flow_code_set_9
+    cp 'A'
+    jp z, bitmap_flow_code_set_9
+    cp '0'
+    jp z, bitmap_flow_code_set_z
+    dec a
+    jp bitmap_flow_code_store
+bitmap_flow_code_set_a:
+    ld a, 'A'
+    jp bitmap_flow_code_store
+bitmap_flow_code_set_0:
+    ld a, '0'
+    jp bitmap_flow_code_store
+bitmap_flow_code_set_9:
+    ld a, '9'
+    jp bitmap_flow_code_store
+bitmap_flow_code_set_z:
+    ld a, 'Z'
+bitmap_flow_code_store:
+    ld (hl), a
+    jp bitmap_flow_code_redraw
+; Erase the slot under the cursor; on an empty slot, step back and erase that one.
+bitmap_flow_code_backspace:
+    call bitmap_flow_code_slot
+    ld a, (hl)
+    cp ${empty}
+    jp nz, bitmap_flow_code_erase
+    ld a, (bitmap_flow_code_pos)
+    or a
+    jp z, bitmap_flow_code_loop
+    dec a
+    ld (bitmap_flow_code_pos), a
+    call bitmap_flow_code_slot
+bitmap_flow_code_erase:
+    ld (hl), ${empty}
+bitmap_flow_code_redraw:
+    call bitmap_flow_code_draw
+    jp bitmap_flow_code_loop
+bitmap_flow_code_confirm:
+    xor a
+    ret
+bitmap_flow_code_cancel:
+    ld a, 1
+    ret
+
+; bitmap_flow_code_match: HL = code (len bytes). Z = the typed code matches.
+; Clobbers AF, B, DE, HL.
+bitmap_flow_code_match:
+    ld de, bitmap_flow_code_buf
+    ld a, (bitmap_flow_code_len)
+    ld b, a
+bitmap_flow_code_match_loop:
+    ld a, (de)
+    cp (hl)
+    ret nz
+    inc de
+    inc hl
+    djnz bitmap_flow_code_match_loop
+    ret
+
+; Keyboard rows 0..5 -> code character (bit 0 first; 0 = not a code key).
+bitmap_flow_code_keymap:
+${keymapData.join('\n')}
+`;
+}
+
+/** `CodeEntry`: type a password; the matching code's port is followed. */
+export function emitBitmapFlowCodeEntryNode(
+  node: any,
+  context: EmitContext & {
+    /** Jump target per entry of `codes` (same order); '' = unwired. */
+    codeTargets: string[];
+    /** Wrong code / ESC target; undefined = ask again. */
+    wrongTarget?: string;
+  }
+): string {
+  const safeId = sanitizeLabel(String(node.id || 'code'));
+  const entryLabel = `bitmap_flow_code_node_${safeId}`;
+  const length = clampMsx2CodeLength(node.codeLength);
+  const codes = (node.codes || []).slice(0, BF_CODE_MAX_CODES);
+  const foreground = clampPaletteIndex(node.textColorIndex, context.defaultTextColor);
+  const background = clampPaletteIndex(node.backgroundColorIndex, 0);
+  const highlightForeground = clampPaletteIndex(node.highlightColorIndex, background);
+  const highlightBackground = clampPaletteIndex(node.highlightBackgroundIndex, foreground);
+  const title = sanitizeScreen5FlowText(node.title || '', BF_MAX_COLUMNS);
+  const hint = sanitizeScreen5FlowText(node.hintText ?? 'SPACE: OK   ESC: BACK', BF_MAX_COLUMNS);
+  const errorText = sanitizeScreen5FlowText(node.errorText ?? 'WRONG CODE', BF_MAX_COLUMNS);
+  const slotCharacters = length * 2 - 1;
+  const slotsOffset = BF_CODE_SLOTS_Y * BF_LINE_BYTES + centeredColumn(slotCharacters);
+  // Unwired: back to the start of this node, which clears the slots and asks again.
+  const wrongTarget = context.wrongTarget || entryLabel;
+  const isUsable = (code: any): boolean => normalizeMsx2Code(code?.code).length === length;
+
+  // A code that cannot fill exactly `length` slots can never match: skip it.
+  const checks = codes.map((code: any, index: number) => {
+    if (!isUsable(code)) {
+      return `    ; code #${index + 1} "${String(code?.code ?? '')}" skipped: it must be ${length} characters A-Z / 0-9.
+`;
+    }
+    const text = normalizeMsx2Code(code.code);
+    const dataLabel = `bitmap_flow_code_${safeId}_${index}`;
+    context.pushData(`${dataLabel}:   ; "${text}"\n    DB ${[...text].map(ch => hexByte(ch.charCodeAt(0))).join(',')}\n`);
+    return `    ld hl, ${dataLabel}
+    call bitmap_flow_code_match
+    jp z, bitmap_flow_code_pick_${safeId}_${index}
+`;
+  }).join('');
+  const picks = codes.map((code: any, index: number) => (isUsable(code)
+    ? `bitmap_flow_code_pick_${safeId}_${index}:
+    call bitmap_flow_sprites_on
+    jp ${context.codeTargets[index] || entryLabel}
+`
+    : '')).join('');
+
+  return `${entryLabel}:
+    call bitmap_flow_use_page0
+    call bitmap_flow_sprites_off
+${fillRect(0, 0, 256, BF_VISIBLE_LINES, background)}${
+    title ? printCall(title, BF_CODE_TITLE_Y, foreground, background, context) : ''
+  }${hint ? printCall(hint, BF_CODE_HINT_Y, foreground, background, context) : ''}    ld a, ${length}
+    ld (bitmap_flow_code_len), a
+    ld hl, ${hexWord(slotsOffset)}
+    ld (bitmap_flow_code_de), hl
+    ld a, ${hexByte(foreground)}
+    ld (bitmap_flow_code_fg), a
+    ld a, ${hexByte(background)}
+    ld (bitmap_flow_code_bg), a
+    ld a, ${hexByte(highlightForeground)}
+    ld (bitmap_flow_code_hfg), a
+    ld a, ${hexByte(highlightBackground)}
+    ld (bitmap_flow_code_hbg), a
+    call bitmap_flow_code_edit
+    or a
+    jp nz, bitmap_flow_code_back_${safeId}
+${checks}${errorText ? printCall(errorText, BF_CODE_ERROR_Y, highlightForeground, highlightBackground, context) : ''}    ld b, ${BF_CODE_ERROR_FRAMES}
+    call bitmap_flow_wait_frames
+bitmap_flow_code_back_${safeId}:
+    call bitmap_flow_sprites_on
+    jp ${wrongTarget}
+${picks}`;
 }

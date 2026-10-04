@@ -1510,6 +1510,15 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     () => allAssets.filter(asset => asset.type === 'msx2player'),
     [allAssets],
   );
+  // Weapons a room pickup can grant (params.weaponPickupId), from the first Player.
+  const playerWeaponOptions = useMemo(() => {
+    const first = playerAssets[0];
+    if (!first) return [] as Array<{ id: string; name: string; type: string }>;
+    const player: Partial<Msx2PlayerDefinition> = parseMsx2PlayerImport(first.data);
+    return (player.weapons || []).slice(0, 8).map(weapon => ({
+      id: String(weapon.id), name: String(weapon.name || weapon.id), type: String(weapon.type || ''),
+    }));
+  }, [playerAssets]);
   // Sprite a player spawn renders with. Same chain the generator resolves:
   // entry.playerId -> msx2player asset -> render.spriteAssetId -> msx2sprite.
   // A spawn whose playerId points at a deleted asset falls back to the first
@@ -2051,7 +2060,11 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
           ? String(normalizeWorldExitConfig(entity.params?.worldExit || entity.components?.msx2_world_exit).atlasEntryId || '').trim()
           : '';
         const healAtlasEntryId = isHeal ? String(entity.params?.healAtlasEntryId || '').trim() : '';
+        const weaponAtlasEntryId = entity.kind === 'collectible' && !entity.params?.keyPickupId
+          ? String(entity.params?.weaponAtlasEntryId || '').trim()
+          : '';
         const renderedVisual = (worldExitAtlasEntryId && drawAtlasEntry(worldExitAtlasEntryId, cx * GRID, cy * GRID))
+          || (weaponAtlasEntryId && drawAtlasEntry(weaponAtlasEntryId, cx * GRID, cy * GRID))
           || (mushroomAtlasEntryId && drawAtlasEntry(mushroomAtlasEntryId, cx * GRID, cy * GRID))
           || (healAtlasEntryId && drawAtlasEntry(healAtlasEntryId, cx * GRID, cy * GRID))
           || (sprite && drawMsx2Sprite(sprite, cx * GRID, cy * GRID));
@@ -6126,6 +6139,50 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                           </button>
                           <div className="text-[0.6rem] text-msx-textsecondary">
                             Con tile asignado, la llave se dibuja al cargar la sala y se borra al recogerla (restaurando el fondo de la celda).
+                          </div>
+                        </>
+                      )}
+                      {!selectedPlacedEntity.params?.keyPickupId && !selectedPlacedEntity.params?.healAtlasEntryId && !selectedPlacedEntity.params?.nutAtlasEntryId && !selectedPlacedEntity.params?.gemAtlasEntryId && (
+                        <>
+                          <div className="border-t border-msx-border pt-2 text-[0.7rem] text-msx-highlight">Arma (pickup)</div>
+                          <label className="block text-[0.65rem] text-msx-textsecondary">
+                            Arma del Player
+                            <select
+                              value={String(selectedPlacedEntity.params?.weaponPickupId || '')}
+                              onChange={event => updatePlacedEntityParams(selectedPlacedEntity.id, { weaponPickupId: event.target.value || undefined })}
+                              className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                            >
+                              <option value="">None</option>
+                              {playerWeaponOptions.map(weapon => (
+                                <option key={weapon.id} value={weapon.id}>{weapon.name} ({weapon.type})</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="block text-[0.65rem] text-msx-textsecondary">
+                            Tile del arma (atlas)
+                            <select
+                              value={String(selectedPlacedEntity.params?.weaponAtlasEntryId || '')}
+                              onChange={event => updatePlacedEntityParams(selectedPlacedEntity.id, { weaponAtlasEntryId: event.target.value || undefined })}
+                              className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                            >
+                              <option value="">None</option>
+                              {atlasEntries.map(entry => (
+                                <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>
+                              ))}
+                            </select>
+                          </label>
+                          <button
+                            type="button"
+                            disabled={!selectedAtlasEntry}
+                            onClick={() => selectedAtlasEntry && updatePlacedEntityParams(selectedPlacedEntity.id, { weaponAtlasEntryId: selectedAtlasEntry.id })}
+                            className="w-full rounded border border-msx-border px-2 py-1 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight disabled:opacity-40"
+                          >
+                            Usar tile seleccionado
+                          </button>
+                          <div className="text-[0.6rem] text-msx-textsecondary">
+                            Con arma y tile asignados, el tile se dibuja al cargar la sala; al tocarlo el player gana el arma y la equipa
+                            (el icono equippedWeapon del HUD cambia). Se borra restaurando el fondo y no reaparece.
+                            Requiere al menos un arma melee en el Player.
                           </div>
                         </>
                       )}

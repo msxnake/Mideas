@@ -4,6 +4,7 @@ import { filterMsx2EntityPresetsForProfile, getMsx2LockedRuntimeMode } from '../
 import { ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 import { normalizeMsx2ShooterRuntimeConfig } from '../../utils/msx2ShooterRuntime';
 import { normalizeMsx2PlayerEntries } from '../../utils/msx2PlayerDefaults';
+import { CollapseAllIcon, ExpandAllIcon } from '../icons/MsxIcons';
 import {
   collectMsx2PaletteCompatibilityIssues,
   Msx2PaletteCompatibilityIssue,
@@ -1152,6 +1153,7 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
             variant="ghost"
             onClick={() => setAllPanelsCollapsed(true)}
             aria-label="Collapse all MSX2 editor sections"
+            icon={<CollapseAllIcon className="w-3.5 h-3.5" />}
           >
             Collapse All
           </Button>
@@ -1160,6 +1162,7 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
             variant="ghost"
             onClick={() => setAllPanelsCollapsed(false)}
             aria-label="Expand all MSX2 editor sections"
+            icon={<ExpandAllIcon className="w-3.5 h-3.5" />}
           >
             Expand All
           </Button>

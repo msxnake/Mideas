@@ -16,6 +16,7 @@ import { resolveGraphicsBackend } from '../../utils/msxGenerator';
 import type { GraphicsBackend } from '../../utils/msxGenerator/graphicsBackend';
 import type { SkillControlIcon, SkillDef, SkillParameterDef } from '../../utils/msxGenerator/skills/types';
 import { BulletConfigDialog } from '../dialogs/skills/BulletConfigDialog';
+import { MSX2_WEAPON_MAX_FRAMES, MSX2_WEAPON_MIN_FRAMES, MSX2_WEAPON_SWITCH_KEY_OPTIONS, normalizeMsx2WeaponSwitchKey } from '../../utils/msx2PlayerWeapons';
 import { DestroyTileDialog } from '../dialogs/skills/DestroyTileDialog';
 
 interface Msx2PlayerEditorProps {
@@ -182,11 +183,11 @@ const PlayerHardwareSpriteUsagePanel: React.FC<{
 
 const createDefaultWeaponAttackVisual = (): PlayerWeaponAttackVisual => ({
   spriteAssetId: undefined,
-  frames: [0, 1, 2],
+  frames: [0, 1],
   frameDelay: 4,
   offsetByFacing: {
-    right: { x: 16, y: 8 },
-    left: { x: -16, y: 8 },
+    right: { x: 12, y: 8 },
+    left: { x: -12, y: 8 },
     up: { x: 4, y: -16 },
     down: { x: 4, y: 16 },
   },
@@ -1071,6 +1072,108 @@ const PlayerPixelArt: React.FC<{ large?: boolean }> = ({ large = false }) => (
   </div>
 );
 
+/**
+ * Animated SCREEN 5 swing preview: the player's first sprite frame plus the
+ * weapon sprite at its facing offset, cycling through the swing frames with
+ * the authored frame delay (60 Hz ticks) and a short pause between swings —
+ * the same placement and timing the ROM uses (bitmap_weapon_update/_sat).
+ * Facing left mirrors both sprites, as the runtime does.
+ */
+const WeaponSwingPreview: React.FC<{
+  playerSprite?: Msx2Sprite | null;
+  weaponSprite?: Msx2Sprite | null;
+  frames: number[];
+  frameDelay: number;
+  offset: { x: number; y: number };
+  facing: 'left' | 'right';
+  scale?: number;
+}> = ({ playerSprite, weaponSprite, frames, frameDelay, offset, facing, scale = 3 }) => {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    let last = performance.now();
+    let acc = 0;
+    const loop = (now: number) => {
+      acc += now - last;
+      last = now;
+      const steps = Math.floor(acc / (1000 / 60));
+      if (steps > 0) {
+        acc -= steps * (1000 / 60);
+        setTick(value => value + steps);
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const delay = Math.max(1, Math.trunc(frameDelay) || 1);
+  const swingTicks = Math.max(1, frames.length) * delay;
+  const cycle = swingTicks + 30;
+  const phase = tick % cycle;
+  const activeFrame = phase < swingTicks ? Math.floor(phase / delay) : -1;
+  const playerW = playerSprite?.size?.width || 16;
+  const playerH = playerSprite?.size?.height || 32;
+  const pad = 40;
+  const width = playerW + pad * 2;
+  const height = Math.max(playerH, 32) + 24;
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = '#0f141c';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const isTransparent = (sprite: Msx2Sprite, color: unknown) => {
+      const value = String(color || '').toUpperCase();
+      return !value || value === 'TRANSPARENT' || value === 'RGBA(0,0,0,0)' || value === String(sprite.backgroundColor || '').toUpperCase();
+    };
+    const drawSprite = (sprite: Msx2Sprite | null | undefined, frameIndex: number, originX: number, originY: number, mirror: boolean) => {
+      const frame = sprite?.frames?.[frameIndex] || sprite?.frames?.[0];
+      const data = frame?.data;
+      if (!sprite || !data) return false;
+      const w = sprite.size?.width || data[0]?.length || 16;
+      for (let y = 0; y < data.length; y++) {
+        for (let x = 0; x < w; x++) {
+          const color = data[y]?.[x];
+          if (isTransparent(sprite, color)) continue;
+          const drawX = mirror ? originX + (w - 1 - x) : originX + x;
+          ctx.fillStyle = String(color);
+          ctx.fillRect(drawX * scale, (originY + y) * scale, scale, scale);
+        }
+      }
+      return true;
+    };
+    const playerX = pad;
+    const playerY = 12;
+    if (!drawSprite(playerSprite, 0, playerX, playerY, facing === 'left')) {
+      ctx.strokeStyle = '#64748b';
+      ctx.strokeRect(playerX * scale, playerY * scale, playerW * scale, playerH * scale);
+    }
+    if (activeFrame >= 0) {
+      const weaponX = playerX + offset.x;
+      const weaponY = playerY + offset.y;
+      const drawn = drawSprite(weaponSprite, frames[activeFrame] ?? 0, weaponX, weaponY, facing === 'left');
+      if (!drawn) {
+        ctx.strokeStyle = '#38bdf8';
+        ctx.strokeRect(weaponX * scale, weaponY * scale, 16 * scale, 16 * scale);
+      }
+      if (activeFrame === frames.length - 1) {
+        ctx.strokeStyle = 'rgba(248,113,113,0.8)';
+        ctx.strokeRect(weaponX * scale + 0.5, weaponY * scale + 0.5, 16 * scale - 1, 16 * scale - 1);
+      }
+    }
+  }, [activeFrame, facing, frames, offset.x, offset.y, playerH, playerSprite, playerW, scale, weaponSprite]);
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <canvas ref={canvasRef} width={width * scale} height={height * scale} className="rounded border border-slate-700" style={{ imageRendering: 'pixelated' }} />
+      <span className="text-[10px] text-slate-400">
+        {activeFrame >= 0 ? `Frame ${activeFrame + 1}/${frames.length}${activeFrame === frames.length - 1 ? ' - golpea' : ''}` : 'Reposo'} / {facing === 'left' ? 'Izquierda' : 'Derecha'}
+      </span>
+    </div>
+  );
+};
+
 const SpriteFramePreview: React.FC<{
   sprite?: Msx2Sprite | null;
   frameIndex?: number;
@@ -1449,7 +1552,16 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
     [selectedWeaponAttackVisual.spriteAssetId, spriteAssets],
   );
   const selectedWeaponAttackFrameStart = selectedWeaponAttackVisual.frames[0] ?? 0;
-  const selectedWeaponAttackFrameCount = Math.max(3, selectedWeaponAttackVisual.frames.length || 3);
+  const selectedWeaponAttackFrameCount = Math.max(
+    MSX2_WEAPON_MIN_FRAMES,
+    Math.min(MSX2_WEAPON_MAX_FRAMES, selectedWeaponAttackVisual.frames.length || MSX2_WEAPON_MIN_FRAMES),
+  );
+  const playerPreviewSprite = useMemo(
+    () => spriteAssets.find(asset => asset.id === normalized.render?.spriteAssetId)?.data as Msx2Sprite | undefined,
+    [normalized.render?.spriteAssetId, spriteAssets],
+  );
+  const weaponSwitchKey = normalizeMsx2WeaponSwitchKey(normalized.weaponSwitchKey);
+  const swingPreviewFacing: 'left' | 'right' = selectedWeaponFacing === 'left' ? 'left' : 'right';
   const weaponStateOptions = useMemo(() => {
     const names = selectedStateMachine
       ? selectedStateMachine.states.map(state => state.name || state.id)
@@ -1571,7 +1683,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
       attackVisual: createDefaultWeaponAttackVisual(),
       ammo: { enabled: false, initial: 0, max: 0, consumePerUse: 0, refillAmount: 0, emptyBehavior: 'block' },
       durability: { enabled: false, initial: 0, max: 0, consumePerUse: 0, repairAmount: 0, breakBehavior: 'unequip' },
-      notes: 'Declarative weapon metadata. ASM runtime support pending.',
+      notes: '',
     };
     updateWeapons([...weapons, nextWeapon], equippedWeaponId);
     setSelectedWeaponId(id);
@@ -1623,7 +1735,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
   };
   const updateSelectedWeaponAttackFrames = (start: number, count: number) => {
     const safeStart = Math.max(0, Math.trunc(numberValue(start, selectedWeaponAttackFrameStart)));
-    const safeCount = Math.max(3, Math.min(32, Math.trunc(numberValue(count, selectedWeaponAttackFrameCount))));
+    const safeCount = Math.max(MSX2_WEAPON_MIN_FRAMES, Math.min(MSX2_WEAPON_MAX_FRAMES, Math.trunc(numberValue(count, selectedWeaponAttackFrameCount))));
     updateSelectedWeaponAttackVisual({
       frames: Array.from({ length: safeCount }, (_, index) => safeStart + index),
     });
@@ -2668,7 +2780,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
               <section className={`${panelClass} ${activeSection === 'Weapons' ? 'absolute inset-0' : 'hidden'}`}>
                 <div className={`${panelTitleClass} flex items-center justify-between gap-2`}>
                   <span>Weapons</span>
-                  <span className="text-[10px] font-semibold normal-case tracking-normal text-slate-400">Declarative JSON only</span>
+                  <span className="text-[10px] font-semibold normal-case tracking-normal text-slate-400">SCREEN 5: melee con B, cambio de arma con tecla, pickups</span>
                 </div>
                 <div className="grid min-h-0 flex-1 grid-cols-[minmax(250px,0.72fr)_minmax(420px,1.28fr)] gap-3 overflow-hidden p-3">
                   <div className="flex min-h-0 flex-col rounded border border-slate-700 bg-[#151b25]">
@@ -2719,6 +2831,21 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                           </button>
                         );
                       })}
+                    </div>
+                    <div className="space-y-1 border-t border-slate-700 px-3 py-2">
+                      <Field label="Cambiar arma">
+                        <select
+                          className={selectClass}
+                          value={weaponSwitchKey}
+                          onChange={event => onUpdate({ weaponSwitchKey: normalizeMsx2WeaponSwitchKey(event.target.value) })}
+                        >
+                          {MSX2_WEAPON_SWITCH_KEY_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                        </select>
+                      </Field>
+                      <p className="text-[10px] leading-relaxed text-slate-500">
+                        La tecla recorre las armas que el player tiene. Con un arma melee equipada, el boton B golpea en lugar de disparar;
+                        con un arma projectile, B dispara (skill shoot). "Equipped" es el arma con la que empieza.
+                      </p>
                     </div>
                     <div className="grid grid-cols-4 gap-2 border-t border-slate-700 p-2">
                       <button type="button" className="rounded border border-slate-700 bg-[#202938] px-2 py-1 text-[11px] text-slate-200 hover:bg-[#2b3545]" onClick={duplicateSelectedWeapon} disabled={!selectedWeapon}>
@@ -2849,10 +2976,11 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                           <div className="rounded border border-sky-800/70 bg-[#111821] p-3">
                             <div className="mb-1 flex items-center justify-between gap-2">
                               <div className="text-[11px] font-bold uppercase tracking-wide text-sky-300">{selectedWeapon.type === 'arc' ? 'Sword Arc / Melee Attack Visual' : 'Sword / Melee Attack Visual'}</div>
-                              <span className="rounded border border-sky-800 bg-sky-950/40 px-1.5 py-0.5 text-[10px] text-sky-200">3+ frames</span>
+                              <span className="rounded border border-sky-800 bg-sky-950/40 px-1.5 py-0.5 text-[10px] text-sky-200">{MSX2_WEAPON_MIN_FRAMES}-{MSX2_WEAPON_MAX_FRAMES} frames</span>
                             </div>
                             <p className="mb-3 text-[10px] leading-relaxed text-slate-400">
-                              The sprite is placed in front of the player while the attack is active. Configure its animation, facing offset and damage rectangle independently from the player body hitbox.
+                              Al pulsar B el sprite del arma aparece delante del player (sprite hardware 16x16 por capa), recorre sus frames y desaparece.
+                              El ultimo frame es el golpe: toca enemigos/boss con su celda de 16x16. En SCREEN 5 solo cuentan los offsets Izquierda/Derecha.
                             </p>
                             <div className="grid grid-cols-2 gap-3">
                               <div className="space-y-2">
@@ -2867,13 +2995,19 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                                   </select>
                                 </Field>
                                 <Field label="Frame start"><SmallNumber value={selectedWeaponAttackFrameStart} onChange={value => updateSelectedWeaponAttackFrames(value, selectedWeaponAttackFrameCount)} /></Field>
-                                <Field label="Frame count" suffix="min 3"><SmallNumber value={selectedWeaponAttackFrameCount} onChange={value => updateSelectedWeaponAttackFrames(selectedWeaponAttackFrameStart, value)} /></Field>
+                                <Field label="Frame count" suffix={`${MSX2_WEAPON_MIN_FRAMES}-${MSX2_WEAPON_MAX_FRAMES}`}><SmallNumber value={selectedWeaponAttackFrameCount} onChange={value => updateSelectedWeaponAttackFrames(selectedWeaponAttackFrameStart, value)} /></Field>
                                 <Field label="Frame delay" suffix="game frames"><SmallNumber value={selectedWeaponAttackVisual.frameDelay} onChange={value => updateSelectedWeaponAttackVisual({ frameDelay: Math.max(1, Math.min(60, Math.trunc(numberValue(value, 4)))) })} /></Field>
                               </div>
-                              <div className="flex min-h-[130px] items-center justify-center rounded border border-slate-700 bg-[#0f141c] p-2">
-                                {selectedWeaponAttackSprite
-                                  ? <SpriteFramePreview sprite={selectedWeaponAttackSprite} frameIndex={selectedWeaponAttackFrameStart} pixelScale={3} />
-                                  : <span className="text-center text-[10px] text-slate-500">Select an MSX2 sprite asset<br />to preview the first slash frame.</span>}
+                              <div className="flex min-h-[130px] flex-col items-center justify-center gap-2 rounded border border-slate-700 bg-[#0f141c] p-2">
+                                <WeaponSwingPreview
+                                  playerSprite={playerPreviewSprite}
+                                  weaponSprite={selectedWeaponAttackSprite}
+                                  frames={selectedWeaponAttackVisual.frames.slice(0, MSX2_WEAPON_MAX_FRAMES)}
+                                  frameDelay={selectedWeaponAttackVisual.frameDelay}
+                                  offset={selectedWeaponAttackVisual.offsetByFacing[swingPreviewFacing] || { x: 0, y: 0 }}
+                                  facing={swingPreviewFacing}
+                                />
+                                {!selectedWeaponAttackSprite && <span className="text-center text-[10px] text-slate-500">Sin sprite: la ROM usa una hoja generica.</span>}
                               </div>
                             </div>
                             <div className="mt-3 grid grid-cols-2 gap-3">
@@ -2885,9 +3019,40 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                                   </select>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
-                                  <Field label="Offset X"><SmallNumber value={selectedWeaponAttackOffset.x} onChange={value => updateSelectedWeaponAttackOffset({ x: numberValue(value) })} /></Field>
-                                  <Field label="Offset Y"><SmallNumber value={selectedWeaponAttackOffset.y} onChange={value => updateSelectedWeaponAttackOffset({ y: numberValue(value) })} /></Field>
+                                  <Field label="Offset X"><SmallNumber value={selectedWeaponAttackOffset.x} onChange={value => updateSelectedWeaponAttackOffset({ x: Math.max(-64, Math.min(64, numberValue(value))) })} /></Field>
+                                  <Field label="Offset Y"><SmallNumber value={selectedWeaponAttackOffset.y} onChange={value => updateSelectedWeaponAttackOffset({ y: Math.max(-64, Math.min(64, numberValue(value))) })} /></Field>
                                 </div>
+                                <div className="mt-2 grid grid-cols-4 gap-1">
+                                  {([['←', -1, 0], ['→', 1, 0], ['↑', 0, -1], ['↓', 0, 1]] as const).map(([label, dx, dy]) => (
+                                    <button
+                                      key={label}
+                                      type="button"
+                                      className="rounded border border-slate-700 bg-[#202938] px-1 py-0.5 text-[11px] text-slate-200 hover:bg-[#2b3545]"
+                                      onClick={() => updateSelectedWeaponAttackOffset({
+                                        x: Math.max(-64, Math.min(64, selectedWeaponAttackOffset.x + dx)),
+                                        y: Math.max(-64, Math.min(64, selectedWeaponAttackOffset.y + dy)),
+                                      })}
+                                      title="Mover el arma 1 px respecto al player"
+                                    >
+                                      {label}
+                                    </button>
+                                  ))}
+                                </div>
+                                <button
+                                  type="button"
+                                  className="mt-1 w-full rounded border border-slate-700 bg-[#111821] px-1 py-0.5 text-[10px] text-slate-300 hover:bg-[#202938]"
+                                  onClick={() => {
+                                    const source = selectedWeaponAttackVisual.offsetByFacing[selectedWeaponFacing] || { x: 0, y: 0 };
+                                    const mirrored = selectedWeaponFacing === 'left' ? 'right' : selectedWeaponFacing === 'right' ? 'left' : null;
+                                    if (!mirrored) return;
+                                    updateSelectedWeaponAttackVisual({
+                                      offsetByFacing: { ...selectedWeaponAttackVisual.offsetByFacing, [mirrored]: { x: -source.x, y: source.y } },
+                                    });
+                                  }}
+                                  title="Copia el offset al lado contrario con X invertida"
+                                >
+                                  Espejar al otro lado
+                                </button>
                               </div>
                               <div className="rounded border border-slate-700 bg-[#151b25] p-2">
                                 <div className="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-300">Damage zone</div>

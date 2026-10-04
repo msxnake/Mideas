@@ -831,6 +831,7 @@ export const normalizeMsx2PlayerDefinition = (player: Partial<Msx2PlayerDefiniti
     equippedWeaponId: Object.prototype.hasOwnProperty.call(parsed || {}, 'equippedWeaponId')
       ? parsed?.equippedWeaponId
       : defaults.equippedWeaponId,
+    ...(parsed?.weaponSwitchKey ? { weaponSwitchKey: parsed.weaponSwitchKey } : {}),
     attack: {
       ...defaults.attack,
       ...(parsed?.attack || {}),

@@ -240,6 +240,14 @@ export interface BitmapEnemyRuntimeOptions {
   enemyBulletPatternNumber?: number;
   /** True when the player bullet writer follows the enemy bullet writer. */
   enemyBulletFollowedByPlayerBullets?: boolean;
+  /**
+   * SAT entries reserved after the enemy slots that this writer must park
+   * (#D4) before its terminator. The boss sprite bullets reserve a wider range
+   * than the enemy pool; without the padding the enemy #D8 lands INSIDE that
+   * range and, in rooms with no active boss, hides every later SAT writer
+   * (platforms, turrets, player weapon, player bullets). 0 = legacy layout.
+   */
+  satPadSlots?: number;
   /** Early-return gate prepended to bitmap_update_enemies (e.g. the NPC
    * dialogue pause). Empty when no pausing system exists in this ROM. */
   pauseGateAsm?: string;
@@ -2405,8 +2413,18 @@ bitmap_update_enemy_sat:
     and #3F
     or #40
     out (VDP_CTRL_PORT), a
-${satSlotBlocks}
-    ld a, #D8
+${satSlotBlocks}${(opts.satPadSlots || 0) > 0 ? `    ; Park the ${opts.satPadSlots} slot(s) reserved for boss sprite bullets beyond the
+    ; enemy pool, so the terminator lands after the whole reserved range.
+    ld b, ${opts.satPadSlots}
+.sat_pad_reserved:
+    ld a, #D4
+    out (VDP_DATA_PORT), a
+    xor a
+    out (VDP_DATA_PORT), a
+    out (VDP_DATA_PORT), a
+    out (VDP_DATA_PORT), a
+    djnz .sat_pad_reserved
+` : ''}    ld a, #D8
     out (VDP_DATA_PORT), a    ; terminator
     xor a
     out (VDP_DATA_PORT), a

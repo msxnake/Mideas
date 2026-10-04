@@ -76,7 +76,8 @@ function resolveBossAttacks(
   const fallingRocks = (boss.bossProjectilePattern || 'aimed') === 'fallingRocks';
   const soapBubbles = (boss.bossProjectilePattern || 'aimed') === 'soapBubbles';
   const moleLightning = (boss.bossProjectilePattern || 'aimed') === 'moleLightning';
-  const wantsBitmap = !soapBubbles && !moleLightning && (fallingRocks || (boss.bossProjectileKind || 'sprite') === 'bitmap');
+  const moleRock = (boss.bossProjectilePattern || 'aimed') === 'moleRock';
+  const wantsBitmap = !soapBubbles && !moleLightning && !moleRock && (fallingRocks || (boss.bossProjectileKind || 'sprite') === 'bitmap');
   const projectileId = String(boss.bossProjectileTileId || '').trim();
   const projectileEntry = projectileId
     ? atlasEntries.find(entry => entry.id === projectileId)
@@ -532,11 +533,11 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
                 <label className={label}>ID (referenced by screens as bossId)</label>
                 <input className={input} value={boss.id} readOnly />
               </div>
-              <div>
+              {boss.bossProjectilePattern !== 'moleRock' && <div>
                 <label className={label}>Hit points</label>
                 <input type="number" min={1} max={255} className={input}
                   value={boss.bossHp} onChange={e => set('bossHp', Number(e.target.value))} />
-              </div>
+              </div>}
               <div>
                 <label className={label}>Contact damage (hearts)</label>
                 <input type="number" min={0} max={8} className={input}
@@ -558,7 +559,9 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
 
             <p className="text-xs text-msx-textsecondary mt-3">
               A screen uses this boss by placing a boss entity with <code>bossId = {boss.id || '…'}</code>.
-              The screen may override HP with <code>hpOverride</code>.
+              {boss.bossProjectilePattern === 'moleRock'
+                ? ' Set the required returned rocks in Attack Phases; an encounter HP override changes that count for its room.'
+                : <> The screen may override HP with <code>hpOverride</code>.</>}
             </p>
             <p className="text-xs text-msx-textsecondary mt-2">
               For a double confrontation, create two Boss assets when they need different
@@ -658,7 +661,7 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
             <h3 className="text-sm font-semibold mb-3">Movement</h3>
             <div className="mb-3">
               <label className={label}>Path (a route asset the boss walks)</label>
-              <select className={input} value={boss.bossPathId || ''} disabled={boss.bossMovement === 'randomPath' || boss.bossMovement === 'burrowRandom'}
+              <select className={input} value={boss.bossPathId || ''} disabled={boss.bossMovement === 'randomPath' || boss.bossMovement === 'burrowRandom' || boss.bossMovement === 'chickCharge'}
                 onChange={e => set('bossPathId', e.target.value)}>
                 <option value="">— none, use the simple movement below —</option>
                 {pathAssets.map(asset => (
@@ -670,6 +673,8 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
                   ? 'Random path generates its own branches and ignores authored routes.'
                   : boss.bossMovement === 'burrowRandom'
                     ? 'El Topo chooses a new emergence column without an authored path.'
+                  : boss.bossMovement === 'chickCharge'
+                    ? 'Pollito chooses a charging direction at the end of each wind-up.'
                   : <>A path wins over the simple movement, and each attack phase can switch to a different one. Author routes in <strong>MSX2 Paths</strong>.</>}
               </p>
             </div>
@@ -681,8 +686,8 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
                   onChange={e => {
                     const movement = (e.target.value || undefined) as Msx2BossDefinition['bossMovement'];
                     onUpdate({ ...boss, bossMovement: movement,
-                      bossPathId: movement === 'randomPath' || movement === 'burrowRandom' ? '' : boss.bossPathId,
-                      bossProjectilePattern: movement === 'burrowRandom' ? 'moleLightning' : boss.bossProjectilePattern,
+                      bossPathId: movement === 'randomPath' || movement === 'burrowRandom' || movement === 'chickCharge' ? '' : boss.bossPathId,
+                      bossProjectilePattern: movement === 'burrowRandom' ? 'moleRock' : boss.bossProjectilePattern,
                       bossProjectileKind: movement === 'burrowRandom' ? 'sprite' : boss.bossProjectileKind,
                       bossThreadLength: movement === 'randomPath' ? (boss.bossThreadLength ?? 32) : boss.bossThreadLength,
                       bossThreadRetractPx: movement === 'randomPath' ? (boss.bossThreadRetractPx ?? 16) : boss.bossThreadRetractPx,
@@ -696,6 +701,7 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
                   <option value="patrolXY">Patrol diagonally (bounces on both axes)</option>
                   <option value="randomPath">Random path — alternating web branches</option>
                   <option value="burrowRandom">El Topo — random underground emergence</option>
+                  <option value="chickCharge">Pollito — pecking charge and dizzy stomp</option>
                 </select>
               </div>
               <div>
@@ -708,7 +714,7 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
               <div>
                 <label className={label}>Travel from spawn (px, 0 = whole room)</label>
                 <input type="number" min={0} max={255} className={input}
-                   disabled={!!boss.bossPathId || boss.bossMovement === 'static' || boss.bossMovement === 'randomPath' || boss.bossMovement === 'burrowRandom'}
+                   disabled={!!boss.bossPathId || boss.bossMovement === 'static' || boss.bossMovement === 'randomPath' || boss.bossMovement === 'burrowRandom' || boss.bossMovement === 'chickCharge'}
                   value={boss.bossRangePx ?? 0}
                   onChange={e => set('bossRangePx', Number(e.target.value))} />
               </div>
@@ -736,17 +742,28 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
                 <div className="grid grid-cols-3 gap-3">
                   <div><label className={label}>Minimum X (px)</label><input type="number" min={0} max={224} step={16} className={input} value={boss.bossMoleMinX ?? 16} onChange={e => set('bossMoleMinX', Number(e.target.value))} /></div>
                   <div><label className={label}>Maximum X (px)</label><input type="number" min={0} max={224} step={16} className={input} value={boss.bossMoleMaxX ?? 80} onChange={e => set('bossMoleMaxX', Number(e.target.value))} /></div>
-                  <div><label className={label}>Ground below body (px)</label><input type="number" min={0} max={32} step={1} className={input} value={boss.bossMoleGroundOffsetPx ?? 0} onChange={e => set('bossMoleGroundOffsetPx', Number(e.target.value))} /></div>
-                  <div><label className={label}>Hidden (frames at 60 Hz)</label><input type="number" min={1} max={255} className={input} value={boss.bossMoleHiddenFrames ?? 45} onChange={e => set('bossMoleHiddenFrames', Number(e.target.value))} /></div>
+                  <div><label className={label}>Spark warning (frames at 60 Hz)</label><input type="number" min={1} max={255} className={input} value={boss.bossMoleHiddenFrames ?? 240} onChange={e => set('bossMoleHiddenFrames', Number(e.target.value))} /></div>
                   <div><label className={label}>Emerging (frames)</label><input type="number" min={1} max={120} className={input} value={boss.bossMoleEmergeFrames ?? 12} onChange={e => set('bossMoleEmergeFrames', Number(e.target.value))} /></div>
                   <div><label className={label}>Retreating (frames)</label><input type="number" min={1} max={120} className={input} value={boss.bossMoleRetreatFrames ?? 10} onChange={e => set('bossMoleRetreatFrames', Number(e.target.value))} /></div>
-                  <div><label className={label}>Hole colour (SCREEN 5 slot)</label><select className={input} value={boss.bossMoleHoleColor ?? 1} onChange={e => set('bossMoleHoleColor', Number(e.target.value))}>{Array.from({ length: 16 }, (_, i) => <option key={i} value={i}>{i} — {threadPalette[i]?.hex || 'palette colour'}</option>)}</select></div>
+                  <div><label className={label}>Spark colour (SCREEN 5 slot)</label><select className={input} value={boss.bossMoleSparkColor ?? 11} onChange={e => set('bossMoleSparkColor', Number(e.target.value))}>{Array.from({ length: 16 }, (_, i) => <option key={i} value={i}>{i} — {threadPalette[i]?.hex || 'palette colour'}</option>)}</select></div>
                 </div>
-                <p className="text-xs text-msx-textsecondary mt-2">Place a 32×32 boss immediately above a two-tile-wide floor strip. The ground offset positions the opened strip; the engine restores those tiles after each retreat.</p>
+                <p className="text-xs text-msx-textsecondary mt-2">240 warning frames = 4 seconds. Sparks mark the next random emergence point; the floor tiles stay visible throughout.</p>
               </div>
             )}
 
-            {boss.bossMovement !== 'burrowRandom' && <div className="mt-4 pt-3 border-t border-msx-border">
+            {boss.bossMovement === 'chickCharge' && (
+              <div className="mt-4 pt-3 border-t border-msx-border">
+                <h4 className="text-sm font-semibold mb-2">Pollito — embestida</h4>
+                <div className="grid grid-cols-3 gap-3">
+                  <div><label className={label}>Preparación (fotogramas)</label><input type="number" min={1} max={255} className={input} value={boss.bossChickWindupFrames ?? 45} onChange={e => set('bossChickWindupFrames', Number(e.target.value))} /></div>
+                  <div><label className={label}>Mareo tras fallar (fotogramas)</label><input type="number" min={1} max={255} className={input} value={boss.bossChickStunFrames ?? 150} onChange={e => set('bossChickStunFrames', Number(e.target.value))} /></div>
+                  <div><label className={label}>Pausa tras acertar (fotogramas)</label><input type="number" min={1} max={255} className={input} value={boss.bossChickRecoveryFrames ?? 55} onChange={e => set('bossChickRecoveryFrames', Number(e.target.value))} /></div>
+                </div>
+                <p className="text-xs text-msx-textsecondary mt-2">Solo un pisotón durante el mareo quita un corazón. La embestida empuja al jugador hasta 16 píxeles, respetando los muros.</p>
+              </div>
+            )}
+
+            {boss.bossMovement !== 'burrowRandom' && boss.bossMovement !== 'chickCharge' && <div className="mt-4 pt-3 border-t border-msx-border">
               <h4 className="text-sm font-semibold mb-2">Web branches</h4>
               <label className="flex items-center gap-2 text-sm mb-3">
                 <input type="checkbox" checked={boss.bossThreadEnabled ?? ((boss.bossThreadLength ?? 0) > 0)}
@@ -1186,6 +1203,7 @@ const PhasesPanel: React.FC<{
     : attacks.laser ? 'laser only'
       : attacks.soapBubbles ? 'soap bubbles'
       : boss.bossProjectilePattern === 'moleLightning' ? 'electric bolts'
+      : boss.bossProjectilePattern === 'moleRock' ? 'thrown rock'
       : attacks.fallingRocks ? 'falling rocks'
         : attacks.bullets ? 'bullets'
           : 'nothing yet';
@@ -1208,12 +1226,13 @@ const PhasesPanel: React.FC<{
               <option value="fallingRocks">Falling rocks from the ceiling</option>
               <option value="soapBubbles">Soap bubbles — diagonal rebounds</option>
               <option value="moleLightning">El Topo — upward electric fan</option>
+              <option value="moleRock">El Topo — arcing rock</option>
             </select>
           </div>
           <div>
             <label className={label}>Kind</label>
             <select className={input} value={boss.bossProjectileKind || 'sprite'}
-              disabled={boss.bossProjectilePattern === 'fallingRocks' || boss.bossProjectilePattern === 'soapBubbles' || boss.bossProjectilePattern === 'moleLightning'}
+              disabled={boss.bossProjectilePattern === 'fallingRocks' || boss.bossProjectilePattern === 'soapBubbles' || boss.bossProjectilePattern === 'moleLightning' || boss.bossProjectilePattern === 'moleRock'}
               onChange={e => set('bossProjectileKind', e.target.value as 'sprite' | 'bitmap')}>
               <option value="sprite">Hardware sprite</option>
               <option value="bitmap">Bitmap blit</option>
@@ -1254,6 +1273,13 @@ const PhasesPanel: React.FC<{
             <div><label className={label}>Diagonal angle from vertical</label><select className={input} value={boss.bossMoleRayAngleSteps ?? 2} onChange={e => set('bossMoleRayAngleSteps', Number(e.target.value))}><option value={1}>22.5°</option><option value={2}>45°</option><option value={3}>67.5°</option></select></div>
             <div><label className={label}>Ray speed (px/frame)</label><input type="number" min={1} max={4} className={input} value={boss.bossMoleRaySpeed ?? 2} onChange={e => set('bossMoleRaySpeed', Number(e.target.value))} /></div>
             <p className="col-span-3 text-xs text-msx-textsecondary">The mole fires three electric bolts: vertical and both diagonals. Range determines how long the bolts remain active.</p>
+          </div>
+        )}
+        {boss.bossProjectilePattern === 'moleRock' && (
+          <div className="grid grid-cols-3 gap-2 mt-2">
+            <div><label className={label}>Rock arc height</label><select className={input} value={boss.bossMoleRockArcHeightPx ?? 80} onChange={e => set('bossMoleRockArcHeightPx', Number(e.target.value) as 40 | 60 | 80)}><option value={40}>Low</option><option value={60}>Medium</option><option value={80}>High</option></select></div>
+            <div><label className={label}>Returned rocks to defeat</label><input type="number" min={1} max={255} className={input} value={boss.bossHp} onChange={e => set('bossHp', Math.max(1, Math.min(255, Number(e.target.value) || 1)))} /></div>
+            <p className="col-span-3 text-xs text-msx-textsecondary">Shoot the rock while it rises: El Topo stays exposed and the return removes one point. He hides as soon as it starts descending, so a later return misses. An unreturned rock lands and disappears.</p>
           </div>
         )}
         {(boss.bossProjectilePattern === 'fallingRocks' || boss.bossProjectileKind === 'bitmap') && (
@@ -1327,7 +1353,7 @@ const PhasesPanel: React.FC<{
           This boss fires: <strong className="text-msx-textprimary">{firesLabel}</strong>
         </span>
         <span className="px-2 py-1 rounded border border-msx-border text-msx-textsecondary">
-          Hit points: <strong className="text-msx-textprimary">{maxHp}</strong>
+          {boss.bossProjectilePattern === 'moleRock' ? 'Returned rocks to defeat' : 'Hit points'}: <strong className="text-msx-textprimary">{maxHp}</strong>
         </span>
         {!attacks.bullets && !attacks.laser && (
           <span className="text-yellow-400">
@@ -1348,7 +1374,7 @@ const PhasesPanel: React.FC<{
         const band = bandOf(index);
         const shootAsset = shootAssets.find(asset => asset.id === phase.shootId);
         const shootDefinition = shootAsset?.data as Msx2ShootDefinition | undefined;
-        const shootSpriteId = shootDefinition?.pattern !== 'laser'
+        const shootSpriteId = boss.bossProjectilePattern !== 'moleRock' && shootDefinition?.pattern !== 'laser'
           ? String(shootDefinition?.projectileSpriteId || '').trim() : '';
         const shootSprite = spriteAssets.find(asset => asset.id === shootSpriteId);
         const moveSteps = Math.max(1, Math.min(3, Number(phase.moveStepMultiplier) || 1));
@@ -1394,7 +1420,7 @@ const PhasesPanel: React.FC<{
             </div>
 
             {/* --- what it shoots: only the back-ends this boss actually has --- */}
-            {attacks.bullets && (
+            {attacks.bullets && boss.bossProjectilePattern !== 'moleRock' && (
               <div className="grid grid-cols-4 gap-2 mb-2">
                 <div>
                   <label className={label}>
@@ -1419,6 +1445,10 @@ const PhasesPanel: React.FC<{
                   </select>
                 </div>
               </div>
+            )}
+
+            {attacks.bullets && boss.bossProjectilePattern === 'moleRock' && (
+              <p className="text-xs text-msx-textsecondary mb-2">El Topo throws one rock per emergence. Its arc and landing are configured above; this phase selects the rock sprite.</p>
             )}
 
             {attacks.spriteBullets && (
@@ -1446,7 +1476,7 @@ const PhasesPanel: React.FC<{
                 aimed shot.
               </p>
             )}
-            {attacks.bullets && shootAsset && (
+            {attacks.bullets && boss.bossProjectilePattern !== 'moleRock' && shootAsset && (
               <p className="text-xs text-msx-textsecondary mb-2">
                 <strong>{shootAsset.name}</strong>: {describeShoot(shootAsset)}
               </p>
@@ -2075,7 +2105,7 @@ const EncountersPanel: React.FC<{
               </div>
             </div>
             <div className="w-28">
-              <label className={label}>HP override</label>
+              <label className={label}>{boss.bossProjectilePattern === 'moleRock' ? 'Returned rocks override' : 'HP override'}</label>
               <input type="number" min={1} max={255} className={input} value={encounter.hpOverride}
                 placeholder={String(boss.bossHp)} disabled={!usesThis || !onUpdateAsset}
                 onChange={e => setHpOverride(encounter, e.target.value)} />
@@ -2099,7 +2129,7 @@ const EncountersPanel: React.FC<{
       <p className="text-xs text-msx-textsecondary mt-2">
         The definition supplies the defaults and the placed boss wins on anything it sets,
         so the same creature can appear in several rooms with a different HP or reward.
-        Leave the override empty to inherit {boss.bossHp} HP.
+        Leave the override empty to inherit {boss.bossHp} {boss.bossProjectilePattern === 'moleRock' ? 'returned rocks' : 'HP'}.
       </p>
       <p className="text-xs text-msx-textsecondary mt-2">
         Each boss starts <strong>where you placed it on the room</strong> and walks the route

@@ -172,6 +172,12 @@ export interface BitmapShootRuntimeOptions {
    */
   ammoCounterLabel?: string;
   /**
+   * RAM byte that suppresses the shot while non-zero. The player weapon runtime
+   * sets it while a MELEE weapon is equipped: the same button swings the weapon
+   * instead of firing. Undefined (no weapons) keeps the historical code.
+   */
+  blockedByLabel?: string;
+  /**
    * Sound Editor asset played on every shot, when the player picked one. Absent
    * (or with no steps) keeps the built-in pew, which needs no sequencer at all.
    */
@@ -467,6 +473,13 @@ bitmap_prepare_bullet_pattern_body:
     jp z, .spawn_done         ; out of ammo: no shot
 `
     : '';
+  // Melee weapon equipped: B belongs to the weapon swing, never to the shot.
+  const weaponGate = opts.blockedByLabel
+    ? `    ld a, (${opts.blockedByLabel})
+    or a
+    jp nz, .spawn_done        ; melee weapon equipped: the button swings instead
+`
+    : '';
   // Spend one unit only once a slot was actually taken.
   const ammoSpend = opts.ammoCounterLabel
     ? `    ld a, (${opts.ammoCounterLabel})
@@ -619,7 +632,7 @@ bitmap_try_spawn_bullet:
     ld a, (bitmap_shoot_cooldown)
     or a
     jp nz, .spawn_done
-${lockGate}${ammoGate}    ld ix, bitmap_bullet_pool
+${lockGate}${weaponGate}${ammoGate}    ld ix, bitmap_bullet_pool
     ld b, ${asmByte(maxBullets)}
 .find_free:
     ld a, (ix+0)

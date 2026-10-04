@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Button } from '../common/Button';
 import { ProjectAsset, DataFormat, EditorType, ScreenKind, ExportRomMode, Msx2ProjectProfile } from '../../types';
-import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon, GameFlowIcon, PencilIcon, WorldViewIcon, SparklesIcon, ClockIcon, TrashIcon, ImageIcon, HudIcon } from '../icons/MsxIcons';
+import { SaveIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon, GameFlowIcon, PencilIcon, WorldViewIcon, SparklesIcon, ClockIcon, TrashIcon, ImageIcon, HudIcon } from '../icons/MsxIcons';
 import { APP_VERSION } from '../../constants';
 import { getRecentProjects, removeRecentProject, clearRecentProjects, formatRecentDate, RecentProject } from '../../utils/recentProjects';
 import { getProjectTargetFromScreenMode, isAssetTypeEnabledForMsx2Project } from '../../utils/projectTarget';
@@ -368,8 +368,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       <DropdownMenu label="File">
         <DropdownItem onClick={onNewProject} icon={<PlusCircleIcon />}>New Project</DropdownItem>
         <DropdownSeparator />
-        <DropdownItem onClick={onSaveProject} icon={<SaveFloppyIcon />} disabled={!hasActiveProject}>Save Project</DropdownItem>
-        <DropdownItem onClick={onSaveProjectAs} icon={<SaveFloppyIcon />} disabled={!hasActiveProject}>Save Project As...</DropdownItem>
+        <DropdownItem onClick={onSaveProject} icon={<SaveIcon />} disabled={!hasActiveProject}>Save Project</DropdownItem>
+        <DropdownItem onClick={onSaveProjectAs} icon={<SaveIcon />} disabled={!hasActiveProject}>Save Project As...</DropdownItem>
         <DropdownItem onClick={onLoadProject} icon={<FolderOpenIcon />}>Load Project</DropdownItem>
         {shouldShowMsx1Controls && (
           <DropdownItem onClick={onImportBossPackage} icon={<BugIcon />} disabled={!hasActiveProject}>MSX1 Import Boss Package (.json)</DropdownItem>
@@ -463,6 +463,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         {shouldShowAssetType('msx2bosspath') && <DropdownItem onClick={() => onNewAsset('msx2bosspath')} icon={<BugIcon />} colorClass="text-orange-300 hover:bg-orange-700 hover:text-white" disabled={!canCreateAsset('msx2bosspath')}>MSX2 Paths</DropdownItem>}
         {shouldShowAssetType('msx2shoot') && <DropdownItem onClick={() => onNewAsset('msx2shoot')} icon={<SparklesIcon />} colorClass="text-amber-300 hover:bg-amber-700 hover:text-white" disabled={!canCreateAsset('msx2shoot')}>MSX2 Shoots Definition</DropdownItem>}
         {shouldShowAssetType('msx2dialogue') && <DropdownItem onClick={() => onNewAsset('msx2dialogue')} icon={<PencilIcon />} colorClass="text-sky-200 hover:bg-sky-600 hover:text-white" disabled={!canCreateAsset('msx2dialogue')}>MSX2 Dialogue</DropdownItem>}
+        {shouldShowAssetType('msx2intro') && <DropdownItem onClick={() => onNewAsset('msx2intro')} icon={<PencilIcon />} colorClass="text-cyan-200 hover:bg-cyan-600 hover:text-white" disabled={!canCreateAsset('msx2intro')}>MSX2 Intro</DropdownItem>}
         {shouldShowAssetType('msx2hudfont') && <DropdownItem onClick={() => onNewAsset('msx2hudfont')} icon={<PencilIcon />} colorClass="text-emerald-200 hover:bg-emerald-600 hover:text-white" disabled={!canCreateAsset('msx2hudfont')}>MSX2 Font</DropdownItem>}
         {shouldShowAssetType('msx2hud') && <DropdownItem onClick={() => onNewAsset('msx2hud')} icon={<PencilIcon />} colorClass="text-emerald-200 hover:bg-emerald-600 hover:text-white" disabled={!canCreateAsset('msx2hud')}>MSX2 HUD</DropdownItem>}
         {shouldShowAssetType('msx2presentation') && <DropdownItem onClick={() => onNewAsset('msx2presentation')} icon={<MapIcon />} colorClass="text-teal-200 hover:bg-teal-600 hover:text-white" disabled={!canCreateAsset('msx2presentation')}>MSX2 SCREEN 5 Presentation</DropdownItem>}

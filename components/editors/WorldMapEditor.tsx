@@ -3,7 +3,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { WorldMapGraph, WorldMapScreenNode, WorldMapConnection, ConnectionDirection, WorldMapTransitionBlockedAction, WorldMapTransitionMode, ScreenMap, Tile, DataFormat, ContextMenuItem, Msx2Screen4TileScreen, Msx2Screen5BitmapRoom, ProjectAsset, PaletteAsset } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { PlusCircleIcon, TrashIcon, SaveFloppyIcon, CodeIcon, PencilIcon, RefreshCwIcon } from '../icons/MsxIcons';
+import { PlusCircleIcon, TrashIcon, SaveIcon, CodeIcon, PencilIcon, RefreshCwIcon } from '../icons/MsxIcons';
 import { ExportWorldMapASMModal } from '../modals/ExportWorldMapASMModal';
 import { RandomMapGeneratorModal } from '../modals/RandomMapGeneratorModal';
 import { ConnectionManagerModal } from '../modals/ConnectionManagerModal';
@@ -1202,7 +1202,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
         <Button onClick={() => onUpdate({ panOffset: { x: 0, y: 0 }, zoomLevel: 1 })} size="sm" variant="ghost">Reset View</Button>
         <Button onClick={handleCenterGrid} size="sm" variant="ghost">Center Grid</Button>
         <Button onClick={handleAlign} size="sm" variant="ghost">Align</Button>
-        <Button onClick={handleSaveWorldJson} size="sm" variant="secondary" icon={<SaveFloppyIcon className="w-3.5 h-3.5" />} title="Save World Map as JSON">Save JSON</Button>
+        <Button onClick={handleSaveWorldJson} size="sm" variant="secondary" icon={<SaveIcon className="w-3.5 h-3.5" />} title="Save World Map as JSON">Save JSON</Button>
         <Button onClick={handleOpenExportAsmModal} size="sm" variant="secondary" icon={<CodeIcon className="w-3.5 h-3.5" />} title="Export World Map as ASM">Export ASM</Button>
         <Button onClick={() => setIsRandomMapModalOpen(true)} size="sm" variant="secondary" title="Generar Mapa Aleatorio">Generar Mapa Aleatorio</Button>
       </div>

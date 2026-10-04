@@ -4,7 +4,7 @@ import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { Z80SyntaxHighlighter } from '../common/Z80SyntaxHighlighter';
 import { Z80_SNIPPETS } from '../../constants';
-import { ZoomInIcon, ZoomOutIcon, FolderOpenIcon, SaveFloppyIcon } from '../icons/MsxIcons';
+import { ZoomInIcon, ZoomOutIcon, FolderOpenIcon, SaveIcon } from '../icons/MsxIcons';
 
 /**
  * Props for the CodeEditor component.
@@ -395,7 +395,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ code: initialCode, onUpd
       <input type="file" accept=".asm,.z80,.s" ref={fileInputRef} onChange={handleFileSelected} className="hidden" />
       <div className="p-1 border-b border-msx-border flex items-center space-x-2">
         <Button onClick={handleLoadFileClick} size="sm" variant="ghost" title="Load ASM File" icon={<FolderOpenIcon className="w-4 h-4"/>}><span className="hidden sm:inline">Load</span></Button>
-        <Button onClick={handleOpenSaveAsModal} size="sm" variant="ghost" title="Save ASM File As..." icon={<SaveFloppyIcon className="w-4 h-4"/>}><span className="hidden sm:inline">Save As...</span></Button>
+        <Button onClick={handleOpenSaveAsModal} size="sm" variant="ghost" title="Save ASM File As..." icon={<SaveIcon className="w-4 h-4"/>}><span className="hidden sm:inline">Save As...</span></Button>
 
         {/* OpenMSX Integration Buttons */}
         <div className="border-l border-msx-border pl-2 ml-2 flex items-center space-x-1">

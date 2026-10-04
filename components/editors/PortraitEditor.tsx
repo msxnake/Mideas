@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { PortraitAsset, ProjectAsset, Tile, TileBank } from '../../types';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
-import { FolderOpenIcon, SaveFloppyIcon } from '../icons/MsxIcons';
+import { FolderOpenIcon, SaveIcon } from '../icons/MsxIcons';
 import { downloadTextFile } from '../../utils/downloadUtils';
 import {
   createDialoguePortraitPackage,
@@ -278,7 +278,7 @@ export const PortraitEditor: React.FC<PortraitEditorProps> = ({
                 <Button
                   size="sm"
                   variant="secondary"
-                  icon={<SaveFloppyIcon className="w-3.5 h-3.5" />}
+                  icon={<SaveIcon className="w-3.5 h-3.5" />}
                   onClick={handleSavePortraitJson}
                   title="Save Portrait package as JSON"
                 >

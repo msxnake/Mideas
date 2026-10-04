@@ -1,4 +1,5 @@
 import React from 'react';
+import { EyeIcon, EyeOffIcon } from '../icons/MsxIcons';
 
 /**
  * Props for the Panel component.
@@ -69,11 +70,11 @@ export const Panel: React.FC<PanelProps> = ({
             type="button"
             onClick={() => setIsCollapsed(value => !value)}
             className="mr-1 w-6 h-6 flex items-center justify-center rounded border border-msx-border bg-msx-bgcolor text-msx-textsecondary hover:text-msx-highlight hover:border-msx-highlight"
-            title={isCollapsed ? 'Expand panel' : 'Collapse panel'}
+            title={isCollapsed ? `Show ${title}` : `Hide ${title}`}
             aria-expanded={!isCollapsed}
             aria-label={isCollapsed ? `Expand ${title}` : `Collapse ${title}`}
           >
-            {isCollapsed ? '+' : '-'}
+            {isCollapsed ? <EyeIcon /> : <EyeOffIcon />}
           </button>
         )}
         {headerButtons && <div className="flex items-center space-x-1">{headerButtons}</div>}

@@ -1,4 +1,5 @@
 import { deferredPanel } from './common/deferredPanel';
+import { createDefaultMsx2Intro } from '../utils/msx2IntroUtils';
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { 
   EditorType, ProjectAsset, Tile, Sprite, Msx2Sprite, Msx2Bitmap, BitmapTileScreen5, Msx2Screen4TileScreen, Msx2Screen5BitmapRoom, Msx2PlayerDefinition, Msx2HudFontAsset, Msx2HudAsset, Msx2HudIconEntry, ScreenMap, MSXColorValue, SpriteFrame, PixelData,
@@ -8,7 +9,7 @@ import {
   Snippet, EntityInstance, MockEntityType, HelpDocSection, BehaviorScript,
   CopiedScreenData, CopiedLayerData, EffectZone, ScreenEditorLayerName, 
   ComponentDefinition, EntityTemplate, EnemyDefinition, Msx2BossDefinition, Msx2BossPath, Msx2ShootDefinition, ContextMenuItem,
-  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, Msx2GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, Msx2Screen5PresentationConfig, DialogueAsset, Msx2DialogueAsset, Msx2BitmapStampAsset, Msx2BitmapTerrainAsset, PortraitAsset, ScreenKind, TileStamp, Msx2ProjectProfile, Msx2GameProfileId, PaletteAsset, Screen5PaletteSlot, Msx2PaletteZones
+  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, Msx2GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, Msx2Screen5PresentationConfig, DialogueAsset, Msx2DialogueAsset, Msx2IntroAsset, Msx2BitmapStampAsset, Msx2BitmapTerrainAsset, PortraitAsset, ScreenKind, TileStamp, Msx2ProjectProfile, Msx2GameProfileId, PaletteAsset, Screen5PaletteSlot, Msx2PaletteZones
 } from '../types';
 import { 
   MSX1_PALETTE,
@@ -30,6 +31,7 @@ import { buildDetailedMsx2PlayerDocument, mergeMsx2PlayerUpdate } from '../utils
 import { getUsedMsx2SpritePaletteSlots, reconcileMsx2SpriteIntoProjectPalette } from '../utils/msx2PaletteCompatibility';
 import { TILE_BANKS_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './tools/systemAssetIds';
 import { StatusBar } from './layout/StatusBar';
+import { Msx2MemoryBudgetIndicator } from './layout/Msx2MemoryBudgetIndicator';
 import { Toolbar } from './layout/Toolbar';
 // OBSOLETO: import { CompressDataModal } from './modals/CompressDataModal';
 import { ThemeProvider } from '../contexts/ThemeContext';
@@ -82,6 +84,7 @@ const PaletteEditor = deferredPanel(() => import('./editors/PaletteEditor').then
 const MainMenuEditor = deferredPanel(() => import('./editors/MainMenuEditor').then(module => ({ default: module.MainMenuEditor })));
 const PresentationScreenEditor = deferredPanel(() => import('./editors/PresentationScreenEditor').then(module => ({ default: module.PresentationScreenEditor })));
 const DialogueEditor = deferredPanel(() => import('./editors/DialogueEditor').then(module => ({ default: module.DialogueEditor })));
+const Msx2IntroEditor = deferredPanel(() => import('./editors/Msx2IntroEditor').then(module => ({ default: module.Msx2IntroEditor })));
 const Msx2DialogueEditor = deferredPanel(() => import('./editors/Msx2DialogueEditor').then(module => ({ default: module.Msx2DialogueEditor })));
 const Msx2BitmapStampEditor = deferredPanel(() => import('./editors/Msx2BitmapStampEditor').then(module => ({ default: module.Msx2BitmapStampEditor })));
 const Msx2BitmapTerrainEditor = deferredPanel(() => import('./editors/Msx2BitmapTerrainEditor').then(module => ({ default: module.Msx2BitmapTerrainEditor })));
@@ -449,6 +452,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
     EditorType.Msx2BitmapStamp,
     EditorType.Msx2BitmapTerrain,
     EditorType.Msx2Dialogue,
+    EditorType.Msx2Intro,
     EditorType.Msx2HudFont,
     EditorType.Msx2HudEditor,
     EditorType.Msx2Presentation,
@@ -1394,6 +1398,14 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               setStatusBarMessage={setStatusBarMessage}
             />
           )}
+          {currentEditor === EditorType.Msx2Intro && activeAsset?.type === 'msx2intro' && (
+            <Msx2IntroEditor
+              intro={(activeAsset.data as Msx2IntroAsset) || createDefaultMsx2Intro(activeAsset.id, activeAsset.name)}
+              onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}
+              allAssets={assets}
+              setStatusBarMessage={setStatusBarMessage}
+            />
+          )}
           {currentEditor === EditorType.Portrait && activeAsset?.type === 'portrait' && (
             <PortraitEditor
               portrait={(activeAsset.data as PortraitAsset) || ({ id: activeAsset.id, name: activeAsset.name, widthChars: 4, heightChars: 4, cells: Array(16).fill(''), dedupeIdenticalTiles: true, mouth: { enabled: false, cellIndex: 0, openTileId: '' } } as PortraitAsset)}
@@ -1407,7 +1419,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           
           {currentEditor === EditorType.Tile && activeAsset?.type === 'tile' && ( <TileEditor currentTile={activeAsset.data as Tile} onUpdateCurrentTile={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} allTileAssets={assets.filter(a => a.type === 'tile')} onUpdateAllTileAssets={(newTiles) => setAssetsWithHistory(prev => [...prev.filter(a => a.type !== 'tile'), ...newTiles])} selectedColor={selectedColor} currentScreenMode={currentScreenMode} dataOutputFormat={dataOutputFormat} copiedTileData={copiedTileData} onCopyTileData={handleCopyTileData} setStatusBarMessage={setStatusBarMessage} zoom={tileEditorZoom} setZoom={setTileEditorZoom} onSelectGlobalColor={setSelectedColor} />)}
           {currentEditor === EditorType.Sprite && activeAsset?.type === 'sprite' && ( <SpriteEditor sprite={activeAsset.data as Sprite} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} onSpriteImported={handleSpriteImported} onCreateSpriteFromFrame={handleCreateSpriteFromFrame} globalSelectedColor={selectedColor} dataOutputFormat={dataOutputFormat} allAssets={assets} currentScreenMode={currentScreenMode} onOpenSpriteSheetModal={() => setIsSpriteSheetModalOpen(true)} saveSpriteZoom={saveSpriteZoom} />)}
-          {currentEditor === EditorType.Msx2Sprite && activeAsset?.type === 'msx2sprite' && ( <Msx2SpriteEditor sprite={activeAsset.data as Msx2Sprite} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} paletteAssets={assets.filter(asset => asset.type === 'palette') as Array<{ id: string; name: string; data?: PaletteAsset }>} onSyncPaletteSlots={syncGeneratedMsx2PaletteSlots} onSavePaletteAsset={(result) => saveImportedMsx2PaletteAsset(result.palette, activeAsset.name, result.generatedSlots)} worldPalette={activeBitmapImportPalette} worldPaletteName={activeBitmapWorldPaletteAsset?.name || activeBitmapWorldAsset?.name} onImportWorldPalette={activeBitmapImportPalette ? () => {
+          {currentEditor === EditorType.Msx2Sprite && activeAsset?.type === 'msx2sprite' && ( <Msx2SpriteEditor sprite={activeAsset.data as Msx2Sprite} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} weaponSprites={assets.filter(asset => asset.type === 'msx2sprite' && asset.id !== activeAsset.id).map(asset => ({ id: asset.id, name: asset.name, data: asset.data as Msx2Sprite }))}paletteAssets={assets.filter(asset => asset.type === 'palette') as Array<{ id: string; name: string; data?: PaletteAsset }>} onSyncPaletteSlots={syncGeneratedMsx2PaletteSlots} onSavePaletteAsset={(result) => saveImportedMsx2PaletteAsset(result.palette, activeAsset.name, result.generatedSlots)} worldPalette={activeBitmapImportPalette} worldPaletteName={activeBitmapWorldPaletteAsset?.name || activeBitmapWorldAsset?.name} onImportWorldPalette={activeBitmapImportPalette ? () => {
             const worldName = activeBitmapWorldPaletteAsset?.name || activeBitmapWorldAsset?.name || 'actual';
             const sprite = activeAsset.data as Msx2Sprite;
             const { slots: currentSlots } = ensureScreen5PaletteSlots(sprite.palette);
@@ -1480,7 +1492,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           {currentEditor === EditorType.Msx2Boss && activeAsset?.type === 'msx2boss' && ( <Msx2BossEditor boss={activeAsset.data as Msx2BossDefinition} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} allAssets={assets} onUpdateAsset={handleUpdateAsset} onDuplicateAsset={handleDuplicateAsset} setStatusBarMessage={setStatusBarMessage} />)}
           {currentEditor === EditorType.Msx2BossPath && activeAsset?.type === 'msx2bosspath' && ( <Msx2BossPathEditor path={activeAsset.data as Msx2BossPath} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} allAssets={assets} setStatusBarMessage={setStatusBarMessage} />)}
           {currentEditor === EditorType.Msx2EnemyBehavior && activeAsset?.type === 'msx2enemybehavior' && ( <Msx2EnemyBehaviorEditor behavior={activeAsset.data as Msx2EnemyBehaviorAsset} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} setStatusBarMessage={setStatusBarMessage} allAssets={assets} />)}
-          {currentEditor === EditorType.Msx2Shoot && activeAsset?.type === 'msx2shoot' && ( <Msx2ShootEditor shoot={activeAsset.data as Msx2ShootDefinition} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} />)}
+          {currentEditor === EditorType.Msx2Shoot && activeAsset?.type === 'msx2shoot' && ( <Msx2ShootEditor shoot={activeAsset.data as Msx2ShootDefinition} allAssets={assets} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} />)}
           {currentEditor === EditorType.Msx2HudFont && activeAsset?.type === 'msx2hudfont' && (
             <Msx2HudFontEditor
               font={activeAsset.data as Msx2HudFontAsset}
@@ -1748,7 +1760,19 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         )
         )}
       </div>
-      <StatusBar message={statusBarMessage} details={currentProjectName || activeAsset?.name} screenMode={currentScreenMode} />
+      <StatusBar
+        message={statusBarMessage}
+        details={currentProjectName || activeAsset?.name}
+        screenMode={currentScreenMode}
+        extra={assets.some(asset => asset.type === 'msx2bitmaproom') ? (
+          <Msx2MemoryBudgetIndicator
+            projectName={currentProjectName || 'MSX_Game'}
+            assets={assets}
+            entityTemplates={entityTemplates}
+            componentDefinitions={componentDefinitions}
+          />
+        ) : undefined}
+      />
       {contextMenu && <ContextMenu {...contextMenu} onClose={closeContextMenu} />}
       {isAboutModalOpen && <AboutModal isOpen={isAboutModalOpen} onClose={() => setIsAboutModalOpen(false)} />}
       {isAsmCompilerHelpOpen && <AsmCompilerHelpModal isOpen={isAsmCompilerHelpOpen} onClose={() => setIsAsmCompilerHelpOpen(false)} />}

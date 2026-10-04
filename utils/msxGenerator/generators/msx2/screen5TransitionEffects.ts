@@ -25,7 +25,13 @@
  * places and getting a runtime "not supported" from whichever one was missed.
  */
 
-export type Screen5TransitionEffect =
+import {
+  SCREEN5_ADVANCED_TRANSITION_EFFECTS,
+  screen5TransitionUsesEngine,
+  type Screen5AdvancedTransitionEffect,
+} from '../../../msx2TransitionPatterns';
+
+export type Screen5LegacyTransitionEffect =
   | 'cls'
   | 'fade_to_black'
   | 'screen5_vertical_pixel_wipe'
@@ -33,8 +39,13 @@ export type Screen5TransitionEffect =
   | 'screen5_diagonal_pixel_wipe'
   | 'screen5_mirror_pixel_wipe';
 
-/** Single source of truth for "can a SCREEN 5 backend execute this effect?". */
-export const SCREEN5_TRANSITION_EFFECTS: ReadonlySet<string> = new Set<string>([
+export type Screen5TransitionEffect = Screen5LegacyTransitionEffect | Screen5AdvancedTransitionEffect;
+
+/**
+ * The six original effects. Each backend keeps its own byte-identical routine
+ * for them as long as the node carries none of the new parameters.
+ */
+export const SCREEN5_LEGACY_TRANSITION_EFFECTS: ReadonlySet<string> = new Set<string>([
   'cls',
   'fade_to_black',
   'screen5_vertical_pixel_wipe',
@@ -42,6 +53,20 @@ export const SCREEN5_TRANSITION_EFFECTS: ReadonlySet<string> = new Set<string>([
   'screen5_diagonal_pixel_wipe',
   'screen5_mirror_pixel_wipe',
 ]);
+
+/**
+ * Single source of truth for "can a SCREEN 5 backend execute this effect?".
+ * The advanced effects (and legacy effects with parameter overrides) are played
+ * by the shared engine in screen5TransitionEngine.ts: the generic GameFlow
+ * walker and the bitmap-room runtime emit it; the strict-shape presentation
+ * backend hands those flows to the walker (see screen5FlowNeedsGenericBackend).
+ */
+export const SCREEN5_TRANSITION_EFFECTS: ReadonlySet<string> = new Set<string>([
+  ...SCREEN5_LEGACY_TRANSITION_EFFECTS,
+  ...SCREEN5_ADVANCED_TRANSITION_EFFECTS,
+]);
+
+export { screen5TransitionUsesEngine };
 
 export function isScreen5TransitionEffect(effect: unknown): effect is Screen5TransitionEffect {
   return typeof effect === 'string' && SCREEN5_TRANSITION_EFFECTS.has(effect);

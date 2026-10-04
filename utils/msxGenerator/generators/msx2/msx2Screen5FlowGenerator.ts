@@ -66,6 +66,27 @@ import {
   resolveScreen5BrightestPaletteIndex,
 } from './screen5PresentationData';
 import { SCREEN5_TRANSITION_EFFECTS } from './screen5TransitionEffects';
+import { resolveScreen5MenuLayout } from '../../../msx2Screen5MenuLayout';
+import {
+  generateSmoothScrollRuntime,
+  smoothScrollNodeData,
+  smoothScrollRamEquates,
+  smoothScrollStripTexts,
+  marqueeNodeData,
+  marqueeRamEquates,
+  SMOOTH_SCROLL_LINE_STEP,
+  type Screen5SmoothScrollHost,
+} from './screen5SmoothScroll';
+import {
+  emitScreen5TfxCall,
+  generateScreen5TfxRuntime,
+  Screen5TfxDataPool,
+} from './screen5TransitionEngine';
+import {
+  resolveScreen5TransitionSpec,
+  screen5TransitionUsesEngine,
+  SCREEN5_TRANSITIONS_NEEDING_NEXT_SCENE,
+} from '../../../msx2TransitionPatterns';
 
 export interface Msx2Screen5FlowGeneratorConfig {
   screenMode: string;
@@ -244,10 +265,15 @@ gf_compare_true:
 // Flow graph walking
 // ---------------------------------------------------------------------------
 
-/** True when the flow needs the generic walker instead of the strict-shape backend. */
+/**
+ * True when the flow needs the generic walker instead of the strict-shape backend:
+ * extended node types, or a Transition that the shared SCREEN 5 transition
+ * engine has to play (advanced effects / legacy effects with new parameters).
+ */
 export function screen5FlowNeedsGenericBackend(flow: Msx2GameFlowGraph | undefined): boolean {
   if (!flow || !Array.isArray(flow.nodes)) return false;
-  return flow.nodes.some(node => EXTENDED_NODE_TYPES.has(node.type));
+  return flow.nodes.some(node => EXTENDED_NODE_TYPES.has(node.type)
+    || (node.type === 'Transition' && screen5TransitionUsesEngine(node as Msx2GameFlowTransitionNode)));
 }
 
 export function findScreen5FlowGraph(analysis: ProjectAnalysis): Msx2GameFlowGraph | undefined {
@@ -411,6 +437,9 @@ export function generateMsx2Screen5FlowUnitedFiles(
     wipeMirror: false,
     wipeDiagonal: false,
     psgSilence: false,
+    // Only matters when no text engine is emitted (presentation + transition
+    // flows handed over for the transition engine): key/frame waits.
+    waits: true,
   };
   let usesCompare = false;
 
@@ -467,10 +496,93 @@ export function generateMsx2Screen5FlowUnitedFiles(
       : `    ld a, ${hexByte(assignment.value)}\n    ld (${assignment.asmName}), a\n`)).join('');
   };
 
+  // Shared SCREEN 5 transition engine (advanced effects + legacy overrides).
+  const tfxPool = new Screen5TfxDataPool('gf_tfx');
+  // GF_TFX_MODE is only needed when a transition hands work to the next
+  // Screen5Presentation node (fade in / crossfade); otherwise the presentation
+  // routine stays byte-identical.
+  let tfxUsesSceneHook = false;
+
+  /** Next Screen5Presentation reached through passthrough nodes, if any. */
+  const nextPresentationAfter = (nodeId: string): Msx2GameFlowScreen5PresentationNode | undefined => {
+    let next = graph.next(nodeId);
+    const visited = new Set<string>();
+    while (next && (next.type === 'Waypoint' || next.type === 'Globals' || next.type === 'Music') && !visited.has(next.id)) {
+      visited.add(next.id);
+      next = graph.next(next.id);
+    }
+    return next?.type === 'Screen5Presentation' ? next as Msx2GameFlowScreen5PresentationNode : undefined;
+  };
+
+  const copyToPaletteRam = (sourceLabel: string): string => `    ld hl, ${sourceLabel}
+    ld de, GF_PALETTE_RAM
+    ld bc, 32
+    ldir
+`;
+
+  const engineTransitionAsm = (node: Msx2GameFlowTransitionNode): string => {
+    const spec = resolveScreen5TransitionSpec(node);
+    let nextPaletteLabel: string | undefined;
+    if (SCREEN5_TRANSITIONS_NEEDING_NEXT_SCENE.has(spec.effect)) {
+      const nextPresentation = nextPresentationAfter(node.id);
+      if (!nextPresentation) {
+        throw new Error(`MSX2 SCREEN 5 GameFlow transition "${node.effect}" (node "${node.id}") must be followed by a SCREEN 5 Presentation node.`);
+      }
+      nextPaletteLabel = `gf_palette_${resolvePresentationEntry(nextPresentation).index}_data`;
+    }
+    const ctx = {
+      prefix: 'gf_tfx',
+      pool: tfxPool,
+      loadPageOffsetAsm: '    ld de, GF_PAGE_Y',
+      loadCurrentPaletteAsm: '    ld hl, GF_PALETTE_RAM',
+      nextScenePaletteLabel: nextPaletteLabel,
+    };
+    if (spec.kind === 'fill') return emitScreen5TfxCall(node, ctx);
+    const solid = tfxPool.solidPaletteLabel(spec.color);
+    switch (spec.effect) {
+      case 'palette_fade_out':
+        // Same end state as the legacy fade: the live palette RAM holds the
+        // faded colours, so later Text nodes draw with them.
+        return `${emitScreen5TfxCall(node, ctx)}${copyToPaletteRam(solid)}`;
+      case 'palette_flash':
+        return emitScreen5TfxCall(node, ctx);
+      case 'palette_crossfade':
+        // The next presentation keeps the interpolated palette and uploads its
+        // bitmap with the screen on (GF_TFX_MODE = 2).
+        tfxUsesSceneHook = true;
+        return `${emitScreen5TfxCall(node, ctx)}${copyToPaletteRam(nextPaletteLabel!)}    ld a, 2
+    ld (GF_TFX_MODE), a
+`;
+      case 'palette_fade_in':
+      case 'palette_fade_out_in': {
+        tfxUsesSceneHook = true;
+        const out = spec.effect === 'palette_fade_out_in'
+          ? `    ld hl, GF_PALETTE_RAM
+    ld de, ${solid}
+    ld a, ${spec.framesPerStep}
+    call gf_tfx_pal_lerp
+`
+          : `    ld hl, ${solid}
+    call gf_tfx_pal_set
+`;
+        return `${out}${copyToPaletteRam(solid)}    ld hl, ${solid}
+    ld (GF_TFX_FADE_PTR), hl
+    ld a, ${spec.framesPerStep}
+    ld (GF_TFX_FADE_FPS), a
+    ld a, 1
+    ld (GF_TFX_MODE), a
+`;
+      }
+      default:
+        return emitScreen5TfxCall(node, ctx);
+    }
+  };
+
   const transitionAsm = (node: Msx2GameFlowTransitionNode): string => {
     if (!SCREEN5_TRANSITION_EFFECTS.has(node.effect)) {
       throw new Error(`MSX2 SCREEN 5 GameFlow transition "${node.effect}" is not supported; use a SCREEN 5 transition effect.`);
     }
+    if (screen5TransitionUsesEngine(node)) return engineTransitionAsm(node);
     switch (node.effect) {
       case 'fade_to_black':
         features.fade = true;
@@ -491,6 +603,63 @@ export function generateMsx2Screen5FlowUnitedFiles(
       default:
         return '    call gf_clear_page\n';
     }
+  };
+
+  // Pixel-smooth TextScroll (raster split on the other VRAM page).
+  let usesSmoothScroll = false;
+  let usesMarquee = false;
+  const smoothScrollHost: Screen5SmoothScrollHost = {
+    prefix: 'gf_vs',
+    ramBase: GF_RAM_BASE + 0x40,
+    interrupts: true,
+    vblankKind: 'jiffy',
+    mainPage: vramPage,
+    ringPage: vramPage === 1 ? 0 : 1,
+    windowTop: GF_SCROLL_TOP,
+    windowHeight: GF_SCROLL_HEIGHT,
+    bgVar: 'GF_BG_PIX',
+    cmdSx: 'GF_CMD_SX',
+    cmdSy: 'GF_CMD_SY',
+    cmdDx: 'GF_CMD_DX',
+    cmdDy: 'GF_CMD_DY',
+    cmdNx: 'GF_CMD_NX',
+    cmdNy: 'GF_CMD_NY',
+    setFillColorCall: 'call gf_set_fill_color',
+    runFillAsm: '    call gf_fill_rect',
+    runCopyAsm: '    call gf_copy_rect',
+    displayOffAsm: '    call DISSCR',
+    displayOnAsm: '    call ENASCR',
+  };
+  const smoothScrollNodeAsm = (scrollNode: Msx2GameFlowTextScrollNode | Msx2GameFlowTextScrollColorNode): string => {
+    const marquee = scrollNode.scrollMode === 'marquee';
+    if (marquee) usesMarquee = true; else usesSmoothScroll = true;
+    const foreground = clampPaletteIndex((scrollNode as any).textColorIndex, defaultTextColor);
+    const background = clampPaletteIndex((scrollNode as any).backgroundColorIndex, 0);
+    const stepFrames = Math.max(SMOOTH_SCROLL_LINE_STEP, clampByte((scrollNode as any).scrollStepFrames, 18) || 18);
+    const lines = wrapScreen5FlowText(scrollNode.text || '', GF_MAX_COLUMNS - 2, 32);
+    const data = marquee
+      ? (() => {
+          const text = marqueeNodeData(`gf_vsm_${sanitizeLabel(scrollNode.id)}`, lines);
+          return { tableLabel: text.textLabel, dataAsm: text.dataAsm, totalPixels: text.totalPixels - GF_SCROLL_HEIGHT };
+        })()
+      : smoothScrollNodeData(`gf_vs_${sanitizeLabel(scrollNode.id)}`, lines, GF_MAX_COLUMNS);
+    const titleAsm = scrollNode.title
+      ? printCall(sanitizeScreen5FlowText(scrollNode.title, GF_MAX_COLUMNS), GF_SCROLL_TOP - 20, foreground, background)
+      : '';
+    const strip = smoothScrollStripTexts();
+    const stripY = strip.firstRowY(GF_SCROLL_TOP);
+    const stripAsm = strip.rows
+      .map((row, index) => printCall(row, stripY + index * 8, foreground, background, { column: 0, spanCharacters: GF_MAX_COLUMNS }))
+      .join('');
+    return `${titleAsm}    call DISSCR
+${stripAsm}    ld a, ${hexByte(background)}
+    ld (GF_BG_PIX), a
+    ld hl, ${data.tableLabel}
+    ld de, ${data.totalPixels + GF_SCROLL_HEIGHT}
+    ld a, ${stepFrames}
+    call ${marquee ? 'gf_vsm_run' : 'gf_vs_run'}
+${waitCall(scrollNode.waitForKey, scrollNode.waitFrames)}    jp ${nextLabel(scrollNode.id)}
+${data.dataAsm}`;
   };
 
   const allGlobalAssignments: ResolvedGlobalAssignment[] = [];
@@ -527,6 +696,7 @@ export function generateMsx2Screen5FlowUnitedFiles(
   // Node routines
   // -------------------------------------------------------------------------
   const nodeRoutines: string[] = [];
+  const presentationRoutines: Array<() => string> = [];
 
   for (const node of nodes) {
     const label = labelOf(node);
@@ -547,12 +717,48 @@ export function generateMsx2Screen5FlowUnitedFiles(
         const presentationNode = node as Msx2GameFlowScreen5PresentationNode;
         const waitForKey = presentationNode.waitForKey ?? entry.presentation.runtime.waitForKey;
         const waitFrames = presentationNode.waitFrames ?? entry.presentation.runtime.waitForFrames;
-        nodeRoutines.push(`${header}    call DISSCR
+        // The scene hook (fade in / crossfade) is resolved after every node has
+        // been emitted, so the routine is built lazily.
+        const safeId = sanitizeLabel(node.id);
+        const waitAsm = `${waitCall(waitForKey, waitFrames)}    jp ${nextLabel(node.id)}
+`;
+        presentationRoutines.push(() => (tfxUsesSceneHook
+          ? `${header}    ld a, (GF_TFX_MODE)
+    or a
+    jp nz, gf_scene_tfx_${safeId}
+    call DISSCR
     call gf_load_palette_${entry.index}
     call gf_upload_bitmap_${entry.index}
     call ENASCR
-${waitCall(waitForKey, waitFrames)}    jp ${nextLabel(node.id)}
-`);
+gf_scene_shown_${safeId}:
+${waitAsm}gf_scene_tfx_${safeId}:
+    ; A = GF_TFX_MODE: 1 = fade in from GF_TFX_FADE_PTR, 2 = palette already set
+    ld b, a
+    xor a
+    ld (GF_TFX_MODE), a
+    ld a, b
+    cp 2
+    jp z, gf_scene_keep_${safeId}
+    call DISSCR
+    call gf_upload_bitmap_${entry.index}
+    call ENASCR
+    ld hl, (GF_TFX_FADE_PTR)
+    ld de, gf_palette_${entry.index}_data
+    ld a, (GF_TFX_FADE_FPS)
+    call gf_tfx_pal_lerp
+    call gf_load_palette_${entry.index}
+    jp gf_scene_shown_${safeId}
+gf_scene_keep_${safeId}:
+    call gf_load_palette_${entry.index}
+    call gf_upload_bitmap_${entry.index}
+    jp gf_scene_shown_${safeId}
+`
+          : `${header}    call DISSCR
+    call gf_load_palette_${entry.index}
+    call gf_upload_bitmap_${entry.index}
+    call ENASCR
+${waitAsm}`));
+        nodeRoutines.push(`__GF_PRESENTATION_ROUTINE_${presentationRoutines.length - 1}__`);
         break;
       }
       case 'Text': {
@@ -577,8 +783,12 @@ ${waitCall(waitForKey, waitFrames)}    jp ${nextLabel(node.id)}
       case 'TextScroll':
       case 'TextScrollColor': {
         features.text = true;
-        features.scroll = true;
         const scrollNode = node as Msx2GameFlowTextScrollNode | Msx2GameFlowTextScrollColorNode;
+        if (scrollNode.scrollMode === 'smooth' || scrollNode.scrollMode === 'marquee') {
+          nodeRoutines.push(`${header}${smoothScrollNodeAsm(scrollNode)}`);
+          break;
+        }
+        features.scroll = true;
         const isColored = node.type === 'TextScrollColor';
         const foreground = clampPaletteIndex(
           isColored ? (scrollNode as Msx2GameFlowTextScrollColorNode).textColorIndex : (scrollNode as any).textColorIndex,
@@ -629,38 +839,47 @@ ${titleAsm}${bodyAsm}${tailAsm}${waitCall(scrollNode.waitForKey, scrollNode.wait
         const background = clampPaletteIndex((menuNode as any).backgroundColorIndex, 0);
         const highlightForeground = clampPaletteIndex((menuNode as any).highlightColorIndex, background);
         const highlightBackground = clampPaletteIndex((menuNode as any).highlightBackgroundIndex, foreground);
-        const optionTexts = options.map(option => sanitizeScreen5FlowText(option.text || '', GF_MAX_COLUMNS - 4));
-        const spanCharacters = Math.max(...optionTexts.map(text => text.length)) + 4;
         const title = sanitizeScreen5FlowText(menuNode.title || '', GF_MAX_COLUMNS);
-
-        // Every option is padded to the same span so the highlight bar lines up.
-        const centerInSpan = (text: string): string => {
-          const padding = Math.max(0, spanCharacters - text.length);
-          const left = Math.floor(padding / 2);
-          return `${' '.repeat(left)}${text}${' '.repeat(padding - left)}`;
-        };
+        const layout = resolveScreen5MenuLayout(menuNode, options.map(option => option.text || ''));
+        if (layout.error) throw new Error(`MSX2 GameFlow SubMenu node "${node.id}": ${layout.error}`);
+        const selectedForeground = layout.useBar ? highlightForeground : foreground;
+        const selectedBackground = layout.useBar ? highlightBackground : background;
 
         const drawRoutine = `gf_menu_draw_${safeId}:
-${options.map((_option, index) => {
-          const optionY = GF_MENU_FIRST_OPTION_Y + index * GF_MENU_OPTION_STEP;
-          const text = centerInSpan(optionTexts[index]);
-          return `    ld a, (GF_MENU_INDEX)
+${layout.items.map((item, index) => `    ld a, (GF_MENU_INDEX)
     cp ${index}
     jp z, gf_menu_sel_${safeId}_${index}
-${printCall(text, optionY, foreground, background, { spanCharacters })}    jp gf_menu_done_${safeId}_${index}
+${printCall(item.idleText, item.y, foreground, background, { spanCharacters: item.spanCharacters, column: item.column })}    jp gf_menu_done_${safeId}_${index}
 gf_menu_sel_${safeId}_${index}:
-${printCall(text, optionY, highlightForeground, highlightBackground, { spanCharacters })}gf_menu_done_${safeId}_${index}:
-`;
-        }).join('')}    ret
+${printCall(item.selectedText, item.y, selectedForeground, selectedBackground, { spanCharacters: item.spanCharacters, column: item.column })}gf_menu_done_${safeId}_${index}:
+`).join('')}    ret
 `;
 
         const dispatch = options.map((option, index) => `    cp ${index}
     jp z, ${nextLabel(node.id, option.id)}
 `).join('');
 
+        // Vertical menus answer to up/down (the classic behaviour); horizontal
+        // menus to left/right and also accept up/down as previous/next.
+        const directionAsm = layout.horizontal
+          ? `    cp 7
+    jp z, gf_menu_up_${safeId}
+    cp 1
+    jp z, gf_menu_up_${safeId}
+    cp 3
+    jp z, gf_menu_down_${safeId}
+    cp 5
+    jp z, gf_menu_down_${safeId}
+`
+          : `    cp 1
+    jp z, gf_menu_up_${safeId}
+    cp 5
+    jp z, gf_menu_down_${safeId}
+`;
+
         nodeRoutines.push(`${header}    xor a
     ld (GF_MENU_INDEX), a
-${title ? printCall(title, GF_MENU_TITLE_Y, foreground, background) : ''}    call gf_menu_wait_release
+${title ? printCall(title, layout.titleY, foreground, background, layout.titleColumn === undefined ? {} : { column: layout.titleColumn }) : ''}    call gf_menu_wait_release
     call gf_menu_draw_${safeId}
 gf_menu_loop_${safeId}:
     halt
@@ -671,11 +890,7 @@ gf_menu_loop_${safeId}:
     jp z, gf_menu_trigger_${safeId}
     ld a, c
     ld (GF_MENU_PREV), a
-    cp 1
-    jp z, gf_menu_up_${safeId}
-    cp 5
-    jp z, gf_menu_down_${safeId}
-    jp gf_menu_trigger_${safeId}
+${directionAsm}    jp gf_menu_trigger_${safeId}
 gf_menu_up_${safeId}:
     ld a, (GF_MENU_INDEX)
     or a
@@ -750,6 +965,11 @@ ${info.isWord ? '' : '    ld h, 0\n'}    ld de, ${hexWord(compareValue)}
       }
     }
   }
+
+  const resolvedNodeRoutines = nodeRoutines.map(routine => {
+    const match = routine.match(/^__GF_PRESENTATION_ROUTINE_(\d+)__$/);
+    return match ? presentationRoutines[Number(match[1])]() : routine;
+  });
 
   // -------------------------------------------------------------------------
   // Presentation data routines
@@ -837,7 +1057,7 @@ SCREEN5_PRESENTATION_VISIBLE_LINES EQU ${VISIBLE_HEIGHT}
 SCREEN5_PRESENTATION_BYTES_PER_LINE EQU ${BYTES_PER_LINE}
 
 ${generateScreen5FlowConstants(pageYOffset, vramBase)}
-${generateScreen5FlowRamEquates(GF_RAM_BASE, GF_TEXTBUF_BASE)}
+${generateScreen5FlowRamEquates(GF_RAM_BASE, GF_TEXTBUF_BASE, tfxUsesSceneHook)}${usesSmoothScroll || usesMarquee ? smoothScrollRamEquates(smoothScrollHost) : ''}${usesMarquee ? marqueeRamEquates(smoothScrollHost) : ''}
 ${globalEquates ? `${globalEquates}\n` : ''}
     org #4000
 
@@ -862,7 +1082,7 @@ ${usesKonamiMegaRom ? '    call init_konami8k_fixed_bank0_banks\n' : ''}    call
     ld bc, #0007
     call WRTVDP
     call gf_clear_page
-    call ENASCR
+${tfxUsesSceneHook ? '    xor a\n    ld (GF_TFX_MODE), a      ; no scene fade pending at boot\n' : ''}    call ENASCR
     ei
     jp ${labelOf(start)}
 
@@ -924,7 +1144,7 @@ mapper_set_bank_p3:
 ` : ''}; ==================================================================
 ; GameFlow node routines
 ; ==================================================================
-${nodeRoutines.join('\n')}
+${resolvedNodeRoutines.join('\n')}
 ; ==================================================================
 ; SCREEN 5 presentation data routines
 ; ==================================================================
@@ -933,14 +1153,20 @@ ${uploadRoutines}
 ; ==================================================================
 ; Shared runtime
 ; ==================================================================
-${generateScreen5FlowRuntime(features, fontBytes)}
-${usesCompare ? generateCompareRoutine() : ''}
+${generateScreen5FlowRuntime(features, fontBytes)}${tfxPool.usesFill || tfxPool.usesPalette ? generateScreen5TfxRuntime({
+    prefix: 'gf_tfx',
+    interrupts: true,
+    frameWaitAsm: '    halt',
+    fill: tfxPool.usesFill,
+    palette: tfxPool.usesPalette,
+  }) : ''}
+${usesSmoothScroll || usesMarquee ? generateSmoothScrollRuntime(smoothScrollHost, { vertical: usesSmoothScroll, marquee: usesMarquee }) : ''}${usesCompare ? generateCompareRoutine() : ''}
 ; ==================================================================
 ; Data
 ; ==================================================================
 ${strings.emit()}
 
-${paletteData}
+${paletteData}${tfxPool.usesFill || tfxPool.usesPalette ? `\n${tfxPool.emitData()}` : ''}
 
 ${chunkData}
 

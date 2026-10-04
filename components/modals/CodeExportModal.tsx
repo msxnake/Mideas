@@ -1,4 +1,5 @@
 import React, { startTransition, useEffect, useRef, useState } from 'react';
+import { screen5TransitionUsesEngine } from '../../utils/msx2TransitionPatterns';
 import JSZip from 'jszip';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
@@ -232,6 +233,10 @@ const getMsx2Screen5ExportInfo = (assets: ProjectAsset[]) => {
       ? afterPreTextTransitionNode
       : null;
   const terminalNode = textNode ? getNextExportNode(textNode) : afterScreen5Node;
+  const usesGenericWalker = nodes.some((node: any) => (
+    node.type === 'SubMenu' || node.type === 'TextScroll' || node.type === 'TextScrollColor' || node.type === 'Music'
+    || (node.type === 'Transition' && screen5TransitionUsesEngine(node))
+  ));
   const hasValidTerminalPath = Boolean(
     screen5Node &&
     startNextNode?.id === screen5Node.id &&
@@ -250,7 +255,9 @@ const getMsx2Screen5ExportInfo = (assets: ProjectAsset[]) => {
     missingPresentation,
     transitionEffect: terminalNode?.type === 'Transition' ? terminalNode.effect || 'cls' : null,
     transitionDurationFrames: terminalNode?.type === 'Transition' ? Math.max(0, Math.min(255, Math.trunc(Number(terminalNode.durationFrames) || 0))) : null,
-    invalidFlowShape: Boolean(flow && (!screen5Node || startNextNode?.type !== 'Screen5Presentation' || !hasValidTerminalPath || missingPresentation)),
+    // Flows exported by the generic SCREEN 5 walker (menus, scrolls, music, or
+    // transitions of the SCREEN 5 transition engine) accept any node order.
+    invalidFlowShape: Boolean(flow && !usesGenericWalker && (!screen5Node || startNextNode?.type !== 'Screen5Presentation' || !hasValidTerminalPath || missingPresentation)),
   };
 };
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FacingDirection, Msx2Sprite, Msx2SpriteFrame, Msx2SuperSpriteLayout, Msx2SuperSpritePart, MSXColorValue, PaletteAsset, PixelData, Point, Screen5PaletteSlot } from '../../types';
+import { FacingDirection, Msx2Sprite, Msx2SpriteFrame, Msx2SuperSpriteLayout, Msx2SuperSpritePart, Msx2WeaponBinding, Msx2WeaponBindingFrame, MSXColorValue, PaletteAsset, PixelData, Point, Screen5PaletteSlot } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { Tooltip } from '../common/Tooltip';
@@ -14,9 +14,11 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   ArrowUpIcon,
+  CollapseAllIcon,
   CopyIcon,
   DocumentDuplicateIcon,
   EraserIcon,
+  ExpandAllIcon,
   FolderOpenIcon,
   PasteIcon,
   PencilIcon,
@@ -24,7 +26,7 @@ import {
   PlusCircleIcon,
   RotateCcwIcon,
   SaveIcon,
-  SphereIcon,
+  EllipseShapeIcon,
   StopIcon,
   SwapHorizIcon,
   TrashIcon,
@@ -54,9 +56,39 @@ interface Msx2SpriteEditorProps {
   onImportWorldPalette?: () => void;
   /** Saves the sprite's current 16-slot palette as a new SCREEN 5 palette asset. */
   onSavePaletteAsAsset?: (slots: Screen5PaletteSlot[], name: string) => void;
+  /** Other MSX2 sprites of the project that can be combined as weapon/tool with this one. */
+  weaponSprites?: Array<{ id: string; name: string; data: Msx2Sprite }>;
 }
 
 const TRANSPARENT_HEX = 'rgba(0,0,0,0)';
+
+/** Weapon layer drawn on the grid (read-only overlay, positioned relative to the owner sprite). */
+interface WeaponOverlay {
+  pixels: PixelData;
+  width: number;
+  height: number;
+  offsetX: number;
+  offsetY: number;
+  backgroundColor: MSXColorValue;
+  inFront: boolean;
+}
+
+const defaultWeaponBindingRow = (ownerWidth: number): Msx2WeaponBindingFrame => ({
+  weaponFrame: 0,
+  offsetX: ownerWidth,
+  offsetY: 0,
+  inFront: true,
+});
+
+/** Row for an owner frame; missing rows inherit the last defined row (frames added outside the editor). */
+const weaponBindingRowFor = (binding: Msx2WeaponBinding, frameIndex: number, ownerWidth: number): Msx2WeaponBindingFrame =>
+  binding.frames[frameIndex]
+  ?? binding.frames[binding.frames.length - 1]
+  ?? defaultWeaponBindingRow(ownerWidth);
+
+/** Returns the binding rows padded/trimmed to exactly `frameCount` entries. */
+const normalizeWeaponBindingRows = (binding: Msx2WeaponBinding, frameCount: number, ownerWidth: number): Msx2WeaponBindingFrame[] =>
+  Array.from({ length: frameCount }, (_unused, index) => ({ ...weaponBindingRowFor(binding, index, ownerWidth) }));
 
 const clonePixels = (data: PixelData): PixelData => data.map(row => [...row]);
 
@@ -461,6 +493,7 @@ const Msx2PixelGrid: React.FC<{
   nextFrame?: PixelData;
   metaSpriteParts?: Msx2SuperSpritePart[];
   selectionRect?: SelectionRect | null;
+  weaponOverlay?: WeaponOverlay | null;
 }> = ({
   frame,
   width,
@@ -477,8 +510,44 @@ const Msx2PixelGrid: React.FC<{
   nextFrame,
   metaSpriteParts = [],
   selectionRect = null,
+  weaponOverlay = null,
 }) => {
   const [dragState, setDragState] = useState<{ active: boolean; right: boolean }>({ active: false, right: false });
+  // When a weapon is overlaid, the canvas grows to the union of both boxes (offsets may be negative).
+  const padLeft = weaponOverlay ? Math.max(0, -weaponOverlay.offsetX) : 0;
+  const padTop = weaponOverlay ? Math.max(0, -weaponOverlay.offsetY) : 0;
+  const canvasWidth = weaponOverlay ? Math.max(width, weaponOverlay.offsetX + weaponOverlay.width) + padLeft : width;
+  const canvasHeight = weaponOverlay ? Math.max(height, weaponOverlay.offsetY + weaponOverlay.height) + padTop : height;
+  const renderWeaponOverlay = () => {
+    if (!weaponOverlay) return null;
+    const weaponBg = normalizeColor(String(weaponOverlay.backgroundColor));
+    const transparent = normalizeColor(TRANSPARENT_HEX);
+    return (
+      <div
+        className="absolute grid pointer-events-none outline-dashed outline-1 outline-msx-warning/70"
+        style={{
+          left: (padLeft + weaponOverlay.offsetX) * zoom,
+          top: (padTop + weaponOverlay.offsetY) * zoom,
+          width: weaponOverlay.width * zoom,
+          height: weaponOverlay.height * zoom,
+          gridTemplateColumns: `repeat(${weaponOverlay.width}, ${zoom}px)`,
+          gridTemplateRows: `repeat(${weaponOverlay.height}, ${zoom}px)`,
+          zIndex: weaponOverlay.inFront ? 20 : 0,
+        }}
+      >
+        {weaponOverlay.pixels.map((row, y) => row.map((color, x) => {
+          const normalized = normalizeColor(String(color || ''));
+          const visible = normalized && normalized !== weaponBg && normalized !== transparent;
+          return (
+            <div
+              key={`weapon-${x}-${y}`}
+              style={{ width: zoom, height: zoom, backgroundColor: visible ? color : 'transparent' }}
+            />
+          );
+        }))}
+      </div>
+    );
+  };
 
   useEffect(() => {
     const stopDrag = () => {
@@ -510,10 +579,15 @@ const Msx2PixelGrid: React.FC<{
     );
   };
 
-  return (
+  const playerGrid = (
     <div
-      className="relative border border-msx-border bg-black"
-      style={{ width: width * zoom, height: height * zoom, imageRendering: 'pixelated' }}
+      className={weaponOverlay ? 'absolute border border-msx-border' : 'relative border border-msx-border bg-black'}
+      style={{
+        width: width * zoom,
+        height: height * zoom,
+        imageRendering: 'pixelated',
+        ...(weaponOverlay ? { left: padLeft * zoom, top: padTop * zoom, zIndex: 10 } : {}),
+      }}
       onContextMenu={event => event.preventDefault()}
       onMouseLeave={() => setDragState({ active: false, right: false })}
     >
@@ -588,9 +662,21 @@ const Msx2PixelGrid: React.FC<{
       ))}
     </div>
   );
+
+  if (!weaponOverlay) return playerGrid;
+  return (
+    <div
+      className="relative bg-black"
+      style={{ width: canvasWidth * zoom, height: canvasHeight * zoom, imageRendering: 'pixelated' }}
+      onContextMenu={event => event.preventDefault()}
+    >
+      {renderWeaponOverlay()}
+      {playerGrid}
+    </div>
+  );
 };
 
-export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUpdate, paletteAssets = [], onSyncPaletteSlots, onSavePaletteAsset, worldPalette, worldPaletteName, onImportWorldPalette, onSavePaletteAsAsset }) => {
+export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUpdate, paletteAssets = [], onSyncPaletteSlots, onSavePaletteAsset, worldPalette, worldPaletteName, onImportWorldPalette, onSavePaletteAsAsset, weaponSprites = [] }) => {
   const { slots: palette, changed: paletteChanged } = useMemo(() => ensureScreen5PaletteSlots(sprite.palette), [sprite.palette]);
   const frame = normalizeFrame(sprite);
   const prevFrame = sprite.frames[sprite.currentFrameIndex - 1]?.data;
@@ -622,6 +708,13 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
     sourceFrame?: PixelData;
   } | null>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
+  // Weapon combination preview (UI-only state; the bindings themselves live in sprite.weaponBindings).
+  const [showWeapon, setShowWeapon] = useState(true);
+  const [activeWeaponBindingId, setActiveWeaponBindingId] = useState<string | null>(null);
+  const [weaponToAddId, setWeaponToAddId] = useState('');
+  const [weaponPreviewMirrored, setWeaponPreviewMirrored] = useState(false);
+  // Animation Tools: show/hide the horizontally mirrored preview (UI-only).
+  const [showMirrorPreview, setShowMirrorPreview] = useState(true);
 
   const animationSpeedMs = sprite.animationSpeedMs || 150;
   const useOrColor = sprite.hardware?.useOrColor !== false;
@@ -802,6 +895,174 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
     superSpriteParts.forEach(part => labels.set(`${part.offsetX},${part.offsetY}`, part.label));
     return labels;
   }, [superSpriteParts]);
+
+  // ---- Weapon combinations (player frame -> weapon frame + offset + front/behind) ----
+  const weaponBindings = sprite.weaponBindings || [];
+  const activeWeaponBinding = weaponBindings.find(binding => binding.id === activeWeaponBindingId) || weaponBindings[0] || null;
+  const activeWeaponSprite = activeWeaponBinding
+    ? weaponSprites.find(weapon => weapon.id === activeWeaponBinding.weaponSpriteId)?.data || null
+    : null;
+  const currentFrameIdx = Math.min(sprite.currentFrameIndex || 0, Math.max(0, sprite.frames.length - 1));
+  const activeWeaponRow = activeWeaponBinding ? weaponBindingRowFor(activeWeaponBinding, currentFrameIdx, sprite.size.width) : null;
+  const weaponFrameCount = activeWeaponSprite?.frames.length || 0;
+  const weaponFrameMissing = !!activeWeaponRow && !!activeWeaponSprite && activeWeaponRow.weaponFrame >= weaponFrameCount;
+  const activeWeaponPixels = activeWeaponSprite && activeWeaponRow && !weaponFrameMissing
+    ? activeWeaponSprite.frames[activeWeaponRow.weaponFrame]?.data || null
+    : null;
+  const weaponOverlayVisible = showWeapon && !showSeparatedLayers && !!activeWeaponPixels;
+  const weaponMirroredView = weaponOverlayVisible && weaponPreviewMirrored;
+  const mirroredCurrentFrame = useMemo(() => mirrorPixelDataHorizontally(frame), [frame]);
+
+  const weaponOverlay = useMemo<WeaponOverlay | null>(() => {
+    if (!weaponOverlayVisible || !activeWeaponSprite || !activeWeaponRow || !activeWeaponPixels) return null;
+    const weaponWidth = activeWeaponSprite.size.width;
+    return {
+      pixels: weaponMirroredView ? mirrorPixelDataHorizontally(activeWeaponPixels) : activeWeaponPixels,
+      width: weaponWidth,
+      height: activeWeaponSprite.size.height,
+      // Automatic mirror: the weapon box is reflected around the owner sprite's vertical axis.
+      offsetX: weaponMirroredView ? sprite.size.width - activeWeaponRow.offsetX - weaponWidth : activeWeaponRow.offsetX,
+      offsetY: activeWeaponRow.offsetY,
+      backgroundColor: activeWeaponSprite.backgroundColor,
+      inFront: activeWeaponRow.inFront,
+    };
+  }, [activeWeaponPixels, activeWeaponRow, activeWeaponSprite, sprite.size.width, weaponMirroredView, weaponOverlayVisible]);
+
+  /**
+   * Weapon overlay for ANY owner frame (used by the Animation Tools preview, which
+   * plays frames independently of the frame being edited). `mirrored` applies the
+   * automatic mirror: weapon pixels flipped and box reflected around the owner.
+   */
+  const weaponOverlayForFrame = (frameIndex: number, mirrored: boolean): WeaponOverlay | null => {
+    if (!showWeapon || !activeWeaponBinding || !activeWeaponSprite) return null;
+    const row = weaponBindingRowFor(activeWeaponBinding, frameIndex, sprite.size.width);
+    const pixels = activeWeaponSprite.frames[row.weaponFrame]?.data;
+    if (!pixels) return null;
+    const weaponWidth = activeWeaponSprite.size.width;
+    return {
+      pixels: mirrored ? mirrorPixelDataHorizontally(pixels) : pixels,
+      width: weaponWidth,
+      height: activeWeaponSprite.size.height,
+      offsetX: mirrored ? sprite.size.width - row.offsetX - weaponWidth : row.offsetX,
+      offsetY: row.offsetY,
+      backgroundColor: activeWeaponSprite.backgroundColor,
+      inFront: row.inFront,
+    };
+  };
+
+  /** Owner frames (1-based) whose assigned weapon frame no longer exists in the weapon sprite. */
+  const weaponMissingFrameRows = useMemo(() => {
+    if (!activeWeaponBinding || !activeWeaponSprite) return [] as number[];
+    return normalizeWeaponBindingRows(activeWeaponBinding, sprite.frames.length, sprite.size.width)
+      .map((row, index) => (row.weaponFrame >= activeWeaponSprite.frames.length ? index + 1 : 0))
+      .filter(index => index > 0);
+  }, [activeWeaponBinding, activeWeaponSprite, sprite.frames.length, sprite.size.width]);
+
+  /** Colors used by the weapon (frames referenced by this combination) that do not exist in this sprite's palette. */
+  const weaponPaletteConflicts = useMemo(() => {
+    if (!activeWeaponBinding || !activeWeaponSprite) return [] as string[];
+    const ownerHexes = new Set(palette.map(slot => normalizeColor(slot.hex)));
+    const weaponBg = normalizeColor(String(activeWeaponSprite.backgroundColor));
+    const transparent = normalizeColor(TRANSPARENT_HEX);
+    const usedFrames = new Set(
+      normalizeWeaponBindingRows(activeWeaponBinding, sprite.frames.length, sprite.size.width).map(row => row.weaponFrame)
+    );
+    const conflicts = new Set<string>();
+    usedFrames.forEach(frameIndex => {
+      (activeWeaponSprite.frames[frameIndex]?.data || []).forEach(row => row.forEach(color => {
+        const hex = normalizeColor(String(color || ''));
+        if (hex && hex !== weaponBg && hex !== transparent && !ownerHexes.has(hex)) conflicts.add(hex);
+      }));
+    });
+    return Array.from(conflicts).sort();
+  }, [activeWeaponBinding, activeWeaponSprite, palette, sprite.frames.length, sprite.size.width]);
+
+  /**
+   * Hardware sprites per scanline for player + weapon in the current frame.
+   * A hardware sprite counts on all 16 lines of its cell (even where its pattern row is empty),
+   * so each 16x16 cell contributes its number of HW layers to every line it covers.
+   */
+  const weaponScanlineBudget = useMemo(() => {
+    if (!weaponOverlay || !activeWeaponSprite || !activeWeaponPixels) return null;
+    const countByCellRow = (layers: SeparatedHardwareLayerPreview[]) => {
+      const counts = new Map<number, number>();
+      layers.forEach(layer => counts.set(layer.cellY, (counts.get(layer.cellY) || 0) + 1));
+      return counts;
+    };
+    const playerCounts = countByCellRow(separatedHardwareLayers);
+    const { slots: weaponPalette } = ensureScreen5PaletteSlots(activeWeaponSprite.palette);
+    const weaponCounts = countByCellRow(buildSeparatedHardwareLayerPreviews(
+      activeWeaponPixels,
+      activeWeaponSprite.size.width,
+      activeWeaponSprite.size.height,
+      weaponPalette,
+      activeWeaponSprite.backgroundColor,
+      activeWeaponSprite.hardware?.useOrColor !== false
+    ));
+    const top = Math.min(0, weaponOverlay.offsetY);
+    const bottom = Math.max(sprite.size.height, weaponOverlay.offsetY + weaponOverlay.height);
+    const ranges: Array<{ from: number; to: number; player: number; weapon: number; total: number }> = [];
+    let max = 0;
+    for (let y = top; y < bottom; y++) {
+      const player = y >= 0 && y < sprite.size.height ? playerCounts.get(Math.floor(y / 16)) || 0 : 0;
+      const weaponY = y - weaponOverlay.offsetY;
+      const weapon = weaponY >= 0 && weaponY < weaponOverlay.height ? weaponCounts.get(Math.floor(weaponY / 16)) || 0 : 0;
+      const total = player + weapon;
+      max = Math.max(max, total);
+      const last = ranges[ranges.length - 1];
+      if (last && last.player === player && last.weapon === weapon) last.to = y;
+      else ranges.push({ from: y, to: y, player, weapon, total });
+    }
+    return { ranges, max };
+  }, [activeWeaponPixels, activeWeaponSprite, separatedHardwareLayers, sprite.size.height, weaponOverlay]);
+
+  const writeWeaponBindings = (next: Msx2WeaponBinding[]) => onUpdate({ weaponBindings: next });
+
+  const addWeaponBinding = () => {
+    const weapon = weaponSprites.find(candidate => candidate.id === weaponToAddId);
+    if (!weapon) return;
+    const lastWeaponFrame = Math.max(0, weapon.data.frames.length - 1);
+    const binding: Msx2WeaponBinding = {
+      id: `weapon_${Date.now()}`,
+      weaponSpriteId: weapon.id,
+      frames: sprite.frames.map((_unused, index) => ({
+        ...defaultWeaponBindingRow(sprite.size.width),
+        weaponFrame: Math.min(index, lastWeaponFrame),
+      })),
+    };
+    writeWeaponBindings([...weaponBindings, binding]);
+    setActiveWeaponBindingId(binding.id);
+    setWeaponToAddId('');
+    setShowWeapon(true);
+  };
+
+  const removeActiveWeaponBinding = () => {
+    if (!activeWeaponBinding) return;
+    const weaponName = weaponSprites.find(weapon => weapon.id === activeWeaponBinding.weaponSpriteId)?.name || activeWeaponBinding.weaponSpriteId;
+    if (!window.confirm(`¿Quitar la combinación con "${weaponName}"? Se perderán sus offsets y frames asignados.`)) return;
+    writeWeaponBindings(weaponBindings.filter(binding => binding.id !== activeWeaponBinding.id));
+    setActiveWeaponBindingId(null);
+  };
+
+  const updateActiveWeaponRow = (patch: Partial<Msx2WeaponBindingFrame>) => {
+    if (!activeWeaponBinding) return;
+    const rows = normalizeWeaponBindingRows(activeWeaponBinding, sprite.frames.length, sprite.size.width);
+    rows[currentFrameIdx] = { ...rows[currentFrameIdx], ...patch };
+    writeWeaponBindings(weaponBindings.map(binding => (binding.id === activeWeaponBinding.id ? { ...binding, frames: rows } : binding)));
+  };
+
+  /** Keeps every combination's rows aligned with the owner frames after add / duplicate / delete. */
+  const syncWeaponBindingsForFrameChange = (
+    action: 'add' | 'duplicate' | 'delete',
+    frameIndex: number,
+    previousFrameCount: number
+  ): Msx2WeaponBinding[] => weaponBindings.map(binding => {
+    const rows = normalizeWeaponBindingRows(binding, previousFrameCount, sprite.size.width);
+    if (action === 'add') rows.push({ ...(rows[rows.length - 1] || defaultWeaponBindingRow(sprite.size.width)) });
+    if (action === 'duplicate') rows.splice(frameIndex + 1, 0, { ...rows[frameIndex] });
+    if (action === 'delete') rows.splice(frameIndex, 1);
+    return { ...binding, frames: rows };
+  });
   const estimatedHardwareSprites = Array.from({ length: cellRows }, (_, cellY) =>
     Array.from({ length: cellColumns }, (_, cellX) => {
       const firstY = cellY * 16;
@@ -1065,6 +1326,22 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
   const handleFrameManagement = (action: 'add' | 'delete' | 'duplicate' | 'prev' | 'next') => {
     let frames = [...sprite.frames];
     let currentFrameIndex = sprite.currentFrameIndex;
+    if ((action === 'add' || action === 'duplicate' || action === 'delete') && weaponBindings.length > 0) {
+      if (action === 'delete' && frames.length <= 1) return;
+      const weaponBindingsAfter = syncWeaponBindingsForFrameChange(action, currentFrameIndex, frames.length);
+      if (action === 'add') {
+        frames.push({ id: `frame_${Date.now()}`, data: createPixels(sprite.size.width, sprite.size.height, sprite.backgroundColor) });
+        currentFrameIndex = frames.length - 1;
+      } else if (action === 'duplicate') {
+        frames.splice(currentFrameIndex + 1, 0, { id: `frame_${Date.now()}`, data: clonePixels(frame) });
+        currentFrameIndex += 1;
+      } else {
+        frames.splice(currentFrameIndex, 1);
+        currentFrameIndex = Math.max(0, currentFrameIndex - 1);
+      }
+      onUpdate({ frames, currentFrameIndex, weaponBindings: weaponBindingsAfter });
+      return;
+    }
     switch (action) {
       case 'add':
         frames.push({ id: `frame_${Date.now()}`, data: createPixels(sprite.size.width, sprite.size.height, sprite.backgroundColor) });
@@ -1204,6 +1481,8 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
   };
 
   const previewFrame = sprite.frames[previewFrameIndex]?.data || frame;
+  /** Owner frame index actually shown by the Animation Tools preview (same fallback as previewFrame). */
+  const previewAnimationFrameIndex = sprite.frames[previewFrameIndex] ? previewFrameIndex : currentFrameIdx;
   const mirroredPreviewFrame = useMemo(() => mirrorPixelDataHorizontally(previewFrame), [previewFrame]);
   const facingDirection = sprite.facingDirection ?? 'neutral';
   const hasHorizontalFacing = facingDirection === 'right' || facingDirection === 'left';
@@ -1223,6 +1502,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
             variant="ghost"
             onClick={() => setAllPanelsCollapsed(true)}
             aria-label="Collapse all MSX2 sprite editor sections"
+            icon={<CollapseAllIcon className="w-3.5 h-3.5" />}
           >
             Collapse All
           </Button>
@@ -1231,6 +1511,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
             variant="ghost"
             onClick={() => setAllPanelsCollapsed(false)}
             aria-label="Expand all MSX2 sprite editor sections"
+            icon={<ExpandAllIcon className="w-3.5 h-3.5" />}
           >
             Expand All
           </Button>
@@ -1241,7 +1522,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
         <Panel title="Tools" collapsible>
           <div className="p-2 space-y-1">
             <Button onClick={() => { setToolMode('draw'); cancelSelection(); }} variant={toolMode === 'draw' ? 'primary' : 'ghost'} size="sm" icon={<PencilIcon />} className="w-full" justify="start">Draw</Button>
-            <Button onClick={() => { setToolMode('sphere'); cancelSelection(); }} variant={toolMode === 'sphere' ? 'primary' : 'ghost'} size="sm" icon={<SphereIcon />} className="w-full" justify="start">Sphere</Button>
+            <Button onClick={() => { setToolMode('sphere'); cancelSelection(); }} variant={toolMode === 'sphere' ? 'primary' : 'ghost'} size="sm" icon={<EllipseShapeIcon />} className="w-full" justify="start">Sphere</Button>
             <Button onClick={() => { setToolMode('erase'); cancelSelection(); }} variant={toolMode === 'erase' ? 'primary' : 'ghost'} size="sm" icon={<EraserIcon />} className="w-full" justify="start">Erase (BG)</Button>
             <Button onClick={() => setToolMode('select')} variant={toolMode === 'select' ? 'primary' : 'ghost'} size="sm" icon={<CopyIcon />} className="w-full" justify="start">Seleccionar</Button>
             <Button onClick={cancelSelection} variant="ghost" size="sm" icon={<TrashIcon />} className="w-full" justify="start" disabled={!selectionRect}>Cancelar Seleccion</Button>
@@ -1544,6 +1825,170 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
           </div>
         </div>
 
+        {(weaponSprites.length > 0 || weaponBindings.length > 0) && (
+          <div className="flex flex-col gap-1.5 pb-2 text-xs">
+            <div className="flex flex-wrap items-center gap-2 rounded border border-msx-border bg-msx-panelbg/70 px-2 py-1.5">
+              <label className="flex cursor-pointer select-none items-center gap-1" title="Oculta el arma para editar el player sin nada encima">
+                <input
+                  type="checkbox"
+                  checked={showWeapon}
+                  disabled={!activeWeaponBinding}
+                  onChange={event => setShowWeapon(event.target.checked)}
+                />
+                <span>Mostrar arma</span>
+              </label>
+              {weaponBindings.length > 0 && (
+                <select
+                  value={activeWeaponBinding?.id || ''}
+                  onChange={event => setActiveWeaponBindingId(event.target.value)}
+                  className="rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5"
+                  title="Combinación activa"
+                >
+                  {weaponBindings.map(binding => (
+                    <option key={binding.id} value={binding.id}>
+                      {weaponSprites.find(weapon => weapon.id === binding.weaponSpriteId)?.name || `(no encontrado) ${binding.weaponSpriteId}`}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {activeWeaponBinding && (
+                <Button size="sm" variant="ghost" icon={<TrashIcon />} onClick={removeActiveWeaponBinding} title="Quitar esta combinación">Quitar</Button>
+              )}
+              <span className="text-msx-textsecondary">|</span>
+              <select
+                value={weaponToAddId}
+                onChange={event => setWeaponToAddId(event.target.value)}
+                className="rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5"
+              >
+                <option value="">Añadir arma…</option>
+                {weaponSprites
+                  .filter(weapon => !weaponBindings.some(binding => binding.weaponSpriteId === weapon.id))
+                  .map(weapon => (
+                    <option key={weapon.id} value={weapon.id}>
+                      {weapon.name} ({weapon.data.size.width}×{weapon.data.size.height}, {weapon.data.frames.length} fr)
+                    </option>
+                  ))}
+              </select>
+              <Button size="sm" variant="secondary" icon={<PlusCircleIcon />} onClick={addWeaponBinding} disabled={!weaponToAddId}>Añadir</Button>
+            </div>
+
+            {activeWeaponBinding && activeWeaponRow && (
+              <div className="flex flex-wrap items-center gap-2 rounded border border-msx-border bg-msx-panelbg/70 px-2 py-1.5">
+                <span>Frame player</span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={sprite.frames.length <= 1}
+                  onClick={() => handleFrameManagement('prev')}
+                  title="Frame anterior del player"
+                >‹</Button>
+                <span className="w-10 text-center">{currentFrameIdx + 1}/{sprite.frames.length}</span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={sprite.frames.length <= 1}
+                  onClick={() => handleFrameManagement('next')}
+                  title="Frame siguiente del player"
+                >›</Button>
+                <span className="text-msx-textsecondary">→</span>
+                <span>Frame arma</span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={activeWeaponRow.weaponFrame <= 0}
+                  onClick={() => updateActiveWeaponRow({ weaponFrame: Math.max(0, activeWeaponRow.weaponFrame - 1) })}
+                >‹</Button>
+                <span className={`w-10 text-center ${weaponFrameMissing ? 'text-msx-warning' : ''}`}>
+                  {activeWeaponRow.weaponFrame + 1}/{weaponFrameCount || '?'}
+                </span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={activeWeaponRow.weaponFrame >= weaponFrameCount - 1}
+                  onClick={() => updateActiveWeaponRow({ weaponFrame: Math.min(Math.max(0, weaponFrameCount - 1), activeWeaponRow.weaponFrame + 1) })}
+                >›</Button>
+                <span className="text-msx-textsecondary">|</span>
+                {(['offsetX', 'offsetY'] as const).map(axis => (
+                  <span key={axis} className="flex items-center gap-1">
+                    <span>{axis === 'offsetX' ? 'X' : 'Y'}</span>
+                    <Button size="sm" variant="secondary" disabled={weaponMirroredView} onClick={() => updateActiveWeaponRow({ [axis]: activeWeaponRow[axis] - 1 } as Partial<Msx2WeaponBindingFrame>)}>-</Button>
+                    <input
+                      type="number"
+                      value={activeWeaponRow[axis]}
+                      disabled={weaponMirroredView}
+                      onChange={event => updateActiveWeaponRow({ [axis]: parseInt(event.target.value, 10) || 0 } as Partial<Msx2WeaponBindingFrame>)}
+                      className="w-12 rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-center"
+                    />
+                    <Button size="sm" variant="secondary" disabled={weaponMirroredView} onClick={() => updateActiveWeaponRow({ [axis]: activeWeaponRow[axis] + 1 } as Partial<Msx2WeaponBindingFrame>)}>+</Button>
+                  </span>
+                ))}
+                <span className="text-msx-textsecondary">|</span>
+                <Button
+                  size="sm"
+                  variant={activeWeaponRow.inFront ? 'primary' : 'ghost'}
+                  onClick={() => updateActiveWeaponRow({ inFront: !activeWeaponRow.inFront })}
+                  title="Delante o detrás del player en este frame"
+                >
+                  {activeWeaponRow.inFront ? 'Delante' : 'Detrás'}
+                </Button>
+                <label
+                  className="flex cursor-pointer select-none items-center gap-1"
+                  title="En este frame el arma hace daño (ROM SCREEN 5). Si ningún frame está marcado, golpea el último."
+                >
+                  <input type="checkbox" checked={!!activeWeaponRow.hits} onChange={event => updateActiveWeaponRow({ hits: event.target.checked })} />
+                  <span>Golpea</span>
+                  {!activeWeaponBinding.frames.some(row => row?.hits) && (
+                    <span className="text-msx-textsecondary">(ninguno: el último)</span>
+                  )}
+                </label>
+                <label className="flex cursor-pointer select-none items-center gap-1" title="Previsualiza el espejado automático (mirando al otro lado)">
+                  <input type="checkbox" checked={weaponPreviewMirrored} onChange={event => setWeaponPreviewMirrored(event.target.checked)} />
+                  <span>Ver espejado</span>
+                </label>
+              </div>
+            )}
+
+            {activeWeaponBinding && !activeWeaponSprite && (
+              <div className="text-msx-warning">El sprite arma de esta combinación ya no existe en el proyecto.</div>
+            )}
+            {weaponMissingFrameRows.length > 0 && (
+              <div className="text-msx-warning">
+                Frame de arma inexistente en frame(s) del player: {weaponMissingFrameRows.join(', ')} (el arma tiene {weaponFrameCount}).
+              </div>
+            )}
+            {weaponPaletteConflicts.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1 text-msx-warning">
+                <span>Conflicto de paleta: el arma usa colores que no están en la paleta del player:</span>
+                {weaponPaletteConflicts.map(hex => (
+                  <span key={hex} className="flex items-center gap-1 rounded border border-msx-border px-1">
+                    <span className="inline-block h-3 w-3 border border-black/50" style={{ backgroundColor: hex }} />
+                    {hex}
+                  </span>
+                ))}
+              </div>
+            )}
+            {weaponScanlineBudget && (
+              <div className={`rounded border px-2 py-1.5 ${weaponScanlineBudget.max > 8 ? 'border-msx-danger bg-msx-danger/10' : 'border-msx-border bg-msx-panelbg/70'}`}>
+                <div className={weaponScanlineBudget.max > 8 ? 'font-semibold text-msx-danger' : 'text-msx-textprimary'}>
+                  Sprites HW por línea (player + arma, este frame): máx {weaponScanlineBudget.max}/8
+                  {weaponScanlineBudget.max > 8 && ' — ¡supera el límite de MSX2! Los sprites sobrantes no se verán.'}
+                </div>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {weaponScanlineBudget.ranges.filter(range => range.total > 0).map(range => (
+                    <span
+                      key={`${range.from}-${range.to}`}
+                      className={`rounded px-1 ${range.total > 8 ? 'bg-msx-danger text-white' : 'bg-msx-bgcolor text-msx-textsecondary'}`}
+                      title={`Líneas ${range.from}..${range.to} relativas a la parte superior del player`}
+                    >
+                      y {range.from}..{range.to}: {range.player}+{range.weapon}={range.total}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="min-h-0 flex flex-1 items-start justify-center overflow-auto p-4">
           {showSeparatedLayers ? (
             <div className="flex w-full max-w-md flex-col gap-3">
@@ -1575,23 +2020,29 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
               ))}
             </div>
           ) : (
-            <Msx2PixelGrid
-              frame={frame}
-              width={sprite.size.width}
-              height={sprite.size.height}
-              zoom={zoom}
-              backgroundColor={sprite.backgroundColor}
-              onPixel={handlePixel}
-              onCellMouseDown={toolMode === 'select' ? handleGridMouseDown : undefined}
-              onCellMouseEnter={toolMode === 'select' ? handleGridMouseEnter : undefined}
-              onCellMouseUp={toolMode === 'select' ? handleGridMouseUp : undefined}
-              onionSkinEnabled={onionSkinEnabled}
-              onionSkinOpacity={onionSkinOpacity}
-              prevFrame={prevFrame}
-              nextFrame={nextFrame}
-              metaSpriteParts={superSpriteParts}
-              selectionRect={toolMode === 'select' ? selectionRect : null}
-            />
+            <div className="flex flex-col items-center gap-1">
+              {weaponMirroredView && (
+                <span className="text-[11px] text-msx-warning">Vista espejada (solo lectura): desactiva "Ver espejado" para pintar.</span>
+              )}
+              <Msx2PixelGrid
+                frame={weaponMirroredView ? mirroredCurrentFrame : frame}
+                width={sprite.size.width}
+                height={sprite.size.height}
+                zoom={zoom}
+                backgroundColor={sprite.backgroundColor}
+                onPixel={weaponMirroredView ? () => undefined : handlePixel}
+                onCellMouseDown={!weaponMirroredView && toolMode === 'select' ? handleGridMouseDown : undefined}
+                onCellMouseEnter={!weaponMirroredView && toolMode === 'select' ? handleGridMouseEnter : undefined}
+                onCellMouseUp={!weaponMirroredView && toolMode === 'select' ? handleGridMouseUp : undefined}
+                onionSkinEnabled={onionSkinEnabled && !weaponMirroredView}
+                onionSkinOpacity={onionSkinOpacity}
+                prevFrame={prevFrame}
+                nextFrame={nextFrame}
+                metaSpriteParts={superSpriteParts}
+                selectionRect={!weaponMirroredView && toolMode === 'select' ? selectionRect : null}
+                weaponOverlay={weaponOverlay}
+              />
+            </div>
           )}
         </div>
         <div className="flex items-center justify-center gap-2 pb-2 text-xs text-msx-textsecondary">
@@ -1607,8 +2058,8 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
       <div className="min-h-0 overflow-y-auto border-l border-msx-border pl-2 space-y-2">
         <Panel title="Animation Tools" collapsible>
           <div className="p-3 space-y-3 text-xs">
-            <div className="flex items-center gap-3">
-              <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-end gap-2">
                 <div className="space-y-1">
                   <Msx2PixelGrid
                     frame={previewFrame}
@@ -1619,10 +2070,11 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
                     onPixel={() => undefined}
                     onionSkinEnabled={false}
                     onionSkinOpacity={0}
+                    weaponOverlay={weaponOverlayForFrame(previewAnimationFrameIndex, false)}
                   />
                   <div className="text-center text-[10px] text-msx-textsecondary">Base</div>
                 </div>
-                {hasHorizontalFacing && (
+                {hasHorizontalFacing && showMirrorPreview && (
                   <div className="space-y-1">
                     <Msx2PixelGrid
                       frame={mirroredPreviewFrame}
@@ -1633,6 +2085,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
                       onPixel={() => undefined}
                       onionSkinEnabled={false}
                       onionSkinOpacity={0}
+                      weaponOverlay={weaponOverlayForFrame(previewAnimationFrameIndex, true)}
                     />
                     <div className="text-center text-[10px] text-msx-textsecondary">Mirror</div>
                   </div>
@@ -1647,6 +2100,12 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
             </label>
             <label className="flex items-center justify-between gap-2">Loop
               <input type="checkbox" checked={sprite.loops !== false} onChange={e => onUpdate({ loops: e.target.checked })} />
+            </label>
+            <label
+              className={`flex items-center justify-between gap-2 ${hasHorizontalFacing ? '' : 'opacity-50'}`}
+              title={hasHorizontalFacing ? 'Mostrar/ocultar la vista mirror' : 'Solo disponible con Facing left/right'}
+            >Mirror
+              <input type="checkbox" checked={showMirrorPreview} onChange={e => setShowMirrorPreview(e.target.checked)} disabled={!hasHorizontalFacing} />
             </label>
             <label className="flex items-center justify-between gap-2">Onion Skin
               <input type="checkbox" checked={onionSkinEnabled} onChange={e => setOnionSkinEnabled(e.target.checked)} />

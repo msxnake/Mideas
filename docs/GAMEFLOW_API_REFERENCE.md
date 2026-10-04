@@ -251,6 +251,14 @@ Start → (siguiente nodo)
 - **DOWN**: Opción siguiente
 - **FIRE**: Seleccionar opción
 
+**SCREEN 5 (walker genérico) — cursor y layout** (opcionales; sin ellos el menú es el clásico centrado con barra):
+- `cursorStyle`: `bar` (barra resaltada, por defecto) · `arrow` (solo glifo cursor) · `arrow_bar` (glifo + barra)
+- `cursorChar`: carácter del cursor (por defecto `>`; cualquier carácter imprimible de la fuente GameFlow)
+- `layout`: `vertical` (UP/DOWN) · `horizontal` (LEFT/RIGHT, también acepta UP/DOWN); en horizontal las opciones deben caber en 42 columnas
+- `align`: `center` · `left`; `menuX` (px) fija el borde izquierdo del bloque
+- `menuY` (px, primera fila, por defecto 72), `optionSpacing` (px entre filas, por defecto 18), `titleY` (px, por defecto 32)
+- El layout lo calcula `utils/msx2Screen5MenuLayout.ts`, compartido por el generador y la vista previa del editor.
+
 ---
 
 ### 6. Text (Texto)
@@ -302,6 +310,18 @@ Start → (siguiente nodo)
 - Muestra el texto centrado
 - Espera duración O input (según configuración)
 - Continúa al siguiente nodo
+
+#### TextScroll / TextScrollColor en SCREEN 5: `scrollMode`
+
+En flujos MSX2 SCREEN 5 (walker genérico y Bitmap Room) los nodos `TextScroll` y `TextScrollColor` aceptan `scrollMode`:
+
+- `step` (por defecto): el comportamiento de siempre, el texto sube por líneas de 12 px. La ROM no cambia si no se usa otro modo.
+- `smooth`: scroll vertical píxel a píxel por hardware. El texto vive en un anillo de 256 filas en la otra página de VRAM y la ventana se muestra con un corte de raster (R#19 + S#1 FH, sondeado sin IE1): al inicio de la ventana se escriben R#2 (página) y R#23 (scroll vertical), al final se restauran. Las dos escrituras se hacen en el borrado horizontal (R#23 por el puerto indirecto R#17/#9B, 12 T-states después de R#2). Funciona igual en V9938 (MSX2) y V9958 (MSX2+).
+- `marquee`: el texto recorre una línea de derecha a izquierda. La ROM detecta el VDP (S#1 bits 1-5): en V9958 usa scroll horizontal por hardware R#26/R#27 (1 px por paso, R#25 MSK oculta los 8 px de la costura, por lo que la columna izquierda de 8 px queda en color de borde mientras dura); en V9938 desplaza la banda 2 px con HMMM y copia la franja siguiente del glifo.
+
+`scrollStepFrames` mantiene su significado: frames por cada 12 px de avance (mínimo 12 en `smooth`/`marquee`, es decir 1 px por frame). El texto admite los caracteres de la fuente 32..90 (mayúsculas, dígitos y signos).
+
+Test: `node scripts/check_msx2_screen5_transitions.mjs` (sección 4 genera y ensambla walker y Bitmap Room con `smooth` y `marquee`).
 
 ---
 
@@ -414,6 +434,25 @@ Start → (siguiente nodo)
 - Son transiciones raster-like: actualizan name table o paleta una vez por frame.
 - No usan IRQ de scanline ni timing horizontal del VDP, por lo que son mas seguras para el runtime SCREEN 4 actual.
 - En MSX2 SCREEN 5 Presentation se admiten `cls`, `fade_to_black`, `screen5_vertical_pixel_wipe`, `screen5_horizontal_pixel_wipe`, `screen5_diagonal_pixel_wipe` y `screen5_mirror_pixel_wipe`; los efectos SCREEN 4-only se rechazan o se normalizan en el editor.
+
+**Transiciones avanzadas SCREEN 5** (motor compartido `utils/msxGenerator/generators/msx2/screen5TransitionEngine.ts`, plan de relleno en `utils/msx2TransitionPatterns.ts`):
+- Efectos de bloques (HMMV del V9938, una tabla de rectángulos por efecto):
+  - `screen5_wipe`: barrido con `direction` (`left_to_right`, `right_to_left`, `top_to_bottom`, `bottom_to_top`, `center_out_h`, `edges_in_h`, `center_out_v`, `edges_in_v`, `diagonal_tl`, `diagonal_tr`, `diagonal_bl`, `diagonal_br`) y `blockSize` 2/4/8/16/32
+  - `screen5_blinds`: persianas; `direction` elige lamas verticales u horizontales y si abren desde un lado, desde el centro o desde los bordes; `blockSize` = ancho de lama (8/16/32/64)
+  - `screen5_pattern`: disolvencia por patrón repetido (`patternId`: `checker`, `bayer4`, `bayer8`, `lines_h`, `lines_v`, `diamond`, `circle`, `spiral`, `random`, `custom`); `blockSize` = tamaño de celda (4/8/16); `customPattern` = `{ size: 4|8, order: [...] }` con el paso (1..64) de cada celda, 0 = nunca se pinta
+  - `screen5_iris`: iris `irisShape` `circle`/`diamond`/`box`, `direction` `center_out_h` (abre) o `edges_in_h` (cierra)
+  - Comunes: `fillColorIndex` (0..15), `framesPerStep` (1..30), `reverse`
+- Fundidos de paleta (8 pasos interpolados, `framesPerStep` frames cada uno):
+  - `palette_fade_out`: a `fadeColor` (RGB 0..7)
+  - `palette_fade_in`: corta a `fadeColor` y la siguiente Screen5Presentation entra con fundido
+  - `palette_fade_out_in`: fundido a `fadeColor` y entrada con fundido de la siguiente Screen5Presentation
+  - `palette_crossfade`: paleta actual → paleta de la siguiente Screen5Presentation, que luego sube su imagen con la pantalla encendida (ideal para la misma imagen con otra paleta)
+  - `palette_flash`: destello a `fadeColor` y vuelta (`flashCount` 1..4)
+- `palette_fade_in`, `palette_fade_out_in` y `palette_crossfade` exigen que el siguiente nodo (saltando Waypoint/Globals/Music) sea una Screen5Presentation. En el runtime Bitmap Room todavía no se puede entrar con fundido al gameplay.
+- Los seis efectos clásicos admiten `fillColorIndex`, `blockSize`, `framesPerStep`, `reverse` (y `fade_to_black` `framesPerStep`/`fadeColor`); si se usa alguno, los reproduce el motor nuevo. Sin ellos el ASM es idéntico al de siempre.
+- Un flujo "Presentation" de forma estricta que use estas transiciones se exporta automáticamente con el walker genérico SCREEN 5.
+- `durationFrames` sigue siendo la pausa después del efecto.
+- Test: `node scripts/check_msx2_screen5_transitions.mjs` (genera y ensambla ROMs de ejemplo en `test/msx2-transitions/out/`) y `python test/msx2-transitions/check_tfx_engine.py` (verifica el motor Z80 píxel a píxel; requiere `pip install z80`).
 - Conexión DEFAULT (siguiente nodo)
 
 **Uso**:

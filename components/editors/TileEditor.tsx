@@ -11,12 +11,8 @@ import { Button } from '../common/Button';
 import {
   PatternBrushIcon, TilesetIcon as SplitIcon, CopyIcon, PasteIcon, SparklesIcon,
   ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, SwapHorizIcon, SwapVertIcon,
-  GridIcon
+  GridIcon, EyeIcon, EyeOffIcon, PencilIcon, PaintBrushIcon, FolderOpenIcon
 } from '../icons/MsxIcons';
-import { PngIcon } from '../icons/PngIcon';
-import pencilImg from '../../src/assets/icons/pencil.png';
-import paintBucketImg from '../../src/assets/icons/paint_bucket.png';
-import floppyDiskImg from '../../src/assets/icons/floppy_disk.png';
 import { TileFileOperationsModal } from '../modals/TileFileOperationsModal';
 import {
   createDefaultLineAttributes,
@@ -110,11 +106,12 @@ const CollapsiblePanel: React.FC<CollapsiblePanelProps> = ({ title, isOpen, onTo
     <button
       type="button"
       onClick={onToggle}
-      className="flex items-center w-full text-left px-2 py-1.5 hover:bg-msx-border/30 transition-colors select-none"
+      className="group flex items-center w-full text-left px-2 py-1.5 hover:bg-msx-border/30 transition-colors select-none"
       style={{ borderBottom: isOpen ? '1px solid var(--color-msx-border, #2a2a3a)' : 'none' }}
+      aria-expanded={isOpen}
     >
-      <span className="mr-2 text-msx-highlight text-xs">{isOpen ? '▾' : '▸'}</span>
       <span className="text-sm text-msx-textprimary flex-grow font-sans">{title}</span>
+      <span className="text-msx-textsecondary group-hover:text-msx-highlight">{isOpen ? <EyeOffIcon /> : <EyeIcon />}</span>
     </button>
     {isOpen && (
       <div className="p-2">
@@ -3350,8 +3347,8 @@ export const TileEditor: React.FC<TileEditorProps> = ({
             <div className="flex flex-wrap items-center gap-2 p-2 bg-msx-panelbg rounded border border-msx-border">
               <div className="flex items-center space-x-1">
                 <label className="text-xs">Tool:</label>
-                <Button onClick={() => setCurrentTool('pencil')} className={toolButtonClass('pencil')} title="Pencil (Draw/Erase)"><PngIcon src={pencilImg} alt="Pencil" className="w-4 h-4" /></Button>
-                <Button onClick={() => setCurrentTool('floodfill')} className={toolButtonClass('floodfill')} title="Flood Fill"><PngIcon src={paintBucketImg} alt="Flood Fill" className="w-4 h-4" /></Button>
+                <Button onClick={() => setCurrentTool('pencil')} className={toolButtonClass('pencil')} title="Pencil (Draw/Erase)"><PencilIcon className="w-4 h-4" /></Button>
+                <Button onClick={() => setCurrentTool('floodfill')} className={toolButtonClass('floodfill')} title="Flood Fill"><PaintBrushIcon className="w-4 h-4" /></Button>
                 <Button onClick={() => setCurrentTool('dither')} className={toolButtonClass('dither')} title="Dither Brush"><PatternBrushIcon className="w-4 h-4" /></Button>
               </div>
               {currentTool === 'dither' && (
@@ -3377,7 +3374,7 @@ export const TileEditor: React.FC<TileEditorProps> = ({
               >
                 8x8: {tileCharColumns}x{tileCharRows} = {tileCharTotal}
               </div>
-              <Button onClick={() => setIsFileModalOpen(true)} size="sm" variant="secondary" icon={<PngIcon src={floppyDiskImg} alt="File Ops" className="w-4 h-4" />}>File Ops</Button>
+              <Button onClick={() => setIsFileModalOpen(true)} size="sm" variant="secondary" icon={<FolderOpenIcon className="w-4 h-4" />}>File Ops</Button>
             </div>
             {isFileModalOpen && (
               <TileFileOperationsModal

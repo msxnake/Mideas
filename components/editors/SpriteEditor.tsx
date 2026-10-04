@@ -6,7 +6,7 @@ import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { Tooltip } from '../common/Tooltip';
-import { PlusCircleIcon, SaveIcon, DocumentDuplicateIcon, TrashIcon, CodeIcon, RotateCcwIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, PencilIcon, EraserIcon, CogIcon, CompressVerticalIcon, CompressHorizontalIcon, FireIcon, PlayIcon, StopIcon, FolderOpenIcon, SphereIcon, ViewfinderCircleIcon, TilesetIcon, SpriteIcon, ContourIcon, EraserIcon as DisintegrationIcon, CopyIcon, PasteIcon } from '../icons/MsxIcons';
+import { PlusCircleIcon, SaveIcon, DocumentDuplicateIcon, TrashIcon, CodeIcon, RotateCcwIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, PencilIcon, EraserIcon, CogIcon, CompressVerticalIcon, CompressHorizontalIcon, FireIcon, PlayIcon, StopIcon, FolderOpenIcon, EllipseShapeIcon, ViewfinderCircleIcon, TilesetIcon, SpriteIcon, ContourIcon, EraserIcon as DisintegrationIcon, CopyIcon, PasteIcon } from '../icons/MsxIcons';
 import { ExportSpriteASMModal } from '../modals/ExportSpriteASMModal';
 import { ExportSpriteZX0ASMModal } from '../modals/ExportSpriteZX0ASMModal';
 import { DisintegrationGeneratorModal, DisintegrationParams } from '../modals/DisintegrationGeneratorModal';
@@ -1358,7 +1358,7 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                 <h4 className="text-sm pixel-font text-msx-highlight mb-1.5">MSX1 Tools</h4>
                 <div className="space-y-1">
                     <Button onClick={() => setToolMode('draw')} variant={toolMode === 'draw' ? 'primary' : 'ghost'} size="sm" icon={<PencilIcon />} className="w-full" justify="start">MSX1 Draw</Button>
-                    <Button onClick={() => setToolMode('sphere')} variant={toolMode === 'sphere' ? 'primary' : 'ghost'} size="sm" icon={<SphereIcon />} className="w-full" justify="start">MSX1 Sphere</Button>
+                    <Button onClick={() => setToolMode('sphere')} variant={toolMode === 'sphere' ? 'primary' : 'ghost'} size="sm" icon={<EllipseShapeIcon />} className="w-full" justify="start">MSX1 Sphere</Button>
                     <Button onClick={() => setToolMode('erase')} variant={toolMode === 'erase' ? 'primary' : 'ghost'} size="sm" icon={<EraserIcon />} className="w-full" justify="start">MSX1 Erase (BG)</Button>
                     <Button onClick={handleCopyLayer} variant="ghost" size="sm" icon={<CopyIcon />} className="w-full" justify="start">MSX1 Copy Layer</Button>
                     <Button onClick={handlePasteLayer} variant="ghost" size="sm" icon={<PasteIcon />} className="w-full" justify="start" disabled={!copiedFrameData}>MSX1 Paste Layer</Button>

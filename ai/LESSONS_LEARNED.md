@@ -1543,3 +1543,84 @@ nuevos al final del atlas, pero la ROM copia huecos/patrones viejos solo para
 esos tiles.
 
 ---
+
+## Bug Resuelto: widget HUD sin upload propio caia en su update durante el arranque (R#15)
+
+Fecha: 2026-09-25
+
+Problema:
+Al anadir el widget `equippedWeapon` (icono del arma) a un HUD enlazado, la ROM
+SCREEN 5 se quedaba en negro: ENASCR (BIOS #0044) nunca volvia.
+
+Causa:
+La tira de iconos del arma se aloja en las columnas libres de la franja VRAM de
+otro widget, asi que su `uploadAsm` era vacio. La plantilla emite
+`upload_hud_linked_N:` seguido directamente de `update_hud_linked_N:`, y el init
+hace `call upload_hud_linked_N`: la llamada caia en el update, que lanza comandos
+VDP (vdp_wait_cmd_ready deja R#15 = 2). Despues el boot llama a ENASCR con IRQ
+activas; el handler de la BIOS lee S#2 en vez de S#0, nunca reconoce la
+interrupcion y se queda en bucle.
+
+Solucion:
+Si el widget no tiene upload propio, la etiqueta de upload emite `ret`.
+
+Leccion:
+Una etiqueta de rutina con cuerpo vacio NO es una rutina vacia: cae en lo que
+venga detras. Y cualquier ruta de boot que llame a la BIOS con IRQ activas
+necesita R#15 = 0. Tecnica util: en openMSX, `debug set_condition` guardando
+el historial de PC y cortando al saltar a la BIOS localiza la llamada exacta.
+
+---
+
+## Bug Resuelto: terminador #D8 del escritor de enemigos dentro del rango reservado del boss
+
+Fecha: 2026-09-25
+
+Problema:
+En salas sin boss activo, los sprites de plataformas, torretas, balas del player
+(y el arma melee) no se veian en proyectos con boss que dispara rafagas.
+
+Causa:
+La cadena SAT reserva `bossBulletSatSlots = max(enemigos, rafaga del boss)` a
+partir de la base de enemigos, pero bitmap_update_enemy_sat escribia su #D8 justo
+tras sus `maxSlots` entradas: dentro del rango reservado. Sin boss activo,
+bitmap_boss_sbul_sat hace `ret z` y ese #D8 corta la lista para todos los
+escritores posteriores.
+
+Solucion:
+Opcion `satPadSlots` del generador de enemigos: aparca (#D4) las entradas
+reservadas que sobran antes de escribir el terminador.
+
+Leccion:
+Cada escritor SAT debe terminar DESPUES de todo su rango reservado, no despues
+de lo que usa. Para verificar, volcar la VRAM justo al acabar la cadena SAT
+(breakpoint en la primera rutina de la fase diferida), no en un instante
+cualquiera: a mitad de cadena siempre hay terminadores temporales.
+
+---
+
+## Codigo en una ventana de banco (P2): la musica lo desmapea
+
+Fecha: 2026-09-29
+
+Problema:
+El nodo Intro ejecuta su interprete desde un banco mapeado en P2 (#8000) porque la
+ventana residente estaba llena. Al llamar a `music_update` desde ese codigo el programa
+se caia: el PC acababa en la BIOS (#19xx) y la pantalla se quedaba en negro.
+
+Causa:
+Todo driver de musica mueve P2. El SCC mapea el banco #3F para llegar al chip, y el
+replayer PT3 mapea su modulo y despues fuerza P2 = 2 (no restaura `mapper_bank_p2_current`).
+El `ret` de `music_update` volvia a una direccion de P2 que ya apuntaba a otro banco.
+
+Solucion:
+Llamar siempre a la musica por un envoltorio residente (`bitmap_intro_music`) que hace
+`call music_update`, vuelve a mapear el banco del llamador y hace el `ret` desde fuera
+de P2. Lo mismo para cualquier copia a VRAM desde un banco de datos.
+
+Leccion:
+No confiar en el espejo `mapper_bank_p2_current`: cada driver lo trata distinto. Un
+breakpoint por direccion en #8000+ dispara tambien con OTRO banco mapeado (misma direccion,
+distinto codigo): condicionar el breakpoint al banco activo o el trazado engana.
+Tambien: `ensureScreen5PaletteSlots` reconstruye el color desde el indice maestro, asi que
+una paleta ya atenuada (fade) no debe volver a pasar por ella.

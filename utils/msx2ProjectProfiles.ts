@@ -59,6 +59,7 @@ const MSX2_BITMAP_ROOM_ASSET_TYPES: ProjectAsset['type'][] = [
   ...MSX2_SHARED_ASSET_TYPES,
   'msx2bitmaproom',
   'msx2dialogue',
+  'msx2intro',
 ];
 
 const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'version'>> = {

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { EnemyCategory, EnemyDefinition } from '../../types';
 import { Button } from '../common/Button';
-import { LoadIcon, SaveIcon, TrashIcon, DocumentDuplicateIcon } from '../icons/MsxIcons';
+import { LoadIcon, SaveIcon, TrashIcon, DocumentDuplicateIcon, EyeIcon, EyeOffIcon } from '../icons/MsxIcons';
 import {
   Msx2EnemyLibraryEntry,
   exportMsx2EnemyLibraryEntryFile,
@@ -167,7 +167,7 @@ export const Msx2EnemyLibraryModal: React.FC<Msx2EnemyLibraryModalProps> = ({
                     onClick={() => setCollapsed(prev => ({ ...prev, [category]: !prev[category] }))}
                     className="w-full flex items-center gap-2 text-sm font-semibold text-msx-textprimary border-b border-msx-border pb-1 mb-2"
                   >
-                    <span className="text-msx-textsecondary">{isCollapsed ? '▶' : '▼'}</span>
+                    <span className="text-msx-textsecondary">{isCollapsed ? <EyeIcon /> : <EyeOffIcon />}</span>
                     {CATEGORY_LABELS[category]}
                     <span className="text-msx-textsecondary font-normal">({items.length})</span>
                   </button>

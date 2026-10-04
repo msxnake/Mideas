@@ -46,6 +46,9 @@ export const BOSS_DEFINITION_OWNED_PARAMS: ReadonlySet<string> = new Set([
   'bossMoleRayRangePx',
   'bossMoleRayAngleSteps',
   'bossMoleRaySpeed',
+  'bossChickWindupFrames',
+  'bossChickStunFrames',
+  'bossChickRecoveryFrames',
   // --- chain barrier ---
   'bossBarrierTileId',
   // --- projectiles ---

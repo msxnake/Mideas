@@ -1,5 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { validateIntroMusic, validateIntroSlide } from '../../utils/msx2IntroUtils';
+import { firstFreeSubMenuOption, repairSubMenuConnections } from '../../utils/msx2GameFlowSubMenuLinks';
+import { clampMsx2CodeLength, codeEntryIssues, firstFreeCodeEntryPort, normalizeMsx2Code } from '../../utils/msx2GameFlowCodeEntry';
 import type {
+  Msx2GameFlowCodeEntryNode,
   Msx2GameFlowConnection,
   Msx2GameFlowControlsNode,
   Msx2GameFlowEndNode,
@@ -7,6 +11,8 @@ import type {
   Msx2GameFlowGlobalsNode,
   Msx2GameFlowIfThenElseNode,
   Msx2GameFlowMusicNode,
+  Msx2GameFlowIntroNode,
+  Msx2IntroAsset,
   Msx2GameFlowNode,
   Msx2GameFlowPurpose,
   Msx2GameFlowPurposeCurrent,
@@ -22,7 +28,13 @@ import type {
   Msx2Screen5PresentationConfig,
   ProjectAsset,
 } from '../../types';
-import { MSX2_WORLDLINK_MUSIC_NONE } from '../../types';
+import {
+  MSX2_CODE_ENTRY_MAX_CODES,
+  MSX2_CODE_ENTRY_MAX_LENGTH,
+  MSX2_CODE_ENTRY_MIN_LENGTH,
+  MSX2_CODE_ENTRY_WRONG_PORT,
+  MSX2_WORLDLINK_MUSIC_NONE,
+} from '../../types';
 import type { MideasGlobalVariable } from '../../constants';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
@@ -30,6 +42,13 @@ import { AssetPickerModal } from '../modals/AssetPickerModal';
 import { ArrowsPointingOutIcon, PlusCircleIcon } from '../icons/MsxIcons';
 import { isMsx2Screen4Purpose, resolveMsx2Screen5Emitter } from '../../utils/msx2GameFlowPurpose';
 import { resolveMsx2ProfileGraphicsMode } from '../../utils/msx2ProjectProfiles';
+import {
+  SCREEN5_ADVANCED_TRANSITION_OPTIONS,
+  SCREEN5_TRANSITIONS_NEEDING_NEXT_SCENE,
+  screen5TransitionUsesEngine,
+} from '../../utils/msx2TransitionPatterns';
+import { resolveScreen5MenuLayout } from '../../utils/msx2Screen5MenuLayout';
+import { Screen5TransitionSettings } from './Screen5TransitionSettings';
 import {
   drawMsx2Screen5PresentationPreview,
   unpackScreen5PresentationPixels,
@@ -47,6 +66,22 @@ const MSX2_SCREEN5_TRANSITION_OPTIONS: Array<{ value: Msx2GameFlowTransitionNode
   { value: 'screen5_diagonal_pixel_wipe', label: 'SCREEN 5 diagonal pixel wipe' },
   { value: 'screen5_mirror_pixel_wipe', label: 'SCREEN 5 mirror pixel wipe' },
 ];
+
+/**
+ * Every effect a SCREEN 5 flow can use: the six classic ones plus the effects of
+ * the shared SCREEN 5 transition engine (wipes with direction, blinds, pattern
+ * dissolves, iris, palette fades). SCREEN 4 flows keep their own list below.
+ */
+const MSX2_SCREEN5_ALL_TRANSITION_OPTIONS: Array<{ value: Msx2GameFlowTransitionNode['effect']; label: string; group: 'classic' | 'block' | 'palette' }> = [
+  ...MSX2_SCREEN5_TRANSITION_OPTIONS.map(option => ({ ...option, group: 'classic' as const })),
+  ...SCREEN5_ADVANCED_TRANSITION_OPTIONS,
+];
+
+const TRANSITION_GROUP_LABELS: Record<string, string> = {
+  classic: 'Classic',
+  block: 'Block effects (wipe / blinds / patterns)',
+  palette: 'Palette fades',
+};
 
 const MSX2_SCREEN4_TRANSITION_OPTIONS: Array<{ value: Msx2GameFlowTransitionNode['effect']; label: string }> = [
   ...MSX2_SCREEN5_TRANSITION_OPTIONS,
@@ -141,12 +176,139 @@ const Screen5PresentationPreviewCanvas: React.FC<Screen5PresentationPreviewCanva
 };
 
 const MSX2_SCREEN5_TRANSITION_EFFECTS = new Set<Msx2GameFlowTransitionNode['effect']>(
-  MSX2_SCREEN5_TRANSITION_OPTIONS.map(option => option.value)
+  MSX2_SCREEN5_ALL_TRANSITION_OPTIONS.map(option => option.value)
 );
 
 const MSX2_SCREEN4_TRANSITION_EFFECTS = new Set<Msx2GameFlowTransitionNode['effect']>(
   MSX2_SCREEN4_TRANSITION_OPTIONS.map(option => option.value)
 );
+
+/** SCREEN 5 TextScroll mode: classic line steps, pixel-smooth split, or marquee. */
+const Screen5ScrollModeSelect: React.FC<{
+  value: Msx2GameFlowTextScrollNode['scrollMode'];
+  onChange: (value: Msx2GameFlowTextScrollNode['scrollMode']) => void;
+}> = ({ value, onChange }) => (
+  <div className="space-y-1">
+    <label className="block text-xs">
+      Scroll mode (SCREEN 5)
+      <select
+        value={value || 'step'}
+        onChange={event => onChange(event.target.value === 'step' ? undefined : event.target.value as Msx2GameFlowTextScrollNode['scrollMode'])}
+        className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+      >
+        <option value="step">Line by line (classic)</option>
+        <option value="smooth">Pixel by pixel, vertical (any MSX2)</option>
+        <option value="marquee">Marquee, horizontal (hardware on MSX2+ / V9958)</option>
+      </select>
+    </label>
+    {value === 'smooth' && (
+      <p className="text-[0.65rem] leading-snug text-msx-textsecondary">
+        Uses a raster split on the other VRAM page (R#2 + R#23), valid on V9938 and V9958. Frames/line is the time a text line
+        takes to scroll in (minimum 12 = 1 pixel per frame).
+      </p>
+    )}
+    {value === 'marquee' && (
+      <p className="text-[0.65rem] leading-snug text-msx-textsecondary">
+        The text runs right to left along one line. On a V9958 (MSX2+ / turbo R) the VDP scrolls it by hardware (R#26/R#27),
+        1 pixel per step; on a V9938 (MSX2) the ROM detects the chip and moves it with VRAM copies, 2 pixels per step.
+      </p>
+    )}
+  </div>
+);
+
+/** SCREEN 5 SubMenu cursor + layout controls with a to-scale layout preview. */
+const Screen5SubMenuLayoutSettings: React.FC<{
+  node: Msx2GameFlowSubMenuNode;
+  onChange: (updates: Partial<Msx2GameFlowSubMenuNode>) => void;
+}> = ({ node, onChange }) => {
+  const layout = resolveScreen5MenuLayout(node, (node.options || []).slice(0, 6).map(option => option.text || ''));
+  const numberOrUndefined = (value: string): number | undefined => (value.trim() === '' ? undefined : Math.trunc(Number(value)) || 0);
+  const selectClass = 'mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1';
+  const hasCursor = node.cursorStyle === 'arrow' || node.cursorStyle === 'arrow_bar';
+  return (
+    <div className="space-y-2 border border-msx-border rounded p-2">
+      <div className="text-xs font-semibold">SCREEN 5 cursor &amp; layout</div>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block text-xs">
+          Cursor
+          <select value={node.cursorStyle || 'bar'} onChange={event => onChange({ cursorStyle: event.target.value as Msx2GameFlowSubMenuNode['cursorStyle'] })} className={selectClass}>
+            <option value="bar">Highlight bar</option>
+            <option value="arrow">Cursor glyph</option>
+            <option value="arrow_bar">Glyph + bar</option>
+          </select>
+        </label>
+        <label className="block text-xs">
+          Cursor glyph
+          <input
+            type="text"
+            maxLength={1}
+            value={node.cursorChar ?? '>'}
+            disabled={!hasCursor}
+            onChange={event => onChange({ cursorChar: event.target.value.slice(0, 1) || undefined })}
+            className={`${selectClass} disabled:opacity-50`}
+            title="Any printable character of the GameFlow font (space to Z)"
+          />
+        </label>
+        <label className="block text-xs">
+          Layout
+          <select value={node.layout || 'vertical'} onChange={event => onChange({ layout: event.target.value as Msx2GameFlowSubMenuNode['layout'] })} className={selectClass}>
+            <option value="vertical">Vertical (up / down)</option>
+            <option value="horizontal">Horizontal (left / right)</option>
+          </select>
+        </label>
+        <label className="block text-xs">
+          Align
+          <select value={node.align || 'center'} onChange={event => onChange({ align: event.target.value as Msx2GameFlowSubMenuNode['align'] })} className={selectClass}>
+            <option value="center">Centre</option>
+            <option value="left">Left</option>
+          </select>
+        </label>
+        <label className="block text-xs">
+          Menu X (px, blank = align)
+          <input type="number" min={0} max={250} value={node.menuX ?? ''} onChange={event => onChange({ menuX: numberOrUndefined(event.target.value) })} className={selectClass} />
+        </label>
+        <label className="block text-xs">
+          Menu Y (px)
+          <input type="number" min={0} max={204} placeholder="72" value={node.menuY ?? ''} onChange={event => onChange({ menuY: numberOrUndefined(event.target.value) })} className={selectClass} />
+        </label>
+        <label className="block text-xs">
+          Row spacing (px)
+          <input type="number" min={10} max={40} placeholder="18" value={node.optionSpacing ?? ''} disabled={node.layout === 'horizontal'} onChange={event => onChange({ optionSpacing: numberOrUndefined(event.target.value) })} className={`${selectClass} disabled:opacity-50`} />
+        </label>
+        <label className="block text-xs">
+          Title Y (px)
+          <input type="number" min={0} max={204} placeholder="32" value={node.titleY ?? ''} onChange={event => onChange({ titleY: numberOrUndefined(event.target.value) })} className={selectClass} />
+        </label>
+      </div>
+      {layout.error ? (
+        <p className="text-xs text-msx-danger">{layout.error}</p>
+      ) : (
+        <svg viewBox="0 0 256 212" className="w-full border border-msx-border bg-black" style={{ maxWidth: 256 }}>
+          {node.title && (
+            <text
+              x={layout.titleColumn !== undefined ? (layout.titleColumn / 3) * 6 : 128}
+              y={layout.titleY + 7}
+              fontSize={8}
+              fill="#bbb"
+              fontFamily="monospace"
+              textAnchor={layout.titleColumn !== undefined ? 'start' : 'middle'}
+            >
+              {node.title.toUpperCase().slice(0, 42)}
+            </text>
+          )}
+          {layout.items.map((item, index) => (
+            <g key={index}>
+              <rect x={(item.column / 3) * 6} y={item.y} width={item.spanCharacters * 6} height={8} fill={index === 0 && layout.useBar ? '#ddd' : '#333'} />
+              <text x={(item.column / 3) * 6} y={item.y + 7} fontSize={8} fill={index === 0 && layout.useBar ? '#000' : '#eee'} fontFamily="monospace" xmlSpace="preserve">
+                {index === 0 ? item.selectedText : item.idleText}
+              </text>
+            </g>
+          ))}
+        </svg>
+      )}
+    </div>
+  );
+};
 
 interface Msx2GameFlowEditorProps {
   gameFlowGraph: Msx2GameFlowGraph;
@@ -161,6 +323,31 @@ interface Msx2GameFlowEditorProps {
   msx2ProjectProfile?: Msx2ProjectProfile | null;
 }
 
+/** Completeness of an Intro node (asset, slides, steps, music option). */
+const introNodeIssues = (node: Msx2GameFlowIntroNode, introAssets: ProjectAsset[], bitmapBackend: boolean, allAssets: ProjectAsset[] = []): string[] => {
+  const issues: string[] = [];
+  if (!bitmapBackend) {
+    issues.push('Intro is SCREEN 5 only: use it in a SCREEN 5 bitmap project.');
+    return issues;
+  }
+  const asset = introAssets.find(a => a.id === node.introAssetId);
+  if (!asset) {
+    issues.push('Intro node must select a valid MSX2 Intro asset.');
+  } else {
+    const intro = asset.data as Msx2IntroAsset | undefined;
+    if (!intro?.slides?.length) issues.push(`Intro "${asset.name}" has no slides.`);
+    else if (intro.slides.every(slide => !slide.steps?.length)) issues.push(`Intro "${asset.name}" has no text steps.`);
+    issues.push(...validateIntroMusic(intro, allAssets));
+    // The exporter refuses steps whose zone was deleted: report it here instead of at export time.
+    (intro?.slides ?? []).forEach(slide => {
+      if ((slide.steps ?? []).some(step => !(slide.textZones ?? []).some(zone => zone.id === step.zoneId))) {
+        issues.push(`Intro "${asset.name}", slide "${slide.name}": a step points at a text zone that no longer exists.`);
+      }
+    });
+  }
+  return issues;
+};
+
 const getNodeLabel = (node: Msx2GameFlowNode, allAssets: ProjectAsset[]): string => {
   if (node.type === 'Start') return 'Start MSX2';
   if (node.type === 'End') return node.title || 'End';
@@ -172,6 +359,7 @@ const getNodeLabel = (node: Msx2GameFlowNode, allAssets: ProjectAsset[]): string
     return asset?.name || 'SCREEN 4 Screen';
   }
   if (node.type === 'SubMenu') return node.title || 'SubMenu';
+  if (node.type === 'CodeEntry') return `${node.title || 'Code'} (${(node.codes || []).length})`;
   if (node.type === 'Controls') return node.title || 'Controls';
   if (node.type === 'Text') return node.title || 'Text';
   if (node.type === 'TextScroll') return node.title || 'Text Scroll';
@@ -181,13 +369,19 @@ const getNodeLabel = (node: Msx2GameFlowNode, allAssets: ProjectAsset[]): string
     return asset?.name || 'World Link';
   }
   if (node.type === 'IfThenElse') return `${node.variableName || 'var'} ${node.operator || '=='} ${node.compareValue || '0'}`;
+  if (node.type === 'Intro') {
+    const asset = allAssets.find(a => a.id === node.introAssetId && a.type === 'msx2intro');
+    return asset?.name || 'Intro';
+  }
   if (node.type === 'Music') {
     if (node.stop || node.autoPlay === false) return 'Stop Music';
     const asset = allAssets.find(a => a.id === node.trackAssetId && a.type === 'track');
     return asset?.name || 'Music';
   }
   if (node.type === 'Transition') {
-    return MSX2_SCREEN4_TRANSITION_OPTIONS.find(option => option.value === node.effect)?.label || 'Transition';
+    return MSX2_SCREEN4_TRANSITION_OPTIONS.find(option => option.value === node.effect)?.label
+      || MSX2_SCREEN5_ALL_TRANSITION_OPTIONS.find(option => option.value === node.effect)?.label
+      || 'Transition';
   }
   const asset = allAssets.find(a => a.id === node.presentationAssetId && a.type === 'msx2presentation');
   return asset?.name || 'SCREEN 5 Presentation';
@@ -199,6 +393,7 @@ const getNodeColor = (node: Msx2GameFlowNode): string => {
   if (node.type === 'Screen5Presentation') return 'hsl(168, 58%, 30%)';
   if (node.type === 'Screen4Screen') return 'hsl(198, 52%, 32%)';
   if (node.type === 'SubMenu') return 'hsl(215, 52%, 34%)';
+  if (node.type === 'CodeEntry') return 'hsl(240, 42%, 38%)';
   if (node.type === 'Controls') return 'hsl(185, 45%, 34%)';
   if (node.type === 'Text') return 'hsl(188, 46%, 34%)';
   if (node.type === 'TextScroll') return 'hsl(172, 46%, 31%)';
@@ -207,6 +402,7 @@ const getNodeColor = (node: Msx2GameFlowNode): string => {
   if (node.type === 'Waypoint') return 'hsl(215, 34%, 35%)';
   if (node.type === 'IfThenElse') return 'hsl(28, 58%, 36%)';
   if (node.type === 'Music') return 'hsl(300, 38%, 36%)';
+  if (node.type === 'Intro') return 'hsl(195, 55%, 33%)';
   if (node.type === 'Transition') return 'hsl(42, 58%, 35%)';
   if (node.type === 'Restart') return 'hsl(8, 58%, 36%)';
   return 'hsl(330, 42%, 34%)';
@@ -236,6 +432,21 @@ const getNextExportNode = (
   let current = getNextNode(node, nodes, connections);
   const visited = new Set<string>();
   while ((current?.type === 'Waypoint' || current?.type === 'Globals') && !visited.has(current.id)) {
+    visited.add(current.id);
+    current = getNextNode(current, nodes, connections);
+  }
+  return current;
+};
+
+/** Like getNextExportNode, but also walks through Music nodes (non-visual). */
+const getNextNonMusicExportNode = (
+  node: Msx2GameFlowNode | undefined,
+  nodes: Msx2GameFlowNode[],
+  connections: Msx2GameFlowConnection[]
+): Msx2GameFlowNode | undefined => {
+  let current = getNextNode(node, nodes, connections);
+  const visited = new Set<string>();
+  while ((current?.type === 'Waypoint' || current?.type === 'Globals' || current?.type === 'Music') && !visited.has(current.id)) {
     visited.add(current.id);
     current = getNextNode(current, nodes, connections);
   }
@@ -323,8 +534,11 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   // strict-shape SCREEN 5 exporter, so their presence switches the project to
   // the generic SCREEN 5 GameFlow walker (msx2Screen5FlowGenerator.ts), which
   // accepts any node order — including menus that loop back on themselves.
+  // Transitions played by the shared SCREEN 5 transition engine also need the
+  // walker (the strict-shape exporter only knows the six classic effects).
   const usesScreen5GenericBackend = nodes.some(node => (
     node.type === 'SubMenu' || node.type === 'TextScroll' || node.type === 'TextScrollColor' || node.type === 'Music'
+    || (node.type === 'Transition' && screen5TransitionUsesEngine(node))
   ));
   const isScreen5GenericFlow = isScreen5PresentationFlow && usesScreen5GenericBackend;
   // The room node type is the same (`Screen4Screen`) for both tile SCREEN 4 and bitmap SCREEN 5
@@ -343,6 +557,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     : null;
   const selectedSubMenuNode = selectedNode?.type === 'SubMenu'
     ? selectedNode as Msx2GameFlowSubMenuNode
+    : null;
+  const selectedCodeEntryNode = selectedNode?.type === 'CodeEntry'
+    ? selectedNode as Msx2GameFlowCodeEntryNode
     : null;
   const selectedControlsNode = selectedNode?.type === 'Controls'
     ? selectedNode as Msx2GameFlowControlsNode
@@ -368,16 +585,23 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   const selectedMusicNode = selectedNode?.type === 'Music'
     ? selectedNode as Msx2GameFlowMusicNode
     : null;
+  const selectedIntroNode = selectedNode?.type === 'Intro'
+    ? selectedNode as Msx2GameFlowIntroNode
+    : null;
   // The bitmap-room runtime intro renders transitions with V9938 HMMV fills, so it
   // supports the same SCREEN 5 effect set as the presentation backend.
-  const transitionOptions = isScreen5PresentationFlow || isScreen5BitmapRuntimeFlow
-    ? MSX2_SCREEN5_TRANSITION_OPTIONS
+  const transitionOptions: Array<{ value: Msx2GameFlowTransitionNode['effect']; label: string; group?: string }> = isScreen5PresentationFlow || isScreen5BitmapRuntimeFlow
+    ? MSX2_SCREEN5_ALL_TRANSITION_OPTIONS
     : MSX2_SCREEN4_TRANSITION_OPTIONS;
   const firstPresentationNode = nodes.find(node => node.type === 'Screen5Presentation') as Msx2GameFlowScreen5PresentationNode | undefined;
   const previewPresentationNode = selectedPresentationNode || firstPresentationNode || null;
 
   const presentationAssets = useMemo(
     () => allAssets.filter(asset => asset.type === 'msx2presentation'),
+    [allAssets]
+  );
+  const introAssets = useMemo(
+    () => allAssets.filter(asset => asset.type === 'msx2intro'),
     [allAssets]
   );
   const globalVariablesAssets = useMemo(
@@ -447,6 +671,8 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     }
     return path;
   }, [allAssets, connections, gameFlowGraph.startNodeId, nodes]);
+  // Older editor builds left SubMenu links without an option (see utils/msx2GameFlowSubMenuLinks.ts).
+  const subMenuRepair = useMemo(() => repairSubMenuConnections(nodes, connections), [nodes, connections]);
   const flowIssues = useMemo(() => {
     const issues: string[] = [];
     const nodeIds = new Set(nodes.map(node => node.id));
@@ -487,6 +713,11 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
               issues.push(`SubMenu has an outgoing connection for an unknown option "${connection.from.sourceId || 'default'}".`);
             }
           }
+        } else if (node.type === 'CodeEntry') {
+          if (isScreen5BitmapRuntimeFlow) issues.push(...codeEntryIssues(node, connections));
+          else issues.push('CodeEntry is only exported by the SCREEN 5 Bitmap backend.');
+        } else if (node.type === 'Intro') {
+          issues.push(...introNodeIssues(node, introAssets, isScreen5BitmapRuntimeFlow, allAssets));
         } else if (node.type === 'Controls') {
           if (!node.title?.trim()) issues.push('Controls node must include a title.');
         } else if (node.type === 'Text') {
@@ -510,6 +741,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           if (isScreen5BitmapRuntimeFlow) {
             if (!MSX2_SCREEN5_TRANSITION_EFFECTS.has(node.effect)) {
               issues.push(`Transition effect "${node.effect}" is not supported by the SCREEN 5 bitmap-room runtime; use a SCREEN 5 effect.`);
+            }
+            if (SCREEN5_TRANSITIONS_NEEDING_NEXT_SCENE.has(node.effect) && getNextNonMusicExportNode(node, nodes, connections)?.type !== 'Screen5Presentation') {
+              issues.push(`Transition "${node.effect}" needs a SCREEN 5 Presentation right after it (fading into gameplay is not supported yet).`);
             }
           } else if (!MSX2_SCREEN4_TRANSITION_EFFECTS.has(node.effect)) {
             issues.push(`Transition effect "${node.effect}" is not supported by SCREEN 4 runtime.`);
@@ -560,6 +794,10 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
               issues.push(`SubMenu option "${option.text || option.id}" has more than one outgoing connection.`);
             }
           }
+          if ((node.options || []).length > 0) {
+            const layout = resolveScreen5MenuLayout(node, (node.options || []).slice(0, 6).map(option => option.text || ''));
+            if (layout.error) issues.push(`SubMenu "${node.title || node.id}": ${layout.error}`);
+          }
         } else if (node.type === 'Text') {
           if (!node.message?.trim()) issues.push('Text node must include a message.');
         } else if (node.type === 'TextScroll' || node.type === 'TextScrollColor') {
@@ -570,6 +808,11 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           if (!MSX2_SCREEN5_TRANSITION_EFFECTS.has(node.effect)) {
             issues.push(`Transition effect "${node.effect}" is not supported by SCREEN 5; use a SCREEN 5 effect.`);
           }
+          if (SCREEN5_TRANSITIONS_NEEDING_NEXT_SCENE.has(node.effect) && getNextNonMusicExportNode(node, nodes, connections)?.type !== 'Screen5Presentation') {
+            issues.push(`Transition "${node.effect}" must be followed by a SCREEN 5 Presentation node.`);
+          }
+        } else if (node.type === 'Intro' || node.type === 'CodeEntry') {
+          issues.push(`${node.type} is only exported by the SCREEN 5 Bitmap backend, not by the presentation GameFlow walker.`);
         } else if (node.type === 'Screen4Screen' || node.type === 'WorldLink' || node.type === 'Controls') {
           issues.push(`${node.type} is not supported by the SCREEN 5 GameFlow backend.`);
         }
@@ -698,7 +941,8 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     }
     // The generic SCREEN 5 walker emits one routine per node and jumps between
     // them, so loops (menu -> options -> back to menu) are a supported shape.
-    if (!usesScreen5GenericBackend) {
+    // So does the bitmap dispatcher (a wrong code goes back to the menu).
+    if (!usesScreen5GenericBackend && !nodes.some(node => node.type === 'CodeEntry')) {
       if (current && visited.has(current.id)) {
         issues.push('Export path contains a cycle.');
       }
@@ -722,7 +966,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         issues.push(`Orphaned node: ${node.type}.`);
       }
       if (node.type === 'End' || node.type === 'Restart') continue;
-      if (node.type === 'SubMenu') continue;
+      if (node.type === 'SubMenu' || node.type === 'CodeEntry') continue;
       if (node.type === 'IfThenElse') {
         const hasThen = connections.some(connection => connection.from.nodeId === node.id && connection.from.sourceId === 'then');
         const hasElse = connections.some(connection => connection.from.nodeId === node.id && connection.from.sourceId === 'else');
@@ -758,7 +1002,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     onUpdate({ purpose, nodes: nextNodes });
   };
 
-  const addNode = (type: 'Globals' | 'Screen5Presentation' | 'Screen4Screen' | 'SubMenu' | 'Controls' | 'Text' | 'TextScroll' | 'TextScrollColor' | 'WorldLink' | 'Waypoint' | 'IfThenElse' | 'Music' | 'Transition' | 'Restart' | 'End') => {
+  const addNode = (type: 'Globals' | 'Screen5Presentation' | 'Screen4Screen' | 'SubMenu' | 'CodeEntry' | 'Controls' | 'Text' | 'TextScroll' | 'TextScrollColor' | 'WorldLink' | 'Waypoint' | 'IfThenElse' | 'Music' | 'Intro' | 'Transition' | 'Restart' | 'End') => {
     const previousNode = selectedNode || nodes[nodes.length - 1];
     const x = previousNode ? previousNode.position.x + 230 : 60;
     const y = previousNode ? previousNode.position.y : 80;
@@ -816,6 +1060,13 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
               waitForKey: true,
               waitFrames: 0,
             }
+        : type === 'Intro'
+          ? {
+              id,
+              type,
+              position: { x, y },
+              introAssetId: introAssets[0]?.id,
+            }
         : type === 'Music'
           ? {
               id,
@@ -845,6 +1096,15 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                 { id: `option_start_${Date.now()}`, text: 'START' },
                 { id: `option_options_${Date.now()}`, text: 'OPTIONS' },
               ],
+            }
+        : type === 'CodeEntry'
+          ? {
+              id,
+              type,
+              position: { x, y },
+              title: 'ENTER CODE',
+              codeLength: 4,
+              codes: [{ id: `code_${Date.now()}`, code: 'LEV2' }],
             }
         : type === 'WorldLink'
           ? {
@@ -886,9 +1146,19 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
             ? { id, type, position: { x, y }, title: 'End', message: 'THANKS FOR PLAYING', waitForKey: true, waitFrames: 0 }
           : { id, type, position: { x, y } };
 
-    const nextConnections = previousNode && previousNode.type !== 'End' && previousNode.type !== 'Restart' && previousNode.type !== 'IfThenElse'
-      ? [...connections.filter(conn => conn.from.nodeId !== previousNode.id), makeConnection(previousNode.id, id)]
-      : connections;
+    // A SubMenu has one link per option: the new node takes the first option that has none, and the links the
+    // other options already have stay as they are (this used to replace them all with one source-less link).
+    // A CodeEntry works the same way with its code ports (then the wrong-code port).
+    const previousMenuOption = previousNode?.type === 'SubMenu'
+      ? firstFreeSubMenuOption(previousNode, connections)
+      : previousNode?.type === 'CodeEntry'
+        ? firstFreeCodeEntryPort(previousNode, connections)
+        : undefined;
+    const nextConnections = previousNode?.type === 'SubMenu' || previousNode?.type === 'CodeEntry'
+      ? (previousMenuOption ? [...connections, makeConnection(previousNode.id, id, previousMenuOption)] : connections)
+      : previousNode && previousNode.type !== 'End' && previousNode.type !== 'Restart' && previousNode.type !== 'IfThenElse'
+        ? [...connections.filter(conn => conn.from.nodeId !== previousNode.id), makeConnection(previousNode.id, id)]
+        : connections;
     onUpdate({ nodes: [...nodes, newNode], connections: nextConnections });
     setSelectedNodeId(id);
   };
@@ -953,6 +1223,20 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     ));
   };
 
+  const updateSelectedTransitionParams = (updates: Partial<Msx2GameFlowTransitionNode>) => {
+    if (selectedNode?.type !== 'Transition') return;
+    updateNodes(nodes.map(node => {
+      if (node.id !== selectedNode.id || node.type !== 'Transition') return node;
+      const next: Record<string, unknown> = { ...node, ...updates };
+      // `undefined` means "back to the default": drop the key so legacy effects
+      // keep producing their original (byte-identical) routine.
+      for (const [key, value] of Object.entries(updates)) {
+        if (value === undefined) delete next[key];
+      }
+      return next as unknown as Msx2GameFlowTransitionNode;
+    }));
+  };
+
   const updateSelectedTransitionDuration = (durationFrames: number) => {
     if (selectedNode?.type !== 'Transition') return;
     updateNodes(nodes.map(node =>
@@ -1015,6 +1299,15 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     if (!selectedIfThenElseNode) return;
     updateNodes(nodes.map(node =>
       node.id === selectedIfThenElseNode.id && node.type === 'IfThenElse'
+        ? { ...node, ...updates }
+        : node
+    ));
+  };
+
+  const updateSelectedIntro = (updates: Partial<Msx2GameFlowIntroNode>) => {
+    if (!selectedIntroNode) return;
+    updateNodes(nodes.map(node =>
+      node.id === selectedIntroNode.id && node.type === 'Intro'
         ? { ...node, ...updates }
         : node
     ));
@@ -1158,6 +1451,52 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
       ),
       connections: connections.filter(connection => !(connection.from.nodeId === selectedSubMenuNode.id && connection.from.sourceId === id)),
     });
+  };
+
+  const updateSelectedCodeEntry = (updates: Partial<Msx2GameFlowCodeEntryNode>) => {
+    if (!selectedCodeEntryNode) return;
+    updateNodes(nodes.map(node =>
+      node.id === selectedCodeEntryNode.id && node.type === 'CodeEntry'
+        ? { ...node, ...updates }
+        : node
+    ));
+  };
+
+  const addCodeEntryCode = () => {
+    if (!selectedCodeEntryNode) return;
+    const codes = selectedCodeEntryNode.codes || [];
+    updateSelectedCodeEntry({
+      codes: [...codes, { id: `code_${Date.now()}`, code: '' }].slice(0, MSX2_CODE_ENTRY_MAX_CODES),
+    });
+  };
+
+  const updateCodeEntryCode = (id: string, code: string) => {
+    if (!selectedCodeEntryNode) return;
+    const length = clampMsx2CodeLength(selectedCodeEntryNode.codeLength);
+    updateSelectedCodeEntry({
+      codes: (selectedCodeEntryNode.codes || []).map(entry => (
+        entry.id === id ? { ...entry, code: normalizeMsx2Code(code).slice(0, length) } : entry
+      )),
+    });
+  };
+
+  const deleteCodeEntryCode = (id: string) => {
+    if (!selectedCodeEntryNode) return;
+    onUpdate({
+      nodes: nodes.map(node =>
+        node.id === selectedCodeEntryNode.id && node.type === 'CodeEntry'
+          ? { ...node, codes: (node.codes || []).filter(entry => entry.id !== id) }
+          : node
+      ),
+      connections: connections.filter(connection => !(connection.from.nodeId === selectedCodeEntryNode.id && connection.from.sourceId === id)),
+    });
+  };
+
+  /** Name of the node a CodeEntry port leads to, for the properties panel. */
+  const codeEntryTargetName = (nodeId: string, sourceId: string): string => {
+    const connection = connections.find(candidate => candidate.from.nodeId === nodeId && candidate.from.sourceId === sourceId);
+    const target = connection ? nodes.find(node => node.id === connection.to.nodeId) : undefined;
+    return target ? `${target.type}: ${getNodeLabel(target, allAssets)}` : 'not connected';
   };
 
   const deleteSelectedNode = () => {
@@ -1315,7 +1654,13 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     const fromNode = nodes.find(node => node.id === fromNodeId);
     const targetNode = nodes.find(node => node.id === toNodeId);
     if (!fromNode || !targetNode || fromNode.type === 'End' || fromNode.type === 'Restart') return;
-    if ((fromNode.type === 'IfThenElse' || fromNode.type === 'SubMenu') && sourceId) {
+    if ((fromNode.type === 'SubMenu' || fromNode.type === 'CodeEntry') && !sourceId) {
+      // No option given (a link started without picking a port): use the first free option, never a source-less link.
+      const option = fromNode.type === 'SubMenu'
+        ? firstFreeSubMenuOption(fromNode, connections)
+        : firstFreeCodeEntryPort(fromNode, connections);
+      if (option) onUpdate({ connections: [...connections, makeConnection(fromNode.id, targetNode.id, option)] });
+    } else if ((fromNode.type === 'IfThenElse' || fromNode.type === 'SubMenu' || fromNode.type === 'CodeEntry') && sourceId) {
       onUpdate({
         connections: [
           ...connections.filter(connection => !(connection.from.nodeId === fromNode.id && connection.from.sourceId === sourceId)),
@@ -1356,6 +1701,15 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     if (node.type === 'SubMenu') {
       const options = (node.options || []).slice(0, 6);
       return options.map((option, index) => ({ sourceId: option.id, y: 12 + (index * 10), label: String(index + 1) }));
+    }
+    if (node.type === 'CodeEntry') {
+      // One port per code (numbered), then X = wrong code / ESC.
+      const codes = (node.codes || []).slice(0, MSX2_CODE_ENTRY_MAX_CODES);
+      const step = Math.min(10, (NODE_HEIGHT - 20) / Math.max(1, codes.length));
+      return [
+        ...codes.map((code, index) => ({ sourceId: code.id, y: 6 + (index * step), label: String(index + 1) })),
+        { sourceId: MSX2_CODE_ENTRY_WRONG_PORT, y: NODE_HEIGHT - 6, label: 'X' },
+      ];
     }
     return [{ y: NODE_HEIGHT / 2 }];
   };
@@ -1439,6 +1793,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         <Button onClick={() => addNode('SubMenu')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} title="Keyboard/joystick option menu (SCREEN 5 uses the generic GameFlow walker)">
           Add SubMenu
         </Button>
+        <Button onClick={() => addNode('CodeEntry')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={!isScreen5BitmapRuntimeFlow} title="Password screen: each code jumps to its own node, e.g. a WorldLink (SCREEN 5 Bitmap)">
+          Add Code Entry
+        </Button>
         <Button onClick={() => addNode('Screen4Screen')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={isScreen5PresentationFlow} title={isScreen5BitmapRuntimeFlow ? 'Add a SCREEN 5 bitmap-room screen node' : 'Add a SCREEN 4 tile-room screen node'}>
           {screenRoomNodeButtonLabel}
         </Button>
@@ -1459,6 +1816,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         </Button>
         <Button onClick={() => addNode('IfThenElse')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
           If/Then/Else
+        </Button>
+        <Button onClick={() => addNode('Intro')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={isScreen4TileRuntimeFlow} title="Illustrated intro: slides with images and typewriter text (SCREEN 5)">
+          Add Intro
         </Button>
         <Button onClick={() => addNode('Music')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={isScreen5PresentationFlow}>
           Add Music
@@ -1745,18 +2105,33 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                   onChange={event => updateSelectedTransition(event.target.value as Msx2GameFlowTransitionNode['effect'])}
                   className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
                 >
-                  {transitionOptions.map(option => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
+                  {transitionOptions.some(option => option.group)
+                    ? Object.entries(TRANSITION_GROUP_LABELS).map(([group, label]) => (
+                        <optgroup key={group} label={label}>
+                          {transitionOptions.filter(option => option.group === group).map(option => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </optgroup>
+                      ))
+                    : transitionOptions.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
                 </select>
               </label>
+              {(isScreen5PresentationFlow || isScreen5BitmapRuntimeFlow) && (
+                <Screen5TransitionSettings
+                  node={selectedNode as Msx2GameFlowTransitionNode}
+                  onChange={updateSelectedTransitionParams}
+                  palette={resolveScreen5PresentationPreviewData(activePresentationAsset?.data as Msx2Screen5PresentationConfig | undefined)?.palette}
+                />
+              )}
               {selectedNode.effect.startsWith('raster_') && (
                 <p className="text-[0.65rem] leading-snug text-msx-textsecondary">
                   SCREEN 4 compatible raster-like transition: uses name-table or palette updates per frame, not scanline IRQ timing.
                 </p>
               )}
               <label className="block text-xs">
-                Duration frames
+                {isScreen5PresentationFlow || isScreen5BitmapRuntimeFlow ? 'Pause after the effect (frames)' : 'Duration frames'}
                 <input
                   type="number"
                   min={0}
@@ -1905,6 +2280,12 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                   />
                 </label>
               </div>
+              {(isScreen5PresentationFlow || isScreen5BitmapRuntimeFlow) && (
+                <Screen5ScrollModeSelect
+                  value={selectedTextScrollNode.scrollMode}
+                  onChange={scrollMode => updateSelectedTextScroll({ scrollMode })}
+                />
+              )}
               <label className="flex items-center gap-2 text-xs">
                 <input
                   type="checkbox"
@@ -2000,6 +2381,12 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                   />
                 </label>
               </div>
+              {(isScreen5PresentationFlow || isScreen5BitmapRuntimeFlow) && (
+                <Screen5ScrollModeSelect
+                  value={selectedTextScrollColorNode.scrollMode}
+                  onChange={scrollMode => updateSelectedTextScrollColor({ scrollMode })}
+                />
+              )}
               <label className="flex items-center gap-2 text-xs">
                 <input
                   type="checkbox"
@@ -2281,6 +2668,123 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
             </div>
           )}
 
+          {selectedCodeEntryNode && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold">Code Entry</h3>
+              <label className="block text-xs">
+                Title
+                <input
+                  type="text"
+                  value={selectedCodeEntryNode.title}
+                  onChange={event => updateSelectedCodeEntry({ title: event.target.value })}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                />
+              </label>
+              <label className="block text-xs">
+                Code length
+                <input
+                  type="number"
+                  min={MSX2_CODE_ENTRY_MIN_LENGTH}
+                  max={MSX2_CODE_ENTRY_MAX_LENGTH}
+                  value={clampMsx2CodeLength(selectedCodeEntryNode.codeLength)}
+                  onChange={event => updateSelectedCodeEntry({ codeLength: clampMsx2CodeLength(event.target.value) })}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                />
+              </label>
+              <label className="block text-xs">
+                Wrong code message
+                <input
+                  type="text"
+                  value={selectedCodeEntryNode.errorText ?? 'WRONG CODE'}
+                  onChange={event => updateSelectedCodeEntry({ errorText: event.target.value })}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                />
+              </label>
+              <label className="block text-xs">
+                Help line
+                <input
+                  type="text"
+                  value={selectedCodeEntryNode.hintText ?? 'SPACE: OK   ESC: BACK'}
+                  onChange={event => updateSelectedCodeEntry({ hintText: event.target.value })}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block text-xs">
+                  Text color
+                  <input
+                    type="number"
+                    min={0}
+                    max={15}
+                    value={selectedCodeEntryNode.textColorIndex ?? 15}
+                    onChange={event => updateSelectedCodeEntry({ textColorIndex: Number(event.target.value) })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  />
+                </label>
+                <label className="block text-xs">
+                  Back color
+                  <input
+                    type="number"
+                    min={0}
+                    max={15}
+                    value={selectedCodeEntryNode.backgroundColorIndex ?? 0}
+                    onChange={event => updateSelectedCodeEntry({ backgroundColorIndex: Number(event.target.value) })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  />
+                </label>
+                <label className="block text-xs">
+                  Cursor text color
+                  <input
+                    type="number"
+                    min={0}
+                    max={15}
+                    value={selectedCodeEntryNode.highlightColorIndex ?? 0}
+                    onChange={event => updateSelectedCodeEntry({ highlightColorIndex: Number(event.target.value) })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  />
+                </label>
+                <label className="block text-xs">
+                  Cursor back color
+                  <input
+                    type="number"
+                    min={0}
+                    max={15}
+                    value={selectedCodeEntryNode.highlightBackgroundIndex ?? 15}
+                    onChange={event => updateSelectedCodeEntry({ highlightBackgroundIndex: Number(event.target.value) })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  />
+                </label>
+              </div>
+              <p className="text-xs text-msx-textsecondary">
+                The player types the code with the keyboard (A-Z, 0-9, BS to erase) or with cursor keys / joystick
+                (UP/DOWN change the letter, LEFT/RIGHT move). SPACE, RETURN or fire confirms. Each code follows its own
+                numbered output; a wrong code or ESC follows the X output (left unconnected, the screen asks again).
+              </p>
+              <Button onClick={addCodeEntryCode} size="sm" variant="secondary" className="w-full" disabled={(selectedCodeEntryNode.codes || []).length >= MSX2_CODE_ENTRY_MAX_CODES}>
+                Add Code
+              </Button>
+              {(selectedCodeEntryNode.codes || []).map((entry, index) => (
+                <div key={entry.id} className="space-y-0.5">
+                  <div className="grid grid-cols-[auto_1fr_auto] gap-1 items-center">
+                    <span className="text-xs text-msx-textsecondary w-4">{index + 1}</span>
+                    <input
+                      type="text"
+                      value={entry.code}
+                      placeholder={'A'.repeat(clampMsx2CodeLength(selectedCodeEntryNode.codeLength))}
+                      onChange={event => updateCodeEntryCode(entry.id, event.target.value)}
+                      className="min-w-0 bg-msx-panelbg border border-msx-border rounded p-1 text-xs font-mono uppercase"
+                    />
+                    <Button onClick={() => deleteCodeEntryCode(entry.id)} size="sm" variant="ghost">
+                      Del
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-msx-textsecondary pl-5">→ {codeEntryTargetName(selectedCodeEntryNode.id, entry.id)}</p>
+                </div>
+              ))}
+              <p className="text-[10px] text-msx-textsecondary">X (wrong code / ESC) → {codeEntryTargetName(selectedCodeEntryNode.id, MSX2_CODE_ENTRY_WRONG_PORT)}</p>
+            </div>
+          )}
+
           {selectedSubMenuNode && (
             <div className="space-y-2">
               <h3 className="text-sm font-semibold">SubMenu</h3>
@@ -2352,6 +2856,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                   />
                 </label>
               </div>
+              {isScreen5PresentationFlow && (
+                <Screen5SubMenuLayoutSettings node={selectedSubMenuNode} onChange={updateSelectedSubMenu} />
+              )}
               <p className="text-xs text-msx-textsecondary">
                 SCREEN 5 export draws the options with the 6x8 GameFlow font; cursor keys / joystick move the
                 highlight and SPACE / fire selects.
@@ -2514,6 +3021,52 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
             </div>
           )}
 
+          {selectedIntroNode && (() => {
+            const introAsset = introAssets.find(asset => asset.id === selectedIntroNode.introAssetId);
+            const introData = introAsset?.data as Msx2IntroAsset | undefined;
+            const slideCount = introData?.slides?.length ?? 0;
+            const stepCount = introData?.slides?.reduce((n, slide) => n + (slide.steps?.length ?? 0), 0) ?? 0;
+            const slideWarnings = (introData?.slides ?? []).flatMap(slide =>
+              validateIntroSlide(slide, allAssets, introData?.fontAssetId).map(message => `${slide.name}: ${message}`));
+            return (
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold">Intro</h3>
+                <label className="block text-xs">
+                  MSX2 Intro asset
+                  <select
+                    value={selectedIntroNode.introAssetId || ''}
+                    onChange={event => updateSelectedIntro({ introAssetId: event.target.value || undefined })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  >
+                    <option value="">(none)</option>
+                    {introAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+                  </select>
+                </label>
+                {introAssets.length === 0 && (
+                  <p className="text-[10px] text-msx-textsecondary">Create an MSX2 Intro asset (New Asset menu) to play it here.</p>
+                )}
+                {introAsset && (
+                  <p className="text-[10px] text-msx-textsecondary">{slideCount} slide(s), {stepCount} text step(s). SPACE completes the typing and advances.</p>
+                )}
+                {introAsset && (
+                  <p className="text-[10px] text-msx-textsecondary">
+                    Music: {!introData?.musicTrackAssetId
+                      ? 'keeps whatever is playing (leaving a zone silences it)'
+                      : introData.musicTrackAssetId === MSX2_WORLDLINK_MUSIC_NONE
+                        ? 'silence'
+                        : (allAssets.find(a => a.id === introData.musicTrackAssetId)?.name || 'missing track')}. Set it in the Intro editor.
+                  </p>
+                )}
+                {slideWarnings.length > 0 && (
+                  <ul className="text-[10px] text-amber-300 list-disc pl-4">
+                    {slideWarnings.slice(0, 6).map((message, index) => <li key={index}>{message}</li>)}
+                    {slideWarnings.length > 6 && <li>...and {slideWarnings.length - 6} more (see the Intro editor).</li>}
+                  </ul>
+                )}
+              </div>
+            );
+          })()}
+
           {selectedMusicNode && (
             <div className="space-y-2">
               <h3 className="text-sm font-semibold">Music</h3>
@@ -2604,6 +3157,17 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                   <li key={issue}>{issue}</li>
                 ))}
               </ul>
+            )}
+            {subMenuRepair.repaired > 0 && (
+              <div className="mt-2 space-y-1">
+                <p className="text-xs text-msx-textsecondary">
+                  {subMenuRepair.repaired} SubMenu link(s) are not attached to an option (older editor builds did this).
+                  Attach each one to the first option that has no link?
+                </p>
+                <Button size="sm" variant="secondary" className="w-full" onClick={() => onUpdate({ connections: subMenuRepair.connections })}>
+                  Repair SubMenu links ({subMenuRepair.repaired})
+                </Button>
+              </div>
             )}
           </div>
 

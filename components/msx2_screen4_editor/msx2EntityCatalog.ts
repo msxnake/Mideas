@@ -941,6 +941,17 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       bossMovement: '',
       bossSpeed: 2,
       bossRangePx: 0,
+      // --- spider thread (Jordi 2026-09-22) ---
+      // bossThreadLength = px the boss lowers itself straight down from its
+      // spawn Y before handing over to the path/patrol (0 = no thread). While
+      // descending -- and again on the way back up -- a 1px vertical thread is
+      // drawn from that spawn point to the body's top edge; it is decorative
+      // (no collision) and ROM-only. The cycle is: descend by thread -> walk
+      // the path/patrol -> whenever the boss comes back down to that same
+      // depth limit, climb back up the thread and resume the path.
+      bossThreadLength: 0,
+      // Palette index (0-15) of that thread, picked in the UI.
+      bossThreadColor: 15,
       // --- chain barrier: seals the room while the boss lives (Phase B) ---
       // 16x16 atlas tile placed ONLY on empty perimeter cells, so existing
       // walls/floor tiles are never overwritten. Removed on defeat.
@@ -965,7 +976,7 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       bossLaserDirectionMask: 15,
       // --- attack phases (Phase D): angrier as HP drops ---
       // [{ id, enterWhenHpBelowPercent, interval, projectileSpeed }]
-      bossPhases: [],
+      bossPhases: [{ id: 'phase_1', enterWhenHpBelowPercent: 100, interval: 90, projectileSpeed: 2, projectileSpriteId: '' }],
       // --- damage zones (Phase E): boss-LOCAL pixel rectangles ---
       // [{ id, type: 'weak_point'|'invulnerable', x, y, w, h, damageMultiplier }]
       // Weak points must be listed BEFORE the armour that contains them.

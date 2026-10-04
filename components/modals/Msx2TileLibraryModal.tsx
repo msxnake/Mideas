@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Msx2PaletteZones, Msx2Screen4Tile, Msx2Screen4TileBehaviorKind, PaletteAsset, ProjectAsset, Screen5PaletteSlot } from '../../types';
 import { Button } from '../common/Button';
-import { LoadIcon, SaveIcon, TrashIcon, DocumentDuplicateIcon, PlusCircleIcon } from '../icons/MsxIcons';
+import { LoadIcon, SaveIcon, TrashIcon, DocumentDuplicateIcon, PlusCircleIcon, EyeIcon, EyeOffIcon } from '../icons/MsxIcons';
 import {
   MSX2_TILE_BEHAVIOR_KINDS,
   MSX2_TILE_BEHAVIOR_LABELS,
@@ -531,7 +531,7 @@ export const Msx2TileLibraryModal: React.FC<Msx2TileLibraryModalProps> = ({
                     onClick={() => setCollapsed(prev => ({ ...prev, [kind]: !prev[kind] }))}
                     className="w-full flex items-center gap-2 text-sm font-semibold text-msx-textprimary border-b border-msx-border pb-1 mb-2"
                   >
-                    <span className="text-msx-textsecondary">{isCollapsed ? '▶' : '▼'}</span>
+                    <span className="text-msx-textsecondary">{isCollapsed ? <EyeIcon /> : <EyeOffIcon />}</span>
                     {MSX2_TILE_BEHAVIOR_LABELS[kind]}
                     <span className="text-msx-textsecondary font-normal">({items.length})</span>
                   </button>

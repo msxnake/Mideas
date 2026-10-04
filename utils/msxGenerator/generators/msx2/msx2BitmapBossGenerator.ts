@@ -68,6 +68,7 @@ import {
   bakeShootDefinition,
 } from '../../../msx2Shoot';
 import { BOSS_DEFINITION_OWNED_PARAMS } from '../../../msx2BossParams';
+import { buildBitmapChickAsm } from './msx2BitmapChickRuntime';
 
 export const BITMAP_BOSS_TABLE_STRIDE = 35;
 /** Maximum number of independent bitmap bosses emitted per room. */
@@ -172,8 +173,10 @@ export interface BitmapBossRoomData {
    * warning, because the thread RAM is outside the instance-swap block.
    */
   threadTables: number[][];
-  /** Per-encounter mole cycle: present, minX, columns, hidden, emerge, retreat, flight, shoot, ground offset, hole colour. */
+  /** Per-encounter mole cycle: mode (1 bolts, 2 rock), minX, columns, warning, emerge, retreat, flight, shoot, gravity, spark colour. */
   moleTables: number[][];
+  /** Per-encounter pollito: enabled, windup, stun, recovery. */
+  chickTables: number[][];
   /**
    * Per-room Boss Intro / Room Lock bytecode. Layout:
    *   END (#00)
@@ -855,6 +858,7 @@ export function buildBitmapRoomBossData(
   const emptyBarrier = () => new Array(BITMAP_BOSS_BARRIER_STRIDE).fill(0);
   const emptyProjectile = () => new Array(BITMAP_BOSS_PROJECTILE_STRIDE).fill(0);
   const emptyMole = () => new Array(10).fill(0);
+  const emptyChick = () => new Array(8).fill(0);
   const emptyEntry = () => ({
     table: emptyTable(),
     laser: emptyLaser(),
@@ -864,6 +868,7 @@ export function buildBitmapRoomBossData(
     barrier: emptyBarrier(),
     projectile: emptyProjectile(),
     mole: emptyMole(),
+    chick: emptyChick(),
     phases: [0],
     zones: [0],
     pathSel: [] as number[],
@@ -1027,11 +1032,12 @@ export function buildBitmapRoomBossData(
     const patrol = resolvePatrol(entity);
     const movement = String(params.bossMovement || '').trim().toLowerCase();
     const isMole = movement === 'burrowrandom';
+    const isChick = movement === 'chickcharge';
     // Clamp speed to the 4px restore strips and keep X inside the blit range.
     const clampDelta = (v: number) => Math.max(-2, Math.min(2, Math.floor(Number(v) || 0)));
     const maxXCap = Math.max(0, 256 - width);
     // The mole needs its 16px dirt strip below the body at the room's floor.
-    const maxYCap = Math.max(0, (isMole ? 176 : 168) - height);
+    const maxYCap = Math.max(0, (isMole || isChick ? 176 : 168) - height);
     let minX = even(Math.min(patrol?.minX ?? 0, maxXCap));
     let maxX = even(Math.max(Math.min(patrol?.maxX ?? maxXCap, maxXCap), minX));
     let minY = Math.min(patrol?.minY ?? 0, maxYCap);
@@ -1043,6 +1049,7 @@ export function buildBitmapRoomBossData(
     // is drawn against the left wall instead of where it was placed.
     if (maxX <= minX) { minX = 0; maxX = maxXCap; }
     if (maxY <= minY) { minY = 0; maxY = maxYCap; }
+    if (isChick) { minX = 16; maxX = Math.min(192, maxXCap); }
     // Movement authored in the Boss Editor. The runtime already bounces on both
     // axes and treats dx=dy=0 as "stand still", so a static turret boss and a
     // vertical or diagonal patrol all fall out of the table with no ASM change.
@@ -1052,12 +1059,16 @@ export function buildBitmapRoomBossData(
       console.warn(`MSX2 bitmap room "${room.name}": El Topo requires a 32x32 body; this encounter was skipped.`);
       return emptyEntry();
     }
+    if (isChick && (width !== 48 || height !== 48 || frames < 4)) {
+      console.warn(`MSX2 bitmap room "${room.name}": Pollito requires a 48x48 body with four poses; this encounter was skipped.`);
+      return emptyEntry();
+    }
     const movesX = movement === 'patrolx' || movement === 'patrolxy';
     const movesY = movement === 'patroly' || movement === 'patrolxy';
     const speed = clampInt(params.bossSpeed, 1, 2, 2);
     const dirSign = Number(params.direction) < 0 ? -1 : 1;
     const dx = movement ? (movesX ? speed * dirSign : 0) : clampDelta(patrol?.dx ?? 2);
-    const dy = movement ? (movesY ? speed : 0) : clampDelta(patrol?.dy ?? 0);
+    const dy = isChick ? 4 : movement ? (movesY ? speed : 0) : clampDelta(patrol?.dy ?? 0);
     // Travel distance from the spawn cell, in pixels. 0 = patrol the bounds the
     // placed entity already carries (the room-wide default).
     const rangePx = clampInt(params.bossRangePx, 0, 255, 0);
@@ -1112,29 +1123,50 @@ export function buildBitmapRoomBossData(
     const barrier = resolveBarrier(params.bossBarrierTileId, room, even);
     // Phase D projectiles: optional small bitmap bullet the boss fires at the
     // player (HMMM-blitted, no hardware sprites).
+    const moleRockMode = isMole && params.bossProjectilePattern === 'moleRock';
     const projectile = resolveProjectile(isMole
-      ? { ...params, bossProjectileKind: 'sprite', bossProjectilePattern: 'moleLightning' }
+      ? { ...params, bossProjectileKind: 'sprite' }
       : params, room, even);
-    // One generated fixed-angle fan per mole keeps the editor's range, angle and
-    // speed authoritative without requiring a second Shoot asset to stay in sync.
+    // Older mole encounters retain their electric fan. The arcing rock has its
+    // own 60Hz physics path and needs no Shoot record or extra sprite slots.
     let mole = emptyMole();
+    const mirrorRect = isChick ? bodyStampPlacements.get(`${stampId}#mirror`) : undefined;
+    if (isChick && !mirrorRect) {
+      console.warn(`MSX2 bitmap room "${room.name}": Pollito mirror atlas image is missing; boss disabled.`);
+      return emptyEntry();
+    }
+    const mirrorSX = even(clampInt(mirrorRect?.sx, 0, 4096, 0));
+    const mirrorSY = 512 + clampInt(mirrorRect?.sy, 0, 4096, 0);
+    const chick = isChick ? [1,
+      clampInt(params.bossChickWindupFrames, 1, 255, 45),
+      clampInt(params.bossChickStunFrames, 1, 255, 150),
+      clampInt(params.bossChickRecoveryFrames, 1, 255, 55),
+      mirrorSX & 255, mirrorSX >> 8, mirrorSY & 255, mirrorSY >> 8] : emptyChick();
     if (isMole) {
-      const raySpeed = clampInt(params.bossMoleRaySpeed, 1, 4, 2);
-      const rayAngle = clampInt(params.bossMoleRayAngleSteps, 1, 3, 2);
-      shootRecords.push(bakeShootDefinition({ pattern: 'spread', bulletCount: 3,
-        direction: 'up', angle: 0, fixedAngle: true, speed: raySpeed,
-        spreadStep: rayAngle, burstCount: 1, burstInterval: 0 } as any));
+      let flightFrames = 64;
+      let shootIndex = 0;
+      if (!moleRockMode) {
+        const raySpeed = clampInt(params.bossMoleRaySpeed, 1, 4, 2);
+        const rayAngle = clampInt(params.bossMoleRayAngleSteps, 1, 3, 2);
+        shootRecords.push(bakeShootDefinition({ pattern: 'spread', bulletCount: 3,
+          direction: 'up', angle: 0, fixedAngle: true, speed: raySpeed,
+          spreadStep: rayAngle, burstCount: 1, burstInterval: 0 } as any));
+        flightFrames = Math.ceil(clampInt(params.bossMoleRayRangePx, 16, 240, 128) / raySpeed);
+        shootIndex = shootRecords.length;
+      }
       const minMoleX = (clampInt(params.bossMoleMinX, 0, 224, 16) >> 4) << 4;
       const maxMoleX = Math.max(minMoleX, (clampInt(params.bossMoleMaxX, 0, 224, 80) >> 4) << 4);
-      const holeSlot = clampInt(params.bossMoleHoleColor, 0, 15, 1);
-      mole = [1, minMoleX, ((maxMoleX - minMoleX) >> 4) + 1,
-        clampInt(params.bossMoleHiddenFrames, 1, 255, 45),
+      const sparkSlot = clampInt(params.bossMoleSparkColor, 0, 15, 11);
+      const rockArcHeight = clampInt(params.bossMoleRockArcHeightPx, 40, 80, 80);
+      const rockGravity = rockArcHeight < 50 ? 24 : rockArcHeight < 70 ? 32 : 40;
+      mole = [moleRockMode ? 2 : 1, minMoleX, ((maxMoleX - minMoleX) >> 4) + 1,
+        clampInt(params.bossMoleHiddenFrames, 1, 255, 240),
         clampInt(params.bossMoleEmergeFrames, 1, 120, 12),
         clampInt(params.bossMoleRetreatFrames, 1, 120, 10),
-        Math.ceil(clampInt(params.bossMoleRayRangePx, 16, 240, 128) / raySpeed),
-        shootRecords.length,
-        clampInt(params.bossMoleGroundOffsetPx, 0, 32, 0),
-        holeSlot * 0x11];
+        flightFrames,
+        shootIndex,
+        moleRockMode ? rockGravity : 0,
+        sparkSlot * 0x11];
     }
     const laserShootId = String(params.bossLaserShootId || '').trim();
     const laserShoot = laserShootId ? shoots.get(laserShootId)?.shoot : undefined;
@@ -1152,7 +1184,9 @@ export function buildBitmapRoomBossData(
     // Phase D attack phases: HP thresholds that retune the firing cadence, and
     // optionally the shot pattern, the laser cadence, the body cadence and how
     // many movement steps one body update takes.
-    const phases = buildPhaseTable(params.bossPhases, hp, projectile, room.name, indexOfShoot, indexOfSprite, shoots);
+    const phases = buildPhaseTable(moleRockMode
+      ? (params.bossPhases || []).map((phase: any) => ({ ...phase, shootId: '' }))
+      : params.bossPhases, hp, projectile, room.name, indexOfShoot, indexOfSprite, shoots);
     // Phase E damage zones: weak points / armour, in boss-local pixels.
     const zones = buildDamageZoneTable(params.damageZones ?? params.bossDamageZones, width, height, room.name, indexOfDeathSound);
     // Formal defeat presentation: several transparent bitmap stamps scattered
@@ -1226,6 +1260,7 @@ export function buildBitmapRoomBossData(
       barrier,
       projectile,
       mole,
+      chick,
       phases,
       zones,
       pathSel,
@@ -1249,6 +1284,7 @@ export function buildBitmapRoomBossData(
     barrierTables: perRoomPrimary.map(entry => entry.barrier),
     projectileTables: perRoom.flatMap(room => room.entries.map(entry => entry.projectile)),
     moleTables: perRoom.flatMap(room => room.entries.map(entry => entry.mole)),
+    chickTables: perRoom.flatMap(room => room.entries.map(entry => entry.chick)),
     ...(() => {
       const phases = stripPhaseEscalation(perRoom.flatMap(room => room.entries.map(entry => entry.phases)));
       return { phaseTables: phases.tables, phaseTablesExtended: phases.extended,
@@ -2097,20 +2133,14 @@ export function buildBitmapBossSystemAsm(
   const hasBitmapProjectiles = hasAimedBitmapProjectiles || hasFallingRocks;
   const sprites = opts.spriteBullets;
   const hasBubbleProjectiles = tables.some(t => t && t[0] === 1 && t[10] === 3);
-  const moleRequested = (data.moleTables || []).some(t => t && t[0] === 1);
+  const moleRequested = (data.moleTables || []).some(t => t && (t[0] === 1 || t[0] === 2));
+  const moleNeedsFan = (data.moleTables || []).some(t => t && t[0] === 1);
   const hasSpriteProjectiles = tables.some(t => t && t[0] === 1 && (t[10] === 1 || t[10] === 3))
     && !!sprites && sprites.maxSlots > 0;
-  const hasMole = moleRequested && hasSpriteProjectiles && (sprites?.maxSlots || 0) >= 3;
-  // Screen 5's last game row is 211. Keep one original 256x16 floor strip per
-  // boss in the unused tail of page 0, beyond the visible room (two slots).
-  // The ordinary "clean" page is later reused by room composition and cannot
-  // be trusted for the mole's repeatedly displaced tiles.
-  const moleFloorScratchY = gameY + gameH + 4;
-  if (hasMole && moleFloorScratchY + 32 > 256) {
-    throw new Error('MSX2 bitmap boss: El Topo needs 32 offscreen VRAM rows after the game area for floor restoration.');
-  }
+  const hasMole = moleRequested && hasSpriteProjectiles && (sprites?.maxSlots || 0) >= (moleNeedsFan ? 3 : 1);
+  const hasChick = (data.chickTables || []).some(t => t && t[0] === 1);
   if (moleRequested && !hasMole) {
-    console.warn('MSX2 bitmap boss: El Topo needs at least three hardware sprite bullet slots.');
+    console.warn(`MSX2 bitmap boss: El Topo needs at least ${moleNeedsFan ? 3 : 1} hardware sprite bullet slot(s).`);
   }
   const hasProjectiles = hasBitmapProjectiles || hasSpriteProjectiles;
   const spriteVariants = hasSpriteProjectiles ? [sprites?.sprite, ...(sprites?.variants || [])] : [];
@@ -2269,6 +2299,7 @@ export function buildBitmapBossSystemAsm(
   // scripts/check_msx2_boss_path_phase_switch.mjs, which counts the copies the
   // generator actually emitted.
   const INSTANCE_STATE_BYTES = 14
+    + (hasChick ? 2 : 0)
     + (hasBossCells ? 4 : 0)
     + (hasProjectiles ? 9 : 0)
     + (hasFallingRocks ? 1 : 0)
@@ -2280,7 +2311,8 @@ export function buildBitmapBossSystemAsm(
     + (hasDeathFx ? 3 + (hasDeathAnim ? DEATH_ANIM_SLOTS * DEATH_ANIM_SLOT_BYTES + 2 : 0) : 0)
     + (hasHitBlast ? HIT_BLAST_RAM_BYTES : 0)
     + (hasLaser ? 6 : 0);
-  const instanceSelectorAddr = threadRamBase + (hasThread ? THREAD_RAM_BYTES : 0);
+  const chickSyRamBase = threadRamBase + (hasThread ? THREAD_RAM_BYTES : 0);
+  const instanceSelectorAddr = chickSyRamBase + (hasChick ? 2 : 0);
   const instanceStateBase = instanceSelectorAddr + 1;
   // Shared by both selected boss instances. This latch prevents the second
   // boss from snapshotting the first boss as part of the clean page.
@@ -2293,6 +2325,7 @@ export function buildBitmapBossSystemAsm(
     + (hasLaser ? LASER_RAM_BYTES : 0)
     + (hasBossCells ? CELLS_RAM_BYTES : 0)
     + (hasThread ? THREAD_RAM_BYTES : 0)
+    + (hasChick ? 2 : 0)
     + 1 + INSTANCE_STATE_BYTES * bossInstanceCount + 1
     + (bankedTables ? roomTableBytes : 0);
   const bossTableBufAddr = opts.ramBase + totalRamBytes - (bankedTables ? roomTableBytes : 0);
@@ -3019,6 +3052,7 @@ boss_anim_tick  EQU ${asmWord(ram + 8)}
 boss_anim_frame EQU ${asmWord(ram + 9)}
 boss_int_tick   EQU ${asmWord(ram + 10)}
 boss_sx         EQU ${asmWord(ram + 11)}  ; word: current frame atlas SX
+${hasChick ? `boss_chick_sy EQU ${asmWord(chickSyRamBase)} ; current mirrored/unmirrored atlas row\n` : ''}
 boss_cmd_buf    EQU ${asmWord(ram + 13)}  ; 15-byte V9938 command block
 boss_render_phase EQU ${asmWord(ram + 28)} ; 0 idle, 1 restore X, 2 restore Y, 3 draw body
 ${!hasBossCells ? '' : `boss_render_cells_ptr EQU ${asmWord(ram + 29)} ; current cell-run record cursor
@@ -3064,12 +3098,13 @@ boss_phase_speed EQU ${asmWord(projRamBase + 8)}  ; projectile speed of the acti
 ` : ''}${hasFallingRocks ? `boss_rock_seed  EQU ${asmWord(projRamBase + 9)}  ; 8-bit PRNG state for the rock drop column
 ` : ''}${hasBubbleProjectiles ? `boss_bubble_angle EQU ${asmWord(projRamBase + 9 + (hasFallingRocks ? 1 : 0))} ; 0..2 fan rotation per volley
 boss_bubble_windup EQU ${asmWord(projRamBase + 10 + (hasFallingRocks ? 1 : 0))} ; 2 = wait for body tick, 1 = wait for visible open mouth
-` : ''}${hasMole ? `boss_mole_state EQU ${asmWord(projRamBase + 9 + (hasFallingRocks ? 1 : 0) + (hasBubbleProjectiles ? 2 : 0))} ; 0 other boss, 1 hidden, 2 rise, 3 ready, 4 firing, 5 retreat, 6/7 restore, 9/10 floor snapshot
+` : ''}${hasMole ? `boss_mole_state EQU ${asmWord(projRamBase + 9 + (hasFallingRocks ? 1 : 0) + (hasBubbleProjectiles ? 2 : 0))} ; 0 other boss, 1 warning, 2 rise, 3 ready, 4 firing, 5 retreat, 6/7 cleanup, 9 choose first X
 boss_mole_timer EQU ${asmWord(projRamBase + 10 + (hasFallingRocks ? 1 : 0) + (hasBubbleProjectiles ? 2 : 0))}
 boss_mole_seed EQU ${asmWord(projRamBase + 11 + (hasFallingRocks ? 1 : 0) + (hasBubbleProjectiles ? 2 : 0))}
 ` : ''}${hasSpriteProjectiles ? `BOSS_SBUL_SLOT  EQU ${BOSS_SBUL_SLOT_BYTES}
 boss_sbul_pool  EQU ${asmWord(spriteRamBase)}  ; ${spriteSlots} x ${BOSS_SBUL_SLOT_BYTES} bytes
-;   +0 active, +1 x, +2 y, +3 dx, +4 dy (whole pixels, as before),
+;   +0 active (mole rock: 1 outward, 2 early return, 3 late return),
+;   +1 x, +2 y, +3 dx, +4 dy (whole pixels, as before),
 ;   +5 x frac, +6 y frac, +7 dx frac, +8 dy frac. Velocity is 8.8 fixed
 ;   point (int byte + frac byte), which is what buys 16 directions:
 ;   a diagonal is no longer forced to a whole pixel on both axes.
@@ -3250,6 +3285,7 @@ ${hasDeathAnim ? Array.from({ length: DEATH_ANIM_SLOTS }, (_v, i) => `    ld (bo
     'boss_int_tick', 'boss_render_phase',
   ];
   const stateWordFields = ['boss_sx'];
+  if (hasChick) stateWordFields.push('boss_chick_sy');
   if (hasBossCells) {
     stateWordFields.push('boss_render_cells_ptr');
     stateByteFields.push('boss_render_cells_left', 'boss_cells_shown');
@@ -3476,6 +3512,10 @@ ${hasHitBlast ? `    ld (boss_blast_timer), a   ; never enter a room mid-blast
     ld l, (ix+9)
     ld h, (ix+10)
     ld (boss_sx), hl           ; frame 0 source X
+${hasChick ? `    ld l, (ix+11)
+    ld h, (ix+12)
+    ld (boss_chick_sy), hl
+` : ''}
 ${hasLaser ? `    ; Each boss owns its laser timer. Offset slot 1 by half a cadence
     ; so the usual two-boss wave does not stack all eight HMMM cells at once.
     call bitmap_boss_laser_config_ix
@@ -3611,7 +3651,11 @@ ${hasFallingRocks ? `    ; Seed the drop-column PRNG from the BIOS frame counter
     ld a, #5B
 .boss_rock_seed_ok:
     ld (boss_rock_seed), a
-` : ''}${hasSpriteProjectiles ? `    ld a, (ix+10)
+` : ''}${hasSpriteProjectiles ? `    ; The SAT writer runs for every active boss when any room uses sprite
+    ; bullets. A boss without projectiles must not publish stale RAM as sprites.
+    xor a
+${Array.from({ length: spriteSlots }, (_v, i) => `    ld (boss_sbul_pool + ${i * BOSS_SBUL_SLOT_BYTES}), a`).join('\n')}
+    ld a, (ix+10)
     ${hasFallingRocks ? `cp 2                       ; only kind 2 (rocks) skips sprite upload
     call nz, bitmap_boss_sbul_load` : `or a
     call nz, bitmap_boss_sbul_load   ; upload bullet pattern/colours, clear pool`}
@@ -3620,7 +3664,7 @@ ${hasFallingRocks ? `    ; Seed the drop-column PRNG from the BIOS frame counter
     ld a, (ix+0)
     or a
     jr z, .load_no_mole
-    ld a, 9                  ; wait for room composition before saving its floor
+    ld a, 9                  ; choose the first warned column after room composition
     ld (boss_mole_state), a
     ld a, (ix+3)
     ld (boss_mole_timer), a
@@ -3701,17 +3745,6 @@ ${hasPooledSfx ? `    call bitmap_boss_death_sfx_tick  ; pooled channel-C audio 
     ret nz
     jp bitmap_boss_defeat_frame
 .boss_defeat_seq_idle:
-` : ''}${hasMole ? `    ld a, (boss_mole_state)
-    cp 8
-    jr nz, .mole_death_floor_done
-    call bitmap_boss_table_ix
-    ld a, 1
-    call bitmap_boss_mole_ground_cmd
-    ret nz                    ; retry floor restore next player frame
-    xor a
-    ld (boss_mole_state), a
-    ret
-.mole_death_floor_done:
 ` : ''}    ld a, (boss_active)
     or a
     ret z
@@ -3751,6 +3784,13 @@ ${phasesExtended ? `    call bitmap_boss_phase_apply   ; resolve HP even while a
 ${hasMole ? `    ld a, (boss_mole_state)
     or a
     jp nz, bitmap_boss_mole_update
+` : ''}
+${hasChick ? `    push ix
+    call bitmap_boss_chick_config_ix
+    ld a, (ix+0)
+    pop ix
+    or a
+    jp nz, bitmap_boss_chick_update
 ` : ''}
 ${hasBossCells ? `    ; Cell-composed bosses use the same deferred renderer, while an idle cell
     ; body continues through the normal cadence path.
@@ -4333,6 +4373,7 @@ ${hasProjectiles ? `    push ix
     pop ix
 ` : ''}    jp bitmap_boss_touch
 
+${hasChick ? buildBitmapChickAsm({ hit, aimOffsetX, invulnFrames }) : ''}
 ${hasMole ? `; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_mole_config_ix
 ; PURPOSE: Select the current mole encounter's immutable ten-byte settings.
@@ -4418,7 +4459,7 @@ bitmap_boss_mole_pick_x:
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_mole_set_frame
 ; PURPOSE: Queue one 32x32 animation frame without waiting for the VDP.
-; INPUT: A = frame (0 half emerged, 1 surfaced, 2 discharge), IX body.
+; INPUT: A = frame (0 half emerged, 1 surfaced, 2 discharge, 3 withdrawal), IX body.
 ; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
 ; ------------------------------------------------------------
 bitmap_boss_mole_set_frame:
@@ -4463,104 +4504,6 @@ bitmap_boss_mole_vdp_idle:
     ret
 
 ; ------------------------------------------------------------
-; FUNCTION: bitmap_boss_mole_floor_snapshot
-; PURPOSE: Save the original full floor band in a reserved offscreen strip.
-; INPUT: IX -> mole config. OUTPUT: Z launched, NZ busy.
-; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
-; Launched after room composition; completion is polled on later player frames.
-; ------------------------------------------------------------
-bitmap_boss_mole_floor_snapshot:
-    ld a, (boss_y)
-    add a, 32
-    add a, (ix+8)
-    add a, ${asmByte(gameY)}
-    ld l, a
-    ld a, (bitmap_displayed_page)
-    ld h, a
-    ld (boss_cmd_buf + 2), hl
-    ld hl, 0
-    ld (boss_cmd_buf + 0), hl
-    ld (boss_cmd_buf + 4), hl
-    ld a, (boss_slot)
-    add a, a
-    add a, a
-    add a, a
-    add a, a
-    add a, ${asmByte(moleFloorScratchY)}
-    ld l, a
-    ld h, 0
-    ld (boss_cmd_buf + 6), hl
-    ld hl, 256
-    ld (boss_cmd_buf + 8), hl
-    ld hl, 16
-    ld (boss_cmd_buf + 10), hl
-    xor a
-    ld (boss_cmd_buf + 12), a
-    ld (boss_cmd_buf + 13), a
-    ld a, #D0
-    ld (boss_cmd_buf + 14), a
-    jp bitmap_boss_try_launch_cmd
-
-; ------------------------------------------------------------
-; FUNCTION: bitmap_boss_mole_ground_cmd
-; PURPOSE: Open a 32x16 dark hole (A=0) or restore its two floor tiles (A=1).
-; OUTPUT: Z when the VDP command launched, NZ when busy; no wait.
-; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY, R#15.
-; ------------------------------------------------------------
-bitmap_boss_mole_ground_cmd:
-    push af
-    push ix
-    call bitmap_boss_mole_config_ix
-    ld c, (ix+9)
-    ld a, (boss_y)
-    add a, 32
-    add a, (ix+8)
-    add a, ${asmByte(gameY)}
-    ld l, a
-    ld a, (bitmap_displayed_page)
-    ld h, a
-    ld (boss_cmd_buf + 6), hl
-    xor 1
-    ld h, a
-    ld (boss_cmd_buf + 2), hl
-    pop ix
-    ld a, (boss_x)
-    and #F0
-    ld l, a
-    ld h, 0
-    ld (boss_cmd_buf + 0), hl
-    ld (boss_cmd_buf + 4), hl
-    ld hl, 32
-    ld (boss_cmd_buf + 8), hl
-    ld hl, 16
-    ld (boss_cmd_buf + 10), hl
-    ld a, c
-    ld (boss_cmd_buf + 12), a
-    xor a
-    ld (boss_cmd_buf + 13), a
-    pop af
-    or a
-    jr nz, .mole_ground_restore
-    ld a, #C0                ; HMMV fills the displaced floor tiles
-    jr .mole_ground_launch
-.mole_ground_restore:
-    ld a, (boss_slot)
-    add a, a
-    add a, a
-    add a, a
-    add a, a
-    add a, ${asmByte(moleFloorScratchY)}
-    ld l, a
-    ld h, 0
-    ld (boss_cmd_buf + 2), hl
-    xor a
-    ld (boss_cmd_buf + 12), a
-    ld a, #D0                ; HMMM restores the room's original tiles
-.mole_ground_launch:
-    ld (boss_cmd_buf + 14), a
-    jp bitmap_boss_try_launch_cmd
-
-; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_mole_restore_body
 ; PURPOSE: Remove the 32x32 body from the visible page after retreat.
 ; OUTPUT: Z launched, NZ busy. DESTROYS: AF, BC, HL. PRESERVES: IX, IY.
@@ -4592,17 +4535,200 @@ bitmap_boss_mole_restore_body:
     jp bitmap_boss_try_launch_cmd
 
 ; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_mole_spark
+; PURPOSE: Paint one small warning spark above the unchanged floor.
+; INPUT: boss_mole_timer selects one of three positions.
+; OUTPUT: Z launched, NZ VDP busy. DESTROYS: AF, BC, HL.
+; PRESERVES: DE, IX, IY, R#15. No command-engine wait.
+; ------------------------------------------------------------
+bitmap_boss_mole_spark:
+    push ix
+    call bitmap_boss_mole_config_ix
+    ld a, (ix+9)
+    ld (boss_cmd_buf + 12), a
+    pop ix
+    ld a, (boss_mole_timer)
+    and #0F
+    cp 12
+    jr z, .mole_spark_left
+    cp 8
+    jr z, .mole_spark_middle
+    ld b, 24
+    ld c, 26
+    jr .mole_spark_coords
+.mole_spark_left:
+    ld b, 4
+    ld c, 27
+    jr .mole_spark_coords
+.mole_spark_middle:
+    ld b, 14
+    ld c, 23
+.mole_spark_coords:
+    ld a, (boss_x)
+    add a, b
+    ld l, a
+    ld h, 0
+    ld (boss_cmd_buf + 4), hl
+    ld a, (boss_y)
+    add a, c
+    add a, ${asmByte(gameY)}
+    ld l, a
+    ld a, (bitmap_displayed_page)
+    ld h, a
+    ld (boss_cmd_buf + 6), hl
+    ld hl, 3
+    ld (boss_cmd_buf + 8), hl
+    ld (boss_cmd_buf + 10), hl
+    xor a
+    ld (boss_cmd_buf + 13), a
+    ld a, #C0
+    ld (boss_cmd_buf + 14), a
+    jp bitmap_boss_try_launch_cmd
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_mole_rock_launch
+; PURPOSE: Throw one sprite rock toward the player's current X. The 64-frame
+;   horizontal step is an exact signed 8.8 division by 64 (delta << 2).
+; INPUT: IX -> mole body. OUTPUT: slot 0 active.
+; DESTROYS: AF, BC, DE, HL, IY. PRESERVES: IX, R#15.
+; ------------------------------------------------------------
+bitmap_boss_mole_rock_launch:
+    ld iy, boss_sbul_pool
+    ld a, (boss_x)
+    add a, 8
+    ld (iy+1), a
+    ld a, (boss_y)
+    add a, 4
+    ld (iy+2), a
+    ld a, (player_x)
+    cp 233
+    jr c, .mole_rock_target_right_ok
+    ld a, 232
+.mole_rock_target_right_ok:
+    cp 4
+    jr nc, .mole_rock_target_ready
+    ld a, 4
+.mole_rock_target_ready:
+    ld l, a
+    ld h, 0
+    ld a, (iy+1)
+    ld e, a
+    ld d, 0
+    or a
+    sbc hl, de
+    add hl, hl
+    add hl, hl
+    ld (iy+3), h             ; signed X whole-pixel velocity
+    ld (iy+7), l             ; X fractional velocity
+    xor a
+    ld (iy+5), a
+    ld (iy+6), a
+    push ix
+    call bitmap_boss_mole_config_ix
+    ld b, (ix+8)            ; gravity preset in 1/256 px/frame
+    pop ix
+    ; Find the first solid tile below the player's feet. Its top is the
+    ; landing plane, even when the player stands on a raised platform.
+    ld a, (player_y)
+    add a, ${asmByte(Math.max(0, hit.y + hit.h))}
+    and #F0
+    cp 192
+    jr c, .mole_rock_scan_row_ok
+    ld a, 176
+.mole_rock_scan_row_ok:
+    ld c, a
+    ld a, (player_x)
+    add a, 8
+    rrca
+    rrca
+    rrca
+    rrca
+    and #0F
+    add a, c
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_collision_map
+    add hl, de
+.mole_rock_floor_scan:
+    ld a, (hl)
+    and #BF
+    jr nz, .mole_rock_floor_found
+    ld a, c
+    add a, 16
+    cp 192
+    jr nc, .mole_rock_floor_fallback
+    ld c, a
+    ld de, 16
+    add hl, de
+    jr .mole_rock_floor_scan
+.mole_rock_floor_fallback:
+    ld c, 176
+.mole_rock_floor_found:
+    ld a, c
+    cp 16
+    jr nc, .mole_rock_floor_safe
+    ld a, 16
+.mole_rock_floor_safe:
+    sub 16                   ; 16px rock rests just above the solid tile
+    ld l, a
+    ld h, 0
+    ld a, (iy+2)
+    ld e, a
+    ld d, 0
+    or a
+    sbc hl, de
+    add hl, hl
+    add hl, hl               ; four times endpoint delta = 8.8 / 64
+    ld a, b
+    cp 32
+    jr z, .mole_rock_gravity_medium
+    jr c, .mole_rock_gravity_low
+    ld de, 1300             ; 40/256 gravity * 32.5
+    jr .mole_rock_gravity_ready
+.mole_rock_gravity_medium:
+    ld de, 1040             ; 32/256 gravity * 32.5
+    jr .mole_rock_gravity_ready
+.mole_rock_gravity_low:
+    ld de, 780              ; 24/256 gravity * 32.5
+.mole_rock_gravity_ready:
+    or a
+    sbc hl, de
+    ld (iy+4), h
+    ld (iy+8), l
+${hasAnimatedSpriteBullet ? `    xor a
+    ld (iy+9), a
+    ld (iy+10), a
+` : ''}    ld (iy+0), 1
+    ret
+
+; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_mole_update
-; PURPOSE: Hidden -> dig -> emerge -> upward fan -> retreat -> restore floor.
+; PURPOSE: Warn with sparks for four seconds, emerge, throw a rock, then
+;   retreat at its apex while the rock continues toward the player.
 ; INPUT: IX -> 32x32 boss record. DESTROYS: AF, BC, DE, HL, IY.
 ; PRESERVES: IX, R#15. Every VDP command is tried once; no CE wait blocks 60Hz.
 ; ------------------------------------------------------------
 bitmap_boss_mole_update:
     ld a, (boss_mole_state)
+    cp 4
+    jr z, .mole_dispatch       ; firing state advances the rock below
+    ld a, (boss_sbul_pool)
+    or a
+    jr z, .mole_dispatch
+    push ix
+    call bitmap_boss_mole_config_ix
+    ld a, (ix+0)
+    pop ix
+    cp 2
+    jr nz, .mole_dispatch
+    ; After the apex the body retreats, but the thrown rock must keep flying.
+    push ix
+    call bitmap_boss_shoot_update
+    pop ix
+.mole_dispatch:
+    ld a, (boss_mole_state)
     cp 9
-    jp z, .mole_snapshot
-    cp 10
-    jp z, .mole_snapshot_wait
+    jp z, .mole_init
     cp 1
     jp z, .mole_hidden
     cp 2
@@ -4615,19 +4741,9 @@ bitmap_boss_mole_update:
     jp z, .mole_retreat
     cp 6
     jp z, .mole_remove_body
-    jp .mole_restore_ground
-.mole_snapshot:
-    push ix
-    call bitmap_boss_mole_config_ix
-    call bitmap_boss_mole_floor_snapshot
-    pop ix
-    ret nz
-    ld a, 10
-    ld (boss_mole_state), a
-    ret
-.mole_snapshot_wait:
-    call bitmap_boss_mole_vdp_idle
-    ret nz
+    jp .mole_next_warning
+.mole_init:
+    call bitmap_boss_mole_pick_x
     ld a, 1
     ld (boss_mole_state), a
     ret
@@ -4637,11 +4753,20 @@ bitmap_boss_mole_update:
     jr z, .mole_start
     dec a
     ld (boss_mole_timer), a
+    or a
+    jr z, .mole_start
+    and #0F
+    jr z, .mole_warning_clear
+    and #03
     ret nz
+    call bitmap_boss_mole_spark
+    ret
+.mole_warning_clear:
+    call bitmap_boss_mole_restore_body
+    ret
 .mole_start:
-    call bitmap_boss_mole_pick_x
-    xor a
-    call bitmap_boss_mole_ground_cmd
+    ; Clear the final sparks before painting the emerging body.
+    call bitmap_boss_mole_restore_body
     ret nz
     push ix
     call bitmap_boss_mole_config_ix
@@ -4683,31 +4808,68 @@ bitmap_boss_mole_update:
     ld (boss_shoot_cnt), a
     ld a, (ix+6)
     ld (boss_mole_timer), a
+    ld b, (ix+0)             ; 1 = legacy electric fan, 2 = one arcing rock
     pop ix
     ld a, 4
     ld (boss_mole_state), a
+${moleNeedsFan ? `    ld a, b
+    cp 2
+    jr z, .mole_launch_rock
     push ix
     call bitmap_boss_proj_config_ix
     call bitmap_boss_shoot_fire
     pop ix
+    jr .mole_attack_pose
+.mole_launch_rock:
+    call bitmap_boss_mole_rock_launch
+.mole_attack_pose:
+` : `    call bitmap_boss_mole_rock_launch
+`}
     ld a, 2
     call bitmap_boss_mole_set_frame
     jp bitmap_boss_touch
 .mole_firing:
     push ix
-    call bitmap_boss_shoot_update ; only advances the three live bolts
+    call bitmap_boss_shoot_update ; advances the one rock or legacy three bolts
     pop ix
+    ld a, (boss_active)
+    cp 1
+    ret nz                    ; a returned rock may have started the death FX
     ld a, (boss_render_phase)
     or a
     call nz, bitmap_boss_render_step
     ld a, (boss_render_phase)
     or a
     jp nz, bitmap_boss_touch
+    ld a, (boss_shoot_cnt)
+    or a
+    jr nz, .mole_flight_tick
+    ld a, (boss_sbul_pool)    ; rock landed or hit terrain/player
+    or a
+    jr z, .mole_flight_done
+    cp 3
+    jp z, .mole_retreat_keep_rock ; late return never holds the body exposed
+    cp 1
+    jr nz, .mole_flight_tick  ; an early return keeps the body exposed
+    push ix
+    call bitmap_boss_mole_config_ix
+    ld a, (ix+0)
+    pop ix
+    cp 2
+    jr nz, .mole_flight_tick
+    ld a, (boss_sbul_pool + 4)
+    bit 7, a
+    jr nz, .mole_flight_tick  ; negative velocity: the rock is still rising
+    jp .mole_retreat_keep_rock
+.mole_flight_tick:
     ld hl, boss_mole_timer
     dec (hl)
     jp nz, bitmap_boss_touch
+.mole_flight_done:
     xor a
 ${Array.from({ length: spriteSlots }, (_v, i) => `    ld (boss_sbul_pool + ${i * BOSS_SBUL_SLOT_BYTES}), a`).join('\n')}
+.mole_retreat_keep_rock:
+    xor a
     ld (boss_burst_idx), a
     ld a, 5
     ld (boss_mole_state), a
@@ -4716,7 +4878,14 @@ ${Array.from({ length: spriteSlots }, (_v, i) => `    ld (boss_sbul_pool + ${i *
     ld a, (ix+5)
     ld (boss_mole_timer), a
     pop ix
+    ld a, (ix+15)            ; older mole stamps still contain only three frames
+    cp 4
+    jr c, .mole_retreat_old_pose
+    ld a, 3                  ; lower, dust-covered withdrawal pose
+    jr .mole_retreat_pose_ready
+.mole_retreat_old_pose:
     xor a
+.mole_retreat_pose_ready:
     call bitmap_boss_mole_set_frame
     ret
 .mole_retreat:
@@ -4737,10 +4906,8 @@ ${Array.from({ length: spriteSlots }, (_v, i) => `    ld (boss_sbul_pool + ${i *
     ld a, 7
     ld (boss_mole_state), a
     ret
-.mole_restore_ground:
-    ld a, 1
-    call bitmap_boss_mole_ground_cmd
-    ret nz
+.mole_next_warning:
+    call bitmap_boss_mole_pick_x
     push ix
     call bitmap_boss_mole_config_ix
     ld a, (ix+3)
@@ -5474,8 +5641,11 @@ ${hasBossCells ? `    ; Cell-composed bodies use the same strip phases, then con
 .boss_render_body:
     ld hl, (boss_sx)
     ld (boss_cmd_buf + 0), hl
+${hasChick ? `    ld hl, (boss_chick_sy)
+` : `
     ld l, (ix+11)
     ld h, (ix+12)
+`}
     ld (boss_cmd_buf + 2), hl
     ld a, (boss_x)
     and #FE
@@ -6814,7 +6984,26 @@ bitmap_boss_bullet_hit_one:
     ld a, (boss_active)
     cp 1
     ret nz                     ; absent or already playing death FX
+${hasChick ? `    ; This boss loses health only when jumped on during its dizzy window.
+    push ix
+    call bitmap_boss_chick_config_ix
+    ld a, (ix+0)
+    pop ix
+    or a
+    ret nz
+` : ''}
 ${hasMole ? `    ld a, (boss_mole_state)
+    push ix
+    call bitmap_boss_mole_config_ix
+    ld a, (ix+0)
+    pop ix
+    cp 2
+    jr nz, .boss_bullet_normal
+    ; The player may reflect a descending rock after the mole has hidden,
+    ; but that late return cannot damage him. Direct shots are always ignored.
+    jp bitmap_boss_mole_rock_parry
+.boss_bullet_normal:
+    ld a, (boss_mole_state)
     cp 1
     ret z                      ; buried under the floor
     cp 2
@@ -6918,6 +7107,50 @@ ${hasHitBlast ? `    ; Weak point only: pop the explosion. The hold was copied o
     pop bc
     ret
 
+${hasMole ? `; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_mole_rock_parry
+; PURPOSE: A player bullet touching the outward rock consumes the bullet and
+;   marks it as an early return (2) or a late, harmless return (3).
+; INPUT: IX -> live player bullet. OUTPUT: rock active=2/3 on a parry.
+; DESTROYS: AF. PRESERVES: BC, DE, HL, IX, IY, R#15.
+; ------------------------------------------------------------
+bitmap_boss_mole_rock_parry:
+    push iy
+    ld iy, boss_sbul_pool
+    ld a, (iy+0)
+    cp 1                      ; only the original outward rock can be parried
+    jr nz, .rock_parry_done
+    ld a, (ix+1)
+    add a, 8                  ; player bullet centre
+    sub (iy+1)
+    cp 16
+    jr nc, .rock_parry_done
+    ld a, (ix+2)
+    add a, 8
+    sub (iy+2)
+    cp 16
+    jr nc, .rock_parry_done
+    xor a
+    ld (ix+0), a              ; consume the player bullet exactly once
+    ld a, (boss_mole_state)
+    cp 4
+    jr nz, .rock_parry_late
+    ld a, (iy+4)
+    bit 7, a
+    jr z, .rock_parry_late     ; apex/descending: mole already retreats
+    ld a, 2
+    ld (iy+0), a              ; upward interception can hit the exposed mole
+    ld a, 120
+    ld (boss_mole_timer), a   ; wait on the surface for its return
+    jr .rock_parry_done
+.rock_parry_late:
+    ld a, 3
+    ld (iy+0), a              ; return visibly, but the mole is already hiding
+.rock_parry_done:
+    pop iy
+    ret
+
+` : ''}
 ${hasZones ? `; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_zone_damage
 ; ------------------------------------------------------------
@@ -7937,12 +8170,8 @@ ${hasIntro ? `    ld (boss_intro_state), a
     or (hl)
     jr z, .boss_pair_not_defeated
 ${hasDefeatActions ? '    call bitmap_boss_run_defeat_actions   ; Phase A onDefeated bytecode; WAIT/DIALOGUE steps then span frames\n' : ''}${hasBarrier ? '    call bitmap_boss_barrier_remove   ; Phase B: drop the chain (collision + graphics)\n' : ''}.boss_pair_not_defeated:
-${hasMole ? `    ld a, (boss_mole_state)
-    or a
-    jr z, .boss_mole_death_floor_done
-    ld a, 8
-    ld (boss_mole_state), a   ; restore dug tiles on the next frame
-.boss_mole_death_floor_done:
+${hasMole ? `    xor a
+    ld (boss_mole_state), a   ; permanent floor needs no death-time repair
 ` : ''}${hasThread ? `    ; The thread dies with its spider: erase any painted column first, then
     ; let the body's full-rect restore run exactly as it always did.
 ${hasRandomThread ? `    ld a, (boss_thread_mode)
@@ -9633,6 +9862,17 @@ ${hasPhaseSpriteVariants ? `    ld c, a
 .sb_anim_store_tick:
     ld (iy+10), a
 .sb_anim_done:
+` : ''}${hasMole ? `    ld a, (boss_mole_state)
+    or a
+    jr z, .sb_not_mole_rock
+    push ix
+    call bitmap_boss_mole_config_ix
+    ld a, (ix+0)
+    ld b, (ix+8)
+    pop ix
+    cp 2
+    jp z, bitmap_boss_mole_rock_step
+.sb_not_mole_rock:
 ` : ''}    ; x += dx as 8.8 fixed point: the fraction carries into the whole pixel.
     ld a, (iy+5)
     add a, (iy+7)
@@ -9680,6 +9920,178 @@ ${hasPhaseSpriteVariants ? `    ld c, a
     ld (iy+0), a
     ret
 
+${hasMole ? `; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_mole_rock_return_step
+; PURPOSE: Move a parried rock toward the mole. An early return damages its
+;   exposed body; a late return disappears at the hiding place without damage.
+;   Fixed 4px X / 2px Y steps need no VDP command or player collision.
+; INPUT: IY -> returning rock slot, IX -> projectile config.
+; OUTPUT: boss_hp decremented once; death FX starts at zero.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY, R#15.
+; ------------------------------------------------------------
+bitmap_boss_mole_rock_return_step:
+    ld a, (boss_x)
+    add a, 8                  ; slot top-left when centred on the 32px body
+    ld b, a
+    ld a, (iy+1)
+    cp b
+    jr z, .rock_return_y
+    jr c, .rock_return_right
+    sub 4
+    cp b
+    jr nc, .rock_return_store_x
+    ld a, b
+    jr .rock_return_store_x
+.rock_return_right:
+    add a, 4
+    cp b
+    jr c, .rock_return_store_x
+    ld a, b
+.rock_return_store_x:
+    ld (iy+1), a
+.rock_return_y:
+    ld a, (boss_y)
+    add a, 8
+    ld b, a
+    ld a, (iy+2)
+    cp b
+    jr z, .rock_return_check
+    jr c, .rock_return_down
+    sub 2
+    cp b
+    jr nc, .rock_return_store_y
+    ld a, b
+    jr .rock_return_store_y
+.rock_return_down:
+    add a, 2
+    cp b
+    jr c, .rock_return_store_y
+    ld a, b
+.rock_return_store_y:
+    ld (iy+2), a
+.rock_return_check:
+    ld a, (boss_x)
+    add a, 8
+    ld b, a
+    ld a, (iy+1)
+    cp b
+    ret nz
+    ld a, (boss_y)
+    add a, 8
+    ld b, a
+    ld a, (iy+2)
+    cp b
+    ret nz
+    ld a, (iy+0)
+    cp 2
+    jr nz, .rock_return_discard
+    ld a, (boss_mole_state)
+    cp 4
+    jr nz, .rock_return_discard
+    xor a
+    ld (iy+0), a              ; prevent a second hit from this rock
+    ld a, (boss_hp)
+    dec a
+    ld (boss_hp), a
+    ret nz
+    push iy
+    call bitmap_boss_kill
+    pop iy
+    ret
+.rock_return_discard:
+    xor a
+    ld (iy+0), a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_mole_rock_step
+; PURPOSE: Apply constant 8.8 gravity to an outward rock, or move a returned
+;   rock toward the mole. Remove an outward rock on landing.
+; INPUT: B = gravity, IX -> projectile config, IY -> live rock slot.
+; OUTPUT: updated slot. DESTROYS: AF, BC, DE, HL.
+; PRESERVES: IX, IY, R#15. One short CPU path per frame, no VDP command.
+; ------------------------------------------------------------
+bitmap_boss_mole_rock_step:
+    ld a, (iy+0)
+    cp 2
+    jp z, bitmap_boss_mole_rock_return_step
+    cp 3
+    jp z, bitmap_boss_mole_rock_return_step
+    ld a, (iy+8)
+    add a, b
+    ld (iy+8), a
+    ld a, (iy+4)
+    adc a, 0
+    ld (iy+4), a
+    ld a, (iy+5)
+    add a, (iy+7)
+    ld (iy+5), a
+    ld a, (iy+1)
+    adc a, (iy+3)
+    ld (iy+1), a
+    cp 233
+    jr nc, .mole_rock_remove
+    cp 4
+    jr c, .mole_rock_remove
+    ld a, (iy+6)
+    add a, (iy+8)
+    ld (iy+6), a
+    ld a, (iy+2)
+    adc a, (iy+4)
+    ld (iy+2), a
+    cp 180
+    jr nc, .mole_rock_remove
+    cp 2
+    jr c, .mole_rock_remove
+    ld a, (iy+4)
+    bit 7, a
+    jr nz, .mole_rock_player
+    ld a, (boss_y)
+    add a, 16               ; sprite top when its base meets the boss floor
+    ld c, a
+    ld a, (iy+2)
+    cp c
+    jr nc, .mole_rock_remove
+    ; Descending onto authored terrain may stop the arc above the mole floor.
+    add a, 15
+    and #F0
+    ld c, a
+    ld l, a
+    ld a, (iy+1)
+    add a, 8
+    rrca
+    rrca
+    rrca
+    rrca
+    and #0F
+    add a, l
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_collision_map
+    add hl, de
+    ld a, (hl)
+    and #BF
+    jr z, .mole_rock_player
+    ; The tile above must be air: this rejects a wall's vertical face and
+    ; consumes the rock only on a genuine top surface.
+    ld a, c
+    or a
+    jr z, .mole_rock_remove
+    ld de, 16
+    or a
+    sbc hl, de
+    ld a, (hl)
+    and #BF
+    jr nz, .mole_rock_player
+    jr .mole_rock_remove
+.mole_rock_player:
+    jp bitmap_boss_sbul_hit
+.mole_rock_remove:
+    xor a
+    ld (iy+0), a
+    ret
+
+` : ''}
 ${hasBubbleProjectiles ? `; Bubble flight uses the same 8.8 slot, but reflects at the visible arena
 ; edges. B marks either-axis contact, so a corner costs one rebound.
 ; INPUT: IY=slot, IX=projectile config. DESTROYS AF, BC, HL.
@@ -10497,6 +10909,12 @@ ${data.moleTables.map((table, index) => `bitmap_boss_mole_room_${index}:
     db ${table.map(value => asmByte(value)).join(', ')}`).join('\n')}
 bitmap_boss_mole_ptr_table:
 ${data.moleTables.map((_, index) => `    dw bitmap_boss_mole_room_${index}`).join('\n')}
+` : ''}${hasChick ? `
+; ---- Pollito charge cycle: enabled, windup, dizzy, recovery ----
+${data.chickTables.map((table, index) => `bitmap_boss_chick_room_${index}:
+    db ${table.map(value => asmByte(value)).join(', ')}`).join('\n')}
+bitmap_boss_chick_ptr_table:
+${data.chickTables.map((_, index) => `    dw bitmap_boss_chick_room_${index}`).join('\n')}
 ` : ''}${hasPhaseTables ? `
 ; ---- boss attack phases per room: count, (hpAtOrBelow, interval, speed${phasesExtended ? ', shoot, laserInt, bodyInt, moveSteps' : ''})* ----
 ${(data.phaseTables || []).map((table, index) => `bitmap_boss_phase_room_${index}:

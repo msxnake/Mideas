@@ -6,6 +6,7 @@ import {
 } from '../../types';
 import { createDefaultScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 import { addEntryToMsx2HudIconLibrary } from '../../utils/msx2HudIconLibrary';
+import { getMsx2HudFontGlyphWidth } from '../../utils/msx2HudFontUtils';
 import { buildScreen5PaletteRemap } from '../../utils/msx2BitmapStampLibrary';
 import { Msx2HudIconLibraryModal } from '../modals/Msx2HudIconLibraryModal';
 import { Panel } from '../common/Panel';
@@ -68,6 +69,7 @@ const WIDGET_TEMPLATES: WidgetTemplate[] = [
   { label: 'XP Bar', kind: 'bar', overrides: { binding: 'experience', maxValue: 100, initialValue: 0, colors: { primary: 6, secondary: 4, border: 15, empty: 4 }, xpReward: { enabled: true, carryOverflow: true, actions: [{ type: 'incrementLevel', amount: 1 }] } } },
   { label: 'MP Bar', kind: 'bar', overrides: { binding: 'custom', variableName: 'mp', colors: { primary: 5, secondary: 4, border: 15, empty: 4 } } },
   { label: 'Empty Slot', kind: 'icon', overrides: { binding: 'custom' } },
+  { label: 'Equipped Weapon', kind: 'icon', overrides: { binding: 'equippedWeapon', width: 16, height: 16 } },
 ];
 
 /** Toolbar "stamp" tools: clicking the canvas with one of these active drops a new widget layer at the click point. */
@@ -304,6 +306,10 @@ export const drawScreen5BitmapRoomPreview = (
 interface HudRuntimePreviewContext {
   playerEnergyMax?: number;
   playerEnergyInitial?: number;
+  /** Player weapons (id + name, runtime order) for equippedWeapon widgets. */
+  weapons?: Array<{ id: string; name: string; type: string }>;
+  /** Weapon the player starts with (equippedWeaponId). */
+  equippedWeaponId?: string;
 }
 
 const clampHudRuntimeValue = (value: unknown, fallback: number): number => {
@@ -483,6 +489,7 @@ const drawHudBitmapFontText = (
 ) => {
   const allowed = new Set(Array.from(font.characters || ''));
   const patterns = font.patterns || {};
+  const glyphWidth = getMsx2HudFontGlyphWidth(font);
   ctx.fillStyle = color;
   for (const [charIndex, rawChar] of Array.from(text || '').entries()) {
     const char = rawChar.toUpperCase();
@@ -491,11 +498,11 @@ const drawHudBitmapFontText = (
     const backgroundSlot = Math.max(0, Math.min(15, Number(font.screen5BackgroundSlot ?? 0) || 0));
     if (Array.isArray(bitmap)) {
       for (let row = 0; row < 8; row++) {
-        for (let col = 0; col < 8; col++) {
+        for (let col = 0; col < glyphWidth; col++) {
           const slot = Number(bitmap[row]?.[col]);
           if (!Number.isFinite(slot) || slot === backgroundSlot) continue;
           ctx.fillStyle = slotHex(slots, slot, '#000');
-          ctx.fillRect((x + (charIndex * 8) + col) * scale, (y + row) * scale, scale, scale);
+          ctx.fillRect((x + (charIndex * glyphWidth) + col) * scale, (y + row) * scale, scale, scale);
         }
       }
       ctx.fillStyle = color;
@@ -505,9 +512,9 @@ const drawHudBitmapFontText = (
     if (!pattern) continue;
     for (let row = 0; row < 8; row++) {
       const bits = Number(pattern[row]) || 0;
-      for (let col = 0; col < 8; col++) {
+      for (let col = 0; col < glyphWidth; col++) {
         if (bits & (0x80 >> col)) {
-          ctx.fillRect((x + (charIndex * 8) + col) * scale, (y + row) * scale, scale, scale);
+          ctx.fillRect((x + (charIndex * glyphWidth) + col) * scale, (y + row) * scale, scale, scale);
         }
       }
     }
@@ -525,7 +532,7 @@ const drawHudText = (
   slots: Screen5PaletteSlot[] = [],
 ) => {
   if (!text) return;
-  const textWidth = Array.from(text).length * 8;
+  const textWidth = Array.from(text).length * (font ? getMsx2HudFontGlyphWidth(font) : 8);
   let textX = el.x;
   if (el.align.h === 'right') textX = el.x + el.width - textWidth;
   else if (el.align.h === 'center') textX = el.x + Math.floor((el.width - textWidth) / 2);
@@ -627,7 +634,12 @@ export const renderWidgetLayer = (
     ctx.fillRect(x, y, w, h);
     ctx.fillStyle = slotHex(slots, el.colors.empty, '#000');
     ctx.fillRect(x + scale, y + scale, w - 2 * scale, h - 2 * scale);
-    const icon = el.binding === 'carriedObject'
+    const equippedWeaponIconId = el.binding === 'equippedWeapon'
+      ? (runtime?.equippedWeaponId ? el.weaponIcons?.[runtime.equippedWeaponId] : undefined) || el.emptyAtlasEntryId
+      : undefined;
+    const icon = el.binding === 'equippedWeapon'
+      ? icons.find(i => i.id === equippedWeaponIconId)
+      : el.binding === 'carriedObject'
       ? icons.find(i => i.id === el.emptyAtlasEntryId)
       : icons.find(i => i.id === el.atlasEntryId);
     if (icon) {
@@ -667,7 +679,7 @@ export const renderWidgetLayer = (
   }
 };
 
-const BINDING_OPTIONS: Msx2HudWidgetBinding[] = ['playerEnergy', 'bossEnergy', 'air', 'experience', 'level', 'skillPoints', 'score', 'lives', 'collectibles', 'keyItem', 'carriedObject', 'ammo', 'custom'];
+const BINDING_OPTIONS: Msx2HudWidgetBinding[] = ['playerEnergy', 'bossEnergy', 'air', 'experience', 'level', 'skillPoints', 'score', 'lives', 'collectibles', 'keyItem', 'carriedObject', 'ammo', 'equippedWeapon', 'custom'];
 const XP_REWARD_ACTION_LABELS: Record<Msx2HudXpRewardActionType, string> = {
   incrementLevel: 'Level +',
   incrementSkillPoints: 'Skill points +',
@@ -824,7 +836,19 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
       : playerAssets[0];
     const player = extractMsx2PlayerData(playerAsset);
     const maxHealth = clampHudRuntimeValue((player as any)?.health?.maxHealth, 5);
-    return { playerEnergyMax: maxHealth, playerEnergyInitial: maxHealth };
+    const weapons = Array.isArray((player as any)?.weapons)
+      ? ((player as any).weapons as any[]).slice(0, 8).map(weapon => ({
+          id: String(weapon?.id || ''),
+          name: String(weapon?.name || weapon?.id || ''),
+          type: String(weapon?.type || ''),
+        }))
+      : [];
+    return {
+      playerEnergyMax: maxHealth,
+      playerEnergyInitial: maxHealth,
+      weapons,
+      equippedWeaponId: String((player as any)?.equippedWeaponId || '') || undefined,
+    };
   }, [allAssets, asset.id]);
   const previewBitmapRoom = useMemo(
     () => selectHudPreviewBitmapRoom(allAssets, asset.id),
@@ -1465,7 +1489,8 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                         <label>H<input type="number" value={selectedLayer.element.height} onChange={e => updateElement(selectedLayer.id, { height: Math.max(1, Math.min(20, Number(e.target.value) || 1)) })} className="w-full bg-msx-bgcolor border border-msx-border rounded px-1" /></label>
                       </div>
 
-                      {(['icon', 'portrait', 'iconRow', 'iconCounter'] as Msx2HudElementKind[]).includes(selectedLayer.element.kind) && (
+                      {(['icon', 'portrait', 'iconRow', 'iconCounter'] as Msx2HudElementKind[]).includes(selectedLayer.element.kind)
+                        && selectedLayer.element.binding !== 'equippedWeapon' && (
                         <div className="pt-1 border-t border-msx-border">
                           <div className="text-msx-textsecondary mb-1">Icon</div>
                           <IconAssetPicker
@@ -1477,11 +1502,12 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                         </div>
                       )}
                       {((selectedLayer.element.kind === 'iconRow') ||
-                        (selectedLayer.element.kind === 'icon' && (selectedLayer.element.binding === 'keyItem' || selectedLayer.element.binding === 'carriedObject'))) && (
+                        (selectedLayer.element.kind === 'icon' && (selectedLayer.element.binding === 'keyItem' || selectedLayer.element.binding === 'carriedObject' || selectedLayer.element.binding === 'equippedWeapon'))) && (
                         <div className="pt-1 border-t border-msx-border">
                           <div className="text-msx-textsecondary mb-1">
                             {selectedLayer.element.kind === 'iconRow'
                               ? 'Empty Icon (unfilled slots)'
+                              : selectedLayer.element.binding === 'equippedWeapon' ? 'Icono sin arma (ninguna equipada)'
                               : selectedLayer.element.binding === 'carriedObject' ? 'Empty Icon (object not held)' : 'Empty Icon (key not collected)'}
                           </div>
                           <IconAssetPicker
@@ -1543,6 +1569,35 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                           <p className="text-[0.6rem] text-msx-textsecondary mb-1 leading-tight">
                             The icon is full while the player is carrying a carryable object and empty otherwise.
                           </p>
+                        )}
+                        {selectedLayer.element.binding === 'equippedWeapon' && (
+                          <div className="mb-1 space-y-1">
+                            <p className="text-[0.6rem] text-msx-textsecondary leading-tight">
+                              Muestra el icono del arma equipada (widget tipo Icon, 16x16). Asigna un icono a cada arma del Player;
+                              la ROM lo redibuja al recoger un arma o al cambiarla con la tecla configurada.
+                            </p>
+                            {(runtimePreview.weapons || []).length === 0 && (
+                              <p className="text-[0.6rem] text-amber-300 leading-tight">El Player no tiene armas definidas (pestaña Weapons).</p>
+                            )}
+                            {(runtimePreview.weapons || []).map(weapon => (
+                              <div key={weapon.id} className="rounded border border-msx-border p-1">
+                                <div className="text-[0.65rem] mb-1">
+                                  {weapon.name} <span className="text-msx-textsecondary">({weapon.type}{runtimePreview.equippedWeaponId === weapon.id ? ', inicial' : ''})</span>
+                                </div>
+                                <IconAssetPicker
+                                  icons={icons}
+                                  slots={slots}
+                                  value={selectedLayer.element.weaponIcons?.[weapon.id]}
+                                  onChange={iconId => {
+                                    if (selectedLayer.kind !== 'widget') return;
+                                    const next = { ...(selectedLayer.element.weaponIcons || {}) };
+                                    if (iconId) next[weapon.id] = iconId; else delete next[weapon.id];
+                                    updateElement(selectedLayer.id, { weaponIcons: next });
+                                  }}
+                                />
+                              </div>
+                            ))}
+                          </div>
                         )}
                         {selectedLayer.element.kind === 'text' && (
                           <input

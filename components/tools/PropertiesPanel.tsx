@@ -8,7 +8,7 @@ import {
 import { Panel } from '../common/Panel';
 import { SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_MAP, MSX1_PALETTE_IDX_MAP, EDITOR_BASE_TILE_DIM_S2 } from '../../constants';
 import { Button } from '../common/Button';
-import { CaretDownIcon, CaretRightIcon, CollapseAllIcon, TrashIcon, ViewfinderCircleIcon } from '../icons/MsxIcons';
+import { CollapseAllIcon, TrashIcon, ViewfinderCircleIcon, EyeIcon, EyeOffIcon } from '../icons/MsxIcons';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 import { normalizeMsx2ShooterRuntimeConfig, buildMsx2Shooter60HzFrameBudgetSummary, resolveMsx2ShooterScrollRowRoutine } from '../../utils/msx2ShooterRuntime';
 import { StartNodeEditor } from '../editors/StartNodeEditor';
@@ -869,7 +869,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             aria-expanded={!isCollapsed}
             aria-label={isCollapsed ? `Expand ${componentDef.name}` : `Collapse ${componentDef.name}`}
           >
-            {isCollapsed ? <CaretRightIcon className="w-3.5 h-3.5" /> : <CaretDownIcon className="w-3.5 h-3.5" />}
+            {isCollapsed ? <EyeIcon /> : <EyeOffIcon />}
           </button>
         </div>
         <div className={isCollapsed ? 'hidden' : 'mt-1'}>
@@ -1078,6 +1078,18 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             <div><strong className="text-msx-highlight">Size:</strong> {hud.width}x{hud.height}</div>
             <div><strong className="text-msx-highlight">Layers:</strong> {hud.layers?.length || 0}</div>
             <div><strong className="text-msx-highlight">Icons:</strong> {hud.icons?.length || 0}</div>
+          </div>
+        );
+      }
+      case 'msx2intro': {
+        const intro = asset.data as any;
+        const slides = Array.isArray(intro?.slides) ? intro.slides : [];
+        return (
+          <div className="space-y-1">
+            <div><strong className="text-msx-highlight">Name:</strong> {intro?.name || asset.name}</div>
+            <div><strong className="text-msx-highlight">Mode:</strong> MSX2 SCREEN 5 intro</div>
+            <div><strong className="text-msx-highlight">Slides:</strong> {slides.length}</div>
+            <div><strong className="text-msx-highlight">Steps:</strong> {slides.reduce((n: number, s: any) => n + (s?.steps?.length || 0), 0)}</div>
           </div>
         );
       }
@@ -2108,6 +2120,15 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           'Blob16 is compact; wang47 gives better inner corners at a higher tile cost.',
           'The grid follows the same order as the import template, so mismatches usually mean a source-template issue.',
           'Keep terrain palettes aligned with the rooms that will import them.',
+        ],
+      },
+      [EditorType.Msx2Intro]: {
+        title: 'MSX2 SCREEN 5 Intro Help',
+        summary: 'Compose intro slides: place images and text zones anywhere on the 256x192 screen, then script the typewriter steps.',
+        tips: [
+          'X and width are kept even: SCREEN 5 stores two pixels per byte.',
+          'Every slide shares one 16-colour palette between its images and texts; reserve slots for text colours.',
+          'Each step types its text into one zone; SPACE completes the typing and then advances.',
         ],
       },
       [EditorType.Msx2Dialogue]: {
