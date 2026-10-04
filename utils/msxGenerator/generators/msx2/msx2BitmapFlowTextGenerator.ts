@@ -66,6 +66,68 @@ const hexByte = (value: number): string => `#${(value & 0xff).toString(16).toUpp
 const hexWord = (value: number): string => `#${(value & 0xffff).toString(16).toUpperCase().padStart(4, '0')}`;
 const sanitizeLabel = (value: string): string => value.replace(/[^A-Za-z0-9_]/g, '_');
 
+/**
+ * One-frame wait of the GameFlow screens. With a music runtime it is
+ * `bitmap_flow_wait_vblank` (the frame wait plus one `music_update` tick);
+ * without one it stays the plain `bitmap_wait_vblank`, so ROMs with no music
+ * assemble exactly as before.
+ */
+const flowFrameWait = (musicTick: boolean | undefined): string =>
+  musicTick ? 'call bitmap_flow_wait_vblank' : 'call bitmap_wait_vblank';
+
+/**
+ * The song only advances while something calls `music_update`, and during a
+ * menu or text screen the GameFlow waits are the only code running. This wraps
+ * `bitmap_wait_vblank` with the tick and keeps its register contract, so every
+ * frame wait of the text engine can be swapped for it.
+ */
+const BITMAP_FLOW_WAIT_VBLANK_ROUTINE = `; ------------------------------------------------------------
+; FUNCTION: bitmap_flow_wait_vblank
+; ------------------------------------------------------------
+; PURPOSE:
+;   bitmap_wait_vblank followed by one music_update tick: keeps the song
+;   running while a GameFlow menu, text, scroll or password screen waits.
+;
+; INPUT:
+;   None.
+;
+; OUTPUT:
+;   None.
+;
+; DESTROYS:
+;   AF, BC
+;
+; PRESERVES:
+;   DE, HL, IX, IY
+;
+; CALLS:
+;   bitmap_wait_vblank, music_update
+;
+; SIDE EFFECTS:
+;   One frame passes; R#15 = 0 on return (S#0 selected). The music driver
+;   writes the sound chip and leaves P2 on the resident bank.
+;
+; NOTES:
+;   music_update destroys AF, BC, DE, HL (and may use IX/IY), so the caller's
+;   DE/HL/IX/IY are saved around it: this is a drop-in for bitmap_wait_vblank.
+;   Only emitted when the ROM has a music runtime. Never called before
+;   music_init_system (the dispatcher runs after it).
+; ------------------------------------------------------------
+bitmap_flow_wait_vblank:
+    call bitmap_wait_vblank
+    push de
+    push hl
+    push ix
+    push iy
+    call music_update
+    pop iy
+    pop ix
+    pop hl
+    pop de
+    ret
+
+`;
+
 const clampByte = (value: unknown, fallback = 0): number => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;
@@ -162,7 +224,7 @@ ${features.code ? codeEntryRamEquates() : ''}${features.smooth || features.marqu
 }
 
 /** Shared runtime routines + font data. Emitted only when a text node exists. */
-export function bitmapFlowTextRuntime(features: BitmapFlowTextFeatures, bankedFont = false): string {
+export function bitmapFlowTextRuntime(features: BitmapFlowTextFeatures, bankedFont = false, musicTick = false): string {
   if (!features.text) return '';
   const fontBytes = buildScreen5FlowFontBytes();
   const fontData: string[] = [];
@@ -243,7 +305,7 @@ bitmap_flow_read_row8:
 bitmap_flow_menu_wait_release:
     ; Swallow the trigger that is still held from the previous node so the menu
     ; does not select its first option the instant it appears.
-    call bitmap_wait_vblank
+    ${flowFrameWait(musicTick)}
     call bitmap_flow_read_row8
     and #01
     jp nz, bitmap_flow_menu_wait_release
@@ -526,14 +588,14 @@ bitmap_flow_expand_pick_bg:
     ld a, (bitmap_flow_bg)
     ret
 
-; ------------------------------------------------------------
+${musicTick ? BITMAP_FLOW_WAIT_VBLANK_ROUTINE : ''}; ------------------------------------------------------------
 ; bitmap_flow_wait_key / bitmap_flow_wait_frames
 ; PPI row 8 bit 0 = SPACE. No BIOS, no interrupts.
 ; ------------------------------------------------------------
 bitmap_flow_wait_key:
     ; Require a release first so a key still held from the previous node does
     ; not skip this screen instantly.
-    call bitmap_wait_vblank
+    ${flowFrameWait(musicTick)}
     in a, (PPI_C)
     and #F0
     or 8
@@ -543,7 +605,7 @@ bitmap_flow_wait_key:
     and #01
     jp nz, bitmap_flow_wait_key
 bitmap_flow_wait_key_press:
-    call bitmap_wait_vblank
+    ${flowFrameWait(musicTick)}
     in a, (PPI_C)
     and #F0
     or 8
@@ -560,11 +622,11 @@ bitmap_flow_wait_frames:
     ret z
 bitmap_flow_wait_frames_loop:
     push bc
-    call bitmap_wait_vblank
+    ${flowFrameWait(musicTick)}
     pop bc
     djnz bitmap_flow_wait_frames_loop
     ret
-${scrollRoutines}${menuRoutines}${features.code ? codeEntryRuntime() : ''}${features.smooth || features.marquee ? generateSmoothScrollRuntime(BITMAP_SMOOTH_SCROLL_HOST, { vertical: features.smooth, marquee: features.marquee }) : ''}
+${scrollRoutines}${menuRoutines}${features.code ? codeEntryRuntime(musicTick) : ''}${features.smooth || features.marquee ? generateSmoothScrollRuntime(musicTick ? { ...BITMAP_SMOOTH_SCROLL_HOST, perFrameAsm: '    call music_update' } : BITMAP_SMOOTH_SCROLL_HOST, { vertical: features.smooth, marquee: features.marquee }) : ''}
 ; 6x8 GameFlow font: 59 glyphs (ASCII 32..90), 8 rows each, 5 pixels
 ; left-aligned on bits 7..3 so bit 2 becomes the inter-character gap.
 ${bankedFont ? '; Emitted in a Konami MegaROM data bank; bitmap_flow_draw_char_inner stages one glyph at a time.' : `bitmap_flow_font:
@@ -583,6 +645,8 @@ interface EmitContext {
   jumpToNext: string;
   /** Collects the DB blocks for the strings this node draws. */
   pushData: (asm: string) => void;
+  /** The ROM has a music runtime: the node's own wait loops tick it (see bitmap_flow_wait_vblank). */
+  musicTick?: boolean;
 }
 
 let stringCounter = 0;
@@ -799,7 +863,7 @@ ${fillRect(0, 0, 256, BF_VISIBLE_LINES, background)}${
   }    call bitmap_flow_menu_wait_release
     call bitmap_flow_menu_draw_${safeId}
 bitmap_flow_menu_loop_${safeId}:
-    call bitmap_wait_vblank
+    ${flowFrameWait(context.musicTick)}
     call bitmap_flow_read_row8
     ld c, a
     and #60                    ; bit5 UP, bit6 DOWN
@@ -917,7 +981,7 @@ const CODE_CTL_ROW7: Array<[number, number]> = [
   [7, 4], // RETURN -> confirm
 ];
 
-function codeEntryRuntime(): string {
+function codeEntryRuntime(musicTick = false): string {
   const keymapBytes = CODE_KEYMAP_ROWS.flatMap(row => [...row].map(ch => ch.charCodeAt(0)));
   const keymapData: string[] = [];
   for (let offset = 0; offset < keymapBytes.length; offset += 8) {
@@ -1076,7 +1140,7 @@ bitmap_flow_code_edit:
     ld (bitmap_flow_code_ctl), a
     call bitmap_flow_code_draw
 bitmap_flow_code_loop:
-    call bitmap_wait_vblank
+    ${flowFrameWait(musicTick)}
     ; Typed letter/digit: act once per new key.
     call bitmap_flow_code_scan_key
     ld hl, bitmap_flow_code_key

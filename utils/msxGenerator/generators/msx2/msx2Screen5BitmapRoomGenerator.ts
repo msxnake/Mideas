@@ -1127,6 +1127,8 @@ function buildBitmapGameFlowProgram(
           defaultTextColor: flowTextDefaultColor,
           jumpToNext: jumpTo(defaultTarget(nodeId)),
           pushData: asm => dataBlocks.push(asm),
+          // The menu loop is the only code running while it waits: it ticks the song itself.
+          musicTick: musicEnabled,
           optionTargets: options.map((option: any) => {
             const label = labelFor(branchTarget(nodeId, option.id));
             // An unwired option must not fall through into the next node's code:
@@ -1181,7 +1183,8 @@ function buildBitmapGameFlowProgram(
   }
   // The text/menu/scroll engine and its font are only emitted when a node needs
   // them, so flows without text keep the ROM byte-identical.
-  const textRuntime = bitmapFlowTextRuntime(collectBitmapFlowTextFeatures(flow.nodes as any), options.bankedFont === true);
+  // With a music runtime the waits of these screens tick it (bitmap_flow_wait_vblank); without one they are unchanged.
+  const textRuntime = bitmapFlowTextRuntime(collectBitmapFlowTextFeatures(flow.nodes as any), options.bankedFont === true, musicEnabled);
   return `${lines.join('\n')}\n${textRuntime}${dataBlocks.join('')}`;
 }
 
