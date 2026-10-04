@@ -4,14 +4,32 @@
     {
       "name": "mideas-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 3000
     },
     {
       "name": "mideas-dev-alt",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--port", "3100", "--no-open"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "3100",
+        "--no-open"
+      ],
       "port": 3100
+    },
+    {
+      "name": "mideas-server",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "server/server.js"
+      ],
+      "port": 3001
     }
   ]
 }
