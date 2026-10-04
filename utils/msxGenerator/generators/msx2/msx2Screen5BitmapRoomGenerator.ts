@@ -16004,10 +16004,18 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   const bossWindowRows = bossWindowRowsPerBlob * bossWindowBandCount;
   const bossWindowBaseY = dialogueVramBaseRow - bossWindowRows;
   if (bossWindowActive && bossWindowBaseY < postAtlasBaseY + BOSS_WINDOW_SCRATCH_RESERVE_ROWS) {
+    // Spell the whole bill out: the old message named only the boss rows, and when they fitted
+    // exactly the failure was really the scratch reserve, which nothing in the text mentioned.
+    const shortByRows = postAtlasBaseY + BOSS_WINDOW_SCRATCH_RESERVE_ROWS - bossWindowBaseY;
+    const darkTwinRowsUsed = postAtlasBaseY - darkAtlasBaseY;
     throw new Error(
       `SCREEN 5 boss window: the boss bodies need ${bossWindowRows} VRAM rows before the dialogue `
       + `blob at row ${dialogueVramBaseRow}, but the atlas already ends at row ${postAtlasBaseY}. `
-      + 'Shrink the shared atlas or the dialogue blob.',
+      + `Rows ${BITMAP_ROOM_ATLAS_BASE_Y}..${postAtlasBaseY - 1} are the shared atlas (${atlasRows16} rows`
+      + `${darkTwinRowsUsed > 0 ? ` + ${darkTwinRowsUsed} of its pre-dimmed twin` : ''}), `
+      + `${bossWindowRows} go to the boss window (${bossWindowBandCount} band group(s) x ${bossWindowRowsPerBlob}) `
+      + `and ${1024 - dialogueVramBaseRow} to the dialogue blob; ${BOSS_WINDOW_SCRATCH_RESERVE_ROWS} more rows must stay free `
+      + `for the carry/projectile scratch. Short by ${shortByRows} rows: shrink the shared atlas or the dialogue blob by that much.`,
     );
   }
   // Where each body cell sits inside the window, and the pixels to upload there.

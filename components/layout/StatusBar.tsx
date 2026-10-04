@@ -13,12 +13,14 @@ interface StatusBarProps {
   details?: string;
   /** Current MSX screen mode shown on the left. */
   screenMode?: string;
+  /** Optional widget rendered before the details (e.g. the SCREEN 5 memory indicator). */
+  extra?: React.ReactNode;
 }
 
 /**
  * A status bar component that displays messages and details at the bottom of the application.
  */
-export const StatusBar: React.FC<StatusBarProps> = ({ message, details, screenMode }) => {
+export const StatusBar: React.FC<StatusBarProps> = ({ message, details, screenMode, extra }) => {
   return (
     <div className="bg-msx-panelbg border-t border-msx-border px-3 py-1.5 text-xs text-msx-textsecondary flex items-center gap-3 shadow-inner">
       {screenMode && (
@@ -29,6 +31,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message, details, screenMo
       )}
       {screenMode && <span className="w-px h-3.5 bg-msx-border shrink-0" />}
       <span className="font-sans truncate flex-1">{message}</span>
+      {extra}
       {details && <span className="pixel-font text-msx-highlight hidden sm:inline truncate shrink-0" title={details}>{details}</span>}
     </div>
   );
