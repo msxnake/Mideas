@@ -535,8 +535,9 @@ Test: `node scripts/check_msx2_screen5_transitions.mjs` (sección 4 genera y ens
 ```
 
 **Música durante las pantallas del flujo (MSX2 SCREEN 5, ruta bitmap)**:
-- La canción solo avanza mientras algo llama a `music_update` cada frame. El bucle de juego lo hace; en el flujo, lo hacen las esperas de `SubMenu`, `Text`, `TextScroll` (por pasos y suave), `CodeEntry` y el `Intro`. Un `Music` delante de un menú sigue sonando en el menú y pasa al juego sin cortarse.
-- No suenan (la música se congela en el último acorde mientras duran): las `Transition` con el motor de efectos (fundidos y barridos). El nodo `End` para la música a propósito.
+- La canción solo avanza mientras algo llama a `music_update` cada frame. El bucle de juego lo hace; en el flujo, lo hacen las esperas de `SubMenu`, `Text`, `TextScroll` (por pasos y suave), `CodeEntry`, el `Intro` y las `Transition` con el motor de efectos (barridos, persianas, fundidos de paleta). Un `Music` delante de un menú o de una transición sigue sonando y pasa al juego sin cortarse.
+- Si el flujo lleva música y usa el motor de transiciones, la inicialización de la música se adelanta al principio de `init_rom` (antes del intro de arranque, que comparte ese motor): `music_update` nunca corre sobre RAM sin inicializar.
+- El nodo `End` para la música a propósito. Dibujar una pantalla al entrar en un nodo (rellenar, pintar un menú) tarda unos frames sin tickear la música.
 - El campo `Music` de un nodo `Intro` en «Silence» apaga lo que arrancó un `Music` anterior; usa «Keep whatever is playing» para dejarla sonar.
 - Si el ROM no lleva música, el código generado es idéntico al de siempre.
 - Contrato: `npm run test:msx2-gameflow-menu-music` (compila y mide en OpenMSX los `music_update` por segundo y los registros del PSG).

@@ -8,11 +8,14 @@
  * loop did not: a Music node in front of a SubMenu started the track and then froze it on the
  * first frame of the menu (a held chord), until START entered the world.
  *
- * Four projects are built from test/msx2-lighting/nuts_torchoff.json (2 bitmap rooms, one PT3 track):
+ * Six projects are built from test/msx2-lighting/nuts_torchoff.json (2 bitmap rooms, one PT3 track):
  *   - music:         Start -> Music -> SubMenu -> WorldLink -> End
  *   - silent:        the same without the track and the Music node (no music runtime in the ROM)
  *   - music_scroll:  Start -> Music -> TextScroll (pixel-smooth) -> SubMenu -> WorldLink -> End
  *   - silent_scroll: the same without music
+ *   - music_trans:   Start -> Presentation -> Transition (boot intro) -> Music -> wipe -> palette flash ->
+ *                    SubMenu -> WorldLink -> End (the transition engine runs in the boot intro AND the dispatcher)
+ *   - silent_trans:  the same without music
  *
  * Static (ASM): with music the menu loop waits through bitmap_flow_wait_vblank (frame wait + one
  * music_update); without music it still calls bitmap_wait_vblank and no tick routine exists, so
@@ -25,6 +28,9 @@
  *             registers are what is measured.
  *   - scroll: the raster-split scroll ticks the song too, and ticking it costs the scroll no time
  *             (same duration as the silent ROM): the split is timing-critical.
+ *   - trans:  the transition engine (fill wipe, palette flash) ticks the song, takes as long as in the
+ *             silent ROM, and the boot intro -- which shares the engine and now runs after the music
+ *             init -- still reaches the menu with the song playing.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -39,8 +45,19 @@ const MENU_ID = 'gf_menu1';
 const args = new Set(process.argv.slice(2));
 
 fs.mkdirSync(WORK, { recursive: true });
+/** Dispatcher labels of the nodes the transition run measures between, per project. */
+const labels = {};
 
-function buildFixture(name, { music, scroll }) {
+let presentationAsset;
+function loadPresentationAsset() {
+  if (!presentationAsset) {
+    const source = JSON.parse(fs.readFileSync(path.join(ROOT, 'test', 'msx2-bitmap-intro', 'bitmap_intro_test.json'), 'utf8'));
+    presentationAsset = source.assets.find(asset => asset.type === 'msx2presentation');
+  }
+  return presentationAsset;
+}
+
+function buildFixture(name, { music, scroll, trans }) {
   const raw = JSON.parse(fs.readFileSync(SOURCE, 'utf8'));
   const flow = raw.assets.find(asset => asset.type === 'msx2gameflow').data;
   const start = flow.nodes.find(node => node.type === 'Start');
@@ -56,8 +73,16 @@ function buildFixture(name, { music, scroll }) {
     scrollStepFrames: 18, waitForKey: false, waitFrames: 0,
     text: 'ONE LINE\nTWO LINES\nTHREE LINES\nFOUR LINES\nFIVE LINES\nSIX LINES',
   };
-  const chain = [start, ...(music ? [musicNode] : []), ...(scroll ? [scrollNode] : []), menu];
+  const presentationNode = { id: 'gf_pres1', type: 'Screen5Presentation', position: { x: 150, y: 90 }, presentationAssetId: loadPresentationAsset().id, waitForKey: false, waitFrames: 20 };
+  // t1 follows the presentation directly, so the boot intro plays it (through the shared engine because of framesPerStep).
+  const transition = (id, effect, extra) => ({ id, type: 'Transition', position: { x: 300, y: 90 }, effect, durationFrames: 10, ...extra });
+  const t1 = transition('gf_t1', 'screen5_wipe', { framesPerStep: 2 });
+  const t2 = transition('gf_t2', 'screen5_wipe', { framesPerStep: 2 });
+  const t3 = transition('gf_t3', 'palette_flash', { fadeColor: { r: 7, g: 7, b: 7 }, flashCount: 2 });
+  if (trans) raw.assets.push(loadPresentationAsset());
+  const chain = [start, ...(trans ? [presentationNode, t1] : []), ...(music ? [musicNode] : []), ...(scroll ? [scrollNode] : []), ...(trans ? [t2, t3] : []), menu];
   flow.nodes = [...chain, world, end];
+  if (trans) labels[name] = Object.fromEntries(['gf_t2', 'gf_t3', MENU_ID].map(id => [id, `bitmap_gf_node_${flow.nodes.findIndex(node => node.id === id)}`]));
   flow.connections = chain.slice(0, -1).map((node, index) => ({ id: `gfc_chain_${index}`, from: { nodeId: node.id }, to: { nodeId: chain[index + 1].id } }));
   flow.connections.push({ id: 'gfc_menu_start', from: { nodeId: MENU_ID, sourceId: 'opt_start' }, to: { nodeId: world.id } });
   flow.connections.push({ id: 'gfc_world_end', from: { nodeId: world.id }, to: { nodeId: end.id } });
@@ -136,9 +161,12 @@ const loopLabel = `bitmap_flow_menu_loop_${MENU_ID}`;
 // ---- static: the ASM ----
 const tickRoutine = block(musicAsm, 'bitmap_flow_wait_vblank');
 check('music ROM defines bitmap_flow_wait_vblank once', (musicAsm.match(/^bitmap_flow_wait_vblank:/gm) || []).length === 1);
-check('the tick routine waits for the frame, then calls music_update, keeping DE/HL/IX/IY',
-  Boolean(tickRoutine) && /call bitmap_wait_vblank[\s\S]*push de[\s\S]*push hl[\s\S]*push ix[\s\S]*push iy[\s\S]*call music_update[\s\S]*pop iy[\s\S]*pop ix[\s\S]*pop hl[\s\S]*pop de[\s\S]*ret/.test(tickRoutine || ''),
+check('the tick routine calls music_update first, then waits for the frame, keeping DE/HL/IX/IY',
+  Boolean(tickRoutine) && /push de[\s\S]*push hl[\s\S]*push ix[\s\S]*push iy[\s\S]*call music_update[\s\S]*pop iy[\s\S]*pop ix[\s\S]*pop hl[\s\S]*pop de[\s\S]*jp bitmap_wait_vblank/.test(tickRoutine || ''),
   tickRoutine || 'routine missing');
+const initRom = block(musicAsm, 'init_rom') || '';
+check('without transitions the boot order is unchanged (music init after the VDP/atlas setup)',
+  initRom.indexOf('call music_init_system') > initRom.indexOf('call upload_tileset_atlas') && initRom.indexOf('call upload_tileset_atlas') > 0, initRom.slice(0, 200));
 const menuLoop = block(musicAsm, loopLabel) || '';
 check('music menu loop waits through bitmap_flow_wait_vblank', /call bitmap_flow_wait_vblank/.test(menuLoop) && !/call bitmap_wait_vblank/.test(menuLoop), menuLoop.slice(0, 120));
 for (const label of ['bitmap_flow_menu_wait_release', 'bitmap_flow_wait_key', 'bitmap_flow_wait_key_press', 'bitmap_flow_wait_frames_loop']) {
@@ -156,6 +184,26 @@ const silentScroll = buildRom('silent_scroll', { music: false, scroll: true });
 const scrollAsm = fs.readFileSync(musicScroll.asm, 'utf8');
 check('smooth scroll frame loop ticks the song (perFrameAsm)', /call music_update/.test(block(scrollAsm, 'bitmap_vs_run_frame') || ''), (block(scrollAsm, 'bitmap_vs_run_frame') || 'bitmap_vs_run_frame missing').slice(0, 120));
 check('silent smooth scroll has no music call', !/call music_update/.test(fs.readFileSync(silentScroll.asm, 'utf8')));
+
+console.log('building the transition projects ...');
+const musicTrans = buildRom('music_trans', { music: true, trans: true });
+const silentTrans = buildRom('silent_trans', { music: false, trans: true });
+const transAsm = fs.readFileSync(musicTrans.asm, 'utf8');
+const silentTransAsm = fs.readFileSync(silentTrans.asm, 'utf8');
+const transInit = block(transAsm, 'init_rom') || '';
+check('music + transitions: the music init is hoisted ahead of the boot intro',
+  transInit.indexOf('call music_init_system') > 0 && transInit.indexOf('call music_init_system') < transInit.indexOf('call run_bitmap_intro'), transInit.slice(0, 260));
+check('music + transitions: the SFX mixer shadow is set before the music init',
+  transInit.indexOf('ld (psg_sfx_r7_c_bits), a') > 0 && transInit.indexOf('ld (psg_sfx_r7_c_bits), a') < transInit.indexOf('call music_init_system'));
+check('music + transitions: the music is initialised once at boot', (transInit.match(/call music_init_system/g) || []).length === 1);
+check('music + transitions: bitmap_flow_wait_vblank is defined once', (transAsm.match(/^bitmap_flow_wait_vblank:/gm) || []).length === 1);
+const tfxStart = transAsm.indexOf('bitmap_tfx_wait_ce:');
+const tfxText = tfxStart >= 0 ? transAsm.slice(tfxStart, tfxStart + 60000) : '';
+check('music + transitions: the engine waits through the tick (no bare bitmap_wait_vblank inside it)',
+  tfxStart >= 0 && /call bitmap_flow_wait_vblank/.test(tfxText) && !/call bitmap_wait_vblank/.test(tfxText.slice(0, tfxText.indexOf('bitmap_tfx_world_palette_ptr:') > 0 ? tfxText.indexOf('bitmap_tfx_world_palette_ptr:') : tfxText.length)),
+  tfxStart >= 0 ? 'engine found' : 'bitmap_tfx_wait_ce missing');
+check('silent + transitions: the engine still waits with bitmap_wait_vblank and nothing is hoisted',
+  !/bitmap_flow_wait_vblank/.test(silentTransAsm) && !/music_init_system/.test(silentTransAsm) && /call bitmap_wait_vblank/.test(silentTransAsm));
 
 if (args.has('--static-only')) {
   console.log(problems.length ? `\nRESULT FAIL (${problems.length})` : '\nRESULT PASS (static only)');
@@ -282,6 +330,78 @@ if (scrollRuns.music.ok && scrollRuns.silent.ok) {
   check('scroll: the song is ticked about once per frame', rate > 50 && rate < 70, `${rate.toFixed(1)} ticks/s`);
   check('scroll: ticking the song does not slow the scroll down', Math.abs(seconds - scrollRuns.silent.seconds) / scrollRuns.silent.seconds < 0.05,
     `${seconds.toFixed(3)} s vs ${scrollRuns.silent.seconds.toFixed(3)} s`);
+}
+
+// ---- dynamic: the transition engine, with and without the song ----
+function transitionTcl(build, resultPath, names) {
+  const table = readSymbols(build.sym);
+  const hasMusic = table.has('music_update');
+  return `
+set result [open "${resultPath}" w]
+set throttle off
+set stage 0
+set t_a 0
+set t_b 0
+set t_c 0
+set ticks_a 0
+set ticks_b 0
+set init_done 0
+set early_ticks 0
+proc note {msg} { global result; puts $result $msg; flush $result }
+${hasMusic ? `# Cold boot: cartridge RAM is garbage. Poison the music state the moment the cartridge starts, so a
+# music_update that runs before music_init_system (the boot intro shares the transition engine) is caught.
+debug set_bp ${addressOf(table, 'init_rom')} {} {
+  foreach address {${['music_active', 'music_muted', 'music_loop', 'music_track_index'].map(name => addressOf(table, name)).join(' ')}} { debug write memory $address 0xFF }
+}` : ''}
+# stage 1: the fill wipe (node t2 up to node t3); stage 2: the palette flash (node t3 up to the menu node)
+debug set_bp ${addressOf(table, names.gf_t2)} {} { if {$::stage == 0} { set ::stage 1; set ::t_a [machine_info time] } }
+debug set_bp ${addressOf(table, names.gf_t3)} {} { if {$::stage == 1} { set ::stage 2; set ::t_b [machine_info time] } }
+debug set_bp ${addressOf(table, names[MENU_ID])} {} { if {$::stage == 2} { set ::stage 3; set ::t_c [machine_info time]; trans_done } }
+${hasMusic ? `# music_update must never run before music_init_system: until then its RAM is garbage.
+debug set_bp ${addressOf(table, 'music_init_system')} {} { set ::init_done 1 }
+debug set_bp ${addressOf(table, 'music_update')} {} { if {!$::init_done} { incr ::early_ticks } ; if {$::stage == 1} { incr ::ticks_a } elseif {$::stage == 2} { incr ::ticks_b } }` : ''}
+proc trans_done {} {
+  global t_a t_b t_c ticks_a ticks_b
+  note [format "WIPE_SECONDS %.3f" [expr {$t_b - $t_a}]]
+  note [format "FLASH_SECONDS %.3f" [expr {$t_c - $t_b}]]
+  note "WIPE_TICKS $ticks_a"
+  note "FLASH_TICKS $ticks_b"
+  note "EARLY_TICKS $::early_ticks"
+  after time 1.5 menu_check
+}
+proc menu_check {} {
+  global result
+  note "MUSIC_ACTIVE ${hasMusic ? `[debug read memory ${addressOf(table, 'music_active')}]` : '0'}"
+  note "RESULT PASS"
+  close $result
+  exit
+}
+after time 100 { puts $::result "RESULT FAIL (never reached the menu: stage $::stage)"; close $::result; exit }
+`;
+}
+const transRuns = {};
+for (const [key, build, name] of [['music', musicTrans, 'music_trans'], ['silent', silentTrans, 'silent_trans']]) {
+  const resultPath = path.join(WORK, `trans_${key}.txt`).replace(/\\/g, '/');
+  const tclPath = path.join(WORK, `trans_${key}.tcl`);
+  fs.writeFileSync(tclPath, transitionTcl(build, resultPath, labels[name]));
+  console.log(`running OpenMSX (transitions, ${key}) ...`);
+  const text = runOpenMsx(build.rom, tclPath, resultPath);
+  const num = label => Number(new RegExp(`${label} ([\\d.]+)`).exec(text)?.[1]);
+  transRuns[key] = { ok: /RESULT PASS/.test(text), wipe: num('WIPE_SECONDS'), flash: num('FLASH_SECONDS'), wipeTicks: num('WIPE_TICKS'), flashTicks: num('FLASH_TICKS'), active: num('MUSIC_ACTIVE'), early: num('EARLY_TICKS'), text };
+}
+check('transitions (music): the boot intro and the flow reach the menu', transRuns.music.ok, transRuns.music.text.trim());
+check('transitions (silent): the boot intro and the flow reach the menu', transRuns.silent.ok, transRuns.silent.text.trim());
+if (transRuns.music.ok && transRuns.silent.ok) {
+  const m = transRuns.music;
+  const q = transRuns.silent;
+  console.log(`      wipe: ${m.wipe.toFixed(2)} s with music (${m.wipeTicks} ticks, ${(m.wipeTicks / m.wipe).toFixed(1)}/s), ${q.wipe.toFixed(2)} s silent`);
+  console.log(`      flash: ${m.flash.toFixed(2)} s with music (${m.flashTicks} ticks, ${(m.flashTicks / m.flash).toFixed(1)}/s), ${q.flash.toFixed(2)} s silent`);
+  check('wipe: the song is ticked while the wipe runs', m.wipeTicks / m.wipe > 25, `${(m.wipeTicks / m.wipe).toFixed(1)} ticks/s`);
+  check('flash: the song is ticked while the palette flash runs', m.flashTicks / m.flash > 25, `${(m.flashTicks / m.flash).toFixed(1)} ticks/s`);
+  check('wipe: ticking the song does not slow the wipe down', Math.abs(m.wipe - q.wipe) / q.wipe < 0.05, `${m.wipe.toFixed(3)} s vs ${q.wipe.toFixed(3)} s`);
+  check('flash: ticking the song does not slow the palette flash down', Math.abs(m.flash - q.flash) / q.flash < 0.05, `${m.flash.toFixed(3)} s vs ${q.flash.toFixed(3)} s`);
+  check('transitions: the song is active on the menu afterwards', m.active === 1, `music_active=${m.active}`);
+  check('transitions: music_update never runs before music_init_system (cold-boot RAM is garbage)', m.early === 0, `${m.early} early calls`);
 }
 
 console.log(problems.length ? `\nRESULT FAIL (${problems.length}): ${problems.join('; ')}` : '\nRESULT PASS');

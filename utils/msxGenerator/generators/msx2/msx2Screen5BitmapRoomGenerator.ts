@@ -303,6 +303,7 @@ import {
   BF_CODE_MAX_CODES,
   BF_CODE_WRONG_PORT,
   BF_MENU_MAX_OPTIONS,
+  BITMAP_FLOW_WAIT_VBLANK_ROUTINE,
   bitmapFlowTextEquates,
   bitmapFlowTextRuntime,
   collectBitmapFlowTextFeatures,
@@ -19334,9 +19335,13 @@ ${psgMusicRam ? `${psgMusicRam.asm}\n` : ''}` : '';
   // Boot: init the SCC through the mapper (page 2 is already the cart slot).
   // Without any Music node in the flow, autoplay track 0 looped so a project
   // with music but no explicit node still sounds.
-  const musicBootCall = sccMusic
-    ? `    ld a, 2                   ; seed the P2 mirror: resident data bank\n    ld (mapper_bank_p2_current), a\n    call music_init_system\n${flowOwnsMusic ? '' : '    xor a\n    ld b, 1\n    call music_play_track    ; no Music node in the flow: autoplay track 0 (loop)\n'}`
+  const musicInitCall = sccMusic
+    ? `    ld a, 2                   ; seed the P2 mirror: resident data bank\n    ld (mapper_bank_p2_current), a\n    call music_init_system\n`
     : '';
+  const musicAutoplayCall = sccMusic && !flowOwnsMusic
+    ? '    xor a\n    ld b, 1\n    call music_play_track    ; no Music node in the flow: autoplay track 0 (loop)\n'
+    : '';
+  const musicBootCall = `${musicInitCall}${musicAutoplayCall}`;
   const musicUpdateCall = sccMusic ? '    call music_update\n' : '';
   // Transition helpers live in the intro runtime: only effects the intro block
   // actually emits are callable from the Game Flow dispatcher.
@@ -19366,11 +19371,22 @@ ${psgMusicRam ? `${psgMusicRam.asm}\n` : ''}` : '';
   });
   const gameFlowEnabled = gameFlowEntryAsm.length > 0;
   const bitmapTfxUsed = bitmapTfxPool.usesFill || bitmapTfxPool.usesPalette;
+  // The transition engine's frame waits tick the song, so a fade or wipe does not freeze it on a held chord.
+  // The engine is shared with the boot intro, which used to run before music_init_system: with music the
+  // init is hoisted ahead of the intro (init_rom below), so music_update never runs over garbage RAM.
+  const musicTickTransitions = Boolean(sccMusic) && bitmapTfxUsed;
+  const flowMusicTickRoutineAsm = Boolean(sccMusic) && gameFlowEnabled
+    && (collectBitmapFlowTextFeatures((resolveBitmapGameFlow(analysis)?.nodes || []) as any).text || musicTickTransitions)
+    ? BITMAP_FLOW_WAIT_VBLANK_ROUTINE
+    : '';
+  const hoistedMusicInitAsm = musicTickTransitions
+    ? `    ; Music init BEFORE the boot intro: its transitions (the shared engine) tick the song, and\n    ; music_update must never run over RAM that is still garbage after a cold boot. The PSG\n    ; mixer write reads the SFX shadow, so that is set first.\n    ld a, #24                 ; SFX channel-C mixer shadow: start muted\n    ld (psg_sfx_r7_c_bits), a\n${musicInitCall}`
+    : '';
   const bitmapTfxRoutinesAsm = bitmapTfxUsed
     ? `${generateScreen5TfxRuntime({
       prefix: 'bitmap_tfx',
       interrupts: false,
-      frameWaitAsm: '    call bitmap_wait_vblank',
+      frameWaitAsm: musicTickTransitions ? '    call bitmap_flow_wait_vblank' : '    call bitmap_wait_vblank',
       fill: bitmapTfxPool.usesFill,
       palette: bitmapTfxPool.usesPalette,
     })}
@@ -19583,7 +19599,7 @@ init_rom:
     di
     ${isKonamiMegaRom ? 'call map_page2_to_cart_primary\n    call init_konami8k_fixed_bank0_banks' : 'call init_plain32k_page2_slot'}
     call init_screen5_bitmap_vdp
-${intro.initCallAsm}${multiWorld ? `    ; Cold boot: cartridge RAM is garbage, so latch world 0 before the palette
+${hoistedMusicInitAsm}${intro.initCallAsm}${multiWorld ? `    ; Cold boot: cartridge RAM is garbage, so latch world 0 before the palette
     ; loader (which indexes its table with bitmap_world_index) runs.
     xor a
     ld (bitmap_world_index), a
@@ -19594,7 +19610,7 @@ ${intro.initCallAsm}${multiWorld ? `    ; Cold boot: cartridge RAM is garbage, s
 ${darkAtlasEnabled ? '    call prepare_dark_atlas   ; dimmed twin: dark rooms compose from it directly\n' : ''}    call init_hardware_sprite_tables
 ${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}${destroyTileInitUpload}${crumbleSystem.initUploadAsm}    ld a, #24                 ; SFX channel-C mixer shadow: start muted
     ld (psg_sfx_r7_c_bits), a
-${musicBootCall}${gameFlowEnabled ? '    ; Game Flow graph present: the dispatcher (bitmap_gf_entry) runs the shared\n    ; boot-init sequence (bitmapBootInitAsm) inside its WorldLink node, so the\n    ; inline copy below is skipped. Both paths use the SAME init string, which\n    ; resets bitmap_composition_state + the composition vars, loads enemies/\n    ; platforms, restores R#15=S#0 and clears the skill state. (Skipping the init\n    ; here previously left those uninitialised: a garbage composition state armed\n    ; a bogus room transition every few frames -> periodic player reposition, and\n    ; made the deadly/enemy damage systems ret-early -> spikes cost no hearts.)\n    jp bitmap_gf_entry\n' : bitmapBootInitAsm}${gameFlowEntryAsm}bitmap_enter_game_loop:
+${musicTickTransitions ? musicAutoplayCall : musicBootCall}${gameFlowEnabled ? '    ; Game Flow graph present: the dispatcher (bitmap_gf_entry) runs the shared\n    ; boot-init sequence (bitmapBootInitAsm) inside its WorldLink node, so the\n    ; inline copy below is skipped. Both paths use the SAME init string, which\n    ; resets bitmap_composition_state + the composition vars, loads enemies/\n    ; platforms, restores R#15=S#0 and clears the skill state. (Skipping the init\n    ; here previously left those uninitialised: a garbage composition state armed\n    ; a bogus room transition every few frames -> periodic player reposition, and\n    ; made the deadly/enemy damage systems ret-early -> spikes cost no hearts.)\n    jp bitmap_gf_entry\n' : bitmapBootInitAsm}${gameFlowEntryAsm}bitmap_enter_game_loop:
     ; GameFlow exit gate: armed by Exit World contact or by the deadly/enemy
     ; system after the last life. With a graph, RET resumes the WorldLink's
     ; default connection. Without a graph, use a deterministic soft restart.
@@ -19682,7 +19698,7 @@ ${platformSystem.routinesAsm}
 ${shaftSystem.routinesAsm}
 ${bossSystem.routinesAsm}
 ${carryAndThrowSystem.dataAsm}${infiniteRoomSystem.dataAsm}
-${bitmapEndRuntime.routinesAsm}${bitmapTfxRoutinesAsm}
+${bitmapEndRuntime.routinesAsm}${flowMusicTickRoutineAsm}${bitmapTfxRoutinesAsm}
 ${formatBytes('screen5_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
 ${multiWorldDataAsm}${intro.dataAsm}${bitmapTfxDataAsm}bitmap_room_hud_seed_data:
 ${hudSeedDataAsm}

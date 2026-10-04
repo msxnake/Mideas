@@ -77,16 +77,20 @@ const flowFrameWait = (musicTick: boolean | undefined): string =>
 
 /**
  * The song only advances while something calls `music_update`, and during a
- * menu or text screen the GameFlow waits are the only code running. This wraps
- * `bitmap_wait_vblank` with the tick and keeps its register contract, so every
- * frame wait of the text engine can be swapped for it.
+ * menu, text screen or transition the GameFlow waits are the only code running.
+ * This wraps `bitmap_wait_vblank` with the tick and keeps its register contract,
+ * so every frame wait of the text and transition engines can be swapped for it.
+ *
+ * The tick goes BEFORE the wait, like the gameplay loop (music_update is the
+ * last call of its iteration): whatever follows the wait still starts right at
+ * the vertical blank, which the palette fades of the transition engine need.
  */
-const BITMAP_FLOW_WAIT_VBLANK_ROUTINE = `; ------------------------------------------------------------
+export const BITMAP_FLOW_WAIT_VBLANK_ROUTINE = `; ------------------------------------------------------------
 ; FUNCTION: bitmap_flow_wait_vblank
 ; ------------------------------------------------------------
 ; PURPOSE:
-;   bitmap_wait_vblank followed by one music_update tick: keeps the song
-;   running while a GameFlow menu, text, scroll or password screen waits.
+;   One music_update tick, then bitmap_wait_vblank: keeps the song running while
+;   a GameFlow menu, text, scroll, password or transition screen waits.
 ;
 ; INPUT:
 ;   None.
@@ -101,7 +105,7 @@ const BITMAP_FLOW_WAIT_VBLANK_ROUTINE = `; -------------------------------------
 ;   DE, HL, IX, IY
 ;
 ; CALLS:
-;   bitmap_wait_vblank, music_update
+;   music_update, bitmap_wait_vblank
 ;
 ; SIDE EFFECTS:
 ;   One frame passes; R#15 = 0 on return (S#0 selected). The music driver
@@ -110,11 +114,11 @@ const BITMAP_FLOW_WAIT_VBLANK_ROUTINE = `; -------------------------------------
 ; NOTES:
 ;   music_update destroys AF, BC, DE, HL (and may use IX/IY), so the caller's
 ;   DE/HL/IX/IY are saved around it: this is a drop-in for bitmap_wait_vblank.
-;   Only emitted when the ROM has a music runtime. Never called before
-;   music_init_system (the dispatcher runs after it).
+;   The tick is first so that the code after the wait starts at the vertical
+;   blank (palette fades write the palette right there). Only emitted when the
+;   ROM has a music runtime, and never reached before music_init_system.
 ; ------------------------------------------------------------
 bitmap_flow_wait_vblank:
-    call bitmap_wait_vblank
     push de
     push hl
     push ix
@@ -124,7 +128,7 @@ bitmap_flow_wait_vblank:
     pop ix
     pop hl
     pop de
-    ret
+    jp bitmap_wait_vblank
 
 `;
 
@@ -588,7 +592,7 @@ bitmap_flow_expand_pick_bg:
     ld a, (bitmap_flow_bg)
     ret
 
-${musicTick ? BITMAP_FLOW_WAIT_VBLANK_ROUTINE : ''}; ------------------------------------------------------------
+; ------------------------------------------------------------
 ; bitmap_flow_wait_key / bitmap_flow_wait_frames
 ; PPI row 8 bit 0 = SPACE. No BIOS, no interrupts.
 ; ------------------------------------------------------------
