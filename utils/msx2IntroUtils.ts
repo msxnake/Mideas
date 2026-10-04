@@ -11,6 +11,7 @@ import type {
   Screen5PaletteSlot,
 } from '../types';
 import { createDefaultScreen5PaletteSlots, ensureScreen5PaletteSlots } from './msx2PaletteUtils';
+import { getMsx2HudFontGlyphWidth } from './msx2HudFontUtils';
 import {
   buildScreen5FlowFontBytes,
   SCREEN5_FLOW_CHAR_HEIGHT,
@@ -339,8 +340,13 @@ const foldAccents = (ch: string): string =>
     .replace(/[ÁÀÄÂ]/g, 'A').replace(/[ÉÈËÊ]/g, 'E').replace(/[ÍÌÏÎ]/g, 'I')
     .replace(/[ÓÒÖÔ]/g, 'O').replace(/[ÚÙÜÛ]/g, 'U').replace(/Ñ/g, 'N').replace(/Ç/g, 'C');
 
-/** Builds an IntroFont from an `msx2hudfont` asset (8x8 glyphs). */
+/**
+ * Builds an IntroFont from an `msx2hudfont` asset (8x8 glyphs). A SCREEN 5 font set to 4x8 (half width)
+ * gets a 4 px cell: the glyph data keeps its 8x8 shape and only the left 4 columns are drawn, so a
+ * zone holds twice as many characters per line. The ROM reads the cell width from the zone record.
+ */
 export function buildIntroFontFromAsset(assetId: string, name: string, font: Msx2HudFontAsset): IntroFont {
+  const glyphWidth = getMsx2HudFontGlyphWidth(font);
   const chars = new Set(Array.from(font.characters ?? ''));
   const pick = (ch: string): string => {
     if (ch === ' ' || chars.has(ch)) return ch;
@@ -351,7 +357,7 @@ export function buildIntroFontFromAsset(assetId: string, name: string, font: Msx
     id: assetId,
     name,
     custom: true,
-    cellW: 8,
+    cellW: glyphWidth,
     cellH: 8,
     // Every font carries a 1bpp `patterns` mask, also SCREEN 5 colour fonts. The Intro always uses
     // that mask in the zone's text colour, so preview and ROM agree and no bg slot has to be guessed.
@@ -363,7 +369,7 @@ export function buildIntroFontFromAsset(assetId: string, name: string, font: Msx
       const pattern = ch === ' ' ? undefined : font.patterns?.[ch];
       for (let row = 0; row < 8; row++) {
         const bits = Number(pattern?.[row]) || 0;
-        for (let col = 0; col < 8; col++) putCell(buf, x, y, col, row, (bits & (0x80 >> col)) ? fg : bg);
+        for (let col = 0; col < glyphWidth; col++) putCell(buf, x, y, col, row, (bits & (0x80 >> col)) ? fg : bg);
       }
     },
   };

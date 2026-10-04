@@ -137,7 +137,8 @@ function exportFont(assets: ProjectAsset[], font: IntroFont, warnings: string[])
   glyphs.push([0, 0, 0, 0, 0, 0, 0, 0]); // blank glyph: unknown characters and spaces the font lacks
   const blank = glyphs.length - 1;
   const index = new Map(chars.map((ch, i) => [ch, i]));
-  return { key: String(font.id), cellBytes: 4, glyphs, indexOf: ch => index.get(ch) ?? blank };
+  // Cell width in bytes (2 px each): 4 for an 8x8 font, 2 for a SCREEN 5 font set to 4x8 (half width).
+  return { key: String(font.id), cellBytes: font.cellW >> 1, glyphs, indexOf: ch => index.get(ch) ?? blank };
 }
 
 interface ImageChunk { bank: number; addr: number; rows: number }
@@ -309,7 +310,7 @@ export function buildBitmapIntro(
         }
         bytes.push(
           rect.x >> 1, rect.y, rect.w >> 1, rect.h,
-          font.custom ? 4 : 3, fontIndex(font), zone.fg & 15, zone.bg & 15,
+          font.cellW >> 1, fontIndex(font), zone.fg & 15, zone.bg & 15,   // cell width in bytes: 3 built-in, 4 custom 8x8, 2 custom 4x8
           Math.max(8, Math.min(16, byteOr(zone.lineSpacing, 10))), Math.max(1, Math.min(255, byteOr(zone.charDelayFrames, 3))),
           Math.max(1, Math.floor(rect.w / font.cellW)),
         );

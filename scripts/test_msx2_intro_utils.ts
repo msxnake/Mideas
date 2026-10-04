@@ -86,6 +86,20 @@ const b3 = createIntroBuffer();
 drawZoneText(b3, z, layoutZoneText(z, 'A A', boxSpace), 3, boxSpace);
 assert.equal(b3[8], 2); // the space between the two "A" is box colour, not text colour
 
+// A SCREEN 5 font set to 4x8 (half width) has a 4 px cell: twice the characters per line, and only the
+// left 4 columns of each glyph are drawn. SCREEN 4, or no width at all, keeps the 8 px cell.
+const half = buildIntroFontFromAsset('f4', 'Half', { ...fontAsset.data, vdpMode: 'SCREEN5', glyphWidth: 4 } as any);
+assert.equal(half.cellW, 4);
+assert.equal(layoutZoneText(z, 'AAAAAA', half).cols, 6); // 24 / 4, against 3 for the 8x8 font
+assert.equal(layoutZoneText(z, 'AA AA', half).overflow, false); // 5 characters fit the 6 columns of a one-line zone
+assert.equal(layoutZoneText(z, 'AA AA', font).overflow, true); // 3 columns wrap them onto a second line the zone does not have
+const b4 = createIntroBuffer();
+drawZoneText(b4, z, layoutZoneText(z, 'AB', half), 2, half);
+assert.equal(b4[3], 7); // "A" is solid: its 4th column is text colour
+assert.equal(b4[4], 2); // "B" starts 4 px further and is empty (an 8 px cell would still be "A" here)
+assert.equal(buildIntroFontFromAsset('f5', 'HalfS4', { ...fontAsset.data, vdpMode: 'SCREEN4', glyphWidth: 4 } as any).cellW, 8);
+assert.equal(buildIntroFontFromAsset('f6', 'Full', { ...fontAsset.data, vdpMode: 'SCREEN5', glyphWidth: 8 } as any).cellW, 8);
+
 // fade: level 7 leaves the palette alone, 0 is black, and the steps in between are strictly increasing
 const pal = createIntroSlide('p').palette;
 const bright = (level: number) => scaleSlotsBrightness(pal, level).slice(1).reduce((n, slot) => n + parseInt(slot.hex.slice(1, 3), 16) + parseInt(slot.hex.slice(3, 5), 16) + parseInt(slot.hex.slice(5, 7), 16), 0);

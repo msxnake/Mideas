@@ -108,4 +108,26 @@ const bigChars = Array.from({ length: 300 }, (_u, i) => String.fromCharCode(0x10
 const bigAsset = { id: 'f1', name: 'Big', type: 'msx2hudfont', data: { target: 'MSX2', vdpMode: 'SCREEN4', baseChar: 0, characters: bigChars, patterns: {}, colorByte: 0xf1 } };
 assert.equal(build([bigFont], [bigAsset]).warnings.filter(w => /only the first 250/.test(w)).length, 1);
 
+// A zone record carries its cell width in bytes (the interpreter blits and advances by it): 4 for an 8x8 font,
+// 2 for a SCREEN 5 font set to 4x8, and the characters-per-line byte doubles with it. The built-in font keeps 3.
+const zoneRecord = (fontData: any | undefined) => {
+  const slide = createIntroSlide('rec');
+  const zone = slide.textZones[0];
+  zone.rect = { x: 16, y: 8, w: 64, h: 16 };
+  zone.fg = 7; zone.bg = 2; zone.lineSpacing = 10; zone.charDelayFrames = 3;
+  if (fontData) zone.fontAssetId = 'fh';
+  slide.steps = [{ ...createIntroStep(zone.id), text: 'A' }];
+  const asset = fontData ? [{ id: 'fh', name: 'Half', type: 'msx2hudfont', data: fontData }] : [];
+  // DB lines wrap every 16 bytes: glue them back into one stream before looking for the record
+  return build([slide], asset).banksAsm.replace(/\n\s*DB /g, ',').replace(/\s/g, '');
+};
+const fh = { target: 'MSX2', baseChar: 0, characters: 'A ', colorByte: 0xf1, patterns: { A: [255, 255, 255, 255, 255, 255, 255, 255] } };
+const hex = (bytes: number[]) => bytes.map(b => `#${b.toString(16).toUpperCase().padStart(2, '0')}`).join(',');
+const record = (cellBytes: number, cols: number) => hex([8, 8, 32, 16, cellBytes, 0, 7, 2, 10, 3, cols]); // x/2, y, w/2, h, cell, font, fg, bg, spacing, delay, cols
+assert.ok(zoneRecord({ ...fh, vdpMode: 'SCREEN4' }).includes(record(4, 8)), '8x8 font: 4-byte cell, 64 / 8 = 8 columns');
+assert.ok(zoneRecord({ ...fh, vdpMode: 'SCREEN5' }).includes(record(4, 8)), 'SCREEN 5 font without a width keeps the 8 px cell');
+assert.ok(zoneRecord({ ...fh, vdpMode: 'SCREEN5', glyphWidth: 4 }).includes(record(2, 16)), '4x8 font: 2-byte cell, 64 / 4 = 16 columns');
+assert.ok(!zoneRecord({ ...fh, vdpMode: 'SCREEN4', glyphWidth: 4 }).includes(record(2, 16)), 'a 4x8 width outside SCREEN 5 is ignored, like everywhere else');
+assert.ok(zoneRecord(undefined).includes(hex([8, 8, 32, 16, 3, 0, 7, 2, 10, 3, 10])), 'built-in font: 3-byte cell, 64 / 6 = 10 columns');
+
 console.log('msx2 intro export: OK');

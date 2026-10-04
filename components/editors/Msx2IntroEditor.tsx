@@ -575,7 +575,7 @@ export const Msx2IntroEditor: React.FC<Msx2IntroEditorProps> = ({ intro, onUpdat
             {intro.fontAssetId && !fontAssets.some(a => a.id === intro.fontAssetId) && (
               <div className="text-xs text-amber-300">The selected font asset no longer exists; the built-in font is used.</div>
             )}
-            {fontAssets.length === 0 && <div className="text-[10px] text-msx-textsecondary">Create an MSX2 Font asset to use your own glyphs (8x8). Zones can override this font.</div>}
+            {fontAssets.length === 0 && <div className="text-[10px] text-msx-textsecondary">Create an MSX2 Font asset to use your own glyphs (8x8, or 4x8 half width in SCREEN 5: twice the characters per line). Zones can override this font.</div>}
             <label className="flex items-center gap-1 text-xs text-msx-textsecondary"><span className="w-14">Music</span>
               <select className={`${inputCls} flex-1`} value={intro.musicTrackAssetId ?? ''} onChange={e => onUpdate({ musicTrackAssetId: e.target.value || undefined })}>
                 <option value="">Keep whatever is playing</option>
