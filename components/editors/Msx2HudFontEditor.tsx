@@ -449,10 +449,24 @@ export const Msx2HudFontEditor: React.FC<Msx2HudFontEditorProps> = ({ font, onUp
     onUpdate({ glyphWidth: nextWidth });
   };
 
-  // Overwrites every glyph with the built-in 3x5 font (drawn in the current
-  // paint colour) and adds the punctuation it covers, so dialogues can use it.
+  // A glyph colour that can be seen on the font background: the paint colour when it differs from the
+  // background slot AND from its palette colour, otherwise the brightest free slot (15 down to 1).
+  // Painting the base font in the background colour made every glyph look empty while the editor
+  // still said it had loaded them.
+  const pickVisibleGlyphSlot = (): number => {
+    const hexOf = (slot: number) => String(paletteSlots[slot]?.hex ?? '').toLowerCase();
+    const backgroundHex = hexOf(screen5BackgroundSlot);
+    const visible = (slot: number) => slot !== 0 && slot !== screen5BackgroundSlot && hexOf(slot) !== backgroundHex;
+    const candidates = [selectedScreen5Color & 0x0f, ...Array.from({ length: 15 }, (_unused, index) => 15 - index)];
+    return candidates.find(visible) ?? (selectedScreen5Color & 0x0f);
+  };
+
+  // Overwrites every glyph with the built-in 3x5 font and adds the punctuation it
+  // covers, so dialogues can use it. Drawn in the paint colour unless that is
+  // the background (see pickVisibleGlyphSlot).
   const loadDefault4x8Font = () => {
     if (!window.confirm('Replace every glyph of this font with the built-in 4x8 font?')) return;
+    const glyphColor = pickVisibleGlyphSlot();
     const nextCharacters = characters.join('') + Array.from(MSX2_HUD_FONT_4X8_EXTRA_CHARS).filter(char => !characters.includes(char)).join('');
     const nextPatterns: Record<string, number[]> = { ...(font.patterns || {}) };
     const nextBitmapPatterns: Record<string, number[][]> = { ...(font.bitmapPatterns || {}) };
@@ -460,10 +474,13 @@ export const Msx2HudFontEditor: React.FC<Msx2HudFontEditorProps> = ({ font, onUp
       const pattern = DEFAULT_HUD_FONT_4X8_PATTERNS[char];
       if (!pattern) return;
       nextPatterns[char] = [...pattern];
-      nextBitmapPatterns[char] = bitmapFromPattern(pattern, selectedScreen5Color, screen5BackgroundSlot);
+      nextBitmapPatterns[char] = bitmapFromPattern(pattern, glyphColor, screen5BackgroundSlot);
     });
     onUpdate({ glyphWidth: 4, characters: nextCharacters, patterns: nextPatterns, bitmapPatterns: nextBitmapPatterns });
-    setImportStatus('Loaded the built-in 4x8 font (3x5 glyphs).');
+    if (glyphColor !== selectedScreen5Color) setSelectedScreen5Color(glyphColor);
+    setImportStatus(glyphColor === selectedScreen5Color
+      ? `Loaded the built-in 4x8 font (3x5 glyphs) in colour ${glyphColor}.`
+      : `Loaded the built-in 4x8 font (3x5 glyphs) in colour ${glyphColor}: the paint colour ${selectedScreen5Color} is the background colour here, so the glyphs would have been invisible.`);
   };
 
   const exportJson = () => {
