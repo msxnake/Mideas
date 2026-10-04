@@ -1,0 +1,12 @@
+note  before: hearts=5 screen=3 room_sum=11613766
+note  hearts set to 3 just before leaving zone A
+note  after:  hearts=5 screen=3 room_sum=11613766 intro_presses=4
+ok    the intro ran between the zones (4 steps)
+ok    game loop is back (game-over flag cleared)
+ok    same start room after the second WorldLink
+ok    room on page 0 identical to zone A's start room
+ok    game palette restored (slide palette gone)
+ok    sprites re-enabled
+ok    intro music option: song keeps playing through the intermission
+ok    intro scratch flag cleared
+RESULT PASS

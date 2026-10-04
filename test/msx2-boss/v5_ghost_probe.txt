@@ -1,0 +1,35 @@
+v5_ghost_probe
+SAMPLE frame=60 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=120 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=180 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=240 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=300 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=360 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=420 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=480 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=540 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=600 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=660 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=720 playerCalls=0 blits=0 busyHits=0 boss=255,0
+START frame=725 playerCalls=0 blits=0 busyHits=0
+SAMPLE frame=55 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=115 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=175 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=235 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=295 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=355 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=415 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=475 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=535 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=595 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=655 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=715 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=775 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=835 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=895 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=955 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=1015 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=1075 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=1135 playerCalls=0 blits=0 busyHits=0 boss=255,0
+SAMPLE frame=1195 playerCalls=0 blits=0 busyHits=0 boss=255,0
+FINAL frames=1200 playerCalls=0 blits=0 busyHits=0

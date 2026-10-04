@@ -1,0 +1,51 @@
+measure start ROM=6de775a8335b1f4c... INIT=0x4010 restore=0x45CA commit=0x44DC startTrans=0x4409
+IDX -1 -> 0 at frame 1
+SAT stableA-start 34 20 80 00 54 60 84 00 C4 30 00 00 C4 30 04 00
+--- walking RIGHT (cycle 1)
+TRANS-PROBE-FIRST frame=600 idx=0 px=48 (per-frame probe begins)
+COMPOSE-START frame=600
+TRANS-COMMIT #1 frame=695 idx=0 composeFrames=95
+COPY bytes=1024 hl=95A8 de=F800
+RESTORE-END usec=15888
+COMPOSE-START frame=695
+IDX 0 -> 1 at frame 696
+--- walking LEFT (cycle 1)
+TRANS-PROBE-FIRST frame=696 idx=1 px=4 (per-frame probe begins)
+TRANS-COMMIT #2 frame=697 idx=1 composeFrames=2
+COPY bytes=1024 hl=95A8 de=F800
+RESTORE-END usec=15888
+COMPOSE-START frame=697
+IDX 1 -> 0 at frame 698
+TRANS-PROBE-FIRST frame=698 idx=0 px=236 (per-frame probe begins)
+--- walking RIGHT (cycle 2)
+TRANS-COMMIT #3 frame=757 idx=0 composeFrames=60
+COPY bytes=1024 hl=95A8 de=F800
+RESTORE-END usec=15888
+COMPOSE-START frame=757
+IDX 0 -> 1 at frame 758
+--- walking LEFT (cycle 2)
+TRANS-PROBE-FIRST frame=758 idx=1 px=4 (per-frame probe begins)
+TRANS-COMMIT #4 frame=759 idx=1 composeFrames=2
+COPY bytes=1024 hl=95A8 de=F800
+RESTORE-END usec=15888
+COMPOSE-START frame=759
+IDX 1 -> 0 at frame 760
+TRANS-PROBE-FIRST frame=760 idx=0 px=236 (per-frame probe begins)
+--- walking RIGHT (cycle 3)
+TRANS-COMMIT #5 frame=819 idx=0 composeFrames=60
+COPY bytes=1024 hl=95A8 de=F800
+RESTORE-END usec=15888
+COMPOSE-START frame=819
+IDX 0 -> 1 at frame 820
+--- walking LEFT (cycle 3)
+TRANS-PROBE-FIRST frame=820 idx=1 px=4 (per-frame probe begins)
+TRANS-COMMIT #6 frame=821 idx=1 composeFrames=2
+COPY bytes=1024 hl=95A8 de=F800
+RESTORE-END usec=15888
+COMPOSE-START frame=821
+IDX 1 -> 0 at frame 822
+TRANS-PROBE-FIRST frame=822 idx=0 px=236 (per-frame probe begins)
+SAT stableA-end   34 20 80 00 54 60 84 00 C4 B4 40 00 C4 B4 44 00
+TOTAL frames=851 boot_hits=1 tickErrors=0 transitions=6 restoreCalls=6 restoreBytes=6144 restoreUsecTotal=95328
+INSTRUMENT: CLEAN
+MEASUREMENT-COMPLETE baseline (no patch applied)

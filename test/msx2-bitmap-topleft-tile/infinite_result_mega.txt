@@ -1,0 +1,66 @@
+state boot                       screen=0 inf_active=1 inf_cur=0 px=48 py=160 comp=0 page=0 | box st=0 x=64 y=160 | rock st=0 x=96 y=160 | slot=255
+PASS  boot: room 0, anchor 0, loop ACTIVE  (loop starts at initialLoopActive)
+PASS  boot: box + rock resting at authored cells  (slots 0/1)
+PASS  boot: sfx shadow still muted  (psg_sfx_r7_c_bits)
+state SHOT 01_initial_room       screen=0 inf_active=1 inf_cur=0 px=48 py=160 comp=0 page=0 | box st=0 x=64 y=160 | rock st=0 x=96 y=160 | slot=255
+shot  test/msx2-bitmap-topleft-tile/shots_inf_mega/01_initial_room.png
+state after east wrap            screen=0 inf_active=1 inf_cur=0 px=6 py=160 comp=0 page=1 | box st=0 x=64 y=160 | rock st=0 x=96 y=160 | slot=255
+PASS  east exit with loop active stays in room 0  (current_screen_index)
+PASS  east exit appears at the WEST edge  (player_x=6)
+state SHOT 02_after_wrap_east    screen=0 inf_active=1 inf_cur=0 px=6 py=160 comp=0 page=1 | box st=0 x=64 y=160 | rock st=0 x=96 y=160 | slot=255
+shot  test/msx2-bitmap-topleft-tile/shots_inf_mega/02_after_wrap_east.png
+state after west wrap            screen=0 inf_active=1 inf_cur=0 px=234 py=160 comp=0 page=0 | box st=0 x=64 y=160 | rock st=0 x=96 y=160 | slot=255
+PASS  west exit with loop active stays in room 0  (current_screen_index)
+PASS  west exit appears at the EAST edge  (player_x=234)
+state SHOT 03_after_wrap_west    screen=0 inf_active=1 inf_cur=0 px=234 py=160 comp=0 page=0 | box st=0 x=64 y=160 | rock st=0 x=96 y=160 | slot=255
+shot  test/msx2-bitmap-topleft-tile/shots_inf_mega/03_after_wrap_west.png
+PASS  south exit requests direction 3  (bitmap_transition_dir=3)
+state after south wrap           screen=0 inf_active=1 inf_cur=0 px=176 py=2 comp=0 page=1 | box st=0 x=64 y=160 | rock st=0 x=96 y=160 | slot=255
+PASS  south exit stays in room 0 and appears at the TOP  (player_y=2)
+PASS  north exit requests direction 2  (bitmap_transition_dir=2)
+state after north wrap           screen=0 inf_active=1 inf_cur=0 px=200 py=174 comp=0 page=0 | box st=0 x=64 y=160 | rock st=0 x=96 y=160 | slot=255
+PASS  north exit stays in room 0  (current_screen_index)
+PASS  box is CARRIED after pressing N next to it  (state=1 slot=0)
+state SHOT 04_box_carried        screen=0 inf_active=1 inf_cur=0 px=60 py=160 comp=0 page=0 | box st=1 x=60 y=144 | rock st=0 x=96 y=160 | slot=0
+shot  test/msx2-bitmap-topleft-tile/shots_inf_mega/04_box_carried.png
+state carried across wrap        screen=0 inf_active=1 inf_cur=0 px=6 py=160 comp=0 page=1 | box st=1 x=6 y=144 | rock st=0 x=96 y=160 | slot=0
+PASS  wrap keeps the room  (current_screen_index)
+PASS  held box is STILL carried after the wrap  (state=1 slot=0)
+PASS  carried box follows the player  (box_x=6 player_x=6)
+PASS  self-wrap latch consumed  (bitmap_inf_self_wrap)
+state SHOT 05_after_wrap_carrying screen=0 inf_active=1 inf_cur=0 px=6 py=160 comp=0 page=1 | box st=1 x=6 y=144 | rock st=0 x=96 y=160 | slot=0
+shot  test/msx2-bitmap-topleft-tile/shots_inf_mega/05_after_wrap_carrying.png
+state just thrown                screen=0 inf_active=1 inf_cur=0 px=108 py=160 comp=0 page=1 | box st=2 x=144 y=144 | rock st=0 x=96 y=160 | slot=255
+state box landed after real throw screen=0 inf_active=0 inf_cur=0 px=108 py=160 comp=0 page=1 | box st=0 x=164 y=176 | rock st=0 x=96 y=160 | slot=255
+PASS  real throw: the box landed resting INSIDE the zone (centre x 160..207, y 160..191)  (centre=(172,184))
+PASS  resting box inside the zone switches the loop OFF  (bitmap_inf_active)
+PASS  loop-off sfx ran (PSG R4 written with the 'solved' tone #0F)  (R4 writes: 15)
+PASS  sfx mixer shadow now #20  (psg_sfx_r7_c_bits=32)
+state SHOT 06_box_in_zone        screen=0 inf_active=0 inf_cur=0 px=108 py=160 comp=0 page=1 | box st=0 x=164 y=176 | rock st=0 x=96 y=160 | slot=255
+shot  test/msx2-bitmap-topleft-tile/shots_inf_mega/06_box_in_zone.png
+PASS  no sound while the box just stays in the zone  (R4 writes now 1)
+state after picking out          screen=0 inf_active=1 inf_cur=0 px=148 py=160 comp=0 page=1 | box st=1 x=148 y=144 | rock st=0 x=96 y=160 | slot=0
+PASS  box picked out of the zone is carried again  (state=1)
+PASS  picking it out flips the loop back ON  (bitmap_inf_active)
+PASS  loop-on sfx ran (PSG R4 written with the 'unsolved' tone #C0)  (R4 writes: 192)
+state SHOT 07_box_picked_out     screen=0 inf_active=1 inf_cur=0 px=148 py=160 comp=0 page=1 | box st=1 x=148 y=144 | rock st=0 x=96 y=160 | slot=0
+shot  test/msx2-bitmap-topleft-tile/shots_inf_mega/07_box_picked_out.png
+state just thrown                screen=0 inf_active=1 inf_cur=0 px=108 py=160 comp=0 page=1 | box st=2 x=144 y=144 | rock st=0 x=96 y=160 | slot=255
+state box in zone again          screen=0 inf_active=0 inf_cur=0 px=108 py=160 comp=0 page=1 | box st=0 x=164 y=176 | rock st=0 x=96 y=160 | slot=255
+state in room 1                  screen=1 inf_active=0 inf_cur=255 px=6 py=165 comp=0 page=0 | box st=255 x=164 y=176 | rock st=255 x=96 y=160 | slot=255
+PASS  loop OFF: east exit reaches room 1  (current_screen_index)
+PASS  room 1 is not infinite (anchor #FF, active 0)  (cur=255 active=0)
+state SHOT 08_room1              screen=1 inf_active=0 inf_cur=255 px=6 py=176 comp=0 page=0 | box st=255 x=164 y=176 | rock st=255 x=96 y=160 | slot=255
+shot  test/msx2-bitmap-topleft-tile/shots_inf_mega/08_room1.png
+state back in room 0             screen=0 inf_active=0 inf_cur=0 px=238 py=161 comp=0 page=1 | box st=0 x=164 y=176 | rock st=0 x=96 y=160 | slot=255
+PASS  west exit of room 1 returns to room 0  (current_screen_index)
+PASS  box is STILL where it was left (persisted position)  (was (164,176) now (164,176) st=0)
+PASS  box is still inside the zone  (centre=(172,184))
+PASS  loop is STILL off  (active=0 cur=0)
+PASS  rock persisted at its own resting cell  (rock x=96 y=160)
+PASS  no sound at room load / restore  (R4 writes during the return: 0)
+PASS  the normal load path of bitmap_inf_load_room ran (boot + room1 + back)  (hits=3)
+state SHOT 09_back_in_room0      screen=0 inf_active=0 inf_cur=0 px=238 py=161 comp=0 page=1 | box st=0 x=164 y=176 | rock st=0 x=96 y=160 | slot=255
+shot  test/msx2-bitmap-topleft-tile/shots_inf_mega/09_back_in_room0.png
+normal (non self-wrap) inf loads executed: 3
+RESULT: 33 passed, 0 failed

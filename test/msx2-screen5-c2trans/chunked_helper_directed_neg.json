@@ -1,0 +1,272 @@
+{
+  "purpose": "Directed regression of fast_copy_to_vram_chunked (C2-parche) v3 - NEGATIVE CONTROL",
+  "mutation": "ld d,b followed by inc d -> one extra 256B chunk per nonempty copy",
+  "sourceBuildAsm": "server/temp/msx2_bitmap_room_smoke_fg_fastcopy_patterns1k_unified.asm",
+  "sourceBuildAsmSha256": "1f88702ab3b2a4193c89a71a5560deb06cc5b18c53e9513f5aa1872e07138278",
+  "generatorTsSha256": "7bf684a61021725774eedd9e42c6b736fb815b3bc271fd4b76dc706d745a56a8",
+  "cases": [
+    {
+      "len": 0,
+      "dst": 12288,
+      "pattern": 3,
+      "poison": 252,
+      "base": 5,
+      "guardAfter": [
+        12288,
+        12289,
+        12290,
+        12291,
+        12292,
+        12293,
+        12294,
+        12295,
+        12296,
+        12297,
+        12298,
+        12299,
+        12300,
+        12301,
+        12302,
+        12303
+      ]
+    },
+    {
+      "len": 1,
+      "dst": 30720,
+      "pattern": 10,
+      "poison": 245,
+      "base": 22,
+      "guardAfter": [
+        30721,
+        30722,
+        30723,
+        30724,
+        30725,
+        30726,
+        30727,
+        30728,
+        30729,
+        30730,
+        30731,
+        30732,
+        30733,
+        30734,
+        30735,
+        30736
+      ]
+    },
+    {
+      "len": 255,
+      "dst": 47104,
+      "pattern": 17,
+      "poison": 238,
+      "base": 39,
+      "guardAfter": [
+        47359,
+        47360,
+        47361,
+        47362,
+        47363,
+        47364,
+        47365,
+        47366,
+        47367,
+        47368,
+        47369,
+        47370,
+        47371,
+        47372,
+        47373,
+        47374
+      ]
+    },
+    {
+      "len": 256,
+      "dst": 63488,
+      "pattern": 24,
+      "poison": 231,
+      "base": 56,
+      "guardAfter": [
+        63744,
+        63745,
+        63746,
+        63747,
+        63748,
+        63749,
+        63750,
+        63751,
+        63752,
+        63753,
+        63754,
+        63755,
+        63756,
+        63757,
+        63758,
+        63759
+      ]
+    },
+    {
+      "len": 257,
+      "dst": 12288,
+      "pattern": 31,
+      "poison": 224,
+      "base": 73,
+      "guardAfter": [
+        12545,
+        12546,
+        12547,
+        12548,
+        12549,
+        12550,
+        12551,
+        12552,
+        12553,
+        12554,
+        12555,
+        12556,
+        12557,
+        12558,
+        12559,
+        12560
+      ]
+    },
+    {
+      "len": 512,
+      "dst": 30720,
+      "pattern": 38,
+      "poison": 217,
+      "base": 90,
+      "guardAfter": [
+        31232,
+        31233,
+        31234,
+        31235,
+        31236,
+        31237,
+        31238,
+        31239,
+        31240,
+        31241,
+        31242,
+        31243,
+        31244,
+        31245,
+        31246,
+        31247
+      ]
+    },
+    {
+      "len": 1024,
+      "dst": 47104,
+      "pattern": 45,
+      "poison": 210,
+      "base": 107,
+      "guardAfter": [
+        48128,
+        48129,
+        48130,
+        48131,
+        48132,
+        48133,
+        48134,
+        48135,
+        48136,
+        48137,
+        48138,
+        48139,
+        48140,
+        48141,
+        48142,
+        48143
+      ]
+    },
+    {
+      "len": 2048,
+      "dst": 63488,
+      "pattern": 52,
+      "poison": 203,
+      "base": 124,
+      "guardAfter": [
+        49152,
+        49153,
+        49154,
+        49155,
+        49156,
+        49157,
+        49158,
+        49159,
+        49160,
+        49161,
+        49162,
+        49163,
+        49164,
+        49165,
+        49166,
+        49167
+      ]
+    }
+  ],
+  "passes": [
+    {
+      "id": 0,
+      "displayOn": true,
+      "ei": true,
+      "note": "display+EI: HALT probe, CNT must grow"
+    },
+    {
+      "id": 1,
+      "displayOn": false,
+      "ei": true,
+      "note": "blank+EI: R1=0x20 pinned by VDP diff"
+    },
+    {
+      "id": 2,
+      "displayOn": true,
+      "ei": false,
+      "note": "display+DI: CNT frozen"
+    },
+    {
+      "id": 3,
+      "displayOn": false,
+      "ei": false,
+      "note": "blank+DI: CNT frozen"
+    }
+  ],
+  "outSites": [
+    17011,
+    17018,
+    17056,
+    17061
+  ],
+  "ram": {
+    "RESULT": 49152,
+    "DONE": 49153,
+    "SAVIX": 49154,
+    "SAVIY": 49156,
+    "PAT": 49158,
+    "LEN": 49159,
+    "DST": 49161,
+    "PASSN": 49163,
+    "CNT": 49164,
+    "STUB": 49168,
+    "SRC": 49408
+  },
+  "files": [
+    {
+      "ext": "asm",
+      "sha256": "a33797ab1e0058a63807a887ae788f5d031f96f42680fa8a4221e70c2183ce04"
+    },
+    {
+      "ext": "rom",
+      "sha256": "639a0e5356907731343cb5a8dd16b4bfc44e648fc0a49452704140f900ced48b"
+    },
+    {
+      "ext": "sym",
+      "sha256": "8328108e6ba2cd1c32bcee27932985c166cb68877962e851e71c815ef6c22a77"
+    },
+    {
+      "ext": "tcl",
+      "sha256": "299cf1dafbee91ebfe2caa55ccf07ccd7f058511824c2bdaa694cb51c929104a"
+    }
+  ]
+}

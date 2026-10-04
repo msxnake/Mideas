@@ -1,0 +1,162 @@
+p1_ghost_detector (8 slots, SAT #F610)
+ARMED frame=472 boss=48,48
+GHOST #1 frame=473 slot=7 Y=0 X=0 pat=0 live=0 boss=48,48
+frame=473 live=0 bad=4 boss=48,48
+GHOST #2 frame=474 slot=7 Y=0 X=0 pat=0 live=0 boss=48,48
+GHOST #3 frame=475 slot=7 Y=0 X=0 pat=0 live=0 boss=48,48
+GHOST #4 frame=476 slot=7 Y=0 X=0 pat=0 live=0 boss=48,48
+GHOST #5 frame=477 slot=7 Y=0 X=0 pat=0 live=0 boss=48,48
+GHOST #6 frame=478 slot=7 Y=0 X=0 pat=0 live=0 boss=48,48
+GHOST #7 frame=479 slot=7 Y=0 X=0 pat=0 live=0 boss=48,48
+GHOST #8 frame=480 slot=7 Y=0 X=0 pat=0 live=0 boss=48,48
+GHOST #9 frame=481 slot=7 Y=0 X=0 pat=0 live=0 boss=48,48
+frame=481 live=0 bad=1 boss=48,48
+frame=482 live=0 bad=0 boss=48,48
+GHOST #10 frame=547 slot=7 Y=0 X=0 pat=0 live=0 boss=48,48
+frame=547 live=0 bad=1 boss=48,48
+frame=548 live=0 bad=0 boss=48,48
+GHOST #11 frame=589 slot=7 Y=0 X=0 pat=0 live=0 boss=48,48
+frame=589 live=0 bad=1 boss=48,48
+frame=590 live=0 bad=0 boss=48,48
+GHOST #12 frame=592 slot=7 Y=0 X=0 pat=0 live=0 boss=48,48
+frame=592 live=0 bad=1 boss=48,48
+frame=593 live=0 bad=0 boss=48,48
+FIGHTMARK frame=600 live=0 bad=0 ghosts=12 boss=48,48
+GHOST #13 frame=606 slot=7 Y=0 X=0 pat=0 live=0 boss=48,48
+frame=606 live=0 bad=1 boss=48,48
+frame=607 live=0 bad=0 boss=48,48
+GHOST #14 frame=631 slot=7 Y=0 X=0 pat=0 live=0 boss=48,48
+frame=631 live=0 bad=1 boss=48,48
+frame=632 live=0 bad=0 boss=48,48
+GHOST #15 frame=636 slot=7 Y=0 X=0 pat=0 live=0 boss=48,48
+frame=636 live=0 bad=1 boss=48,48
+frame=637 live=0 bad=0 boss=48,48
+GHOST #16 frame=652 slot=7 Y=0 X=0 pat=0 live=0 boss=48,48
+frame=652 live=0 bad=1 boss=48,48
+GHOST #17 frame=653 slot=7 Y=0 X=0 pat=0 live=0 boss=48,48
+frame=654 live=0 bad=0 boss=48,48
+GHOST #18 frame=720 slot=7 Y=0 X=0 pat=0 live=0 boss=50,50
+frame=720 live=0 bad=1 boss=50,50
+frame=721 live=0 bad=0 boss=50,50
+GHOST #19 frame=723 slot=7 Y=0 X=0 pat=0 live=0 boss=50,51
+frame=723 live=0 bad=1 boss=50,51
+frame=724 live=0 bad=0 boss=50,51
+GHOST #20 frame=726 slot=7 Y=0 X=0 pat=0 live=0 boss=52,52
+frame=726 live=0 bad=1 boss=52,52
+frame=727 live=0 bad=0 boss=52,52
+GHOST #21 frame=729 slot=7 Y=0 X=0 pat=0 live=0 boss=54,54
+frame=729 live=0 bad=1 boss=54,54
+frame=730 live=0 bad=0 boss=54,54
+GHOST #22 frame=741 slot=7 Y=0 X=0 pat=0 live=0 boss=60,59
+frame=741 live=0 bad=1 boss=60,59
+frame=742 live=0 bad=0 boss=60,59
+GHOST #23 frame=747 slot=7 Y=0 X=0 pat=0 live=0 boss=62,61
+frame=747 live=0 bad=1 boss=62,61
+frame=748 live=0 bad=0 boss=62,61
+GHOST #24 frame=750 slot=7 Y=0 X=0 pat=0 live=0 boss=64,62
+frame=750 live=0 bad=1 boss=64,62
+frame=751 live=0 bad=0 boss=64,62
+GHOST #25 frame=753 slot=7 Y=0 X=0 pat=0 live=0 boss=66,63
+frame=753 live=0 bad=1 boss=66,63
+frame=754 live=0 bad=0 boss=66,63
+GHOST #26 frame=756 slot=7 Y=0 X=0 pat=0 live=0 boss=68,64
+frame=756 live=0 bad=1 boss=68,64
+frame=757 live=0 bad=0 boss=68,64
+GHOST #27 frame=768 slot=7 Y=0 X=0 pat=0 live=0 boss=76,63
+frame=768 live=0 bad=1 boss=76,63
+frame=769 live=0 bad=0 boss=76,63
+GHOST #28 frame=771 slot=7 Y=0 X=0 pat=0 live=0 boss=78,63
+frame=771 live=0 bad=1 boss=78,63
+frame=772 live=0 bad=0 boss=78,63
+GHOST #29 frame=774 slot=7 Y=0 X=0 pat=0 live=0 boss=80,62
+frame=774 live=0 bad=1 boss=80,62
+frame=775 live=0 bad=0 boss=80,62
+GHOST #30 frame=777 slot=7 Y=0 X=0 pat=0 live=0 boss=82,61
+frame=777 live=0 bad=1 boss=82,61
+frame=778 live=0 bad=0 boss=82,61
+GHOST #31 frame=780 slot=7 Y=0 X=0 pat=0 live=0 boss=84,60
+frame=780 live=0 bad=1 boss=84,60
+frame=781 live=0 bad=0 boss=84,60
+GHOST #32 frame=783 slot=7 Y=0 X=0 pat=0 live=0 boss=84,59
+frame=783 live=0 bad=1 boss=84,59
+frame=784 live=0 bad=0 boss=84,59
+GHOST #33 frame=786 slot=7 Y=0 X=0 pat=0 live=0 boss=86,57
+frame=786 live=0 bad=1 boss=86,57
+frame=787 live=0 bad=0 boss=86,57
+GHOST #34 frame=789 slot=7 Y=0 X=0 pat=0 live=0 boss=88,56
+frame=789 live=0 bad=1 boss=88,56
+frame=790 live=0 bad=0 boss=88,56
+GHOST #35 frame=792 slot=7 Y=0 X=0 pat=0 live=0 boss=90,55
+frame=792 live=0 bad=1 boss=90,55
+frame=793 live=0 bad=0 boss=90,55
+GHOST #36 frame=801 slot=7 Y=0 X=0 pat=0 live=0 boss=94,50
+frame=801 live=0 bad=1 boss=94,50
+frame=802 live=0 bad=0 boss=94,50
+GHOST #37 frame=822 slot=7 Y=0 X=0 pat=0 live=0 boss=104,40
+frame=822 live=0 bad=1 boss=104,40
+frame=823 live=0 bad=0 boss=104,40
+GHOST #38 frame=828 slot=7 Y=0 X=0 pat=0 live=0 boss=106,38
+frame=828 live=0 bad=1 boss=106,38
+frame=829 live=0 bad=0 boss=106,38
+GHOST #39 frame=831 slot=7 Y=0 X=0 pat=0 live=0 boss=108,36
+frame=831 live=0 bad=1 boss=108,36
+frame=832 live=0 bad=0 boss=108,36
+GHOST #40 frame=837 slot=7 Y=0 X=0 pat=0 live=0 boss=112,34
+frame=837 live=0 bad=1 boss=112,34
+frame=838 live=0 bad=0 boss=112,34
+frame=852 live=8 bad=0 boss=120,32
+frame=863 live=6 bad=0 boss=120,32
+frame=874 live=4 bad=0 boss=120,32
+frame=876 live=3 bad=1 boss=120,32
+frame=877 live=3 bad=0 boss=120,32
+frame=879 live=2 bad=0 boss=120,32
+frame=885 live=1 bad=0 boss=120,32
+frame=891 live=0 bad=0 boss=120,32
+frame=923 live=8 bad=0 boss=140,43
+frame=937 live=6 bad=0 boss=140,43
+frame=940 live=4 bad=0 boss=140,43
+frame=952 live=2 bad=1 boss=140,43
+frame=953 live=2 bad=0 boss=140,43
+frame=957 live=1 bad=0 boss=140,43
+frame=968 live=0 bad=0 boss=140,43
+frame=991 live=8 bad=0 boss=134,48
+frame=1007 live=6 bad=0 boss=134,48
+frame=1009 live=4 bad=0 boss=134,48
+frame=1016 live=3 bad=1 boss=134,48
+frame=1017 live=3 bad=0 boss=134,48
+frame=1020 live=2 bad=0 boss=134,48
+frame=1028 live=1 bad=1 boss=134,48
+frame=1029 live=1 bad=0 boss=134,48
+frame=1034 live=0 bad=0 boss=134,48
+frame=1060 live=8 bad=0 boss=116,48
+frame=1076 live=6 bad=1 boss=116,48
+frame=1077 live=6 bad=0 boss=116,48
+frame=1080 live=5 bad=1 boss=116,48
+frame=1082 live=5 bad=0 boss=116,48
+frame=1083 live=3 bad=0 boss=116,48
+frame=1089 live=2 bad=0 boss=116,48
+frame=1097 live=1 bad=0 boss=116,48
+frame=1098 live=0 bad=0 boss=116,48
+frame=1131 live=8 bad=0 boss=94,48
+frame=1147 live=6 bad=1 boss=94,48
+frame=1148 live=6 bad=0 boss=94,48
+frame=1160 live=2 bad=0 boss=94,48
+frame=1163 live=0 bad=0 boss=94,48
+frame=1165 live=8 bad=0 boss=92,48
+frame=1181 live=6 bad=0 boss=92,48
+frame=1194 live=4 bad=1 boss=92,48
+frame=1195 live=2 bad=0 boss=92,48
+frame=1197 live=0 bad=0 boss=92,48
+frame=1199 live=0 bad=1 boss=90,48
+frame=1200 live=0 bad=0 boss=90,48
+FIGHTMARK frame=1200 live=0 bad=0 ghosts=40 boss=90,48
+frame=1217 live=0 bad=1 boss=78,48
+frame=1218 live=0 bad=0 boss=78,48
+frame=1229 live=0 bad=1 boss=70,48
+frame=1230 live=0 bad=0 boss=70,48
+frame=1239 live=8 bad=0 boss=64,48
+frame=1255 live=6 bad=2 boss=64,48
+frame=1256 live=6 bad=0 boss=64,48
+frame=1259 live=5 bad=1 boss=64,48
+FIGHTMARK frame=1800 live=5 bad=1 ghosts=40 boss=64,48
+FIGHTMARK frame=2400 live=5 bad=1 ghosts=40 boss=64,48

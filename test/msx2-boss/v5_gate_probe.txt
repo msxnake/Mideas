@@ -1,0 +1,9 @@
+v5_gate_probe
+t=12s blits=2 busy=0 free=0 off=0 active=1 pos=64,32 path=1 firemode=0 tick=0
+t=14s blits=2 busy=0 free=0 off=0 active=1 pos=64,32 path=1 firemode=0 tick=0
+t=16s blits=2 busy=0 free=0 off=0 active=1 pos=64,32 path=1 firemode=0 tick=0
+t=18s blits=2 busy=0 free=0 off=0 active=1 pos=64,32 path=1 firemode=0 tick=0
+t=20s blits=2 busy=0 free=0 off=0 active=1 pos=64,32 path=1 firemode=0 tick=0
+t=22s blits=2 busy=0 free=0 off=0 active=1 pos=64,32 path=1 firemode=0 tick=0
+t=24s blits=2 busy=0 free=0 off=0 active=1 pos=64,32 path=1 firemode=0 tick=0
+FINAL

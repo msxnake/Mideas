@@ -1,0 +1,18 @@
+[
+ {"node":{"effect":"screen5_wipe","direction":"left_to_right","fillColorIndex":3}},
+ {"node":{"effect":"screen5_wipe","direction":"diagonal_br","blockSize":16,"fillColorIndex":5}},
+ {"node":{"effect":"screen5_wipe","direction":"center_out_v","blockSize":4,"fillColorIndex":1}, "yoff":256},
+ {"node":{"effect":"screen5_blinds","direction":"top_to_bottom","fillColorIndex":7}},
+ {"node":{"effect":"screen5_blinds","direction":"center_out_h","blockSize":32,"fillColorIndex":9}},
+ {"node":{"effect":"screen5_pattern","patternId":"bayer4","fillColorIndex":2}},
+ {"node":{"effect":"screen5_pattern","patternId":"checker","fillColorIndex":4}},
+ {"node":{"effect":"screen5_pattern","patternId":"circle","blockSize":8,"fillColorIndex":6}},
+ {"node":{"effect":"screen5_pattern","patternId":"random","fillColorIndex":8}},
+ {"node":{"effect":"screen5_iris","irisShape":"circle","fillColorIndex":10}},
+ {"node":{"effect":"screen5_iris","irisShape":"diamond","direction":"edges_in_h","fillColorIndex":11,"reverse":true}},
+ {"node":{"effect":"screen5_blinds","direction":"edges_in_v","blockSize":64,"fillColorIndex":12, "framesPerStep":3}},
+ {"node":{"effect":"cls","fillColorIndex":13}},
+ {"node":{"effect":"palette_fade_out","fadeColor":{"r":7,"g":7,"b":7},"framesPerStep":2}},
+ {"node":{"effect":"palette_crossfade","framesPerStep":1}},
+ {"node":{"effect":"palette_flash","flashCount":2}}
+]

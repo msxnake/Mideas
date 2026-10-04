@@ -1,0 +1,51 @@
+measure start ROM=949b8093d7582f9f... INIT=0x4010 restore=0x45CA commit=0x44DC startTrans=0x4409
+IDX -1 -> 0 at frame 1
+SAT stableA-start 34 20 20 00 54 60 24 00 C4 30 00 00 C4 30 04 00
+--- walking RIGHT (cycle 1)
+COMPOSE-START frame=600
+TRANS-PROBE-FIRST frame=600 idx=0 px=50 (per-frame probe begins)
+TRANS-COMMIT #1 frame=709 idx=0 composeFrames=109
+COPY bytes=256 hl=95A8 de=F800
+RESTORE-END usec=4088
+IDX 0 -> 1 at frame 710
+--- walking LEFT (cycle 1)
+COMPOSE-START frame=710
+TRANS-PROBE-FIRST frame=710 idx=1 px=2 (per-frame probe begins)
+TRANS-COMMIT #2 frame=725 idx=1 composeFrames=15
+COPY bytes=256 hl=95A8 de=F800
+RESTORE-END usec=4088
+IDX 1 -> 0 at frame 726
+COMPOSE-START frame=726
+TRANS-PROBE-FIRST frame=726 idx=0 px=236 (per-frame probe begins)
+--- walking RIGHT (cycle 2)
+TRANS-COMMIT #3 frame=770 idx=0 composeFrames=44
+COPY bytes=256 hl=95A8 de=F800
+RESTORE-END usec=4088
+IDX 0 -> 1 at frame 771
+COMPOSE-START frame=771
+TRANS-PROBE-FIRST frame=771 idx=1 px=4 (per-frame probe begins)
+--- walking LEFT (cycle 2)
+TRANS-COMMIT #4 frame=787 idx=1 composeFrames=16
+COPY bytes=256 hl=95A8 de=F800
+RESTORE-END usec=4088
+IDX 1 -> 0 at frame 788
+COMPOSE-START frame=788
+TRANS-PROBE-FIRST frame=788 idx=0 px=236 (per-frame probe begins)
+--- walking RIGHT (cycle 3)
+TRANS-COMMIT #5 frame=832 idx=0 composeFrames=44
+COPY bytes=256 hl=95A8 de=F800
+RESTORE-END usec=4088
+IDX 0 -> 1 at frame 833
+COMPOSE-START frame=833
+TRANS-PROBE-FIRST frame=833 idx=1 px=4 (per-frame probe begins)
+--- walking LEFT (cycle 3)
+TRANS-COMMIT #6 frame=849 idx=1 composeFrames=16
+COPY bytes=256 hl=95A8 de=F800
+RESTORE-END usec=4088
+IDX 1 -> 0 at frame 850
+COMPOSE-START frame=850
+TRANS-PROBE-FIRST frame=850 idx=0 px=236 (per-frame probe begins)
+SAT stableA-end   34 20 20 00 54 60 24 00 C4 D2 18 00 C4 D2 1C 00
+TOTAL frames=865 boot_hits=1 tickErrors=0 transitions=6 restoreCalls=6 restoreBytes=1536 restoreUsecTotal=24528
+INSTRUMENT: CLEAN
+MEASUREMENT-COMPLETE baseline (no patch applied)

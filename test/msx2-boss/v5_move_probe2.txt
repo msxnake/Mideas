@@ -1,0 +1,9 @@
+v5_move_probe2 (HEAD control)
+t=12s active=1 pos=64,32 tick=0 path=1 firemode=0
+t=14s active=1 pos=64,32 tick=0 path=1 firemode=0
+t=16s active=1 pos=64,32 tick=0 path=1 firemode=0
+t=18s active=1 pos=64,32 tick=0 path=1 firemode=0
+t=20s active=1 pos=64,32 tick=0 path=1 firemode=0
+t=22s active=1 pos=64,32 tick=0 path=1 firemode=0
+t=24s active=1 pos=64,32 tick=0 path=1 firemode=0
+FINAL

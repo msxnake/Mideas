@@ -1,0 +1,13 @@
+v5_speed_probe
+t=2s sat=0 rate=0/2s boss_active=255 boss_x=255 boss_y=255
+t=4s sat=0 rate=0/2s boss_active=255 boss_x=255 boss_y=255
+t=6s sat=0 rate=0/2s boss_active=255 boss_x=255 boss_y=255
+t=8s sat=0 rate=0/2s boss_active=255 boss_x=255 boss_y=255
+t=10s sat=0 rate=0/2s boss_active=255 boss_x=255 boss_y=255
+t=12s sat=0 rate=0/2s boss_active=255 boss_x=255 boss_y=255
+t=14s sat=0 rate=0/2s boss_active=255 boss_x=255 boss_y=255
+t=16s sat=0 rate=0/2s boss_active=255 boss_x=255 boss_y=255
+t=18s sat=0 rate=0/2s boss_active=255 boss_x=255 boss_y=255
+t=20s sat=0 rate=0/2s boss_active=255 boss_x=255 boss_y=255
+t=22s sat=0 rate=0/2s boss_active=255 boss_x=255 boss_y=255
+FINAL sat=900

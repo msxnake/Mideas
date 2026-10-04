@@ -1,0 +1,17 @@
+ok    slide1 step1 reached (slides left=1, steps left=1)
+ok    image pixels in VRAM (sun, slot 10)
+ok    typed text in VRAM (slot 15 in the zone rows)
+ok    music during the intro follows the option (keep)
+ok    background fills the 212-line display
+ok    'more' marker blinks (drawn and hidden)
+ok    'more' marker really painted in VRAM
+ok    slide1 step2 reached (steps left=0)
+ok    slide2 step1 reached (slides left=0, steps left=1)
+ok    custom-font title typed
+ok    slide2 last step reached (steps left=0)
+ok    body text of the last step in VRAM
+ok    intro finished, marker cleared
+ok    game room drawn after the intro (not the slide colour)
+ok    music after the intro follows the option (keep)
+ok    music never dropped
+RESULT PASS

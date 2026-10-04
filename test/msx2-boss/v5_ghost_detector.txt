@@ -1,0 +1,2 @@
+v5_ghost_detector v3 (armed on boss_active)
+TIMEOUT ghosts=0

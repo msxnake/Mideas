@@ -1,0 +1,4 @@
+thread armed: scr=1 intro=5 px=147
+T30: active=1 intro=5 iauto=1 itick=0 rphase=0 tphase=1 len=0 bossY=32 px=147 py=146 vy=0 tgt=121 hp=5 dlg=0
+T120: active=1 intro=5 iauto=1 itick=0 rphase=0 tphase=1 len=0 bossY=32 px=147 py=146 vy=0 tgt=121 hp=5 dlg=0
+T300: active=1 intro=5 iauto=1 itick=0 rphase=0 tphase=1 len=0 bossY=32 px=147 py=146 vy=0 tgt=121 hp=5 dlg=0

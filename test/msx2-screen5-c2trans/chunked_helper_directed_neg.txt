@@ -1,0 +1,124 @@
+INIT-HIT boots=1
+PREFILL p0 c0
+VERIFY p0 c0
+CASE p0 c0 len=0 dst=3000 RESULT=0 IFF=7 R14=2 leftover BC=0000
+PREFILL p0 c1
+VERIFY p0 c1
+FAIL p0 c1 guard-after mismatches=16/16
+CASE p0 c1 len=1 dst=7800 RESULT=0 IFF=7 R14=0 leftover BC=0098
+PREFILL p0 c2
+VERIFY p0 c2
+FAIL p0 c2 guard-after mismatches=16/16
+CASE p0 c2 len=255 dst=B800 RESULT=0 IFF=7 R14=0 leftover BC=0098
+PREFILL p0 c3
+VERIFY p0 c3
+FAIL p0 c3 guard-after mismatches=16/16
+CASE p0 c3 len=256 dst=F800 RESULT=0 IFF=7 R14=0 leftover BC=0098
+PREFILL p0 c4
+VERIFY p0 c4
+FAIL p0 c4 guard-after mismatches=16/16
+CASE p0 c4 len=257 dst=3000 RESULT=0 IFF=7 R14=0 leftover BC=0098
+PREFILL p0 c5
+VERIFY p0 c5
+FAIL p0 c5 guard-after mismatches=16/16
+CASE p0 c5 len=512 dst=7800 RESULT=0 IFF=7 R14=0 leftover BC=0098
+PREFILL p0 c6
+VERIFY p0 c6
+FAIL p0 c6 guard-after mismatches=16/16
+CASE p0 c6 len=1024 dst=B800 RESULT=0 IFF=7 R14=0 leftover BC=0098
+PREFILL p0 c7
+VERIFY p0 c7
+CASE p0 c7 len=2048 dst=F800 RESULT=0 IFF=7 R14=0 leftover BC=0098
+PREFILL p1 c0
+VERIFY p1 c0
+CASE p1 c0 len=0 dst=3000 RESULT=0 IFF=7 R14=2 leftover BC=0000
+PREFILL p1 c1
+VERIFY p1 c1
+FAIL p1 c1 guard-after mismatches=16/16
+CASE p1 c1 len=1 dst=7800 RESULT=0 IFF=7 R14=0 leftover BC=0098
+PREFILL p1 c2
+VERIFY p1 c2
+FAIL p1 c2 guard-after mismatches=16/16
+CASE p1 c2 len=255 dst=B800 RESULT=0 IFF=7 R14=0 leftover BC=0098
+PREFILL p1 c3
+VERIFY p1 c3
+FAIL p1 c3 guard-after mismatches=16/16
+CASE p1 c3 len=256 dst=F800 RESULT=0 IFF=7 R14=0 leftover BC=0098
+PREFILL p1 c4
+VERIFY p1 c4
+FAIL p1 c4 guard-after mismatches=16/16
+CASE p1 c4 len=257 dst=3000 RESULT=0 IFF=7 R14=0 leftover BC=0098
+PREFILL p1 c5
+VERIFY p1 c5
+FAIL p1 c5 guard-after mismatches=16/16
+CASE p1 c5 len=512 dst=7800 RESULT=0 IFF=7 R14=0 leftover BC=0098
+PREFILL p1 c6
+VERIFY p1 c6
+FAIL p1 c6 guard-after mismatches=16/16
+CASE p1 c6 len=1024 dst=B800 RESULT=0 IFF=7 R14=0 leftover BC=0098
+PREFILL p1 c7
+VERIFY p1 c7
+CASE p1 c7 len=2048 dst=F800 RESULT=0 IFF=7 R14=0 leftover BC=0098
+PREFILL p2 c0
+VERIFY p2 c0
+CASE p2 c0 len=0 dst=3000 RESULT=0 IFF=0 R14=2 leftover BC=0000
+PREFILL p2 c1
+VERIFY p2 c1
+FAIL p2 c1 guard-after mismatches=16/16
+CASE p2 c1 len=1 dst=7800 RESULT=0 IFF=0 R14=0 leftover BC=0098
+PREFILL p2 c2
+VERIFY p2 c2
+FAIL p2 c2 guard-after mismatches=16/16
+CASE p2 c2 len=255 dst=B800 RESULT=0 IFF=0 R14=0 leftover BC=0098
+PREFILL p2 c3
+VERIFY p2 c3
+FAIL p2 c3 guard-after mismatches=16/16
+CASE p2 c3 len=256 dst=F800 RESULT=0 IFF=0 R14=0 leftover BC=0098
+PREFILL p2 c4
+VERIFY p2 c4
+FAIL p2 c4 guard-after mismatches=16/16
+CASE p2 c4 len=257 dst=3000 RESULT=0 IFF=0 R14=0 leftover BC=0098
+PREFILL p2 c5
+VERIFY p2 c5
+FAIL p2 c5 guard-after mismatches=16/16
+CASE p2 c5 len=512 dst=7800 RESULT=0 IFF=0 R14=0 leftover BC=0098
+PREFILL p2 c6
+VERIFY p2 c6
+FAIL p2 c6 guard-after mismatches=16/16
+CASE p2 c6 len=1024 dst=B800 RESULT=0 IFF=0 R14=0 leftover BC=0098
+PREFILL p2 c7
+VERIFY p2 c7
+CASE p2 c7 len=2048 dst=F800 RESULT=0 IFF=0 R14=0 leftover BC=0098
+PREFILL p3 c0
+VERIFY p3 c0
+CASE p3 c0 len=0 dst=3000 RESULT=0 IFF=0 R14=2 leftover BC=0000
+PREFILL p3 c1
+VERIFY p3 c1
+FAIL p3 c1 guard-after mismatches=16/16
+CASE p3 c1 len=1 dst=7800 RESULT=0 IFF=0 R14=0 leftover BC=0098
+PREFILL p3 c2
+VERIFY p3 c2
+FAIL p3 c2 guard-after mismatches=16/16
+CASE p3 c2 len=255 dst=B800 RESULT=0 IFF=0 R14=0 leftover BC=0098
+PREFILL p3 c3
+VERIFY p3 c3
+FAIL p3 c3 guard-after mismatches=16/16
+CASE p3 c3 len=256 dst=F800 RESULT=0 IFF=0 R14=0 leftover BC=0098
+PREFILL p3 c4
+VERIFY p3 c4
+FAIL p3 c4 guard-after mismatches=16/16
+CASE p3 c4 len=257 dst=3000 RESULT=0 IFF=0 R14=0 leftover BC=0098
+PREFILL p3 c5
+VERIFY p3 c5
+FAIL p3 c5 guard-after mismatches=16/16
+CASE p3 c5 len=512 dst=7800 RESULT=0 IFF=0 R14=0 leftover BC=0098
+PREFILL p3 c6
+VERIFY p3 c6
+FAIL p3 c6 guard-after mismatches=16/16
+CASE p3 c6 len=1024 dst=B800 RESULT=0 IFF=0 R14=0 leftover BC=0098
+PREFILL p3 c7
+VERIFY p3 c7
+CASE p3 c7 len=2048 dst=F800 RESULT=0 IFF=0 R14=0 leftover BC=0098
+verifies=32 prefills=32 boots=1 pw=0 cnt=12/20 failures=24
+VERDICT: FAIL
+RUN-COMPLETE

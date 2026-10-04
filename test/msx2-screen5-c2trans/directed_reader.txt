@@ -1,0 +1,3 @@
+directed reader start
+results=255 0 255 0 255 0 255 0 done=FF {block155 55 55} {block000 00 00}
+VERDICT: FAIL

@@ -1,0 +1,28 @@
+measure2 start STEM=msx2_bitmap_room_smoke_fg_fastcopy_post256_unified INIT=0x4010 restore=0x45CA copySite=0x45D8 ret=0x45A0 patternsOff=62888 satBase=62984
+--- walking RIGHT (cycle 1)
+TRANS-COMMIT #1 frame=709 idx=0
+SAT-DUMP #1 196 238 8 0 196 238 12 0 164 144 48 0 164 144 64 0
+RESTORE-END #1 usec=1820 bytes=256 integBadHere=0 mapper=2/3
+--- walking LEFT (cycle 1)
+TRANS-COMMIT #2 frame=725 idx=1
+SAT-DUMP #2 196 2 24 0 196 2 28 0 164 144 40 0 164 144 56 0
+RESTORE-END #2 usec=1820 bytes=256 integBadHere=0 mapper=2/3
+--- walking RIGHT (cycle 2)
+TRANS-COMMIT #3 frame=770 idx=0
+SAT-DUMP #3 196 238 0 0 196 238 4 0 164 144 40 0 164 144 56 0
+RESTORE-END #3 usec=1820 bytes=256 integBadHere=0 mapper=2/3
+--- walking LEFT (cycle 2)
+TRANS-COMMIT #4 frame=787 idx=1
+SAT-DUMP #4 196 2 16 0 196 2 20 0 164 144 40 0 164 144 56 0
+RESTORE-END #4 usec=1820 bytes=256 integBadHere=0 mapper=2/3
+--- walking RIGHT (cycle 3)
+TRANS-COMMIT #5 frame=832 idx=0
+SAT-DUMP #5 196 238 8 0 196 238 12 0 164 144 40 0 164 144 56 0
+RESTORE-END #5 usec=1820 bytes=256 integBadHere=0 mapper=2/3
+--- walking LEFT (cycle 3)
+TRANS-COMMIT #6 frame=849 idx=1
+SAT-DUMP #6 196 2 24 0 196 2 28 0 164 144 40 0 164 144 56 0
+RESTORE-END #6 usec=1820 bytes=256 integBadHere=0 mapper=2/3
+TOTAL frames=865 boots=1 tickErrors=0 transitions=6 restores=6 bytes=1536 usecTotal=10920 integBad=0 patChecks=1536 satChecks=96
+INTEGRITY: OK
+MEASUREMENT-COMPLETE

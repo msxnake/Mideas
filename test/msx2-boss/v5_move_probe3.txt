@@ -1,0 +1,9 @@
+v5_move_probe3 (HEAD control, dialogue advance)
+t=12s active=1 pos=64,32 tick=0 dlg=0
+t=14s active=1 pos=64,32 tick=0 dlg=1
+t=16s active=1 pos=64,32 tick=0 dlg=0
+t=18s active=1 pos=64,32 tick=0 dlg=1
+t=20s active=0 pos=64,32 tick=0 dlg=0
+t=22s active=1 pos=64,32 tick=0 dlg=1
+t=24s active=1 pos=64,32 tick=0 dlg=1
+FINAL

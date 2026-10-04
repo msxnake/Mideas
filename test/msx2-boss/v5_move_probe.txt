@@ -1,0 +1,9 @@
+v5_move_probe
+t=12s blits=2 rate=2 boss_active=1 boss=64,32
+t=14s blits=2 rate=0 boss_active=1 boss=64,32
+t=16s blits=2 rate=0 boss_active=1 boss=64,32
+t=18s blits=2 rate=0 boss_active=1 boss=64,32
+t=20s blits=2 rate=0 boss_active=1 boss=64,32
+t=22s blits=2 rate=0 boss_active=1 boss=64,32
+t=24s blits=2 rate=0 boss_active=1 boss=64,32
+FINAL blits=2
