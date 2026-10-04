@@ -190,6 +190,17 @@ function compileAndCheck(label: string, fixture: string, expectKinds: string[], 
   }
 }
 
-compileAndCheck('boss + PT3 music', 'test/msx2-boss/fixture_test606.json', ['resident', 'data', 'music']);
-compileAndCheck('Intro node', 'test/msx2-boss/fixture_test606.json', ['resident', 'data', 'music', 'intro-code'], addIntroNode);
+// Tracked 1.6 MB fixture: 2 bitmap rooms, a Start/Music/WorldLink/End flow and one external PT3 track.
+const SMALL_FIXTURE = 'test/msx2-lighting/nuts_torchoff.json';
+compileAndCheck('PT3 music', SMALL_FIXTURE, ['resident', 'data', 'music']);
+compileAndCheck('Intro node', SMALL_FIXTURE, ['resident', 'data', 'music', 'intro-code'], addIntroNode);
+
+// The 140 MB boss project is not in the repo; when present it adds boss data banks and a ROM that needs padding.
+const BIG_FIXTURE = 'test/msx2-boss/fixture_test606.json';
+if (fs.existsSync(path.join(ROOT, BIG_FIXTURE))) {
+  compileAndCheck('bosses + PT3 music (big)', BIG_FIXTURE, ['resident', 'data', 'music', 'free']);
+  compileAndCheck('Intro node (big)', BIG_FIXTURE, ['resident', 'data', 'music', 'intro-code', 'free'], addIntroNode);
+} else {
+  console.log(`big boss project: skipped (${BIG_FIXTURE} is not in the repo)`);
+}
 console.log('RESULT PASS');
