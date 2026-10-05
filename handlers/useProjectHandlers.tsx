@@ -27,6 +27,7 @@ import {
   usesMsx2BitmapRoomStarter,
 } from '../utils/msx2ProjectProfiles';
 import { createDefaultMsx2PlayerDefinition } from '../utils/msx2PlayerDefaults';
+import { normalizeTransitionAsset } from '../utils/msx2TransitionFx';
 import { buildDetailedMsx2PlayerDocument } from '../utils/msx2PlayerDocument';
 
 interface ProjectHandlersProps {
@@ -922,6 +923,10 @@ export const useProjectHandlers = ({
           }
           if (asset.type === 'msx2presentation' && asset.data) {
             return normalizeMsx2Presentation(asset);
+          }
+          if (asset.type === 'msx2transition' && asset.data) {
+            // Hand-edited or older files: snap rectangles to even x/w, default enumerations, clamp numbers.
+            return { ...asset, data: normalizeTransitionAsset(asset.data) };
           }
           if (asset.type === 'globalvariables' && asset.data) {
             const data = asset.data as any;

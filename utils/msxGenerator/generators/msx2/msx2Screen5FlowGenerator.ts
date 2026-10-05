@@ -412,7 +412,12 @@ export function generateMsx2Screen5FlowUnitedFiles(
 
   // Pre-resolve so palette/page defaults are known before emitting node code.
   for (const node of nodes) {
-    if (node.type === 'Screen5Presentation') resolvePresentationEntry(node as Msx2GameFlowScreen5PresentationNode);
+    if (node.type === 'Screen5Presentation') {
+      resolvePresentationEntry(node as Msx2GameFlowScreen5PresentationNode);
+      if (String((node as Msx2GameFlowScreen5PresentationNode).fxAssetId || '').trim()) {
+        console.warn(`⚠️ Transition FX: the presentation node "${node.id}" has an entry effect, which this GameFlow backend does not play; the static picture is exported. Effects need the SCREEN 5 bitmap-room backend.`);
+      }
+    }
   }
   const firstPresentation = presentationEntries.values().next().value as PresentationEntry | undefined;
   const vramPage = firstPresentation?.vramPage ?? 0;

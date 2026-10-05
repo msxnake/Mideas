@@ -24,7 +24,7 @@ export const SCREEN5_RESIDENT_BANK_COUNT = (SCREEN5_RESIDENT_END - SCREEN5_RESID
 // The server pads every MegaROM to 2^n banks of 8 KB, never fewer than 4 (32 KB).
 export const MEGAROM_MIN_BANKS = 4;
 
-export type Screen5BankKind = 'resident' | 'data' | 'music' | 'intro-code' | 'intro-image' | 'reserved' | 'free';
+export type Screen5BankKind = 'resident' | 'data' | 'music' | 'intro-code' | 'intro-image' | 'fx-code' | 'tfx-code' | 'reserved' | 'free';
 
 /** One entry of the generator's `; @mideas-bank-map` report (banks 4+; the resident banks are derived). */
 export interface Screen5BankReportEntry {

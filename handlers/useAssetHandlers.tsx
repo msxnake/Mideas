@@ -1,5 +1,7 @@
 import { createMsx2BossDefinition } from '../utils/msx2AssetDefaults';
 import { createDefaultMsx2Intro } from '../utils/msx2IntroUtils';
+import { createDefaultTransitionAsset } from '../utils/msx2TransitionFx';
+import { clearTransitionReferences } from '../utils/msx2TransitionEditorUtils';
 import { createMsx2BossPath } from '../utils/msx2BossPath';
 import { createMsx2EnemyBehavior } from '../utils/msx2EnemyBehavior';
 import { createMsx2ShootDefinition } from '../utils/msx2AssetDefaults';
@@ -254,6 +256,11 @@ export const useAssetHandlers = ({
             data: removeTileAssignmentsFromBank(asset.data as TileBank, tileIdsToDelete),
           };
         });
+
+      if (assetToDelete.type === 'msx2transition') {
+        // GameFlow nodes that used it as entry effect go back to the still image.
+        return clearTransitionReferences(remainingAssets, assetToDelete.id);
+      }
 
       if (assetToDelete.type !== 'statemachine') {
         return remainingAssets;
@@ -944,6 +951,13 @@ export const useAssetHandlers = ({
         newEditorType = EditorType.Msx2Intro;
         break;
       }
+      case 'msx2transition': {
+        // Entry effect of a presentation: starts with no layers or steps, pointing at the first presentation.
+        defaultName = 'New MSX2 Entry Transition';
+        newAssetData = createDefaultTransitionAsset(assets.find(asset => asset.type === 'msx2presentation')?.id ?? '');
+        newEditorType = EditorType.Msx2Transition;
+        break;
+      }
       case 'msx2presentation':
         defaultName = 'New MSX2 SCREEN 5 Presentation';
         newAssetData = {
@@ -1320,6 +1334,7 @@ export const useAssetHandlers = ({
       case 'dialogue': return EditorType.Dialogue;
       case 'msx2dialogue': return EditorType.Msx2Dialogue;
       case 'msx2intro': return EditorType.Msx2Intro;
+      case 'msx2transition': return EditorType.Msx2Transition;
       case 'msx2bitmapstamp': return EditorType.Msx2BitmapStamp;
       case 'portrait': return EditorType.Portrait;
       case 'tilebank': return EditorType.TileBanks;

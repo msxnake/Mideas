@@ -206,8 +206,17 @@ const generator = await loadGenerator();
     worldToEnd.to.nodeId = 'gf_over_flash';
     flow.connections.push({ id: 'c_over', from: { nodeId: 'gf_over_flash' }, to: { nodeId: 'msx2_gf_end_1781959084375' } });
     const asm = generate(generator, 'bitmap_intro_pattern', project, 'megarom');
-    check('bitmap: engine emitted without interrupts', asm.includes('bitmap_tfx_play:') && !/bitmap_tfx_wait_ce:[\s\S]{0,400}\bei\b/.test(asm));
-    check('bitmap: engine paced by bitmap_wait_vblank', asm.includes('    call bitmap_wait_vblank\n    pop bc\n    djnz bitmap_tfx_play_wait'));
+    // MegaROM: the HMMV fill player and its tables live in the transition engine bank (bitmap_tfxb_*, org #8000); only the two
+    // trampolines (bitmap_tfx_play, bitmap_tfx_frame_wait) stay resident. The assertions below pin that split AND the pacing:
+    // every frame the banked player waits goes through bitmap_tfx_frame_wait, which restores the resident banks and then waits.
+    const tfxBankStart = asm.indexOf('BITMAP_TFX_CODE_BANK_PHYS_START:');
+    const tfxBankEnd = asm.indexOf('BITMAP_TFX_CODE_BANK_USED_END:');
+    const tfxBankText = tfxBankStart >= 0 && tfxBankEnd > tfxBankStart ? asm.slice(tfxBankStart, tfxBankEnd) : '';
+    check('bitmap: engine bank holds the fill player and the table', tfxBankText.includes('bitmap_tfxb_play:') && tfxBankText.includes('bitmap_tfxb_hmmv:') && /bitmap_tfx_table_\d+:/.test(tfxBankText) && !/bitmap_tfx_table_\d+:/.test(asm.slice(0, tfxBankStart)));
+    check('bitmap: resident play is a trampoline into the bank', asm.includes('bitmap_tfx_play:\n    ld a, BITMAP_TFX_CODE_BANK\n    call mapper_set_bank_p2\n    call bitmap_tfxb_play\n    jp bitmap_room_restore_resident_banks\n'));
+    check('bitmap: engine emitted without interrupts', asm.includes('bitmap_tfx_play:') && tfxBankText.includes('bitmap_tfxb_wait_ce:') && !/bitmap_tfxb_wait_ce:[\s\S]{0,400}\bei\b/.test(asm));
+    check('bitmap: banked engine paced by bitmap_tfx_frame_wait', tfxBankText.includes('    call bitmap_tfx_frame_wait\n    pop bc\n    djnz bitmap_tfxb_play_wait') && !/call bitmap_(flow_)?wait_vblank/.test(tfxBankText));
+    check('bitmap: frame wait restores the banks, waits with bitmap_wait_vblank (no music) and remaps the engine bank', asm.includes('bitmap_tfx_frame_wait:\n    call bitmap_room_restore_resident_banks\n    call bitmap_wait_vblank\nbitmap_tfx_frame_wait_done:\n    ld a, BITMAP_TFX_CODE_BANK\n    jp mapper_set_bank_p2\n'));
     check('bitmap: intro plays the pattern table on page 0', /; Intro scene 0[\s\S]*?ld de, 0\n    ld hl, bitmap_tfx_table_\d+\n    call bitmap_tfx_play/.test(asm));
     check('bitmap: dispatcher fade uses the displayed page and world palette', asm.includes('call bitmap_tfx_world_palette_ptr') && asm.includes('ld a, (bitmap_displayed_page)\n    and 1\n    ld d, a') && asm.includes('    call load_screen5_bitmap_palette\n    jp bitmap_gf_node_'));
     check('bitmap: legacy intro wipe helpers not emitted for engine effects', !asm.includes('bitmap_intro_wipe_vertical:'));
@@ -219,6 +228,12 @@ const generator = await loadGenerator();
     check('bitmap: dispatcher flash assembles', flashRom.ok, flashRom.detail.slice(0, 400));
     const rom = assemble('bitmap_intro_pattern', asm);
     check('bitmap: pattern intro + dispatcher fade assembles', rom.ok, rom.detail.slice(0, 400));
+    // A plain 32 KB ROM has no banks: the whole engine stays resident exactly as it always was (no engine bank, resident wait).
+    const flatAsm = generate(generator, 'bitmap_intro_pattern_flat', project, 'simple32k');
+    check('bitmap simple32k: no engine bank, the whole engine stays resident', !flatAsm.includes('BITMAP_TFX_CODE_BANK') && !flatAsm.includes('bitmap_tfxb_') && /^bitmap_tfx_table_\d+:/m.test(flatAsm) && flatAsm.includes('bitmap_tfx_play_wait:'));
+    check('bitmap simple32k: resident engine paced by bitmap_wait_vblank', flatAsm.includes('    call bitmap_wait_vblank\n    pop bc\n    djnz bitmap_tfx_play_wait') && !flatAsm.includes('bitmap_tfx_frame_wait'));
+    const flatRom = assemble('bitmap_intro_pattern_flat', flatAsm);
+    check('bitmap simple32k: pattern intro + dispatcher fade assembles', flatRom.ok, flatRom.detail.slice(0, 400));
   }
 
   // 3b. Two intro scenes joined by fade out + in, second one closes with an iris.

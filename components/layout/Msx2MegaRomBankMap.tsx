@@ -12,6 +12,8 @@ const KIND_LABEL: Record<Screen5BankKind, string> = {
   music: 'Música',
   'intro-code': 'Intro (código)',
   'intro-image': 'Intro (imágenes)',
+  'fx-code': 'Efecto (código)',
+  'tfx-code': 'Transiciones (código)',
   reserved: 'Reservado (SCC)',
   free: 'Libre',
 };

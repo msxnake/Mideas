@@ -13,6 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { generateModularASM } from '../utils/msxGenerator';
+import { createLogoDropPreset } from '../utils/msx2TransitionFx';
 import {
   MEGAROM_BANK_BYTES,
   buildScreen5BankMap,
@@ -91,6 +92,29 @@ assert.equal(blind.banks[0].used, undefined);
 assert.equal(blind.banks[4].used, 7000);
 assert.equal(blind.banks[64].used, undefined);
 assert.equal(blind.banks[65].used, undefined);
+// the Transition FX bank has its own kind: measured from its end label like the Intro code bank, and its blocks reach the tooltip
+const fxReport: Screen5BankReport = {
+  bankBytes: MEGAROM_BANK_BYTES,
+  banks: [{ bank: 4, kind: 'fx-code', endLabel: 'BITMAP_FX_CODE_BANK_USED_END', startAddr: 0x8000, blockCount: 1, blocks: ['Transition FX: Back to Mars'] }],
+};
+assert.deepEqual(parseScreen5BankReport(`; @mideas-bank-map ${JSON.stringify(fxReport)}`), fxReport);
+const fxMap = buildScreen5BankMap(fxReport, { residentEnd: 0x9f3a, symbols: parseSymbolTable('BITMAP_FX_CODE_BANK_USED_END: equ 8682H\n') });
+assert.equal(fxMap.banks[4].kind, 'fx-code');
+assert.equal(fxMap.banks[4].used, 0x8682 - 0x8000, 'the effect bank is measured from its symbol');
+assert.deepEqual(fxMap.banks[4].blocks, ['Transition FX: Back to Mars']);
+// The transition engine bank (HMMV player + fill tables) has its own kind too: measured from its end label, its tables reach the tooltip
+const tfxReport: Screen5BankReport = {
+  bankBytes: MEGAROM_BANK_BYTES,
+  banks: [{ bank: 4, kind: 'tfx-code', endLabel: 'BITMAP_TFX_CODE_BANK_USED_END', startAddr: 0x8000, blockCount: 1, blocks: ['Transition: screen5_diagonal_pixel_wipe (block 16): 932 B'] }],
+};
+assert.deepEqual(parseScreen5BankReport(`; @mideas-bank-map ${JSON.stringify(tfxReport)}`), tfxReport);
+const tfxMap = buildScreen5BankMap(tfxReport, { residentEnd: 0x9f3a, symbols: parseSymbolTable('BITMAP_TFX_CODE_BANK_USED_END: equ 8525H\n') });
+assert.equal(tfxMap.banks[4].kind, 'tfx-code');
+assert.equal(tfxMap.banks[4].used, 0x8525 - 0x8000, 'the transition engine bank is measured from its symbol');
+assert.deepEqual(tfxMap.banks[4].blocks, ['Transition: screen5_diagonal_pixel_wipe (block 16): 932 B']);
+// a wrong end label must not be measured (it would silently report the bank as unmeasurable instead of inventing a size)
+const wrongTfxMap = buildScreen5BankMap({ ...tfxReport, banks: [{ ...tfxReport.banks[0], endLabel: 'BITMAP_TFX_CODE_BANK_USED_ENDX' }] }, { residentEnd: 0x9f3a, symbols: parseSymbolTable('BITMAP_TFX_CODE_BANK_USED_END: equ 8525H\n') });
+assert.equal(wrongTfxMap.banks[4].used, undefined, 'a report whose end label is not in the .sym leaves the bank unmeasured');
 console.log('pure logic: OK');
 
 // ---- against a real compile -------------------------------------------------------------------
@@ -111,6 +135,35 @@ function addIntroNode(raw: any) {
   flow.nodes.push({ id: 'gf_bank_map_intro', type: 'Intro', position: { x: 300, y: 300 }, introAssetId: 'bank_map_intro' });
   for (const c of flow.connections) if (c.to.nodeId === world.id) c.to.nodeId = 'gf_bank_map_intro';
   flow.connections.push({ id: 'bank_map_c', from: { nodeId: 'gf_bank_map_intro' }, to: { nodeId: world.id } });
+}
+
+// A Screen5Presentation with an entry effect (Transition FX) between Start and the rest of the flow: the interpreter bank
+// must show up in the map, sized from its end label (same measure as the Intro code bank).
+function addFxNode(raw: any) {
+  const mars = JSON.parse(fs.readFileSync(path.join(ROOT, 'test/msx2-transition-fx/fixture_back_to_mars.json'), 'utf8'));
+  const flow = raw.assets.find((a: any) => a.type === 'msx2gameflow').data;
+  const start = flow.nodes.find((n: any) => n.type === 'Start');
+  const presentation = { id: mars.presentation.id, name: 'Back to Mars', type: 'msx2presentation', data: { ...mars.presentation.data, id: mars.presentation.id, name: 'Back to Mars' } };
+  const sound = { id: mars.sound.id, name: 'xof', type: 'sound', data: { ...mars.sound.data, id: mars.sound.id, name: 'xof' } };
+  const effect = createLogoDropPreset({
+    sourcePresentationAssetId: presentation.id,
+    logo: { x: 4, y: 12, w: 250, h: 53 }, alien: { x: 68, y: 65, w: 104, h: 136 },
+    whooshSoundId: sound.id, thudSoundId: sound.id,
+  });
+  raw.assets.push(presentation, sound, { id: 'bank_map_fx', name: 'Bank map effect', type: 'msx2transition', data: effect });
+  flow.nodes.push({ id: 'gf_bank_map_pres', type: 'Screen5Presentation', position: { x: 100, y: 300 }, presentationAssetId: presentation.id, fxAssetId: 'bank_map_fx', waitForKey: false, waitFrames: 1 });
+  for (const c of flow.connections) if (c.from.nodeId === start.id) c.from.nodeId = 'gf_bank_map_pres';
+  flow.connections.push({ id: 'bank_map_c_fx', from: { nodeId: start.id }, to: { nodeId: 'gf_bank_map_pres' } });
+}
+
+// A fill Transition node (the shared SCREEN 5 transition engine) between the Music node and the game: the engine moves to its own
+// bank, which must show up in the map as `tfx-code`, sized from BITMAP_TFX_CODE_BANK_USED_END (same measure as the Intro code bank).
+function addTfxNode(raw: any) {
+  const flow = raw.assets.find((a: any) => a.type === 'msx2gameflow').data;
+  const world = flow.nodes.find((n: any) => n.type === 'WorldLink');
+  flow.nodes.push({ id: 'gf_bank_map_tfx', type: 'Transition', position: { x: 300, y: 90 }, effect: 'screen5_diagonal_pixel_wipe', durationFrames: 30, reverse: true });
+  for (const c of flow.connections) if (c.to.nodeId === world.id) c.to.nodeId = 'gf_bank_map_tfx';
+  flow.connections.push({ id: 'bank_map_c_tfx', from: { nodeId: 'gf_bank_map_tfx' }, to: { nodeId: world.id } });
 }
 
 function compileAndCheck(label: string, fixture: string, expectKinds: string[], mutate?: (raw: any) => void) {
@@ -194,6 +247,8 @@ function compileAndCheck(label: string, fixture: string, expectKinds: string[], 
 const SMALL_FIXTURE = 'test/msx2-lighting/nuts_torchoff.json';
 compileAndCheck('PT3 music', SMALL_FIXTURE, ['resident', 'data', 'music']);
 compileAndCheck('Intro node', SMALL_FIXTURE, ['resident', 'data', 'music', 'intro-code'], addIntroNode);
+compileAndCheck('Transition FX', SMALL_FIXTURE, ['resident', 'data', 'music', 'fx-code'], addFxNode);
+compileAndCheck('Transition engine', SMALL_FIXTURE, ['resident', 'data', 'music', 'tfx-code'], addTfxNode);
 
 // The 140 MB boss project is not in the repo; when present it adds boss data banks and a ROM that needs padding.
 const BIG_FIXTURE = 'test/msx2-boss/fixture_test606.json';

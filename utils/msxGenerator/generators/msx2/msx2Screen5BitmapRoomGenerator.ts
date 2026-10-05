@@ -11,7 +11,9 @@ import {
 } from './screen5PresentationData';
 import { SCREEN5_TRANSITION_EFFECTS } from './screen5TransitionEffects';
 import { buildBitmapIntro, collectFlowIntroAssets, INTRO_RESIDENT_MARKER, type BitmapIntroBuild } from './msx2BitmapIntroGenerator';
+import { BITMAP_FX_NEEDS_MEGAROM_MESSAGE, buildBitmapTransitionFx, compileBitmapFxForPresentation, type BitmapFxBlock } from './msx2BitmapTransitionFxGenerator';
 import { emitScreen5TfxCall, generateScreen5TfxRuntime, Screen5TfxDataPool } from './screen5TransitionEngine';
+import { buildBitmapTfxBank } from './msx2BitmapTfxBankGenerator';
 import {
   resolveScreen5TransitionSpec,
   screen5TransitionUsesEngine,
@@ -629,6 +631,18 @@ interface BitmapIntroTransition {
   engineNode?: Msx2GameFlowTransitionNode;
 }
 
+/**
+ * Entry effect (Transition FX asset) of a presentation scene. The scene's `bitmapBytes` / `paletteBytes`
+ * are then the DERIVED picture and its final palette; the picture is uploaded to the invisible VRAM
+ * page 1 and the effect composes it onto the visible page 0.
+ */
+interface BitmapIntroSceneFx {
+  /** Index of the effect block in the Transition FX bank (A of bitmap_fx_run). */
+  blockIndex: number;
+  /** Asset name, for messages. */
+  name: string;
+}
+
 interface BitmapIntroScene {
   name: string;
   paletteBytes: number[];
@@ -636,6 +650,7 @@ interface BitmapIntroScene {
   waitForKey: boolean;
   waitFrames: number;
   transition?: BitmapIntroTransition;
+  fx?: BitmapIntroSceneFx;
 }
 
 interface BitmapIntroSceneBlob {
@@ -656,11 +671,13 @@ interface BitmapIntroChain {
    * finally appeared (two wipes with a HUD line and a player sprite in between).
    */
   consumedTransitionIds: Set<string>;
+  /** Distinct Transition FX blocks the scenes use (`BitmapIntroSceneFx.blockIndex` indexes this list). */
+  fxBlocks: BitmapFxBlock[];
 }
 
 
 function resolveBitmapIntroScenes(analysis: ProjectAnalysis): BitmapIntroChain {
-  const empty: BitmapIntroChain = { scenes: [], consumedTransitionIds: new Set<string>() };
+  const empty: BitmapIntroChain = { scenes: [], consumedTransitionIds: new Set<string>(), fxBlocks: [] };
   const flows = (((analysis as any).msx2GameFlows || []) as Msx2GameFlowGraph[])
     .filter(flow => isMsx2Screen5Purpose(flow?.purpose));
   const flow = flows.find(candidate => candidate?.name === 'Main MSX2') || flows[0];
@@ -689,6 +706,7 @@ function resolveBitmapIntroScenes(analysis: ProjectAnalysis): BitmapIntroChain {
 
   const consumedTransitionIds = new Set<string>();
   const scenes: BitmapIntroScene[] = [];
+  const fxBlocks: BitmapFxBlock[] = [];
   let current = startNode.type === 'Screen5Presentation' ? startNode : nextExport(startNode);
   const visited = new Set<string>();
   while (current && current.type === 'Screen5Presentation' && !visited.has(current.id)) {
@@ -708,6 +726,26 @@ function resolveBitmapIntroScenes(analysis: ProjectAnalysis): BitmapIntroChain {
       waitForKey: node.waitForKey ?? (runtime?.waitForKey !== false),
       waitFrames: clampByte(node.waitFrames ?? runtime?.waitForFrames, 0),
     };
+    const fxAssetId = String(node.fxAssetId || '').trim();
+    if (fxAssetId) {
+      // Entry effect: the scene shows the DERIVED picture (palette-planned for per-layer fades) and
+      // the effect block that builds it on page 0. Throws a user-facing error if it cannot be exported.
+      const compiled = compileBitmapFxForPresentation({
+        analysis,
+        nodeId: node.id,
+        fxAssetId,
+        presentation: presentation as Msx2Screen5PresentationConfig & { id?: string; name?: string },
+      });
+      for (const warning of compiled.warnings) console.warn(`⚠️ Transition FX "${compiled.name}": ${warning}`);
+      let blockIndex = fxBlocks.findIndex(block => block.key === compiled.key);
+      if (blockIndex < 0) {
+        blockIndex = fxBlocks.length;
+        fxBlocks.push({ key: compiled.key, name: compiled.name, bytes: compiled.bytes });
+      }
+      scene.bitmapBytes = compiled.bitmapBytes;
+      scene.paletteBytes = compiled.paletteBytes;
+      scene.fx = { blockIndex, name: compiled.name };
+    }
     let next = nextExport(current);
     if (next?.type === 'Transition') {
       const transitionNode = next as Msx2GameFlowTransitionNode;
@@ -729,7 +767,14 @@ function resolveBitmapIntroScenes(analysis: ProjectAnalysis): BitmapIntroChain {
     scenes.push(scene);
     current = next;
   }
-  return { scenes, consumedTransitionIds };
+  // The effect only plays at start-up (the dispatcher passes straight through presentation nodes, and
+  // VRAM pages 1-3 are in use during the game).
+  for (const node of flow.nodes) {
+    if (node.type === 'Screen5Presentation' && String((node as Msx2GameFlowScreen5PresentationNode).fxAssetId || '').trim() && !visited.has(node.id)) {
+      console.warn(`⚠️ Transition FX: the presentation node "${node.id}" is not part of the boot sequence, so its entry effect is ignored (effects only play at start-up).`);
+    }
+  }
+  return { scenes, consumedTransitionIds, fxBlocks };
 }
 
 const BITMAP_INTRO_EFFECT_CALLS: Record<string, string> = {
@@ -1436,7 +1481,9 @@ bitmap_end_block_tpl:     DB 0,0, 0,0, 0,0, 0,0, 2,0, 2,0, 15,0, #C0
 function buildBitmapIntroAsm(
   blobs: BitmapIntroSceneBlob[],
   banked: boolean,
-  tfx?: Screen5TfxDataPool
+  tfx?: Screen5TfxDataPool,
+  /** R#7 the game boots with: scenes with an entry effect put it back after their wait (the effect runs on backdrop 0). */
+  backdropIndex = 0,
 ): { initCallAsm: string; routinesAsm: string; dataAsm: string } {
   if (!blobs.length) return { initCallAsm: '', routinesAsm: '', dataAsm: '' };
   // Engine transitions do not use the legacy intro helpers.
@@ -1496,7 +1543,21 @@ function buildBitmapIntroAsm(
       transitionAsm = `${BITMAP_INTRO_EFFECT_CALLS[scene.transition.effect]}${durationAsm}`;
     }
     const entry = entryOf(index);
-    const showAsm = entry.mode === 'fade_in'
+    if (scene.fx && entry.mode !== 'load') {
+      throw new Error(`MSX2 bitmap-room GameFlow: the presentation "${safeName}" has the entry effect "${scene.fx.name}", but the Transition before it (palette fade in / crossfade) already drives the palette. Remove that Transition or clear the effect: the effect writes the palette itself.`);
+    }
+    // Entry effect: the derived picture goes to the invisible page 1 and the interpreter composes it onto page 0
+    // (which must be black: a later scene clears it first). Its final palette is loaded up front, but the
+    // effect rewrites it (initial and animated entries) and ends on exactly that palette.
+    const showAsm = scene.fx
+      ? `${index > 0 ? '    call bitmap_intro_cls         ; the effect composes onto a black page 0\n' : ''}    ld hl, bitmap_intro_scene${index}_palette
+    call bitmap_intro_load_palette
+    call bitmap_intro_upload_scene${index}   ; derived picture -> VRAM page 1 (not displayed)
+    ld a, ${scene.fx.blockIndex}
+    call bitmap_fx_run
+bitmap_intro_scene${index}_fx_done:
+`
+      : entry.mode === 'fade_in'
       ? `    call bitmap_intro_upload_scene${index}
     ld hl, ${entry.fromLabel}
     ld de, bitmap_intro_scene${index}_palette
@@ -1511,8 +1572,15 @@ function buildBitmapIntroAsm(
     call bitmap_intro_load_palette
     call bitmap_intro_upload_scene${index}
 `;
+    // The effect ran on backdrop 0; the room's own backdrop comes back once the scene has been watched.
+    const backdropAsm = scene.fx
+      ? `    ld a, #07
+    ld e, #${backdropIndex.toString(16).toUpperCase().padStart(2, '0')}
+    call vdp_write_register        ; R#7 = the room backdrop
+`
+      : '';
     return `    ; Intro scene ${index}: ${safeName}
-${showAsm}${waitAsm}${transitionAsm}`;
+${showAsm}${waitAsm}${backdropAsm}${transitionAsm}`;
   }).join('');
 
   const uploadRoutines = blobs.map(({ index, rleChunks }) => `bitmap_intro_upload_scene${index}:
@@ -16913,11 +16981,14 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   // GameFlow intro: SCREEN 5 presentation scene(s) + transitions before gameplay.
   // Each scene bitmap uploads to the visible page 0 (VRAM #00000) through the same
   // RLE decoder used by the HUD seed/atlas, so simple32k and MegaROM both work.
-  const { scenes: introScenes, consumedTransitionIds: introConsumedTransitionIds } = resolveBitmapIntroScenes(analysis);
+  const { scenes: introScenes, consumedTransitionIds: introConsumedTransitionIds, fxBlocks: introFxBlocks } = resolveBitmapIntroScenes(analysis);
+  if (introFxBlocks.length > 0 && !isKonamiMegaRom) throw new Error(BITMAP_FX_NEEDS_MEGAROM_MESSAGE);
   const introSceneBlobs: BitmapIntroSceneBlob[] = introScenes.map((scene, index) => ({
     scene,
     index,
-    rleChunks: buildRleChunksForVram(scene.bitmapBytes, 0, `bitmap_intro_scene${index}_rle_chunk`),
+    // A scene with an entry effect uploads its derived picture to the invisible VRAM page 1; the effect
+    // composes it onto the visible page 0 (every other scene goes straight to page 0).
+    rleChunks: buildRleChunksForVram(scene.bitmapBytes, scene.fx ? BITMAP_ROOM_PAGE1_VRAM_BASE : 0, `bitmap_intro_scene${index}_rle_chunk`),
   }));
   const introRleChunks = introSceneBlobs.flatMap(blob => blob.rleChunks);
   const introEncodedBytes = introRleChunks.reduce((total, chunk) => total + chunk.bytes.length, 0);
@@ -18900,6 +18971,11 @@ ${vramSorted.map(t => `;   rows ${String(t.from).padStart(4)}..${String(t.to).pa
 ; free: ${vramFreeRows} rows (${vramRowsKb(vramFreeRows)}) in ${vramFree.length} gap(s)
 ${vramFree.map(gap => `;   rows ${String(gap.from).padStart(4)}..${String(gap.to).padStart(4)}  ${String(gap.to - gap.from + 1).padStart(4)} rows free`).join('\n')}`;
 
+  // The resident marker used to exist only with an Intro node or an entry effect. It is now always emitted (the transition
+  // engine's trampolines may need it too, and that is only known after the GameFlow ASM below has filled the data pool), so
+  // the splice has to know whether the OLD condition held: when it did, the marker was replaced (even by nothing); when it did
+  // not and nothing goes there, the whole marker block is removed so the ASM is byte-identical to the old output.
+  const legacyIntroResidentMarker = collectFlowIntroAssets(resolveBitmapGameFlow(analysis), ((analysis as any).assets || []) as ProjectAsset[]).length > 0 || introFxBlocks.length > 0;
   const runtimeAsm = buildRuntimeAsm(room, worldTilesets.map(entry => entry.chunks), allHudSeedRleChunks, {
     frameCount: spriteTables.frameCount,
     delayFrames: spriteTables.delayFrames,
@@ -18913,7 +18989,7 @@ ${vramFree.map(gap => `;   rows ${String(gap.from).padStart(4)}..${String(gap.to
     weaponSyncHook,
   }, {
     bankedRle: isKonamiMegaRom,
-    introResidentMarker: collectFlowIntroAssets(resolveBitmapGameFlow(analysis), ((analysis as any).assets || []) as ProjectAsset[]).length > 0,
+    introResidentMarker: true, // always emitted; the splice below removes it again when nothing goes there (ASM stays identical)
     sccMusicTick: sccMusicTickEnabled,
     subCellShapes,
     platformCells,
@@ -18990,7 +19066,7 @@ ${vramFree.map(gap => `;   rows ${String(gap.from).padStart(4)}..${String(gap.to
   // Shared SCREEN 5 transition engine: only emitted when a Transition node needs
   // it, so ROMs without advanced transitions stay byte-identical.
   const bitmapTfxPool = new Screen5TfxDataPool('bitmap_tfx');
-  const intro = buildBitmapIntroAsm(introSceneBlobs, isKonamiMegaRom, bitmapTfxPool);
+  const intro = buildBitmapIntroAsm(introSceneBlobs, isKonamiMegaRom, bitmapTfxPool, clampByte(room.backgroundColor, 0) & 0x0f);
   // run_bitmap_intro returns with hardware sprites hidden (its SAT/pattern
   // tables are only uploaded later in init_rom). Re-enable them at the end of
   // the boot-init sequence, where the tables are in VRAM and the player sits at
@@ -19245,38 +19321,15 @@ ${enemySystem.satCallAsm}${bossSystem.satCallAsm}${platformSystem.satCallAsm}${c
     megaRom: isKonamiMegaRom,
   });
   for (const warning of bitmapIntro.warnings) console.warn(`⚠️ Intro: ${warning}`);
-  // One-line JSON consumed by the IDE MegaROM bank map (utils/msx2Screen5MemoryBudget.ts).
-  // Comment only: it never changes the assembled ROM. Banks 0-3 are the boot image and are not listed.
-  // Entries without `used` are sized by the IDE after the compile: from their `endLabel` symbol in the
-  // Glass .sym, or (music) from the trailing #FF of the bank in the ROM image, because the PT3 chunks
-  // are padded to the bank edge by construction and neither usedBytes nor a label can tell real data.
-  const bankMapReportAsm = isKonamiMegaRom
-    ? `; @mideas-bank-map ${JSON.stringify({
-      bankBytes: ROM_DATA_BANK_BYTES,
-      banks: [
-        ...bankedDataBanks.map(bank => ({
-          bank: bank.bank,
-          kind: 'data',
-          used: bank.used,
-          blockCount: bank.blocks.length,
-          blocks: bank.blocks.slice(0, 6).map(block => block.label),
-        })),
-        ...(sccMusic?.dataBankChunks || []).map((_chunk, index) => ({
-          bank: musicBankNumbers[index],
-          kind: 'music',
-          measure: 'rom-tail',
-        })),
-        ...bitmapIntro.banks.map(bank => bank.kind === 'code'
-          ? { bank: bank.bank, kind: 'intro-code', endLabel: 'BITMAP_INTRO_CODE_BANK_USED_END', startAddr: 0x8000 }
-          : { bank: bank.bank, kind: 'intro-image', used: bank.used }),
-      ],
-    })}
-`
-    : '';
-  // The Intro's resident routines go where buildRuntimeAsm left the marker (below #8000); empty when there is no Intro.
-  const runtimeAsmWithIntro = runtimeAsm.includes(INTRO_RESIDENT_MARKER)
-    ? runtimeAsm.replace(INTRO_RESIDENT_MARKER, () => bitmapIntro.residentAsm)
-    : runtimeAsm;
+  // Transition FX (entry effect of the boot presentation): interpreter + effect blocks in one bank appended
+  // after the Intro banks, so a project without effects keeps a byte-identical ROM.
+  const bitmapFx = buildBitmapTransitionFx(introFxBlocks, {
+    firstBank: bitmapIntro.banks.length > 0 ? bitmapIntro.lastBank + 1 : introFirstBank,
+    megaRom: isKonamiMegaRom,
+    ramChainEnd: hudLinkedRamCursor,
+    introPresent: bitmapIntro.banks.length > 0,
+  });
+  for (const warning of bitmapFx.warnings) console.warn(`⚠️ Transition FX: ${warning}`);
   if (!resolveBitmapGameFlow(analysis) && (((analysis as any).msx2GameFlows || []) as Msx2GameFlowGraph[]).some(flow => (flow?.nodes || []).some(node => (node as any).type === 'Intro'))) {
     console.warn('⚠️ Intro: the GameFlow has an Intro node but no WorldLink, so no dispatcher is emitted and the intro will not play.');
   }
@@ -19375,6 +19428,74 @@ ${psgMusicRam ? `${psgMusicRam.asm}\n` : ''}` : '';
   // The engine is shared with the boot intro, which used to run before music_init_system: with music the
   // init is hoisted ahead of the intro (init_rom below), so music_update never runs over garbage RAM.
   const musicTickTransitions = Boolean(sccMusic) && bitmapTfxUsed;
+  // Transition engine bank: the HMMV fill player and every fill table (docs/msx/MSX2_TFX_BANK_PLAN.md). It can only be laid
+  // out now, with the data pool complete (the boot intro and the dispatcher above fill it). Last bank of the ROM, after music,
+  // Intro and Transition FX; empty (engine resident as before) for a simple32k ROM or when no fill transition is used.
+  const bitmapTfxBank = buildBitmapTfxBank(bitmapTfxPool, {
+    firstBank: bitmapFx.banks.length > 0
+      ? bitmapFx.lastBank + 1
+      : bitmapIntro.banks.length > 0
+        ? bitmapIntro.lastBank + 1
+        : introFirstBank,
+    megaRom: isKonamiMegaRom,
+    musicTick: musicTickTransitions,
+  });
+  const bitmapTfxEngineBanked = bitmapTfxBank.banksAsm !== '';
+  // One-line JSON consumed by the IDE MegaROM bank map (utils/msx2Screen5MemoryBudget.ts).
+  // Comment only: it never changes the assembled ROM. Banks 0-3 are the boot image and are not listed.
+  // Entries without `used` are sized by the IDE after the compile: from their `endLabel` symbol in the
+  // Glass .sym, or (music) from the trailing #FF of the bank in the ROM image, because the PT3 chunks
+  // are padded to the bank edge by construction and neither usedBytes nor a label can tell real data.
+  const bankMapReportAsm = isKonamiMegaRom
+    ? `; @mideas-bank-map ${JSON.stringify({
+      bankBytes: ROM_DATA_BANK_BYTES,
+      banks: [
+        ...bankedDataBanks.map(bank => ({
+          bank: bank.bank,
+          kind: 'data',
+          used: bank.used,
+          blockCount: bank.blocks.length,
+          blocks: bank.blocks.slice(0, 6).map(block => block.label),
+        })),
+        ...(sccMusic?.dataBankChunks || []).map((_chunk, index) => ({
+          bank: musicBankNumbers[index],
+          kind: 'music',
+          measure: 'rom-tail',
+        })),
+        ...bitmapIntro.banks.map(bank => bank.kind === 'code'
+          ? { bank: bank.bank, kind: 'intro-code', endLabel: 'BITMAP_INTRO_CODE_BANK_USED_END', startAddr: 0x8000 }
+          : { bank: bank.bank, kind: 'intro-image', used: bank.used }),
+        // The effect bank is a code bank (interpreter + effect blocks) sized from its end label, like the Intro's.
+        ...bitmapFx.banks.map(bank => ({
+          bank: bank.bank,
+          kind: 'fx-code',
+          endLabel: 'BITMAP_FX_CODE_BANK_USED_END',
+          startAddr: 0x8000,
+          blockCount: bitmapFx.blockNames.length,
+          blocks: bitmapFx.blockNames.map(name => `Transition FX: ${name}`),
+        })),
+        // The transition engine bank is a code bank too (HMMV player + fill tables), sized from its end label.
+        ...bitmapTfxBank.banks.map(bank => ({
+          bank: bank.bank,
+          kind: 'tfx-code',
+          endLabel: 'BITMAP_TFX_CODE_BANK_USED_END',
+          startAddr: 0x8000,
+          blockCount: bitmapTfxBank.tableNames.length,
+          blocks: bitmapTfxBank.tableNames.map(name => `Transition: ${name}`),
+        })),
+      ],
+    })}
+`
+    : '';
+  // The Intro's, the Transition FX's and the transition engine's resident routines go where buildRuntimeAsm left the marker
+  // (below #8000); empty when there is none of them. With nothing to place and no Intro/effect (the old condition for emitting
+  // the marker at all) the marker block itself is removed, so such ROMs keep exactly the ASM they always had.
+  const residentSpliceAsm = `${bitmapIntro.residentAsm}${bitmapFx.residentAsm}${bitmapTfxBank.residentAsm}`;
+  const runtimeAsmWithIntro = !runtimeAsm.includes(INTRO_RESIDENT_MARKER)
+    ? runtimeAsm
+    : legacyIntroResidentMarker || residentSpliceAsm !== ''
+      ? runtimeAsm.replace(INTRO_RESIDENT_MARKER, () => residentSpliceAsm)
+      : runtimeAsm.replace(`\n${INTRO_RESIDENT_MARKER}\n`, () => '');
   const flowMusicTickRoutineAsm = Boolean(sccMusic) && gameFlowEnabled
     && (collectBitmapFlowTextFeatures((resolveBitmapGameFlow(analysis)?.nodes || []) as any).text || musicTickTransitions)
     ? BITMAP_FLOW_WAIT_VBLANK_ROUTINE
@@ -19382,14 +19503,21 @@ ${psgMusicRam ? `${psgMusicRam.asm}\n` : ''}` : '';
   const hoistedMusicInitAsm = musicTickTransitions
     ? `    ; Music init BEFORE the boot intro: its transitions (the shared engine) tick the song, and\n    ; music_update must never run over RAM that is still garbage after a cold boot. The PSG\n    ; mixer write reads the SFX shadow, so that is set first.\n    ld a, #24                 ; SFX channel-C mixer shadow: start muted\n    ld (psg_sfx_r7_c_bits), a\n${musicInitCall}`
     : '';
-  const bitmapTfxRoutinesAsm = bitmapTfxUsed
-    ? `${generateScreen5TfxRuntime({
+  // With the engine bank the fill half (wait_ce, hmmv, play, rect_tiles + the tables) is NOT emitted here: it lives in the
+  // bank (msx2BitmapTfxBankGenerator.ts) behind the resident trampolines. The palette half stays resident (it reads palettes
+  // that sit in #8000-#9FFF in big projects), without a wait_ce nobody would call.
+  const bitmapTfxResidentRuntimeAsm = bitmapTfxEngineBanked && !bitmapTfxPool.usesPalette
+    ? ''
+    : generateScreen5TfxRuntime({
       prefix: 'bitmap_tfx',
       interrupts: false,
       frameWaitAsm: musicTickTransitions ? '    call bitmap_flow_wait_vblank' : '    call bitmap_wait_vblank',
-      fill: bitmapTfxPool.usesFill,
+      fill: bitmapTfxPool.usesFill && !bitmapTfxEngineBanked,
       palette: bitmapTfxPool.usesPalette,
-    })}
+      waitCe: !bitmapTfxEngineBanked,
+    });
+  const bitmapTfxRoutinesAsm = bitmapTfxUsed
+    ? `${bitmapTfxResidentRuntimeAsm}
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_tfx_world_palette_ptr
 ; ------------------------------------------------------------
@@ -19431,7 +19559,9 @@ ${multiWorld ? `    ld a, (bitmap_world_index)
     ret
 `}`
     : '';
-  const bitmapTfxDataAsm = bitmapTfxUsed ? `${bitmapTfxPool.emitData()}\n` : '';
+  // Engine bank: the fill tables travel with the player; only the solid palettes (read by the resident palette half) stay here.
+  const bitmapTfxResidentData = bitmapTfxEngineBanked ? bitmapTfxPool.emitSolidPalettes() : bitmapTfxPool.emitData();
+  const bitmapTfxDataAsm = bitmapTfxUsed && (!bitmapTfxEngineBanked || bitmapTfxResidentData !== '') ? `${bitmapTfxResidentData}\n` : '';
   const bitmapFlowTextEquatesAsm = bitmapFlowTextEquates(
     collectBitmapFlowTextFeatures((resolveBitmapGameFlow(analysis)?.nodes || []) as any),
     isKonamiMegaRom
@@ -19584,7 +19714,7 @@ ${!needsWindowSafeRle ? '' : `; Data bank for bitmap_decompress_banked_rle_to_vr
 ; gap between that and the SFX/music state, and the generator asserts it.
 bitmap_banked_rle_bank EQU #C3FD
 `}psg_sfx_r7_c_bits EQU #C3FE
-${bitmapFlowTextEquatesAsm}${sccMusicEquates}${bitmapIntro.equatesAsm}    org #4000
+${bitmapFlowTextEquatesAsm}${sccMusicEquates}${bitmapIntro.equatesAsm}${bitmapFx.equatesAsm}${bitmapTfxBank.equatesAsm}    org #4000
 
     db "AB"
     dw init_rom
@@ -19754,6 +19884,8 @@ ${formatBytes('bitmap_player_anim_clip_table', animClipTableBytes, stateAnimatio
 ${shootBulletDataTables}${weaponSystem.dataAsm}bitmap_resident_end:
     ds #C000 - $, #FF
 ${bankedDataAsm}${musicBanksAsm}${bitmapIntro.banksAsm ? `${bitmapIntro.banksAsm}
+` : ''}${bitmapFx.banksAsm ? `${bitmapFx.banksAsm}
+` : ''}${bitmapTfxBank.banksAsm ? `${bitmapTfxBank.banksAsm}
 ` : ''}    end
 `;
 }

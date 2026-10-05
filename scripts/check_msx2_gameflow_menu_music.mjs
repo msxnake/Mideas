@@ -197,13 +197,25 @@ check('music + transitions: the SFX mixer shadow is set before the music init',
   transInit.indexOf('ld (psg_sfx_r7_c_bits), a') > 0 && transInit.indexOf('ld (psg_sfx_r7_c_bits), a') < transInit.indexOf('call music_init_system'));
 check('music + transitions: the music is initialised once at boot', (transInit.match(/call music_init_system/g) || []).length === 1);
 check('music + transitions: bitmap_flow_wait_vblank is defined once', (transAsm.match(/^bitmap_flow_wait_vblank:/gm) || []).length === 1);
-const tfxStart = transAsm.indexOf('bitmap_tfx_wait_ce:');
-const tfxText = tfxStart >= 0 ? transAsm.slice(tfxStart, tfxStart + 60000) : '';
-check('music + transitions: the engine waits through the tick (no bare bitmap_wait_vblank inside it)',
-  tfxStart >= 0 && /call bitmap_flow_wait_vblank/.test(tfxText) && !/call bitmap_wait_vblank/.test(tfxText.slice(0, tfxText.indexOf('bitmap_tfx_world_palette_ptr:') > 0 ? tfxText.indexOf('bitmap_tfx_world_palette_ptr:') : tfxText.length)),
-  tfxStart >= 0 ? 'engine found' : 'bitmap_tfx_wait_ce missing');
+// The engine is split: the HMMV fill player lives in the transition engine bank (bitmap_tfxb_*) and waits through the resident
+// trampoline bitmap_tfx_frame_wait; the palette half (bitmap_tfx_pal_*) stays resident and waits by itself. Both must tick the song.
+const bankStart = transAsm.indexOf('BITMAP_TFX_CODE_BANK_PHYS_START:');
+const bankEnd = transAsm.indexOf('BITMAP_TFX_CODE_BANK_USED_END:');
+const bankedEngine = bankStart >= 0 && bankEnd > bankStart ? transAsm.slice(bankStart, bankEnd) : '';
+const frameWait = block(transAsm, 'bitmap_tfx_frame_wait') || '';
+check('music + transitions: the banked engine waits only through bitmap_tfx_frame_wait (no wait routine of its own)',
+  bankedEngine.includes('bitmap_tfxb_play:') && /call bitmap_tfx_frame_wait/.test(block(bankedEngine, 'bitmap_tfxb_play_wait') || '') && !/call bitmap_(flow_)?wait_vblank/.test(bankedEngine),
+  bankedEngine ? 'bank found' : 'BITMAP_TFX_CODE_BANK_PHYS_START missing');
+check('music + transitions: bitmap_tfx_frame_wait puts the banks back, then waits through the tick (no bare bitmap_wait_vblank)',
+  /^ *call bitmap_room_restore_resident_banks$/m.test(frameWait) && /call bitmap_flow_wait_vblank/.test(frameWait) && !/call bitmap_wait_vblank/.test(frameWait)
+    && frameWait.indexOf('call bitmap_room_restore_resident_banks') < frameWait.indexOf('call bitmap_flow_wait_vblank'),
+  frameWait || 'bitmap_tfx_frame_wait missing');
+const palWait = block(transAsm, 'bitmap_tfx_pal_wait') || '';
+check('music + transitions: the resident palette engine waits through the tick (no bare bitmap_wait_vblank inside it)',
+  /call bitmap_flow_wait_vblank/.test(palWait) && !/call bitmap_wait_vblank/.test(palWait), palWait || 'bitmap_tfx_pal_wait missing');
+const silentFrameWait = block(silentTransAsm, 'bitmap_tfx_frame_wait') || '';
 check('silent + transitions: the engine still waits with bitmap_wait_vblank and nothing is hoisted',
-  !/bitmap_flow_wait_vblank/.test(silentTransAsm) && !/music_init_system/.test(silentTransAsm) && /call bitmap_wait_vblank/.test(silentTransAsm));
+  !/bitmap_flow_wait_vblank/.test(silentTransAsm) && !/music_init_system/.test(silentTransAsm) && /call bitmap_wait_vblank/.test(silentFrameWait), silentFrameWait || 'bitmap_tfx_frame_wait missing');
 
 if (args.has('--static-only')) {
   console.log(problems.length ? `\nRESULT FAIL (${problems.length})` : '\nRESULT PASS (static only)');

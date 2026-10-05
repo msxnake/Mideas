@@ -1093,6 +1093,23 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           </div>
         );
       }
+      case 'msx2transition': {
+        const fx = asset.data as any;
+        const fxLayers = Array.isArray(fx?.layers) ? fx.layers : [];
+        const fxSteps = Array.isArray(fx?.steps) ? fx.steps : [];
+        const fxClips = fxSteps.reduce((n: number, s: any) => n + (s?.clips?.length || 0), 0);
+        const fxSource = allAssets.find(a => a.id === fx?.sourcePresentationAssetId);
+        return (
+          <div className="space-y-1">
+            <div><strong className="text-msx-highlight">Name:</strong> {asset.name}</div>
+            <div><strong className="text-msx-highlight">Mode:</strong> MSX2 SCREEN 5 entry transition</div>
+            <div><strong className="text-msx-highlight">Presentation:</strong> {fxSource ? fxSource.name : (fx?.sourcePresentationAssetId ? 'missing' : 'none')}</div>
+            <div><strong className="text-msx-highlight">Layers:</strong> {fxLayers.length}</div>
+            <div><strong className="text-msx-highlight">Steps / clips:</strong> {fxSteps.length} / {fxClips}</div>
+            <div><strong className="text-msx-highlight">Skippable:</strong> {fx?.skippable === false ? 'no' : 'yes'}</div>
+          </div>
+        );
+      }
       case 'msx2dialogue': {
         const dlg = asset.data as any;
         return (
@@ -2129,6 +2146,16 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           'X and width are kept even: SCREEN 5 stores two pixels per byte.',
           'Every slide shares one 16-colour palette between its images and texts; reserve slots for text colours.',
           'Each step types its text into one zone; SPACE completes the typing and then advances.',
+        ],
+      },
+      [EditorType.Msx2Transition]: {
+        title: 'MSX2 SCREEN 5 Entry Transition Help',
+        summary: 'Cut layers out of a presentation and animate them when the game boots: reveal blinds, a logo that slides in, palette fades and sounds in sync. Play replays the exact byte stream the ROM will run.',
+        tips: [
+          'Layers are rectangles with even x and width (SCREEN 5 stores two pixels per byte) and must not overlap.',
+          'A palette fade on a layer splits the 16 colours between groups: the Palette panel shows the merges, how many pixels change colour, and lets you pin colours. The presentation itself is never modified.',
+          'Time is in 60 Hz frames. A frame that copies too much to fit in 1/60 s lasts several ticks (see the cost meter).',
+          'Attach the effect to a Screen5Presentation node in the GameFlow editor ("Entry effect"). Only the bitmap-room backend plays it, and only at boot.',
         ],
       },
       [EditorType.Msx2Dialogue]: {

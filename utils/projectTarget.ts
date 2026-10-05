@@ -38,6 +38,7 @@ const MSX2_ONLY_ASSET_TYPES = new Set<ProjectAsset['type']>([
   'msx2hud',
   'msx2presentation',
   'msx2gameflow',
+  'msx2transition',
 ]);
 
 export const getProjectTargetFromScreenMode = (screenMode: string): ProjectTarget => (

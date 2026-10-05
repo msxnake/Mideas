@@ -3880,6 +3880,89 @@ export interface Msx2IntroAsset {
 }
 // --- End MSX2 SCREEN 5 Intro ---
 
+// --- MSX2 SCREEN 5 Transition FX (entry effect of a presentation: reveal / slide / palette fade + sound) ---
+// Design: docs/msx/MSX2_TRANSITION_FX_DESIGN.md. Pure logic: utils/msx2TransitionFx.ts.
+/** Pixel rectangle on the 256x212 presentation. x and w are even (SCREEN 5 = 2 px per byte). */
+export interface Msx2TransitionRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** A rectangle cut out of the presentation bitmap that clips act on. Layers are pairwise disjoint. */
+export interface Msx2TransitionLayer {
+  id: string;
+  name: string;
+  rect: Msx2TransitionRect;
+}
+
+export type Msx2TransitionFxEffect = 'reveal' | 'slide' | 'fade' | 'hold';
+export type Msx2TransitionFxEasing = 'linear' | 'easeOut' | 'bounce';
+/** reveal: direction the uncovered area grows. slide: direction the layer MOVES (down = enters from above). */
+export type Msx2TransitionFxDirection = 'down' | 'up' | 'left' | 'right';
+
+/** Sound Editor asset fired by a clip. Timing is in 60 Hz frames, relative to the clip start or end. */
+export interface Msx2TransitionClipSound {
+  soundAssetId: string;
+  at: 'start' | 'end';
+  /** -60..60 frames; negative = earlier. Default 0. */
+  offsetFrames?: number;
+}
+
+/** Per-effect parameters; each effect reads only its own. */
+export interface Msx2TransitionClipParams {
+  /** reveal, slide. Default 'down'. */
+  direction?: Msx2TransitionFxDirection;
+  /** fade: 'in' = invisible -> visible, 'out' = visible -> invisible. Default 'in'. */
+  fade?: { direction: 'in' | 'out' };
+  /** reveal: size in px of the strips the layer is uncovered in (even for left/right). Default 2. */
+  stripSize?: number;
+  /** reveal: venetian slats the layer is cut into, all opening together. 1 (default) = one plain sweep. */
+  slats?: number;
+  /** slide: px the layer travels before reaching its rect. Default: it starts fully outside the screen. */
+  distance?: number;
+  /** hold: after durationFrames, wait for SPACE / fire (0 frames = wait straight away). */
+  waitForKey?: boolean;
+}
+
+export interface Msx2TransitionClip {
+  id: string;
+  /** Layer id, or '__screen' for the whole picture (only fade and hold accept it). */
+  target: string;
+  effect: Msx2TransitionFxEffect;
+  /** 60 Hz frames the effect lasts (hold + waitForKey may use 0). */
+  durationFrames: number;
+  /** Frames after the step starts before this clip starts. */
+  delayFrames: number;
+  easing: Msx2TransitionFxEasing;
+  params: Msx2TransitionClipParams;
+  /** At most 2 per clip. */
+  sounds?: Msx2TransitionClipSound[];
+}
+
+/** The clips of a step start together; the next step starts when the longest one ends. */
+export interface Msx2TransitionStep {
+  id: string;
+  name: string;
+  clips: Msx2TransitionClip[];
+}
+
+export interface Msx2TransitionAsset {
+  version: 1;
+  /** `msx2presentation` asset the layers are cut from. */
+  sourcePresentationAssetId: string;
+  layers: Msx2TransitionLayer[];
+  steps: Msx2TransitionStep[];
+  /** SPACE / fire jumps to the final state. Default true. */
+  skippable: boolean;
+  /** Colours of the presentation palette the greedy merger must never merge away. */
+  palettePlan?: { pinnedColors?: number[] };
+  /** F4 (not in the MVP): keep an exact copy of the presentation instead of the derived image. */
+  exactFinal?: boolean;
+}
+// --- End MSX2 SCREEN 5 Transition FX ---
+
 /** Params bag stored on an Msx2Screen4EntityInstance with kind 'npc'. */
 export interface Msx2NpcDialogueParams {
   /** msx2dialogue asset played when the player talks to this NPC. */
@@ -4185,6 +4268,12 @@ export interface Msx2GameFlowStartNode extends Msx2GameFlowNode_Base {
 export interface Msx2GameFlowScreen5PresentationNode extends Msx2GameFlowNode_Base {
   type: 'Screen5Presentation';
   presentationAssetId?: string;
+  /**
+   * `msx2transition` asset played as the ENTRY effect of this presentation (SCREEN 5 bitmap-room
+   * backend, boot only). Undefined = the image appears at once. The walker and the strict
+   * presentation backend ignore it (with a warning) and export the static image.
+   */
+  fxAssetId?: string;
   waitForKey?: boolean;
   waitFrames?: number;
 }
@@ -4552,6 +4641,7 @@ export enum EditorType {
   Dialogue = "Dialogue",
   Msx2Dialogue = "Msx2Dialogue",
   Msx2Intro = "Msx2Intro",
+  Msx2Transition = "Msx2Transition",
   Portrait = "Portrait",
   MainMenu = "MainMenu",
   PresentationScreen = "PresentationScreen",
@@ -4587,9 +4677,9 @@ export interface ProjectAsset {
   /** The name of the asset. */
   name: string;
   /** The type of the asset. */
-  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2bitmaptile' | 'msx2bitmapstamp' | 'msx2bitmapterrain' | 'msx2screen' | 'msx2bitmaproom' | 'msx2player' | 'msx2enemy' | 'msx2enemybehavior' | 'msx2boss' | 'msx2bosspath' | 'msx2shoot' | 'msx2hudfont' | 'msx2hud' | 'msx2presentation' | 'msx2gameflow' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'msx2dialogue' | 'msx2intro' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
+  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2bitmaptile' | 'msx2bitmapstamp' | 'msx2bitmapterrain' | 'msx2screen' | 'msx2bitmaproom' | 'msx2player' | 'msx2enemy' | 'msx2enemybehavior' | 'msx2boss' | 'msx2bosspath' | 'msx2shoot' | 'msx2hudfont' | 'msx2hud' | 'msx2presentation' | 'msx2gameflow' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'msx2dialogue' | 'msx2intro' | 'msx2transition' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
   /** The data associated with the asset, which varies by type. */
-  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | BitmapTileScreen5 | Msx2BitmapStampAsset | Msx2BitmapTerrainAsset | Msx2Screen4TileScreen | Msx2Screen5BitmapRoom | Msx2PlayerDefinition | EnemyDefinition | Msx2BossDefinition | Msx2BossPath | Msx2ShootDefinition | Msx2HudFontAsset | Msx2HudAsset | Msx2Screen5PresentationConfig | Msx2GameFlowGraph | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | Msx2DialogueAsset | Msx2IntroAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
+  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | BitmapTileScreen5 | Msx2BitmapStampAsset | Msx2BitmapTerrainAsset | Msx2Screen4TileScreen | Msx2Screen5BitmapRoom | Msx2PlayerDefinition | EnemyDefinition | Msx2BossDefinition | Msx2BossPath | Msx2ShootDefinition | Msx2HudFontAsset | Msx2HudAsset | Msx2Screen5PresentationConfig | Msx2GameFlowGraph | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | Msx2DialogueAsset | Msx2IntroAsset | Msx2TransitionAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
 }
 
 export interface Point { x: number; y: number; }

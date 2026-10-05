@@ -1624,3 +1624,103 @@ breakpoint por direccion en #8000+ dispara tambien con OTRO banco mapeado (misma
 distinto codigo): condicionar el breakpoint al banco activo o el trazado engana.
 Tambien: `ensureScreen5PaletteSlots` reconstruye el color desde el indice maestro, asi que
 una paleta ya atenuada (fade) no debe volver a pasar por ella.
+
+
+---
+
+## Efecto de entrada (Transition FX): el tick del interprete es "flag a 1", no "descartar y esperar el siguiente"
+
+Fecha: 2026-10-04
+
+Problema:
+El interprete Z80 del efecto de arranque reproduce un flujo de bytes en el que cada
+fotograma logico dura `SYNC n` ticks de 60 Hz, calculados por el compilador. Copiar la espera
+de vblank del runtime (`bitmap_wait_vblank`) hacia que la animacion durase 146 ticks en
+lugar de 120 (+22 %), y el sonido y los fundidos se desincronizaban del editor.
+
+Causa:
+`bitmap_wait_vblank` lee S#0 una vez para descartar un flag viejo y espera el SIGUIENTE flanco.
+Un fotograma pesado (HMMM del logo, ~30 ms) deja el flag de vblank ya enganchado cuando el
+motor termina: la espera lo descarta y consume otro frame entero, asi que un grupo de 2 ticks
+cuesta 3. Es lo correcto para un bucle de juego y lo incorrecto para un flujo con presupuesto
+de ticks.
+
+Solucion:
+`bitmap_fx_wait_vblank` hace poll de S#0 hasta ver el bit 7 puesto (esa lectura lo limpia),
+SIN descartar antes: un flag ya enganchado cuenta como el tick. Medido en OpenMSX: 120,96 ticks
+frente a los 120 del compilador. La escritura de paleta/R#2 del grupo siguiente cae justo tras
+el tick, dentro de la ventana de ~3 ms. El sabotaje "descartar el flag viejo" queda como control
+rojo en scripts/check_msx2_transition_fx_smoke.mjs.
+
+Leccion Aprendida:
+Una espera de vblank no es una primitiva unica: "una vez por vuelta de bucle" y "n ticks de un
+presupuesto" son semanticas distintas aunque lean el mismo bit. Al reutilizar una rutina de
+sincronizacion, preguntar que cuenta como un tick cuando el trabajo anterior ya ha pasado de
+un frame. Y al sabotear para ver un test en rojo, elegir un camino que el fixture ejercite de
+verdad: quitar la espera del motor de HMMM no se notaba (siempre va el primero tras un SYNC);
+la que muerde es la de HMMV, que sigue al HMMM del logo dentro del mismo fotograma.
+
+---
+
+## Motor de transiciones en un banco: lo que el .sym no dice y lo que una sonda no distingue
+
+Fecha: 2026-10-05
+
+Problema:
+Al mover el motor `bitmap_tfx_*` (jugador HMMV + tablas) a un banco mapeado en #8000, tres comprobaciones
+"obvias" no median lo que parecian: (1) "ninguna `bitmap_tfx_table_*` en #4000-#BFFF" mirando el .sym
+da SIEMPRE falso, porque Glass lista las etiquetas de un banco en su direccion de ventana (#8181), indistinguible
+de una tabla residente; (2) en los fixtures pequenos los bancos 1-3 del fichero ROM son todo #FF, asi que la firma
+de 16 bytes de #8000 no distingue el banco 2 del 3 (solo detecta "hay otro banco con codigo/datos mapeado"); (3) la
+etiqueta de muestreo `bitmap_tfx_frame_wait_done` esta ANTES de re-mapear el banco del motor: ahi P2 es el banco 2
+(restaurado para la musica), no el del motor, y asertar lo contrario ponia rojas 21 ROM correctas.
+
+Solucion:
+(1) La ubicacion de una tabla se prueba por BYTES: leer las primeras lineas `DB` de la tabla en el ASM, comprobar que estan
+en el banco del motor del fichero ROM y que no aparecen en ningun sitio de los 32 KB residentes. (2) Si las firmas
+de dos paginas coinciden, anotarlo en vez de fingir distincion; el proyecto grande (test719, bancos 2 y 3 distintos)
+si distingue un cruce 2<->3. (3) Muestrear en dos puntos: `_done` (P2 = banco 2) y la instruccion tras el `call` de
+espera dentro del motor (P2 = banco del motor, opcode #C1 verificado en el fichero).
+
+Leccion Aprendida:
+Un criterio escrito en el plan ("en el .sym") puede ser imposible por como funciona el ensamblador: antes de
+codificarlo, comprobar que el instrumento ve la diferencia (instrument check) y, si no, buscar la prueba por bytes.
+Y: una condicion de emision que antes dependia de un dato conocido pronto (hay nodo Intro) y ahora depende de uno
+conocido tarde (la tabla del motor se llena al generar el dispatcher) se resuelve emitiendo siempre el marcador y
+retirandolo exacto (`\n${MARCADOR}\n`) cuando no hay nada: el arnes byte-identico (13 casos, ASM y ROM) lo prueba,
+y dejar una linea en blanco lo pone rojo. Mas: `pickBlockSize` recorta el tamano de bloque a los permitidos, asi que
+"diagonal con bloque 2" no se puede crear desde un proyecto; el desbordamiento de un banco se provoca con dos iris
+de bloque 4 (6.543 + 4.679 B), que ademas es lo que el pre-chequeo en TS debe rechazar con un mensaje claro.
+
+
+## Export que "no termina" en "Compiling ROM... 72%": la recuperacion post-ASM de /compile
+
+Sintoma:
+Exportar test719 (SCREEN 5 bitmap-room, MegaROM) dejaba la barra en "Compiling ROM... 72%" durante mas de 3 minutos,
+sin error. No era un bucle infinito: el `fetch` a `/compile` no tiene limite ni progreso y el servidor tardaba 203 s en
+contestar con un 409 generico ("MegaROM build failed ... by 223 bytes").
+
+Causa:
+Ante un desbordamiento de capacidad en MegaROM, `/compile` lanza primero `optimizePostAsmCode` (script Python
+`scripts/post_asm_optimize.py`, 3 pasadas) y solo despues devuelve el error de Glass. Sobre el ASM de bitmap-room esa
+recuperacion no puede hacer nada: sus reglas buscan rutinas de los backends SCREEN 2/4 (cargadores de pantalla, runtime
+de jefes/componentes/maquina de estados) y el codigo bitmap-room no las tiene. Medido: 195 s de CPU a un nucleo y 0
+hallazgos; el servidor solo retrasaba el error. (Con 3 peticiones solapadas se vio como "colgado".) Por contraste, el
+mismo optimizador tarda 5 s en un ASM de SCREEN 4 de 57.000 lineas y alli SI encuentra y recupera.
+
+Solucion:
+`server/server.js`: (1) `isBitmapRoomBackendAsm` (cabecera "Mideas MSX2 SCREEN 5 bitmap room backend") salta la
+recuperacion y responde al instante con `msx2BitmapResidentOverflow` (bytes y ventana #4000-#BFFF) y un `details` que
+dice que hacer; (2) el resto de backends conserva la recuperacion pero acotada: `timeoutMs`
+(`MIDEAS_POST_ASM_RECOVERY_TIMEOUT_MS`, 45 s por defecto) mata el optimizador y devuelve el error original. Medido con la
+peticion real: 203 s -> 0,5 s. Test: `npm run test:compile-overflow-fast-fail` (8 sabotajes en rojo, con control negativo
+de que otros backends siguen intentando la recuperacion).
+
+Leccion Aprendida:
+(1) Un spinner sin fin casi nunca es un bucle: medir el tiempo real de cada paso con la peticion exacta antes de suponer
+(aqui: levantar una segunda instancia del backend en otro puerto y repetir la peticion, `app.listen(port)` desde un
+script porque el modulo no escucha si no es el principal). (2) No se puede deducir que "las reglas no actuan sin
+marcadores `@mideas:block`": probado quitandolos de un ASM de SCREEN 4, el optimizador seguia dando 134 hallazgos; la
+puerta correcta es por backend, no por marcadores. (3) Una recuperacion automatica debe tener presupuesto de tiempo y
+no esconder el error original. (4) El diagnostico erroneo costo una vuelta: quitar solo `fxAssetId` dejaba el nodo
+Transition culpable; ante una regresion, diff estructural entre la version que compila y la que no.

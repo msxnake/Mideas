@@ -42,6 +42,12 @@ export interface Screen5TfxRuntimeOptions {
   frameWaitAsm: string;
   fill: boolean;
   palette: boolean;
+  /**
+   * Emit `${prefix}_wait_ce` (the command-engine idle poll). Defaults to true. Only the fill half (HMMV, play) calls it, so a
+   * palette-only runtime whose fill half lives elsewhere (the bank-resident engine, msx2BitmapTfxBankGenerator.ts) passes
+   * false instead of carrying 24 dead bytes in the resident window.
+   */
+  waitCe?: boolean;
 }
 
 const hexByte = (value: number): string => `#${(value & 0xff).toString(16).toUpperCase().padStart(2, '0')}`;
@@ -65,7 +71,10 @@ export function generateScreen5TfxRuntime(options: Screen5TfxRuntimeOptions): st
 ; ==================================================================
 ; SCREEN 5 transition engine (${p}_*): HMMV fill tables + palette fades.
 ; ==================================================================
-; ------------------------------------------------------------
+`);
+
+  if (options.waitCe !== false) {
+    parts.push(`; ------------------------------------------------------------
 ; FUNCTION: ${p}_wait_ce
 ; ------------------------------------------------------------
 ; PURPOSE:
@@ -109,6 +118,7 @@ ${ei}    pop af
     jp c, ${p}_wait_ce
     ret
 `);
+  }
 
   if (options.fill) {
     parts.push(`
@@ -668,7 +678,7 @@ ${p}_pal_scale_loop:
  * identical transitions share one table.
  */
 export class Screen5TfxDataPool {
-  private readonly fillTables = new Map<string, { label: string; bytes: number[] }>();
+  private readonly fillTables = new Map<string, { label: string; bytes: number[]; spec: Extract<Screen5TransitionSpec, { kind: 'fill' }> }>();
   private readonly solidPalettes = new Map<string, { label: string; bytes: number[] }>();
   usesFill = false;
   usesPalette = false;
@@ -682,7 +692,7 @@ export class Screen5TfxDataPool {
     if (existing) return existing.label;
     const label = `${this.prefix}_table_${this.fillTables.size}`;
     const plan = buildScreen5FillPlan(spec);
-    this.fillTables.set(key, { label, bytes: encodeScreen5FillPlan(plan, spec.fillColorIndex, spec.framesPerStep) });
+    this.fillTables.set(key, { label, bytes: encodeScreen5FillPlan(plan, spec.fillColorIndex, spec.framesPerStep), spec });
     return label;
   }
 
@@ -700,15 +710,52 @@ export class Screen5TfxDataPool {
     return this.fillTables.size === 0 && this.solidPalettes.size === 0 && !this.usesFill && !this.usesPalette;
   }
 
-  emitData(): string {
+  /** Number of distinct fill tables collected so far. */
+  get fillTableCount(): number {
+    return this.fillTables.size;
+  }
+
+  /** Total size in bytes of every fill table (what `emitFillTables()` assembles to). */
+  get fillTableBytes(): number {
+    let total = 0;
+    for (const { bytes } of this.fillTables.values()) total += bytes.length;
+    return total;
+  }
+
+  /** One entry per fill table, for size reports and error messages. */
+  describeFillTables(): Array<{ label: string; bytes: number; effect: string; blockSize: number; irisShape: string }> {
+    return [...this.fillTables.values()].map(({ label, bytes, spec }) => ({ label, bytes: bytes.length, effect: spec.effect, blockSize: spec.blockSize, irisShape: spec.irisShape }));
+  }
+
+  private emitFillTableBlocks(): string[] {
     const blocks: string[] = [];
     for (const { label, bytes } of this.fillTables.values()) {
       blocks.push(`${label}:   ; SCREEN 5 transition fill table\n${chunkTfxBytes(bytes)}`);
     }
+    return blocks;
+  }
+
+  private emitSolidPaletteBlocks(): string[] {
+    const blocks: string[] = [];
     for (const { label, bytes } of this.solidPalettes.values()) {
       blocks.push(`${label}:   ; solid transition palette (R<<4|B, G)\n${chunkTfxBytes(bytes)}`);
     }
-    return blocks.join('\n');
+    return blocks;
+  }
+
+  /** The fill tables only (the engine bank of the bitmap-room backend carries them next to the HMMV player). */
+  emitFillTables(): string {
+    return this.emitFillTableBlocks().join('\n');
+  }
+
+  /** The solid-colour palettes only (they stay resident: the palette engine reads them with the data banks unmapped). */
+  emitSolidPalettes(): string {
+    return this.emitSolidPaletteBlocks().join('\n');
+  }
+
+  /** Both, tables first: what every runtime that keeps the whole engine resident emits (UNCHANGED output). */
+  emitData(): string {
+    return [...this.emitFillTableBlocks(), ...this.emitSolidPaletteBlocks()].join('\n');
   }
 }
 

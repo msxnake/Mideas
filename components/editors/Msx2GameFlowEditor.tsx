@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { validateIntroMusic, validateIntroSlide } from '../../utils/msx2IntroUtils';
+import { presentationFxNodeIssues } from '../../utils/msx2TransitionEditorUtils';
+import { Msx2PresentationFxSection } from './Msx2PresentationFxSection';
 import { firstFreeSubMenuOption, repairSubMenuConnections } from '../../utils/msx2GameFlowSubMenuLinks';
 import { clampMsx2CodeLength, codeEntryIssues, firstFreeCodeEntryPort, normalizeMsx2Code } from '../../utils/msx2GameFlowCodeEntry';
 import type {
@@ -689,6 +691,10 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           if (!node.presentationAssetId || !presentationAssets.some(asset => asset.id === node.presentationAssetId)) {
             issues.push('Screen5Presentation node must select a valid SCREEN 5 presentation asset.');
           }
+          if (node.fxAssetId) {
+            // Entry effect: only the bitmap-room runtime plays it, so only here do its errors block the flow.
+            issues.push(...presentationFxNodeIssues(node, nodes, connections, allAssets, true).errors.map(message => `Entry effect: ${message}`));
+          }
         } else if (node.type === 'Screen4Screen') {
           if (!node.screenAssetId || !screen4Assets.some(asset => asset.id === node.screenAssetId)) {
             issues.push('Screen4Screen node must select a valid SCREEN 4 room.');
@@ -987,7 +993,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     }
 
     return Array.from(new Set(issues));
-  }, [connections, gameFlowGraph.startNodeId, isScreen5PresentationFlow, nodes, presentationAssets, screen4Assets, trackAssets, usesScreen5GenericBackend, worldAssets]);
+  }, [allAssets, connections, gameFlowGraph.startNodeId, isScreen5PresentationFlow, nodes, presentationAssets, screen4Assets, trackAssets, usesScreen5GenericBackend, worldAssets]);
 
   const updateNodes = (nextNodes: Msx2GameFlowNode[]) => onUpdate({ nodes: nextNodes });
 
@@ -1182,6 +1188,15 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         ? { ...node, presentationAssetId: selectedAsset.id }
         : node
     ));
+  };
+
+  const updateSelectedPresentationFx = (fxAssetId: string | undefined) => {
+    if (!selectedPresentationNode) return;
+    updateNodes(nodes.map(node => {
+      if (node.id !== selectedPresentationNode.id || node.type !== 'Screen5Presentation') return node;
+      const { fxAssetId: _previous, ...rest } = node;
+      return fxAssetId ? { ...rest, fxAssetId } : rest;
+    }));
   };
 
   const updateSelectedPresentationRuntime = (updates: Partial<Pick<Msx2GameFlowScreen5PresentationNode, 'waitForKey' | 'waitFrames'>>) => {
@@ -2071,6 +2086,14 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                 {previewLabel}
               </p>
               <Screen5PresentationPreviewCanvas asset={activePresentationAsset} />
+              <Msx2PresentationFxSection
+                node={selectedPresentationNode}
+                nodes={nodes}
+                connections={connections}
+                allAssets={allAssets}
+                bitmapBackend={isScreen5BitmapRuntimeFlow}
+                onChange={updateSelectedPresentationFx}
+              />
               <h3 className="text-sm font-semibold">GameFlow runtime override</h3>
               <label className="flex items-center gap-2 text-xs">
                 <input

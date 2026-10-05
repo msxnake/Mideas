@@ -28,6 +28,21 @@ export interface CompiledPsgOneShot {
   stepCount: number;
 }
 
+/**
+ * The same stream as plain numbers, for callers that do not emit ASM text (the
+ * transition-FX compiler embeds the records straight into its byte stream, and
+ * its JS decoder replays them).
+ */
+export interface CompiledPsgOneShotRecords {
+  /** Which authored channel was remapped onto C. */
+  sourceChannel: 'A' | 'B' | 'C';
+  /**
+   * One array per record: `duration, R4, R5, R6, R10, R11, R12, R13, R7,
+   * mixer-shadow`. The terminating zero duration is NOT included.
+   */
+  records: number[][];
+}
+
 function clampInt(value: unknown, min: number, max: number, fallback: number): number {
   const parsed = Math.trunc(Number(value));
   if (!Number.isFinite(parsed)) return fallback;
@@ -41,18 +56,13 @@ const hex2 = (value: number) => `#${(value & 0xff).toString(16).toUpperCase().pa
  *
  * An asset may author A, B and C; the first channel with steps wins, preferring
  * C, and is remapped onto C. Each record is
- * `duration, R4, R5, R6, R10, R11, R12, R13, R7, mixer-shadow`, terminated by a
- * zero duration.
+ * `duration, R4, R5, R6, R10, R11, R12, R13, R7, mixer-shadow`; the stream the
+ * ASM emits is terminated by a zero duration, which is not part of `records`.
  *
  * Returns undefined when there is nothing to play, which is the caller's cue to
  * fall back to its built-in blip.
  */
-export function compilePsgOneShot(
-  sound: PSGSoundData | undefined,
-  dataLabel: string,
-  /** Comment placed above the rows; the default names the remapped channel. */
-  describe?: (channel: 'A' | 'B' | 'C') => string,
-): CompiledPsgOneShot | undefined {
+export function compilePsgOneShotRecords(sound: PSGSoundData | undefined): CompiledPsgOneShotRecords | undefined {
   const channels = Array.isArray(sound?.channels) ? sound.channels : [];
   const channel = [...channels].sort((a, b) => (a.id === 'C' ? -1 : b.id === 'C' ? 1 : 0))
     .find(item => Array.isArray(item?.steps) && item.steps.length > 0);
@@ -99,13 +109,29 @@ export function compilePsgOneShot(
     }
   }
   if (!records.length) return undefined;
+  return { sourceChannel: channel.id, records };
+}
 
+/**
+ * Compiles a Sound Editor asset into the ASM data block for the sequencer (see
+ * `compilePsgOneShotRecords` for the record layout). Returns undefined when
+ * there is nothing to play.
+ */
+export function compilePsgOneShot(
+  sound: PSGSoundData | undefined,
+  dataLabel: string,
+  /** Comment placed above the rows; the default names the remapped channel. */
+  describe?: (channel: 'A' | 'B' | 'C') => string,
+): CompiledPsgOneShot | undefined {
+  const compiled = compilePsgOneShotRecords(sound);
+  if (!compiled) return undefined;
+  const { records, sourceChannel } = compiled;
   const rows = records.map(record => `    DB ${record.map(hex2).join(',')}`).join('\n');
   const comment = describe
-    ? describe(channel.id)
-    : `    ; Sound Editor channel ${channel.id} remapped to gameplay SFX channel C.`;
+    ? describe(sourceChannel)
+    : `    ; Sound Editor channel ${sourceChannel} remapped to gameplay SFX channel C.`;
   return {
-    sourceChannel: channel.id,
+    sourceChannel,
     stepCount: records.length,
     dataAsm: `${dataLabel}:
 ${comment}
@@ -127,7 +153,20 @@ export const PSG_ONE_SHOT_RAM_BYTES = 4;
  * `_tick` must be called once per game frame; it returns immediately when
  * nothing is playing, so an idle effect costs a load and a branch.
  */
-export function buildPsgOneShotAsm(prefix: string, dataLabel: string): string {
+export function buildPsgOneShotAsm(
+  prefix: string,
+  dataLabel: string,
+  options: {
+    /**
+     * Also label the instruction after `ld hl, <data>` as `<prefix>_start_hl`,
+     * so a caller that keeps several streams can start one with HL = its data.
+     * A label generates no bytes, but it does add a line to the ASM text, so it
+     * is opt-in: every existing caller keeps its ASM byte-identical.
+     */
+    exportStartHl?: boolean;
+  } = {},
+): string {
+  const startHlLabel = options.exportStartHl ? `${prefix}_start_hl:\n` : '';
   return `
 ; ------------------------------------------------------------
 ; FUNCTION: ${prefix}_start
@@ -140,7 +179,7 @@ export function buildPsgOneShotAsm(prefix: string, dataLabel: string): string {
 ; ------------------------------------------------------------
 ${prefix}_start:
     ld hl, ${dataLabel}
-    ld (${prefix}_ptr), hl
+${startHlLabel}    ld (${prefix}_ptr), hl
     ld a, 1
     ld (${prefix}_active), a
     jp ${prefix}_load_step

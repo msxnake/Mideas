@@ -1,5 +1,6 @@
 import { deferredPanel } from './common/deferredPanel';
 import { createDefaultMsx2Intro } from '../utils/msx2IntroUtils';
+import { createDefaultTransitionAsset } from '../utils/msx2TransitionFx';
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { 
   EditorType, ProjectAsset, Tile, Sprite, Msx2Sprite, Msx2Bitmap, BitmapTileScreen5, Msx2Screen4TileScreen, Msx2Screen5BitmapRoom, Msx2PlayerDefinition, Msx2HudFontAsset, Msx2HudAsset, Msx2HudIconEntry, ScreenMap, MSXColorValue, SpriteFrame, PixelData,
@@ -9,7 +10,7 @@ import {
   Snippet, EntityInstance, MockEntityType, HelpDocSection, BehaviorScript,
   CopiedScreenData, CopiedLayerData, EffectZone, ScreenEditorLayerName, 
   ComponentDefinition, EntityTemplate, EnemyDefinition, Msx2BossDefinition, Msx2BossPath, Msx2ShootDefinition, ContextMenuItem,
-  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, Msx2GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, Msx2Screen5PresentationConfig, DialogueAsset, Msx2DialogueAsset, Msx2IntroAsset, Msx2BitmapStampAsset, Msx2BitmapTerrainAsset, PortraitAsset, ScreenKind, TileStamp, Msx2ProjectProfile, Msx2GameProfileId, PaletteAsset, Screen5PaletteSlot, Msx2PaletteZones
+  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, Msx2GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, Msx2Screen5PresentationConfig, DialogueAsset, Msx2DialogueAsset, Msx2IntroAsset, Msx2TransitionAsset, Msx2BitmapStampAsset, Msx2BitmapTerrainAsset, PortraitAsset, ScreenKind, TileStamp, Msx2ProjectProfile, Msx2GameProfileId, PaletteAsset, Screen5PaletteSlot, Msx2PaletteZones
 } from '../types';
 import { 
   MSX1_PALETTE,
@@ -85,6 +86,7 @@ const MainMenuEditor = deferredPanel(() => import('./editors/MainMenuEditor').th
 const PresentationScreenEditor = deferredPanel(() => import('./editors/PresentationScreenEditor').then(module => ({ default: module.PresentationScreenEditor })));
 const DialogueEditor = deferredPanel(() => import('./editors/DialogueEditor').then(module => ({ default: module.DialogueEditor })));
 const Msx2IntroEditor = deferredPanel(() => import('./editors/Msx2IntroEditor').then(module => ({ default: module.Msx2IntroEditor })));
+const Msx2TransitionEditor = deferredPanel(() => import('./editors/Msx2TransitionEditor').then(module => ({ default: module.Msx2TransitionEditor })));
 const Msx2DialogueEditor = deferredPanel(() => import('./editors/Msx2DialogueEditor').then(module => ({ default: module.Msx2DialogueEditor })));
 const Msx2BitmapStampEditor = deferredPanel(() => import('./editors/Msx2BitmapStampEditor').then(module => ({ default: module.Msx2BitmapStampEditor })));
 const Msx2BitmapTerrainEditor = deferredPanel(() => import('./editors/Msx2BitmapTerrainEditor').then(module => ({ default: module.Msx2BitmapTerrainEditor })));
@@ -453,6 +455,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
     EditorType.Msx2BitmapTerrain,
     EditorType.Msx2Dialogue,
     EditorType.Msx2Intro,
+    EditorType.Msx2Transition,
     EditorType.Msx2HudFont,
     EditorType.Msx2HudEditor,
     EditorType.Msx2Presentation,
@@ -1401,6 +1404,15 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           {currentEditor === EditorType.Msx2Intro && activeAsset?.type === 'msx2intro' && (
             <Msx2IntroEditor
               intro={(activeAsset.data as Msx2IntroAsset) || createDefaultMsx2Intro(activeAsset.id, activeAsset.name)}
+              onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}
+              allAssets={assets}
+              setStatusBarMessage={setStatusBarMessage}
+            />
+          )}
+          {currentEditor === EditorType.Msx2Transition && activeAsset?.type === 'msx2transition' && (
+            <Msx2TransitionEditor
+              assetId={activeAsset.id}
+              transition={(activeAsset.data as Msx2TransitionAsset) || createDefaultTransitionAsset(assets.find(asset => asset.type === 'msx2presentation')?.id)}
               onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}
               allAssets={assets}
               setStatusBarMessage={setStatusBarMessage}

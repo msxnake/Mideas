@@ -624,10 +624,23 @@ async function optimizePostAsmCode(code, options = {}) {
     args.push('--validate-glass', glassJarPath, '--validate-rom-output', optimizedRomPath);
   }
 
-  const { stdout, stderr } = await execFileAsync(pythonExe, args, {
-    cwd: projectRoot,
-    maxBuffer: 32 * 1024 * 1024,
-  });
+  // options.timeoutMs bounds an automatic recovery; the explicit /optimize-post-asm
+  // request passes none and keeps running as long as the optimizer needs.
+  const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 0;
+  let stdout;
+  let stderr;
+  try {
+    ({ stdout, stderr } = await execFileAsync(pythonExe, args, {
+      cwd: projectRoot,
+      maxBuffer: 32 * 1024 * 1024,
+      ...(timeoutMs ? { timeout: timeoutMs, killSignal: 'SIGKILL' } : {}),
+    }));
+  } catch (error) {
+    if (timeoutMs && error && error.killed) {
+      throw new Error(`Post-ASM optimizer exceeded ${timeoutMs} ms and was stopped.`);
+    }
+    throw error;
+  }
 
   const report = JSON.parse(fs.readFileSync(reportJsonPath, 'utf8'));
   const optimizedCode = fs.readFileSync(outputPath, 'utf8');
@@ -860,6 +873,40 @@ function getNegativeDsOverflowBytes(text) {
   if (!Number.isFinite(parsed) || parsed >= 0) return null;
 
   return Math.abs(parsed);
+}
+
+/**
+ * True for the ASM of the SCREEN 5 bitmap-room backend (header comment written by
+ * msx2Screen5BitmapRoomGenerator).
+ *
+ * The post-ASM optimizer cannot help this backend: its rules look for routines of the
+ * SCREEN 2/4 generators (screen loaders, boss attack/component/state-machine runtime)
+ * and the bitmap-room code has none. Measured on test719 (33k lines): the optimizer ran
+ * 195 s of pure CPU and reported 0 findings, so the MegaROM "recovery" only delayed the
+ * Glass error by minutes.
+ */
+function isBitmapRoomBackendAsm(code) {
+  return /^\s*;\s*Mideas MSX2 SCREEN 5 bitmap room backend\b/m.test(String(code || '').slice(0, 4096));
+}
+
+/**
+ * Longest the post-ASM recovery of a failed MegaROM compile may run before the original
+ * Glass error is returned instead. Normal recoveries take seconds (57k lines: 5 s), so
+ * this only fires on a run that is not going to finish usefully. Override with
+ * MIDEAS_POST_ASM_RECOVERY_TIMEOUT_MS.
+ */
+const POST_ASM_RECOVERY_TIMEOUT_MS = (() => {
+  const parsed = Number.parseInt(process.env.MIDEAS_POST_ASM_RECOVERY_TIMEOUT_MS || '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 45000;
+})();
+
+function buildBitmapRoomResidentOverflowDetails(overflowBytes) {
+  return [
+    `The SCREEN 5 bitmap-room resident window (#4000-#BFFF, banks 0-3, 32 KB) overflowed by ${overflowBytes} bytes before the data banks.`,
+    'Post-ASM recovery was skipped: its rules do not apply to this backend, so it could only delay this error.',
+    `Free at least ${overflowBytes} bytes of resident code or data (move cold tables/code to a bank, or remove unused skills, effects or transitions) and export again.`,
+    'scripts/measure_bitmap_rom_budget.mjs <project.json> reports the resident usage of a build that fits.'
+  ].join(' ');
 }
 
 function buildMsx2CompileResolverCandidates(reason, residentRegenerationReadiness = null) {
@@ -5522,7 +5569,30 @@ app.post('/compile', async (req, res) => {
             }
           }
 
-          if (capacityOverflow && normalizedRomMode === 'megarom' && attempt === 1) {
+          // SCREEN 5 bitmap-room: the post-ASM recovery below cannot apply (see
+          // isBitmapRoomBackendAsm), so answer with the Glass overflow right away.
+          const skipPostAsmRecovery =
+            capacityOverflow && normalizedRomMode === 'megarom' && isBitmapRoomBackendAsm(codeToCompile);
+          if (skipPostAsmRecovery) {
+            if (negativeDsOverflowBytes !== null) {
+              errorResponse.error = 'MSX2 bitmap-room resident window overflow';
+              errorResponse.details = buildBitmapRoomResidentOverflowDetails(negativeDsOverflowBytes);
+              errorResponse.msx2BitmapResidentOverflow = {
+                overflowBytes: negativeDsOverflowBytes,
+                window: '#4000-#BFFF',
+                postAsmRecovery: 'skipped_not_applicable'
+              };
+            }
+            msx2CompileResolverAttempts.push({
+              attempt: 0,
+              action: 'run_post_asm_dead_block_optimizer',
+              candidateId: 'run_post_asm_dead_block_optimizer',
+              status: 'skipped',
+              reason: 'The post-ASM optimizer has no rules for the SCREEN 5 bitmap-room backend.'
+            });
+          }
+
+          if (capacityOverflow && normalizedRomMode === 'megarom' && attempt === 1 && !skipPostAsmRecovery) {
             try {
               if (msx2CompileFailure?.automaticResolutionPlan?.nextCandidateId === 'move_cold_readonly_data_to_world_bank') {
                 msx2CompileResolverAttempts.push({
@@ -5540,6 +5610,7 @@ app.post('/compile', async (req, res) => {
                 passes: 3,
                 validateGlass: false,
                 rules: [...POST_ASM_APPLY_RULES],
+                timeoutMs: POST_ASM_RECOVERY_TIMEOUT_MS,
               });
 
               const recoveryRomPath = outputFilePath.replace(/\.rom$/i, '.postasm.rom');
@@ -6841,6 +6912,9 @@ module.exports = {
     parsePlain48kPage0Diagnostics,
     formatPlain48kPage0Diagnostic,
     getNegativeDsOverflowBytes,
-    isGlassRomCapacityError
+    isGlassRomCapacityError,
+    isBitmapRoomBackendAsm,
+    buildBitmapRoomResidentOverflowDetails,
+    POST_ASM_RECOVERY_TIMEOUT_MS
   }
 };

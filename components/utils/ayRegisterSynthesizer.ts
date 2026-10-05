@@ -313,6 +313,38 @@ export class AYRegisterSynthesizer {
     this.writeChannelRegisters(channel);
   }
 
+  /**
+   * Writes PSG registers exactly as a Z80 `OUT` pair would: no instrument, no tracker effect, no
+   * 50 Hz clock, only the register file the renderer reads. This is how the Transition FX Play
+   * (components/editors/Msx2TransitionEditor.tsx) replays the writes of the ROM's PSG one-shot
+   * sequencer in the same tick that the decoder emits them.
+   *
+   * Registers are masked like the chip does (R1/R3/R5 and R13 are 4 bits, R6 and the volumes 5,
+   * R7 keeps the 6 mixer bits); R14/R15 (I/O ports) are ignored. A write to R13 restarts the
+   * envelope even when the shape is unchanged, which is what the real PSG does.
+   */
+  public pokeRegisters(writes: ReadonlyArray<{ reg: number; value: number }>): void {
+    for (const write of writes) {
+      const reg = write.reg | 0;
+      if (reg < 0 || reg > 13) continue;
+      const value = write.value & 0xff;
+      if (reg === 13) {
+        this.writeEnvelopeShape(value & 0x0f, true);
+        continue;
+      }
+      if (reg === 1 || reg === 3 || reg === 5) this.registers[reg] = value & 0x0f;
+      else if (reg === 6) this.registers[reg] = value & 0x1f;
+      else if (reg === 7) this.registers[reg] = value & 0x3f;
+      else if (reg >= 8 && reg <= 10) this.registers[reg] = value & 0x1f;
+      else this.registers[reg] = value;
+    }
+  }
+
+  /** Current value of a PSG register (R0-R13) as the renderer sees it; used by tests and debugging. */
+  public getRegister(reg: number): number {
+    return reg >= 0 && reg < this.registers.length ? this.registers[reg] : 0;
+  }
+
   public setMasterVolume(volumeLevel: number): void {
     this.currentMasterVolume = Math.max(0, Math.min(volumeLevel, 1.0));
     if (this.masterGain && this.audioContext) {
