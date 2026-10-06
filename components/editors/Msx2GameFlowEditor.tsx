@@ -50,6 +50,11 @@ import {
   screen5TransitionUsesEngine,
 } from '../../utils/msx2TransitionPatterns';
 import { resolveScreen5MenuLayout } from '../../utils/msx2Screen5MenuLayout';
+import {
+  extractScreen5MenuTitleImage,
+  renderScreen5MenuTitleImageRgba,
+  resolveScreen5MenuTitleImageColumn,
+} from '../../utils/msx2Screen5MenuTitleImage';
 import { Screen5TransitionSettings } from './Screen5TransitionSettings';
 import {
   drawMsx2Screen5PresentationPreview,
@@ -221,9 +226,28 @@ const Screen5ScrollModeSelect: React.FC<{
 /** SCREEN 5 SubMenu cursor + layout controls with a to-scale layout preview. */
 const Screen5SubMenuLayoutSettings: React.FC<{
   node: Msx2GameFlowSubMenuNode;
+  presentationAssets: ProjectAsset[];
   onChange: (updates: Partial<Msx2GameFlowSubMenuNode>) => void;
-}> = ({ node, onChange }) => {
-  const layout = resolveScreen5MenuLayout(node, (node.options || []).slice(0, 6).map(option => option.text || ''));
+}> = ({ node, presentationAssets, onChange }) => {
+  const titleAsset = node.titleImageAssetId ? presentationAssets.find(asset => asset.id === node.titleImageAssetId) : undefined;
+  const titleImage = useMemo(
+    () => (node.titleImageAssetId ? extractScreen5MenuTitleImage(titleAsset?.data as Msx2Screen5PresentationConfig | undefined) : undefined),
+    [node.titleImageAssetId, titleAsset]
+  );
+  // The preview shows the picture with its own palette, exactly as the VDP will once the menu opens.
+  const titleImageUrl = useMemo(() => {
+    const image = titleImage?.image;
+    if (!image) return undefined;
+    const canvas = document.createElement('canvas');
+    canvas.width = image.widthBytes * 2;
+    canvas.height = image.height;
+    const context = canvas.getContext('2d');
+    if (!context) return undefined;
+    const palette = (titleAsset?.data as Msx2Screen5PresentationConfig | undefined)?.palette;
+    context.putImageData(new ImageData(renderScreen5MenuTitleImageRgba(image, palette), canvas.width, canvas.height), 0, 0);
+    return canvas.toDataURL();
+  }, [titleImage, titleAsset]);
+  const layout = resolveScreen5MenuLayout(node, (node.options || []).slice(0, 6).map(option => option.text || ''), titleImage?.image?.height);
   const numberOrUndefined = (value: string): number | undefined => (value.trim() === '' ? undefined : Math.trunc(Number(value)) || 0);
   const selectClass = 'mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1';
   const hasCursor = node.cursorStyle === 'arrow' || node.cursorStyle === 'arrow_bar';
@@ -282,11 +306,44 @@ const Screen5SubMenuLayoutSettings: React.FC<{
           <input type="number" min={0} max={204} placeholder="32" value={node.titleY ?? ''} onChange={event => onChange({ titleY: numberOrUndefined(event.target.value) })} className={selectClass} />
         </label>
       </div>
+      <label className="block text-xs">
+        Title image (bitmap, replaces the text title)
+        <select
+          value={node.titleImageAssetId || '__none'}
+          onChange={event => onChange({ titleImageAssetId: event.target.value === '__none' ? undefined : event.target.value })}
+          className={selectClass}
+        >
+          <option value="__none">None (text title)</option>
+          {presentationAssets.map(asset => (
+            <option key={asset.id} value={asset.id}>{asset.name}</option>
+          ))}
+        </select>
+      </label>
+      {node.titleImageAssetId && !titleAsset && (
+        <p className="text-xs text-msx-danger">The selected SCREEN 5 presentation no longer exists.</p>
+      )}
+      {titleImage?.error && <p className="text-xs text-msx-danger">Title image: {titleImage.error}</p>}
+      {titleImage?.image && (
+        <p className="text-[0.65rem] leading-snug text-msx-textsecondary">
+          Title image: {titleImage.image.widthBytes * 2}x{titleImage.image.height} px, {titleImage.image.bytes.length} bytes of ROM. Only the
+          pixels that are not palette slot 0 are exported. Its palette is loaded when the menu opens, so the menu colours index into it.
+        </p>
+      )}
       {layout.error ? (
         <p className="text-xs text-msx-danger">{layout.error}</p>
       ) : (
         <svg viewBox="0 0 256 212" className="w-full border border-msx-border bg-black" style={{ maxWidth: 256 }}>
-          {node.title && (
+          {titleImage?.image && titleImageUrl && (
+            <image
+              href={titleImageUrl}
+              x={resolveScreen5MenuTitleImageColumn(titleImage.image.widthBytes, layout.titleColumn) * 2}
+              y={layout.titleY}
+              width={titleImage.image.widthBytes * 2}
+              height={titleImage.image.height}
+              style={{ imageRendering: 'pixelated' }}
+            />
+          )}
+          {node.title && !titleImage?.image && (
             <text
               x={layout.titleColumn !== undefined ? (layout.titleColumn / 3) * 6 : 128}
               y={layout.titleY + 7}
@@ -704,6 +761,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           if (!Array.isArray(node.options) || node.options.length === 0) {
             issues.push('SubMenu node must include at least one option.');
           }
+          if (node.titleImageAssetId && isScreen5BitmapRuntimeFlow) {
+            issues.push(`SubMenu "${node.title || node.id}" has a title image, which the SCREEN 5 bitmap-room backend does not draw; it shows the text title.`);
+          }
           const optionIds = new Set((node.options || []).map(option => option.id));
           for (const option of node.options || []) {
             if (!option.text?.trim()) issues.push('SubMenu options must include text.');
@@ -787,7 +847,19 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
             issues.push('Screen5Presentation node must select a valid SCREEN 5 presentation asset.');
           }
         } else if (node.type === 'SubMenu') {
-          if (!node.title?.trim()) issues.push('SubMenu node must include a title.');
+          if (!node.title?.trim() && !node.titleImageAssetId) issues.push('SubMenu node must include a title or a title image.');
+          // The export stops on a missing or empty title image, so report it here first.
+          let titleImageHeight: number | undefined;
+          if (node.titleImageAssetId) {
+            const titleAsset = presentationAssets.find(asset => asset.id === node.titleImageAssetId);
+            if (!titleAsset) {
+              issues.push(`SubMenu "${node.title || node.id}": the title image points at a SCREEN 5 presentation that no longer exists.`);
+            } else {
+              const { image, error } = extractScreen5MenuTitleImage(titleAsset.data as Msx2Screen5PresentationConfig);
+              if (error) issues.push(`SubMenu "${node.title || node.id}" title image: ${error}`);
+              titleImageHeight = image?.height;
+            }
+          }
           if (!Array.isArray(node.options) || node.options.length === 0) {
             issues.push('SubMenu node must include at least one option.');
           }
@@ -801,7 +873,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
             }
           }
           if ((node.options || []).length > 0) {
-            const layout = resolveScreen5MenuLayout(node, (node.options || []).slice(0, 6).map(option => option.text || ''));
+            const layout = resolveScreen5MenuLayout(node, (node.options || []).slice(0, 6).map(option => option.text || ''), titleImageHeight);
             if (layout.error) issues.push(`SubMenu "${node.title || node.id}": ${layout.error}`);
           }
         } else if (node.type === 'Text') {
@@ -823,7 +895,8 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           issues.push(`${node.type} is not supported by the SCREEN 5 GameFlow backend.`);
         }
       }
-      if (!nodes.some(node => node.type === 'Screen5Presentation')) {
+      // A SubMenu bitmap title already brings a picture and its palette.
+      if (!nodes.some(node => node.type === 'Screen5Presentation' || (node.type === 'SubMenu' && node.titleImageAssetId))) {
         issues.push('SCREEN 5 flows should include at least one Screen5Presentation node as background.');
       }
     } else {
@@ -2880,7 +2953,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                 </label>
               </div>
               {isScreen5PresentationFlow && (
-                <Screen5SubMenuLayoutSettings node={selectedSubMenuNode} onChange={updateSelectedSubMenu} />
+                <Screen5SubMenuLayoutSettings node={selectedSubMenuNode} presentationAssets={presentationAssets} onChange={updateSelectedSubMenu} />
               )}
               <p className="text-xs text-msx-textsecondary">
                 SCREEN 5 export draws the options with the 6x8 GameFlow font; cursor keys / joystick move the

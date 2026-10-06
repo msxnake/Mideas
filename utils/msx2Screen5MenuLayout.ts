@@ -38,8 +38,15 @@ export interface Screen5MenuLayout {
  * Pixel layout of a SCREEN 5 SubMenu. With no layout/cursor fields set it
  * reproduces the classic centred highlight-bar menu exactly (same strings, same
  * coordinates), so existing flows keep a byte-identical ROM.
+ *
+ * `titleImageHeight` is the height in pixels of the bitmap title that replaces
+ * the text title (see msx2Screen5MenuTitleImage.ts); it must end above the first option.
  */
-export function resolveScreen5MenuLayout(menuNode: Msx2GameFlowSubMenuNode, rawTexts: string[]): Screen5MenuLayout {
+export function resolveScreen5MenuLayout(
+  menuNode: Msx2GameFlowSubMenuNode,
+  rawTexts: string[],
+  titleImageHeight?: number
+): Screen5MenuLayout {
   const cursorStyle = menuNode.cursorStyle === 'arrow' || menuNode.cursorStyle === 'arrow_bar' ? menuNode.cursorStyle : 'bar';
   const useArrow = cursorStyle !== 'bar';
   const useBar = cursorStyle !== 'arrow';
@@ -57,6 +64,16 @@ export function resolveScreen5MenuLayout(menuNode: Msx2GameFlowSubMenuNode, rawT
   const titleY = clampPx(menuNode.titleY, 0, 204, GF_MENU_TITLE_Y);
   const columnOfPx = (px: number): number => Math.floor(Math.max(0, Math.min(255, px)) / 6);
   const leftCells = 2;
+
+  if (titleImageHeight !== undefined && titleY + titleImageHeight > firstY) {
+    return {
+      items: [],
+      horizontal,
+      useBar,
+      titleY,
+      error: `the title image is ${titleImageHeight} px tall, so from y=${titleY} it ends at y=${titleY + titleImageHeight} and runs into the first option at y=${firstY}. Lower titleY, raise menuY or use a smaller image.`,
+    };
+  }
 
   const optionTexts = rawTexts.map(text => sanitizeScreen5FlowText(text || '', GF_MAX_COLUMNS - 4));
   const maxLength = Math.max(...optionTexts.map(text => text.length));

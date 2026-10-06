@@ -68,6 +68,11 @@ import {
 import { SCREEN5_TRANSITION_EFFECTS } from './screen5TransitionEffects';
 import { resolveScreen5MenuLayout } from '../../../msx2Screen5MenuLayout';
 import {
+  extractScreen5MenuTitleImage,
+  resolveScreen5MenuTitleImageColumn,
+  type Screen5MenuTitleImage,
+} from '../../../msx2Screen5MenuTitleImage';
+import {
   generateSmoothScrollRuntime,
   smoothScrollNodeData,
   smoothScrollRamEquates,
@@ -367,6 +372,15 @@ interface PresentationEntry {
   vramPage: number;
 }
 
+/** SubMenu bitmap title: the cropped picture and the palette it is shown with. */
+interface TitleImageEntry {
+  index: number;
+  image: Screen5MenuTitleImage;
+  paletteBytes: number[];
+  /** Legible text colour in the title palette, used when the menu sets none. */
+  brightestIndex: number;
+}
+
 export function generateMsx2Screen5FlowUnitedFiles(
   projectName: string,
   analysis: ProjectAnalysis,
@@ -424,6 +438,31 @@ export function generateMsx2Screen5FlowUnitedFiles(
   const vramBase = vramPage === 1 ? 0x8000 : 0x0000;
   const pageYOffset = vramPage === 1 ? 256 : 0;
   const defaultTextColor = resolveScreen5BrightestPaletteIndex(firstPresentation?.presentation.palette);
+
+  // SubMenu bitmap titles. They are cropped boxes with their own palette, kept apart from
+  // `presentationEntries` so they do not pull a whole 256x212 upload into the ROM.
+  const titleImageEntries = new Map<string, TitleImageEntry>();
+  const resolveTitleImageEntry = (node: Msx2GameFlowSubMenuNode): TitleImageEntry | undefined => {
+    const assetId = String(node.titleImageAssetId || '').trim();
+    if (!assetId) return undefined;
+    const cached = titleImageEntries.get(assetId);
+    if (cached) return cached;
+    const source = presentations.find(item => (item as any).id === assetId);
+    if (!source) {
+      throw new Error(`MSX2 GameFlow SubMenu node "${node.id}" references missing msx2presentation asset "${assetId}" as its title image.`);
+    }
+    const { image, error } = extractScreen5MenuTitleImage(source);
+    if (!image) throw new Error(`MSX2 GameFlow SubMenu node "${node.id}" title image: ${error}`);
+    const presentation = normalizeScreen5Presentation(source);
+    const entry: TitleImageEntry = {
+      index: titleImageEntries.size,
+      image,
+      paletteBytes: buildScreen5PaletteBytes(presentation.palette),
+      brightestIndex: resolveScreen5BrightestPaletteIndex(presentation.palette),
+    };
+    titleImageEntries.set(assetId, entry);
+    return entry;
+  };
 
   const strings = createStringPool();
   const labelOf = (node: Msx2GameFlowNode): string => `gf_node_${sanitizeLabel(node.id)}`;
@@ -840,13 +879,29 @@ ${titleAsm}${bodyAsm}${tailAsm}${waitCall(scrollNode.waitForKey, scrollNode.wait
         const options = (menuNode.options || []).slice(0, GF_MENU_MAX_OPTIONS);
         if (options.length === 0) throw new Error(`MSX2 GameFlow SubMenu node "${node.id}" must include at least one option.`);
         const safeId = sanitizeLabel(node.id);
-        const foreground = clampPaletteIndex((menuNode as any).textColorIndex, defaultTextColor);
+        // A bitmap title replaces the text title and brings its own palette, so the menu
+        // colours default to that palette's brightest slot instead of the first presentation's.
+        const titleEntry = resolveTitleImageEntry(menuNode);
+        if (titleEntry) features.titleImage = true;
+        const foreground = clampPaletteIndex((menuNode as any).textColorIndex, titleEntry ? titleEntry.brightestIndex : defaultTextColor);
         const background = clampPaletteIndex((menuNode as any).backgroundColorIndex, 0);
         const highlightForeground = clampPaletteIndex((menuNode as any).highlightColorIndex, background);
         const highlightBackground = clampPaletteIndex((menuNode as any).highlightBackgroundIndex, foreground);
-        const title = sanitizeScreen5FlowText(menuNode.title || '', GF_MAX_COLUMNS);
-        const layout = resolveScreen5MenuLayout(menuNode, options.map(option => option.text || ''));
+        const title = titleEntry ? '' : sanitizeScreen5FlowText(menuNode.title || '', GF_MAX_COLUMNS);
+        const layout = resolveScreen5MenuLayout(menuNode, options.map(option => option.text || ''), titleEntry?.image.height);
         if (layout.error) throw new Error(`MSX2 GameFlow SubMenu node "${node.id}": ${layout.error}`);
+        // Screen off while the palette changes so the old picture never shows in the new colours.
+        const titleImageAsm = titleEntry
+          ? `    call DISSCR
+    call gf_load_palette_title_${titleEntry.index}
+    ld hl, gf_title_image_${titleEntry.index}
+    ld de, ${hexWord(vramAddressOf(layout.titleY, resolveScreen5MenuTitleImageColumn(titleEntry.image.widthBytes, layout.titleColumn)))}
+    ld b, ${titleEntry.image.height}
+    ld c, ${titleEntry.image.widthBytes}
+    call gf_blit_rect
+    call ENASCR
+`
+          : '';
         const selectedForeground = layout.useBar ? highlightForeground : foreground;
         const selectedBackground = layout.useBar ? highlightBackground : background;
 
@@ -884,7 +939,7 @@ ${printCall(item.selectedText, item.y, selectedForeground, selectedBackground, {
 
         nodeRoutines.push(`${header}    xor a
     ld (GF_MENU_INDEX), a
-${title ? printCall(title, layout.titleY, foreground, background, layout.titleColumn === undefined ? {} : { column: layout.titleColumn }) : ''}    call gf_menu_wait_release
+${titleImageAsm}${title ? printCall(title, layout.titleY, foreground, background, layout.titleColumn === undefined ? {} : { column: layout.titleColumn }) : ''}    call gf_menu_wait_release
     call gf_menu_draw_${safeId}
 gf_menu_loop_${safeId}:
     halt
@@ -1007,6 +1062,21 @@ ${chunkCalls}
   const paletteData = presentationList
     .map(entry => `gf_palette_${entry.index}_data:   ; (R<<4)|B, G\n${chunkedDb(entry.paletteBytes)}`)
     .join('\n');
+
+  // SubMenu bitmap titles: palette loader + data. Both are empty strings when no menu has one.
+  const titleImageList = Array.from(titleImageEntries.values());
+  const titleImageRoutines = titleImageList.map(entry => `gf_load_palette_title_${entry.index}:
+    ld hl, gf_title_palette_${entry.index}
+    ld de, GF_PALETTE_RAM
+    ld bc, 32
+    ldir
+    jp gf_upload_palette_ram
+`).join('\n');
+  const titleImageData = titleImageList.map(entry => `gf_title_palette_${entry.index}:   ; (R<<4)|B, G
+${chunkedDb(entry.paletteBytes)}
+gf_title_image_${entry.index}:   ; ${entry.image.widthBytes} bytes x ${entry.image.height} rows
+${chunkedDb(entry.image.bytes)}
+`).join('\n');
 
   const chunkData = presentationList.map(entry => entry.chunks.map((chunk, index) => {
     const chunkLabel = `SCREEN5_FLOW_${entry.index}_BITMAP_CHUNK_${index}`;
@@ -1154,7 +1224,7 @@ ${resolvedNodeRoutines.join('\n')}
 ; SCREEN 5 presentation data routines
 ; ==================================================================
 ${paletteRoutines}
-${uploadRoutines}
+${uploadRoutines}${titleImageRoutines ? `\n${titleImageRoutines}` : ''}
 ; ==================================================================
 ; Shared runtime
 ; ==================================================================
@@ -1171,7 +1241,7 @@ ${usesSmoothScroll || usesMarquee ? generateSmoothScrollRuntime(smoothScrollHost
 ; ==================================================================
 ${strings.emit()}
 
-${paletteData}${tfxPool.usesFill || tfxPool.usesPalette ? `\n${tfxPool.emitData()}` : ''}
+${paletteData}${titleImageData ? `\n${titleImageData}` : ''}${tfxPool.usesFill || tfxPool.usesPalette ? `\n${tfxPool.emitData()}` : ''}
 
 ${chunkData}
 

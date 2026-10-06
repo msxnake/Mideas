@@ -39,6 +39,8 @@ export interface Screen5FlowRuntimeFeatures {
   wipeMirror: boolean;
   wipeDiagonal: boolean;
   psgSilence: boolean;
+  /** SubMenu bitmap title: emits gf_blit_rect. Left out, the ROM stays byte-identical. */
+  titleImage?: boolean;
   /**
    * gf_wait_key / gf_wait_frames without the text engine (a flow made only of
    * presentations and transitions). Ignored when the text engine is emitted,
@@ -455,6 +457,46 @@ gf_wait_frames_loop:
 `;
 }
 
+/** ROM bitmap rectangle blitter used by the SubMenu bitmap title. */
+function generateTitleImageHelpers(): string {
+  return `
+; ------------------------------------------------------------------
+; gf_blit_rect: copy a packed ROM rectangle to VRAM, one row per LDIRVM.
+;   HL = ROM source (rows stored one after another, no padding)
+;   DE = VRAM address of the top-left byte
+;   B  = rows (1..212)    C = width in bytes (1..128)
+; Reuses GF_PRINT_WIDTH / GF_PRINT_ROWS. Clobbers AF, BC, DE, HL.
+; ------------------------------------------------------------------
+gf_blit_rect:
+    ld a, c
+    ld (GF_PRINT_WIDTH), a
+    ld a, b
+    ld (GF_PRINT_ROWS), a
+gf_blit_rect_loop:
+    push hl
+    push de
+    ld a, (GF_PRINT_WIDTH)
+    ld c, a
+    ld b, 0
+    call LDIRVM
+    pop de
+    pop hl
+    ld a, (GF_PRINT_WIDTH)
+    ld c, a
+    ld b, 0
+    add hl, bc
+    ex de, hl
+    ld bc, GF_LINE_BYTES
+    add hl, bc
+    ex de, hl
+    ld a, (GF_PRINT_ROWS)
+    dec a
+    ld (GF_PRINT_ROWS), a
+    jp nz, gf_blit_rect_loop
+    ret
+`;
+}
+
 /** SubMenu input helpers (cursor keys / joystick + trigger). */
 function generateMenuHelpers(): string {
   return `
@@ -748,6 +790,7 @@ ${chunkedDb(fontBytes)}
     generatePaletteHelpers(features.fade),
     features.text || features.menu || features.scroll ? generateTextEngine() : features.waits ? generateWaitHelpers() : '',
     features.menu ? generateMenuHelpers() : '',
+    features.titleImage ? generateTitleImageHelpers() : '',
     features.scroll ? generateScrollHelpers() : '',
     generateWipeHelpers(features),
     features.psgSilence ? generatePsgSilence() : '',
