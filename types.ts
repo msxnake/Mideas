@@ -4370,9 +4370,11 @@ export interface Msx2GameFlowSubMenuNode extends Msx2GameFlowNode_Base {
   /** Y of the title in pixels (0..200). */
   titleY?: number;
   /**
-   * `msx2presentation` asset drawn as a bitmap title instead of the text title (SCREEN 5 GameFlow walker).
-   * Only the part that is not palette slot 0 is exported, placed at `titleY` and aligned like the text title.
-   * The image palette is loaded when the menu opens. The bitmap-room backend ignores it.
+   * `msx2presentation` asset drawn as a bitmap title instead of the text title (SCREEN 5: walker and bitmap-room).
+   * Only the part that is not palette slot 0 is exported and placed at `titleY`. Walker: aligned like the text
+   * title. Bitmap-room: always centred, `titleY` (default 24) applies only to the picture, and the box and its
+   * palette go to a MegaROM data bank. The image palette is loaded while the menu is open; the bitmap-room
+   * restores the room palette and backdrop when an option is chosen.
    */
   titleImageAssetId?: string;
 }

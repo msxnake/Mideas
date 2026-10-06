@@ -314,6 +314,7 @@ import {
   emitBitmapFlowTextNode,
   emitBitmapFlowTextScrollNode,
   resetBitmapFlowStringCounter,
+  resolveBitmapFlowTitleImages,
 } from './msx2BitmapFlowTextGenerator';
 import { buildScreen5FlowFontBytes } from './msx2Screen5FlowFont';
 import {
@@ -904,6 +905,8 @@ function buildBitmapGameFlowProgram(
     worldIndexById?: Map<string, number>;
     /** Konami MegaROM: the GameFlow font lives in a data bank, staged per glyph. */
     bankedFont?: boolean;
+    /** R#7 of the ROM (room background index): a SubMenu with a bitmap title zeroes it and restores it on exit. */
+    backdropColorIndex?: number;
     /** Shared SCREEN 5 transition engine data pool (advanced transitions). */
     tfx?: Screen5TfxDataPool;
     /** Intro node runtime (asset id -> index for bitmap_intro_run); absent when the flow has none. */
@@ -918,11 +921,20 @@ function buildBitmapGameFlowProgram(
   const availableIntroEffects = options.availableIntroEffects || new Set<string>();
   const introConsumedTransitionIds = options.introConsumedTransitionIds || new Set<string>();
   const worldIndexById = options.worldIndexById;
+  // Read here: the SubMenu case below shadows `options` with the menu's own option list.
+  const flowBackdropColorIndex = options.backdropColorIndex;
 
   // Text nodes default to palette index 15, the slot bitmap rooms keep as the
   // brightest colour; each node can override it from the editor.
   const flowTextDefaultColor = 15;
   resetBitmapFlowStringCounter();
+  // SubMenu bitmap titles (empty map when no menu has one): resolved by the same pure function the
+  // data-bank pass uses, so labels and bytes match.
+  const titleImages = new Map(resolveBitmapFlowTitleImages(
+    flow.nodes as any,
+    (((analysis as any).msx2Presentations || []) as Array<Msx2Screen5PresentationConfig & { id?: string }>),
+    options.bankedFont === true
+  ).map(image => [image.assetId, image] as const));
 
   const nodeById = new Map(flow.nodes.map(node => [node.id, node]));
   const defaultTarget = (nodeId: string | undefined): string | undefined => {
@@ -1175,6 +1187,8 @@ function buildBitmapGameFlowProgram(
           pushData: asm => dataBlocks.push(asm),
           // The menu loop is the only code running while it waits: it ticks the song itself.
           musicTick: musicEnabled,
+          titleImages,
+          backdropColorIndex: flowBackdropColorIndex,
           optionTargets: options.map((option: any) => {
             const label = labelFor(branchTarget(nodeId, option.id));
             // An unwired option must not fall through into the next node's code:
@@ -19284,6 +19298,21 @@ ${enemySystem.satCallAsm}${bossSystem.satCallAsm}${platformSystem.satCallAsm}${c
       description: '6x8 GameFlow font (59 glyphs x 8 rows), banked; staged per glyph into bitmap_flow_glyph',
     });
   }
+  // SubMenu bitmap titles: palette (32 bytes) + picture box, one block per picture. Read by bitmap_flow_blit_title
+  // (a routine below #8000) through bitmap_copy_banked_to_vram, so the bank is mapped only during each row copy.
+  if (isKonamiMegaRom) {
+    for (const titleImage of resolveBitmapFlowTitleImages(
+      (resolveBitmapGameFlow(analysis)?.nodes || []) as any,
+      (((analysis as any).msx2Presentations || []) as Array<Msx2Screen5PresentationConfig & { id?: string }>),
+      true
+    )) {
+      lateBankedBlocks.push({
+        label: titleImage.label,
+        bytes: titleImage.bytes,
+        description: `SubMenu bitmap title ${titleImage.widthBytes * 2}x${titleImage.height} px: 32 palette bytes, then the picture rows`,
+      });
+    }
+  }
   if (isKonamiMegaRom) appendBitmapRoomDataBlocks(bankedDataBanks, lateBankedBlocks);
   const bankedDataEquates = isKonamiMegaRom ? formatBankedDataEquates(bankedDataBanks) : '';
   const bankedDataAsm = isKonamiMegaRom ? formatBankedDataBanks(bankedDataBanks) : '';
@@ -19419,6 +19448,7 @@ ${psgMusicRam ? `${psgMusicRam.asm}\n` : ''}` : '';
       ? new Map(worldPlans.map((plan, index) => [plan.id, index]))
       : undefined,
     bankedFont: isKonamiMegaRom,
+    backdropColorIndex: clampByte(room.backgroundColor, 0) & 0x0f,
     tfx: bitmapTfxPool,
     intro: bitmapIntro,
   });

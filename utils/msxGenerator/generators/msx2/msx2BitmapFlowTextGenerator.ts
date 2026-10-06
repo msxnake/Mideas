@@ -30,7 +30,14 @@ import {
   MSX2_CODE_ENTRY_MAX_LENGTH,
   MSX2_CODE_ENTRY_WRONG_PORT,
 } from '../../../../types';
+import type { Msx2Screen5PresentationConfig } from '../../../../types';
 import { clampMsx2CodeLength, normalizeMsx2Code } from '../../../msx2GameFlowCodeEntry';
+import { extractScreen5MenuTitleImage } from '../../../msx2Screen5MenuTitleImage';
+import {
+  buildScreen5PaletteBytes,
+  normalizeScreen5Presentation,
+  resolveScreen5BrightestPaletteIndex,
+} from './screen5PresentationData';
 
 export const BF_LINE_BYTES = 128;
 export const BF_CHAR_WIDTH_BYTES = 3; // 6 px cell
@@ -46,9 +53,9 @@ const BF_TEXT_MAX_LINES = 8;
 const BF_TEXT_PROMPT_Y = 168;
 
 // SubMenu layout.
-const BF_MENU_TITLE_Y = 24;
-const BF_MENU_FIRST_OPTION_Y = 64;
-const BF_MENU_OPTION_STEP = 18;
+export const BF_MENU_TITLE_Y = 24;
+export const BF_MENU_FIRST_OPTION_Y = 64;
+export const BF_MENU_OPTION_STEP = 18;
 export const BF_MENU_MAX_OPTIONS = 6;
 
 // Scrolling window.
@@ -157,9 +164,11 @@ export interface BitmapFlowTextFeatures {
   smooth?: boolean;
   /** A TextScroll node uses the horizontal marquee. */
   marquee?: boolean;
+  /** A SubMenu node has a bitmap title (`titleImageAssetId`): palette + banked blit routines. */
+  titleImage?: boolean;
 }
 
-export function collectBitmapFlowTextFeatures(nodes: Array<{ type?: string; scrollMode?: string }>): BitmapFlowTextFeatures {
+export function collectBitmapFlowTextFeatures(nodes: Array<{ type?: string; scrollMode?: string; titleImageAssetId?: string }>): BitmapFlowTextFeatures {
   const types = new Set(nodes.map(node => String(node?.type || '')));
   const scroll = types.has('TextScroll') || types.has('TextScrollColor');
   const menu = types.has('SubMenu');
@@ -169,6 +178,7 @@ export function collectBitmapFlowTextFeatures(nodes: Array<{ type?: string; scro
   const code = types.has('CodeEntry');
   const base: BitmapFlowTextFeatures = { text: types.has('Text') || scroll || menu || code, menu, scroll };
   if (code) base.code = true;
+  if (nodes.some(node => node?.type === 'SubMenu' && String(node.titleImageAssetId || '').trim() !== '')) base.titleImage = true;
   return smooth || marquee ? { ...base, smooth, marquee } : base;
 }
 
@@ -212,7 +222,8 @@ bitmap_flow_dest       EQU ${at(0x04)}   ; word: VRAM address of the text span
 bitmap_flow_menu_index EQU ${at(0x06)}
 bitmap_flow_menu_prev  EQU ${at(0x07)}
 bitmap_flow_scroll_bg  EQU ${at(0x08)}
-bitmap_flow_cmd        EQU ${at(0x10)}   ; 15 bytes mirroring VDP R#32..R#46
+${features.titleImage && bankedFont ? `bitmap_flow_title_bank EQU ${at(0x09)}   ; data bank of the SubMenu title picture being blitted
+` : ''}bitmap_flow_cmd        EQU ${at(0x10)}   ; 15 bytes mirroring VDP R#32..R#46
 bitmap_flow_cmd_sx     EQU bitmap_flow_cmd + 0
 bitmap_flow_cmd_sy     EQU bitmap_flow_cmd + 2
 bitmap_flow_cmd_dx     EQU bitmap_flow_cmd + 4
@@ -315,6 +326,73 @@ bitmap_flow_menu_wait_release:
     jp nz, bitmap_flow_menu_wait_release
     xor a
     ld (bitmap_flow_menu_prev), a
+    ret
+`
+    : '';
+
+  // SubMenu bitmap title. The picture box and its palette sit in a MegaROM data bank (resident data on a
+  // 32KB ROM), so the only resident cost is these two routines and the call sequence of the node.
+  const titleImageRoutines = features.titleImage
+    ? `
+; ------------------------------------------------------------
+; bitmap_flow_load_palette: HL = 32 bytes in RAM, 16 x ((R<<4)|B, G), written to
+; the VDP palette from entry 0. Clobbers AF, BC, HL.
+; ------------------------------------------------------------
+bitmap_flow_load_palette:
+    push hl
+    ld a, #10
+    ld e, #00
+    call vdp_write_register    ; R#16 = 0: palette pointer
+    pop hl
+    ld c, #9A
+    ld b, 32
+    otir
+    ret
+
+; ------------------------------------------------------------
+; bitmap_flow_title_leave: the menu with a bitmap title is done. The logo palette would stay on
+; screen (a WorldLink does not reload the room palette), so blank the page first and put the
+; room palette back: the logo never shows in the game's colours while the next node loads.
+; Clobbers AF, BC, DE, HL.
+; ------------------------------------------------------------
+bitmap_flow_title_leave:
+${fillRect(0, 0, 256, BF_VISIBLE_LINES, 0)}    jp load_screen5_bitmap_palette
+
+; ------------------------------------------------------------
+; bitmap_flow_blit_title: copy a packed picture box to VRAM, one row at a time.
+;   HL = source (rows one after another)${bankedFont ? ', inside the data bank in (bitmap_flow_title_bank)' : ''}
+;   DE = VRAM address of the top-left byte (page 0)
+;   B  = rows (1..212)    C = width in bytes (1..128)
+; Clobbers AF, BC, DE, HL.
+; ------------------------------------------------------------
+bitmap_flow_blit_title:
+    ld a, c
+    ld (bitmap_flow_width), a
+    ld a, b
+    ld (bitmap_flow_rows), a
+bitmap_flow_blit_title_row:
+    push hl
+    push de
+    ld a, (bitmap_flow_width)
+    ld c, a
+    ld b, 0
+${bankedFont ? `    ld a, (bitmap_flow_title_bank)
+    call bitmap_copy_banked_to_vram
+` : `    call copy_to_vram_ext
+`}    pop de
+    pop hl
+    ld a, (bitmap_flow_width)
+    ld c, a
+    ld b, 0
+    add hl, bc
+    ex de, hl
+    ld bc, ${BF_LINE_BYTES}
+    add hl, bc
+    ex de, hl
+    ld a, (bitmap_flow_rows)
+    dec a
+    ld (bitmap_flow_rows), a
+    jp nz, bitmap_flow_blit_title_row
     ret
 `
     : '';
@@ -630,7 +708,7 @@ bitmap_flow_wait_frames_loop:
     pop bc
     djnz bitmap_flow_wait_frames_loop
     ret
-${scrollRoutines}${menuRoutines}${features.code ? codeEntryRuntime(musicTick) : ''}${features.smooth || features.marquee ? generateSmoothScrollRuntime(musicTick ? { ...BITMAP_SMOOTH_SCROLL_HOST, perFrameAsm: '    call music_update' } : BITMAP_SMOOTH_SCROLL_HOST, { vertical: features.smooth, marquee: features.marquee }) : ''}
+${scrollRoutines}${menuRoutines}${titleImageRoutines}${features.code ? codeEntryRuntime(musicTick) : ''}${features.smooth || features.marquee ? generateSmoothScrollRuntime(musicTick ? { ...BITMAP_SMOOTH_SCROLL_HOST, perFrameAsm: '    call music_update' } : BITMAP_SMOOTH_SCROLL_HOST, { vertical: features.smooth, marquee: features.marquee }) : ''}
 ; 6x8 GameFlow font: 59 glyphs (ASCII 32..90), 8 rows each, 5 pixels
 ; left-aligned on bits 7..3 so bit 2 becomes the inter-character gap.
 ${bankedFont ? '; Emitted in a Konami MegaROM data bank; bitmap_flow_draw_char_inner stages one glyph at a time.' : `bitmap_flow_font:
@@ -651,11 +729,103 @@ interface EmitContext {
   pushData: (asm: string) => void;
   /** The ROM has a music runtime: the node's own wait loops tick it (see bitmap_flow_wait_vblank). */
   musicTick?: boolean;
+  /** SubMenu bitmap titles by msx2presentation asset id (see resolveBitmapFlowTitleImages). */
+  titleImages?: Map<string, BitmapFlowTitleImage>;
+  /**
+   * R#7 of the ROM (the room background index). Colour-0 pixels show palette[R#7], so a menu with a
+   * bitmap title sets it to 0 (slot 0 of the logo palette is the background) and puts it back on exit.
+   */
+  backdropColorIndex?: number;
 }
 
 let stringCounter = 0;
+/** Asset ids whose title picture data a node already pushed (32KB ROMs keep it resident, once). */
+let titleImageDataPushed = new Set<string>();
 export function resetBitmapFlowStringCounter(): void {
   stringCounter = 0;
+  titleImageDataPushed = new Set<string>();
+}
+
+// ---------------------------------------------------------------------------
+// SubMenu bitmap title
+// ---------------------------------------------------------------------------
+
+/** One SubMenu title picture: the cropped box of an msx2presentation asset and the palette it is shown with. */
+export interface BitmapFlowTitleImage {
+  assetId: string;
+  /** `bitmap_flow_title_N`: 32 palette bytes, then the box rows. In a data bank on a MegaROM. */
+  label: string;
+  widthBytes: number;
+  height: number;
+  /** 32 palette bytes ((R<<4)|B, G for each of the 16 slots) followed by the box. */
+  bytes: number[];
+  /** Brightest non-zero palette slot: the menu text colour when the node sets none. */
+  brightestIndex: number;
+  /** Data bank (MegaROM) or resident (32KB ROM). */
+  banked: boolean;
+}
+
+/**
+ * Where the title picture goes: `titleY` (default BF_MENU_TITLE_Y) and the room above the first
+ * option. The editor shows the same message, so it is part of the layout and not of the emitter.
+ */
+export function resolveBitmapFlowMenuTitleLayout(titleYRaw: unknown, imageHeight: number): { titleY: number; error?: string } {
+  const numeric = Math.trunc(Number(titleYRaw));
+  const titleY = titleYRaw === undefined || titleYRaw === null || titleYRaw === '' || !Number.isFinite(numeric)
+    ? BF_MENU_TITLE_Y
+    : Math.max(0, Math.min(BF_VISIBLE_LINES - 1, numeric));
+  if (titleY + imageHeight > BF_MENU_FIRST_OPTION_Y) {
+    return {
+      titleY,
+      error: `the title image is ${imageHeight} px tall, so from y=${titleY} it ends at y=${titleY + imageHeight} and runs into the first option at y=${BF_MENU_FIRST_OPTION_Y}. Lower titleY or use a smaller image.`,
+    };
+  }
+  return { titleY };
+}
+
+/**
+ * Title pictures of the SubMenu nodes, in order of first use. Pure: the dispatcher and the data-bank
+ * pass both call it, so they agree on labels and bytes. Throws a user-facing error for a missing,
+ * empty or too big picture.
+ */
+export function resolveBitmapFlowTitleImages(
+  nodes: Array<{ id?: string; type?: string; titleImageAssetId?: string; titleY?: unknown }>,
+  presentations: Array<Msx2Screen5PresentationConfig & { id?: string }>,
+  banked: boolean
+): BitmapFlowTitleImage[] {
+  const images: BitmapFlowTitleImage[] = [];
+  for (const node of nodes) {
+    if (node?.type !== 'SubMenu') continue;
+    const assetId = String(node.titleImageAssetId || '').trim();
+    if (!assetId) continue;
+    let image = images.find(item => item.assetId === assetId);
+    if (!image) {
+      const source = presentations.find(item => item.id === assetId);
+      if (!source) {
+        throw new Error(`MSX2 bitmap GameFlow SubMenu node "${node.id}" references missing msx2presentation asset "${assetId}" as its title image.`);
+      }
+      const { image: box, error } = extractScreen5MenuTitleImage(source);
+      if (!box) throw new Error(`MSX2 bitmap GameFlow SubMenu node "${node.id}" title image: ${error}`);
+      const palette = normalizeScreen5Presentation(source).palette;
+      const bytes = [...buildScreen5PaletteBytes(palette), ...box.bytes];
+      if (banked && bytes.length > 0x2000) {
+        throw new Error(`MSX2 bitmap GameFlow SubMenu node "${node.id}" title image is ${box.widthBytes * 2}x${box.height} px (${bytes.length} bytes with its palette) and does not fit one 8KB data bank. Use a smaller image.`);
+      }
+      image = {
+        assetId,
+        label: `bitmap_flow_title_${images.length}`,
+        widthBytes: box.widthBytes,
+        height: box.height,
+        bytes,
+        brightestIndex: resolveScreen5BrightestPaletteIndex(palette),
+        banked,
+      };
+      images.push(image);
+    }
+    const { error } = resolveBitmapFlowMenuTitleLayout(node.titleY, image.height);
+    if (error) throw new Error(`MSX2 bitmap GameFlow SubMenu node "${node.id}": ${error}`);
+  }
+  return images;
 }
 
 function stringData(text: string, pushData: (asm: string) => void): string {
@@ -822,7 +992,14 @@ export function emitBitmapFlowSubMenuNode(
   if (options.length === 0) {
     throw new Error(`MSX2 bitmap GameFlow SubMenu node "${node.id}" must include at least one option.`);
   }
-  const foreground = clampPaletteIndex(node.textColorIndex, context.defaultTextColor);
+  // A bitmap title replaces the text title and brings its own palette, so the menu colours default to
+  // that palette's brightest slot instead of the room palette's.
+  const titleAssetId = String(node.titleImageAssetId || '').trim();
+  const titleImage = titleAssetId ? context.titleImages?.get(titleAssetId) : undefined;
+  if (titleAssetId && !titleImage) {
+    throw new Error(`MSX2 bitmap GameFlow SubMenu node "${node.id}": the title image "${titleAssetId}" was not resolved by the exporter.`);
+  }
+  const foreground = clampPaletteIndex(node.textColorIndex, titleImage ? titleImage.brightestIndex : context.defaultTextColor);
   const background = clampPaletteIndex(node.backgroundColorIndex, 0);
   const highlightForeground = clampPaletteIndex(node.highlightColorIndex, background);
   const highlightBackground = clampPaletteIndex(node.highlightBackgroundIndex, foreground);
@@ -853,20 +1030,75 @@ ${printCall(text, optionY, highlightForeground, highlightBackground, context, { 
   const dispatch = options.map((_option: any, index: number) => `    cp ${index}
     jp z, bitmap_flow_menu_pick_${safeId}_${index}
 `).join('');
+  // With a bitmap title the logo palette is still loaded: leaving the menu blanks the page and restores
+  // the room palette. An unwired option stays on the menu (it jumps back to the loop), so it keeps both.
+  const backdrop = clampPaletteIndex(context.backdropColorIndex, 0);
+  const leaveAsm = titleImage
+    ? `    call bitmap_flow_title_leave\n${backdrop !== 0 ? `    ld a, #07\n    ld e, ${hexByte(backdrop)}\n    call vdp_write_register    ; back to the room backdrop colour\n` : ''}`
+    : '';
   const dispatchTargets = options.map((_option: any, index: number) => `bitmap_flow_menu_pick_${safeId}_${index}:
-    call bitmap_flow_sprites_on
+${titleImage && context.optionTargets[index] !== `bitmap_flow_menu_loop_${safeId}` ? leaveAsm : ''}    call bitmap_flow_sprites_on
     jp ${context.optionTargets[index]}
 `).join('');
+
+  // Bitmap title: screen off while the palette changes and the picture is drawn, so neither shows in the
+  // wrong colours. The menu is drawn BEFORE the key release wait, so a held trigger cannot leave the
+  // screen blank. Without a title picture the code below is the original sequence, byte for byte.
+  let entryAsm: string;
+  if (titleImage) {
+    const { titleY, error } = resolveBitmapFlowMenuTitleLayout(node.titleY, titleImage.height);
+    if (error) throw new Error(`MSX2 bitmap GameFlow SubMenu node "${node.id}": ${error}`);
+    if (!titleImage.banked && !titleImageDataPushed.has(titleImage.assetId)) {
+      titleImageDataPushed.add(titleImage.assetId);
+      const lines: string[] = [];
+      for (let offset = 0; offset < titleImage.bytes.length; offset += 16) {
+        lines.push(`    DB ${titleImage.bytes.slice(offset, offset + 16).map(hexByte).join(',')}`);
+      }
+      context.pushData(`${titleImage.label}:   ; ${titleImage.widthBytes}x${titleImage.height} bytes + 32 palette bytes first\n${lines.join('\n')}\n`);
+    }
+    const column = Math.floor((BF_LINE_BYTES - titleImage.widthBytes) / 2);
+    const bank = `${titleImage.label}_DATA_BANK`;
+    const paletteAsm = titleImage.banked
+      ? `    ld a, ${bank}
+    ld hl, ${titleImage.label}
+    ld de, bitmap_flow_textbuf
+    ld bc, 32
+    call bitmap_copy_banked_to_ram
+    ld hl, bitmap_flow_textbuf
+    call bitmap_flow_load_palette
+`
+      : `    ld hl, ${titleImage.label}
+    call bitmap_flow_load_palette
+`;
+    const blitAsm = `${titleImage.banked ? `    ld a, ${bank}
+    ld (bitmap_flow_title_bank), a
+` : ''}    ld hl, ${titleImage.label} + 32
+    ld de, ${hexWord(titleY * BF_LINE_BYTES + column)}
+    ld b, ${titleImage.height}
+    ld c, ${titleImage.widthBytes}
+    call bitmap_flow_blit_title
+`;
+    // Colour-0 pixels (the picture's slot-0 margins and the cleared page) show palette[R#7]; make that
+    // slot 0 of the logo palette instead of whatever index the room backdrop uses.
+    const backdropAsm = backdrop !== 0 ? '    ld a, #07\n    ld e, #00\n    call vdp_write_register    ; backdrop = logo palette slot 0\n' : '';
+    entryAsm = `${BITMAP_SMOOTH_SCROLL_HOST.displayOffAsm}
+${backdropAsm}${paletteAsm}${fillRect(0, 0, 256, BF_VISIBLE_LINES, background)}${blitAsm}    call bitmap_flow_menu_draw_${safeId}
+${BITMAP_SMOOTH_SCROLL_HOST.displayOnAsm}
+    call bitmap_flow_menu_wait_release
+`;
+  } else {
+    entryAsm = `${fillRect(0, 0, 256, BF_VISIBLE_LINES, background)}${
+      title ? printCall(title, BF_MENU_TITLE_Y, foreground, background, context) : ''
+    }    call bitmap_flow_menu_wait_release
+    call bitmap_flow_menu_draw_${safeId}
+`;
+  }
 
   return `    call bitmap_flow_use_page0
     call bitmap_flow_sprites_off
     xor a
     ld (bitmap_flow_menu_index), a
-${fillRect(0, 0, 256, BF_VISIBLE_LINES, background)}${
-    title ? printCall(title, BF_MENU_TITLE_Y, foreground, background, context) : ''
-  }    call bitmap_flow_menu_wait_release
-    call bitmap_flow_menu_draw_${safeId}
-bitmap_flow_menu_loop_${safeId}:
+${entryAsm}bitmap_flow_menu_loop_${safeId}:
     ${flowFrameWait(context.musicTick)}
     call bitmap_flow_read_row8
     ld c, a
