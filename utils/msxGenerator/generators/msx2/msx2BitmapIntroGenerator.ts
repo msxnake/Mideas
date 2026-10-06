@@ -236,7 +236,19 @@ export function collectFlowIntroAssets(flow: Msx2GameFlowGraph | null | undefine
 export function buildBitmapIntro(
   analysis: ProjectAnalysis,
   flow: Msx2GameFlowGraph | null | undefined,
-  options: { firstBank: number; music: boolean; megaRom: boolean; /** First free byte after the project's dedicated RAM chain. */ ramChainEnd?: number },
+  options: {
+    firstBank: number;
+    music: boolean;
+    megaRom: boolean;
+    /** First free byte after the project's dedicated RAM chain. */
+    ramChainEnd?: number;
+    /**
+     * R#7 the game runs with (the room background index). Colour-0 pixels display palette[R#7], and the slides
+     * use their own palette, so a non-zero index shows an arbitrary slide colour as the backdrop: the intro
+     * puts R#7 at 0 while it runs (the GameFlow keeps it there until the WorldLink boot init applies the room one).
+     */
+    backdropColorIndex?: number;
+  },
 ): BitmapIntroBuild {
   const assets = (((analysis as any).assets || []) as ProjectAsset[]);
   const intros = collectFlowIntroAssets(flow, assets);
@@ -415,7 +427,10 @@ ${routineHeader('bitmap_intro_run', 'Play an intro. Maps the intro code bank at 
     notes: 'Everything the interpreter needs lives in the intro code bank and RAM #E600-#E6FF.',
   })}bitmap_intro_run:
     ld (bitmap_intro_which), a
-    ld a, BITMAP_INTRO_CODE_BANK
+${(options.backdropColorIndex ?? 0) !== 0 ? `    ld a, #07
+    ld e, #00
+    call vdp_write_register            ; backdrop = slide palette slot 0 (the WorldLink boot init applies the room one)
+` : ''}    ld a, BITMAP_INTRO_CODE_BANK
     call mapper_set_bank_p2
     call bitmap_intro_main
     call bitmap_room_restore_resident_banks

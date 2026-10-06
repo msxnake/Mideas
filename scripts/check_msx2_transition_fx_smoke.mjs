@@ -122,8 +122,8 @@ const SABOTAGES = {
   // The trigger of joystick port 1 / 2 is never honoured
   joy1_ignored: ['    and #10                        ; trigger A, 0 = pressed\n    jp nz, bitmap_fx_key_port2\n', '    and #10                        ; trigger A, 0 = pressed\n    jp bitmap_fx_key_port2         ; (sabotage: port 1 ignored)\n'],
   joy2_ignored: ['bitmap_fx_key_joy2:\n    and #10\n    jp nz, bitmap_fx_key_done\n', 'bitmap_fx_key_joy2:\n    and #10\n    jp bitmap_fx_key_done          ; (sabotage: port 2 ignored)\n'],
-  // The scene forgets to put the room backdrop (R#7) back after the effect: the game would run on backdrop 0
-  no_backdrop_restore: ['    call vdp_write_register        ; R#7 = the room backdrop\n', '    nop                            ; (sabotage: R#7 not restored)\n'],
+  // The WorldLink boot init does not apply the room backdrop (R#7) when the game starts: the game would run on backdrop 0
+  no_backdrop_restore: ["; Game starts: colour-0 pixels and the border show the room's background colour again.\n    ld a, #07\n    ld e, #", "; (sabotage: R#7 applied as 0)\n    ld a, #07\n    ld e, #00 ; was #"],
 };
 if (SABOTAGE && !SABOTAGES[SABOTAGE]) { console.error(`unknown FX_SABOTAGE "${SABOTAGE}"; known: ${Object.keys(SABOTAGES).join(', ')}`); process.exit(2); }
 
@@ -254,7 +254,7 @@ proc timeout {} {
 }
 after time 90 timeout
 
-# R#7 as init_screen5_bitmap_vdp left it (the room backdrop): run_bitmap_intro is the first thing after it.
+# R#7 at the start of the boot intro: a GameFlow keeps it at 0 from boot (init_rom) until the game starts, so no scene shows the room's index.
 debug set_bp ${addr('run_bitmap_intro')} {} {
   out R7_BOOT [vreg 7]
 }
@@ -471,7 +471,10 @@ if (kv.has('T_DONE') && fs.existsSync(DUMP_P0)) {
 }
 if (!UNTIL_DONE) check('game loop reached after the effect', kv.has('T_GAME'), 'bitmap_enter_game_loop never hit');
 if (!UNTIL_DONE && kv.has('T_GAME')) {
-  check('room backdrop restored to R#7 at the game loop', num('R7_GAME') === num('R7_BOOT'), `boot R#7=${kv.get('R7_BOOT')} game R#7=${kv.get('R7_GAME')}`);
+  // The room backdrop is whatever init_screen5_bitmap_vdp writes to R#7; the WorldLink boot init applies it when the game starts.
+  const roomBackdrop = Number.parseInt(/init_screen5_bitmap_vdp:[\s\S]*?ld a, #07\n\s+ld e, #([0-9A-Fa-f]{2})/.exec(fs.readFileSync(ASM, 'utf8').replace(/\r\n/g, '\n'))?.[1] ?? 'FF', 16);
+  check('room backdrop applied to R#7 at the game loop', num('R7_GAME') === roomBackdrop, `room backdrop=${roomBackdrop} game R#7=${kv.get('R7_GAME')}`);
+  if (roomBackdrop !== 0) check('R#7 = 0 while the boot intro runs (the room index would show a colour of the scene palette)', num('R7_BOOT') === 0, `boot R#7=${kv.get('R7_BOOT')}`);
   check('R#2 = page 0 at the game loop', num('R2_GAME') === 0x1f, `R#2=${kv.get('R2_GAME')}`);
   // the room paints over the effect's picture: rows 24..189 of page 0 are no longer the decoder's picture
   let pictureSum = 0;

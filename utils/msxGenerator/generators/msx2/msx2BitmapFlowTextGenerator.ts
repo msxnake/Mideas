@@ -733,7 +733,8 @@ interface EmitContext {
   titleImages?: Map<string, BitmapFlowTitleImage>;
   /**
    * R#7 of the ROM (the room background index). Colour-0 pixels show palette[R#7], so a menu with a
-   * bitmap title sets it to 0 (slot 0 of the logo palette is the background) and puts it back on exit.
+   * bitmap title sets it to 0 (slot 0 of the logo palette is the background). The GameFlow keeps it at 0 until
+   * the game starts: the WorldLink boot init applies the room backdrop.
    */
   backdropColorIndex?: number;
 }
@@ -1032,10 +1033,9 @@ ${printCall(text, optionY, highlightForeground, highlightBackground, context, { 
 `).join('');
   // With a bitmap title the logo palette is still loaded: leaving the menu blanks the page and restores
   // the room palette. An unwired option stays on the menu (it jumps back to the loop), so it keeps both.
+  // R#7 stays 0: the WorldLink boot init applies the room backdrop when the game starts.
   const backdrop = clampPaletteIndex(context.backdropColorIndex, 0);
-  const leaveAsm = titleImage
-    ? `    call bitmap_flow_title_leave\n${backdrop !== 0 ? `    ld a, #07\n    ld e, ${hexByte(backdrop)}\n    call vdp_write_register    ; back to the room backdrop colour\n` : ''}`
-    : '';
+  const leaveAsm = titleImage ? '    call bitmap_flow_title_leave\n' : '';
   const dispatchTargets = options.map((_option: any, index: number) => `bitmap_flow_menu_pick_${safeId}_${index}:
 ${titleImage && context.optionTargets[index] !== `bitmap_flow_menu_loop_${safeId}` ? leaveAsm : ''}    call bitmap_flow_sprites_on
     jp ${context.optionTargets[index]}

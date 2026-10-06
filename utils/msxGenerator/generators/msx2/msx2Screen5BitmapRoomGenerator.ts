@@ -905,7 +905,7 @@ function buildBitmapGameFlowProgram(
     worldIndexById?: Map<string, number>;
     /** Konami MegaROM: the GameFlow font lives in a data bank, staged per glyph. */
     bankedFont?: boolean;
-    /** R#7 of the ROM (room background index): a SubMenu with a bitmap title zeroes it and restores it on exit. */
+    /** R#7 of the ROM (room background index): 0 in the GameFlow until the game starts (a SubMenu with a bitmap title zeroes it too). */
     backdropColorIndex?: number;
     /** Shared SCREEN 5 transition engine data pool (advanced transitions). */
     tfx?: Screen5TfxDataPool;
@@ -1496,8 +1496,6 @@ function buildBitmapIntroAsm(
   blobs: BitmapIntroSceneBlob[],
   banked: boolean,
   tfx?: Screen5TfxDataPool,
-  /** R#7 the game boots with: scenes with an entry effect put it back after their wait (the effect runs on backdrop 0). */
-  backdropIndex = 0,
 ): { initCallAsm: string; routinesAsm: string; dataAsm: string } {
   if (!blobs.length) return { initCallAsm: '', routinesAsm: '', dataAsm: '' };
   // Engine transitions do not use the legacy intro helpers.
@@ -1586,15 +1584,13 @@ bitmap_intro_scene${index}_fx_done:
     call bitmap_intro_load_palette
     call bitmap_intro_upload_scene${index}
 `;
-    // The effect ran on backdrop 0; the room's own backdrop comes back once the scene has been watched.
-    const backdropAsm = scene.fx
-      ? `    ld a, #07
-    ld e, #${backdropIndex.toString(16).toUpperCase().padStart(2, '0')}
-    call vdp_write_register        ; R#7 = the room backdrop
-`
-      : '';
+    // R#7 is 0 for the whole GameFlow before the game (init_rom zeroes it when a flow exists, the entry effect runs on it
+    // too): colour-0 pixels, the page a transition clears and the border all show palette[R#7] of whatever palette is
+    // loaded, so the room's backdrop index there is an arbitrary colour (a room background of 2 painted the cleared page
+    // green). The room backdrop is applied when the game starts, in the WorldLink boot init. It used to be put back right
+    // after the scene's wait, i.e. BEFORE the transition that clears the page.
     return `    ; Intro scene ${index}: ${safeName}
-${showAsm}${waitAsm}${backdropAsm}${transitionAsm}`;
+${showAsm}${waitAsm}${transitionAsm}`;
   }).join('');
 
   const uploadRoutines = blobs.map(({ index, rleChunks }) => `bitmap_intro_upload_scene${index}:
@@ -19080,7 +19076,7 @@ ${vramFree.map(gap => `;   rows ${String(gap.from).padStart(4)}..${String(gap.to
   // Shared SCREEN 5 transition engine: only emitted when a Transition node needs
   // it, so ROMs without advanced transitions stay byte-identical.
   const bitmapTfxPool = new Screen5TfxDataPool('bitmap_tfx');
-  const intro = buildBitmapIntroAsm(introSceneBlobs, isKonamiMegaRom, bitmapTfxPool, clampByte(room.backgroundColor, 0) & 0x0f);
+  const intro = buildBitmapIntroAsm(introSceneBlobs, isKonamiMegaRom, bitmapTfxPool);
   // run_bitmap_intro returns with hardware sprites hidden (its SAT/pattern
   // tables are only uploaded later in init_rom). Re-enable them at the end of
   // the boot-init sequence, where the tables are in VRAM and the player sits at
@@ -19106,7 +19102,15 @@ ${vramFree.map(gap => `;   rows ${String(gap.from).padStart(4)}..${String(gap.to
   // init the VDP/HUD/tileset (done once at init_rom before either path).
   // The WorldLink passes an empty sprite re-enable: it hides sprites for the
   // whole load and turns them on itself once a valid SAT has been published.
-  const buildBitmapBootInitAsm = (spriteReenableAsm: string): string => `${bossSystem.initAsm ? `    ; Boss active-world scratch MUST be cleared before the start room is composed:
+  // R#7 = the room background index. With a GameFlow it is 0 until the game starts (init_rom), so presentations, transitions,
+  // the Intro node and the menus show palette[0] instead of an arbitrary colour of their own palette; the WorldLink boot init
+  // (restoreBackdrop) applies it right before the room is composed. Index 0 changes nothing, so those ROMs are untouched.
+  const roomBackdropIndex = clampByte(room.backgroundColor, 0) & 0x0f;
+  const buildBitmapBootInitAsm = (spriteReenableAsm: string, restoreBackdrop = false): string => `${restoreBackdrop && roomBackdropIndex !== 0 ? `    ; Game starts: colour-0 pixels and the border show the room's background colour again.
+    ld a, #07
+    ld e, #${roomBackdropIndex.toString(16).toUpperCase().padStart(2, '0')}
+    call vdp_write_register
+` : ''}${bossSystem.initAsm ? `    ; Boss active-world scratch MUST be cleared before the start room is composed:
     ; load_room below ends in bitmap_boss_load, which reads boss_defeated[localRoom]
     ; and skips the boss when it is non-zero. Running this with the rest of the
     ; HUD/system init (further down, after load_room) meant that booting STRAIGHT
@@ -19348,6 +19352,7 @@ ${enemySystem.satCallAsm}${bossSystem.satCallAsm}${platformSystem.satCallAsm}${c
     firstBank: introFirstBank,
     music: Boolean(sccMusic),
     megaRom: isKonamiMegaRom,
+    backdropColorIndex: clampByte(room.backgroundColor, 0) & 0x0f,
   });
   for (const warning of bitmapIntro.warnings) console.warn(`⚠️ Intro: ${warning}`);
   // Transition FX (entry effect of the boot presentation): interpreter + effect blocks in one bank appended
@@ -19438,7 +19443,7 @@ ${psgMusicRam ? `${psgMusicRam.asm}\n` : ''}` : '';
   // returns on game-over so the graph follows its connection (e.g. to an
   // End:GameOver node). Empty when no graph exists.
   const gameFlowEntryAsm = buildBitmapGameFlowProgram(analysis, {
-    bootInitAsm: buildBitmapBootInitAsm(''),
+    bootInitAsm: buildBitmapBootInitAsm('', true),
     spritesOffAsm: worldLinkSpritesOffAsm,
     spritesOnAsm: worldLinkSpritesOnAsm,
     music: { enabled: Boolean(sccMusic), trackIndexById: sccTrackIndexById },
@@ -19759,7 +19764,12 @@ init_rom:
     di
     ${isKonamiMegaRom ? 'call map_page2_to_cart_primary\n    call init_konami8k_fixed_bank0_banks' : 'call init_plain32k_page2_slot'}
     call init_screen5_bitmap_vdp
-${hoistedMusicInitAsm}${intro.initCallAsm}${multiWorld ? `    ; Cold boot: cartridge RAM is garbage, so latch world 0 before the palette
+${gameFlowEnabled && roomBackdropIndex !== 0 ? `    ; GameFlow before the game: backdrop = slot 0 (black) of whatever palette is loaded; the WorldLink boot init applies the
+    ; room background (index ${roomBackdropIndex}) when the game starts.
+    ld a, #07
+    ld e, #00
+    call vdp_write_register
+` : ''}${hoistedMusicInitAsm}${intro.initCallAsm}${multiWorld ? `    ; Cold boot: cartridge RAM is garbage, so latch world 0 before the palette
     ; loader (which indexes its table with bitmap_world_index) runs.
     xor a
     ld (bitmap_world_index), a

@@ -4374,7 +4374,7 @@ export interface Msx2GameFlowSubMenuNode extends Msx2GameFlowNode_Base {
    * Only the part that is not palette slot 0 is exported and placed at `titleY`. Walker: aligned like the text
    * title. Bitmap-room: always centred, `titleY` (default 24) applies only to the picture, and the box and its
    * palette go to a MegaROM data bank. The image palette is loaded while the menu is open; the bitmap-room
-   * restores the room palette and backdrop when an option is chosen.
+   * puts the room palette back when an option is chosen (the room backdrop returns when the game starts).
    */
   titleImageAssetId?: string;
 }

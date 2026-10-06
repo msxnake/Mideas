@@ -234,9 +234,11 @@ const order = ['ld e, #22', '; backdrop = logo palette slot 0', 'call bitmap_flo
 check('order: display off, backdrop 0, palette, background fill, blit, draw options, display on, key release wait',
   order.every(position => position >= 0) && order.every((position, index) => index === 0 || position > order[index - 1]), order.join(','));
 check('the picture replaces the text title (string not in the ROM)', !titleAsm.includes(TITLE_TEXT));
-check('a wired option blanks the page, puts the room palette and the room backdrop (R#7 = 1) back before leaving (a WorldLink reloads neither)',
-  /bitmap_flow_menu_pick_gf_menu_0:\n\s+call bitmap_flow_title_leave\n\s+ld a, #07\n\s+ld e, #01\n\s+call vdp_write_register[^\n]*\n\s+call bitmap_flow_sprites_on/.test(titleAsm)
+check('a wired option blanks the page and puts the room palette back before leaving (a WorldLink does not reload it)',
+  /bitmap_flow_menu_pick_gf_menu_0:\n\s+call bitmap_flow_title_leave\n\s+call bitmap_flow_sprites_on/.test(titleAsm)
     && /\nbitmap_flow_title_leave:[\s\S]*?ld a, #C0[\s\S]*?jp load_screen5_bitmap_palette/.test(titleAsm));
+check('the room backdrop (R#7 = 1) comes back when the game starts: the WorldLink boot init applies it (colour-0 pixels display palette[R#7])',
+  /    ; Game starts[^\n]*\n    ld a, #07\n    ld e, #01\n    call vdp_write_register\n/.test(titleAsm));
 check('an unwired option stays on the menu, so it keeps the logo (no leave call)', /bitmap_flow_menu_pick_gf_menu_1:\n\s+call bitmap_flow_sprites_on\n\s+jp bitmap_flow_menu_loop_gf_menu/.test(titleAsm));
 check('without a title the pick stubs are the original ones', !/bitmap_flow_title_leave/.test(plainAsm));
 check('menu text defaults to the brightest slot of the title palette (#0B)', /ld a, #0B\n\s+ld \(bitmap_flow_fg\), a/.test(block(titleAsm, `bitmap_flow_menu_draw_${MENU_ID}`) || ''));

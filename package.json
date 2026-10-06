@@ -31,6 +31,7 @@
     "test:msx2-gameflow-menu-music": "node scripts/check_msx2_gameflow_menu_music.mjs",
     "test:msx2-gameflow-menu-title": "node scripts/check_msx2_screen5_menu_title_image.mjs",
     "test:msx2-bitmap-menu-title": "node scripts/check_msx2_bitmap_menu_title_image.mjs",
+    "test:msx2-bitmap-boot-backdrop": "node scripts/check_msx2_bitmap_boot_backdrop.mjs",
     "test:msx2-transition-fx": "npx tsx scripts/test_msx2_transition_fx.ts",
     "test:msx2-transition-fx-export": "npx tsx scripts/test_msx2_transition_fx_export.ts",
     "test:msx2-transition-fx-room-change": "node scripts/check_msx2_transition_fx_room_change.mjs",

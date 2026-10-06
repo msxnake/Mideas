@@ -158,8 +158,12 @@ assert.ok(base.asm.indexOf('bitmap_fx_run:') < base.asm.indexOf('bitmap_resident
 assert.ok(base.asm.indexOf('BITMAP_FX_CODE_BANK_PHYS_START:') > base.asm.indexOf('bitmap_resident_end:'), 'the bank comes after the resident window');
 assert.ok(/@mideas-bank-map .*"kind":"fx-code","endLabel":"BITMAP_FX_CODE_BANK_USED_END"/.test(base.asm), 'the IDE bank map knows the effect bank, with its own kind');
 assert.ok(/ld hl, bitmap_intro_scene0_palette\n\s+call bitmap_intro_load_palette\n\s+call bitmap_intro_upload_scene0[^\n]*\n\s+ld a, 0\n\s+call bitmap_fx_run/.test(base.asm), 'palette, upload, then the effect');
-assert.ok(/call vdp_write_register\s+; R#7 = the room backdrop/.test(base.asm), 'the room backdrop comes back after the effect');
-assert.ok(/ld a, #07\n\s+ld e, #05\n\s+call vdp_write_register\s+; R#7 = the room backdrop/.test(base.asm), 'the restored backdrop is the room one (5 in the fixture)');
+// Backdrop (R#7): colour-0 pixels and the border show palette[R#7] of whatever palette is loaded, so the room's index (5 in the
+// fixture) must not be live while the presentation, the transition that clears the page and the Intro run on their own palettes.
+// It used to be put back right after the scene's wait, BEFORE that transition: the cleared page showed an arbitrary colour (green).
+assert.ok(!/R#7 = the room backdrop/.test(base.asm), 'the effect scene does not put the room backdrop back before the transition that clears the page');
+assert.ok(/call init_screen5_bitmap_vdp\n(\s+;[^\n]*\n)+\s+ld a, #07\n\s+ld e, #00\n\s+call vdp_write_register/.test(base.asm), 'a GameFlow keeps R#7 at 0 from boot');
+assert.ok(/; Game starts[^\n]*\n\s+ld a, #07\n\s+ld e, #05\n\s+call vdp_write_register/.test(base.asm), 'the WorldLink boot init applies the room backdrop when the game starts (5 in the fixture)');
 // the picture goes to VRAM page 1: the first RLE chunk starts at #8000 (bank 2 of the 16 KB VRAM banks, offset 0)
 assert.ok(/bitmap_intro_upload_scene0:\n\s+ld a, \w+_DATA_BANK\n\s+call bitmap_room_select_data_bank_a\n\s+ld hl, bitmap_intro_scene0_rle_chunk_0\n\s+ld a, 2\n\s+ld de, #0000/.test(base.asm), 'the effect picture is uploaded to VRAM #8000 (page 1)');
 // the compiler's warnings reach the console, prefixed
