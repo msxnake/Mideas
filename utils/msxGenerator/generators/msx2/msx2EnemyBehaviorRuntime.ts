@@ -991,6 +991,13 @@ bitmap_enemy_script_cond_player_in_sight:
     or a
     jp z, bitmap_enemy_script_false      ; x-1 at x=0 would wrap to column 15
     sub 16
+    ; Borrow = B was below 16, so the ray stands in column 0. The loop invariant
+    ; (player_x < B on every pass) puts the player in that same column, and column 0
+    ; was either probed free on the previous step or is the guard's own cell: nothing
+    ; blocks the line. Without this exit B wrapped to 240+ and the ray walked the whole
+    ; room again for ever whenever X mod 16 != 0, the row had no solid cell and the
+    ; player stood left of (X mod 16): the main loop never returned.
+    jp c, bitmap_enemy_script_true
     ld b, a
     call bitmap_probe_solid
     jp nz, bitmap_enemy_script_false
