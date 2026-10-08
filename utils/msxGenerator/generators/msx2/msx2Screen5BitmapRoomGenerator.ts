@@ -18414,6 +18414,14 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
   const darkEyesLantern = (darkEyesAnyMushroom && bitmapShootEnabled(shootConfig) && shootConfig.bulletLantern)
     ? { halfWidth: BITMAP_LANTERN_HALF_WIDTH, halfHeight: BITMAP_LANTERN_HALF_HEIGHT }
     : undefined;
+  // The enemy update and the pursuer soldier's countdown freeze at the very same instants (NPC dialogue open, parts window
+  // open): one gate, computed once, handed to both systems.
+  const enemyPauseGateAsm = `${dialogueSystem.enabled
+    ? `    ld a, (bitmap_dlg_state)   ; NPC dialogue open: freeze all enemies
+    or a
+    ret nz
+`
+    : ''}${perceptionPauseGateAsm}`;
   const enemySystem = buildBitmapEnemySystemAsm(enemyData, {
     satPadSlots: Math.max(0, bossBulletSatSlots - enemyData.maxSlots),
     // One collision model for everybody: when the project has one-way platforms,
@@ -18450,12 +18458,7 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
     bulletHit: bulletHitsEnemies
       ? { chainFromBossLabel: bossData.enabled ? 'bitmap_boss_bullet_hit' : undefined }
       : undefined,
-    pauseGateAsm: `${dialogueSystem.enabled
-      ? `    ld a, (bitmap_dlg_state)   ; NPC dialogue open: freeze all enemies
-    or a
-    ret nz
-`
-      : ''}${perceptionPauseGateAsm}`,
+    pauseGateAsm: enemyPauseGateAsm,
     darkEyes: darkEyesAnyDarkRoom
       ? {
           halfWidths: bitmapHaloHalfWidthSlices(darkEyesTorch.enabled === true),
@@ -18470,7 +18473,7 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
   // Pursuer soldier (alert zones): 6 bytes of countdown state; its runtime is a code bank (msx2BitmapPursuerGenerator.ts).
   const pursuerSystem = buildBitmapPursuerSystem(pursuerPlan, enemyData, {
     ramBase: hudLinkedRamCursor,
-    pauseGateAsm: `${dialogueSystem.enabled ? '    ld a, (bitmap_dlg_state)   ; NPC dialogue open: the soldier countdown freezes too\n    or a\n    ret nz\n' : ''}${perceptionPauseGateAsm}`,
+    pauseGateAsm: enemyPauseGateAsm,
   });
   hudLinkedRamCursor += pursuerSystem.ramBytes;
   markRam("Perseguidor");
