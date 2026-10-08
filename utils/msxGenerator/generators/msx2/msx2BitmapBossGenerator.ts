@@ -3351,6 +3351,67 @@ ${body}
   const stateLoadAsm = stateCopyAsm(true);
   const stateSaveAsm = stateCopyAsm(false);
 
+  // Idle early exit of bitmap_boss_update. The saved blocks are read in place, so
+  // the offsets inside a block come from the SAME list the copies are generated
+  // from: byte fields are copied first, one byte each, in list order.
+  if (stateByteFields[0] !== 'boss_active') {
+    throw new Error('bitmap boss: the idle early exit reads boss_active as byte +0 of each saved block');
+  }
+  const blastTimerBlockOffset = hasHitBlast ? stateByteFields.indexOf('boss_blast_timer') : -1;
+  if (hasHitBlast && blastTimerBlockOffset < 0) {
+    throw new Error('bitmap boss: boss_blast_timer is not in the saved state block');
+  }
+  const idleExitAsm = `; IDLE EARLY EXIT. A room with no live boss used to pay 3 bitmap_boss_state_load +
+; 2 bitmap_boss_state_save (BOSS_INSTANCE_STATE_BYTES bytes each) and two
+; bitmap_boss_update_one passes that do nothing, on EVERY frame (1.8-2.8 ms of
+; CPU measured on SCREEN 5 rooms without a boss). The exit below leaves before any
+; of that when no part of bitmap_boss_update_one could act. It leaves only when ALL
+; of these bytes are zero (OR-accumulated; test [a] short-circuits the common fight):
+;   [a] slot 0 boss_active   = saved block byte +0   (0 none/dead, 1 alive, 2 death FX)
+;   [b] slot 1 boss_active   = byte +0 of the second block
+${hasPooledSfx ? `;   [c] boss_death_sfx_active  (pooled channel-C sound): update_one begins by ticking
+;       that sequencer in EVERY boss state, once per slot, so a playing sound
+;       (death sound, zone hit sound) keeps the full path alive until it ends.
+` : ''}${hasDefeatSequence ? `;   [d] boss_defeat_state  (Final Sequence WAIT/DIALOGUE step): slot 0 keeps running
+;       bitmap_boss_defeat_frame while it is non-zero although boss_active is
+;       already 0, because the sequence outlives the boss.
+` : ''}${hasHitBlast ? `;   [e] boss_blast_timer of slot 0 and of slot 1: update_one counts it down BEFORE it
+;       reads boss_active, so a countdown left over from the previous room (a
+;       weak-point blast armed just before the player walked out: bitmap_boss_load
+;       clears it only for a slot that arms a boss) is allowed to finish exactly as
+;       before. The killing blow never leaves one: bitmap_boss_kill drops it.
+` : ''};   Tests [c], [d] and [e] exist only in ROMs that emit the feature they guard.
+; NOT tested, and why that is safe: after \`ld a, (boss_active) / ret z\` everything in
+; update_one (death FX, Room Lock intro, barrier resweep, attack phases,
+; movement, render, contact damage) is reachable only with boss_active <> 0; the
+; dialogue / parts-window pause gate is a bare \`ret nz\` with no side effect; and
+; load/save are pure copies.
+; WHY OMITTING THE COPIES IS EXACT: on entry the working copy (boss_active, boss_x,
+; ... boss_hp ...) equals the saved block of boss_slot. Every other writer of it
+; restores that equality before it returns: bitmap_boss_bullet_hit saves each slot
+; it changed and reloads the slot it found; bitmap_boss_load saves both slots and
+; selects slot 0; the boot init that zeroes some of these fields is always
+; followed by bitmap_boss_load. So the full path would reload what is already
+; loaded and re-save what did not change.
+; For the same reason the saved blocks are the right place to read boss_active.
+`;
+  const idleExitTestsAsm = `    ld a, (boss_instance_state)               ; [a] slot 0 boss_active
+    or a
+    jr nz, .boss_upd_run                      ; a live boss in slot 0 (the usual fight) leaves after 3 instructions
+    ld hl, boss_instance_state + BOSS_INSTANCE_STATE_BYTES
+    or (hl)                                   ; [b] slot 1 boss_active
+${hasPooledSfx ? `    ld hl, boss_death_sfx_active
+    or (hl)                                   ; [c] pooled sound still playing
+` : ''}${hasDefeatSequence ? `    ld hl, boss_defeat_state
+    or (hl)                                   ; [d] Final Sequence step running
+` : ''}${hasHitBlast ? `    ld hl, boss_instance_state + ${blastTimerBlockOffset}
+    or (hl)                                   ; [e] slot 0 blast countdown
+    ld hl, boss_instance_state + BOSS_INSTANCE_STATE_BYTES + ${blastTimerBlockOffset}
+    or (hl)                                   ;     slot 1 blast countdown
+` : ''}    ret z                                     ; nothing to do: no copies, no passes
+.boss_upd_run:
+`;
+
   const routinesAsm = `
 ${stateLoadAsm}${stateSaveAsm}
 ; ------------------------------------------------------------
@@ -3693,8 +3754,8 @@ ${hasMole ? `    ld a, (boss_mole_state)
 ; FUNCTION: bitmap_boss_update
 ; ------------------------------------------------------------
 ; The public entry point swaps and updates both saved instances.
-bitmap_boss_update:
-    ld a, (boss_slot)
+${idleExitAsm}bitmap_boss_update:
+${idleExitTestsAsm}    ld a, (boss_slot)
     push af
     xor a
     ld (boss_slot), a
