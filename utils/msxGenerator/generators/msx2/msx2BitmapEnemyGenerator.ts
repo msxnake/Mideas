@@ -198,6 +198,12 @@ export interface BitmapEnemyRoomData {
   patternVariantCounts?: number[];
   /** Total number of groups reserved by the compact per-slot allocation. */
   patternGroupCount?: number;
+  /**
+   * Alert-zone rooms (utils/msx2Pursuer.ts), by global room index: how many pool slots the synthesized pursuer soldier takes
+   * (always the first ones) and how many hardware sprites of the room's other enemies did not fit the slot budget.
+   * Undefined when no room has a soldier.
+   */
+  pursuerRooms?: Array<{ soldierSlots: number; slotsDropped: number } | undefined>;
 }
 
 export interface BitmapEnemyRuntimeOptions {

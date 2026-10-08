@@ -14,6 +14,7 @@ const KIND_LABEL: Record<Screen5BankKind, string> = {
   'intro-image': 'Intro (imágenes)',
   'fx-code': 'Efecto (código)',
   'tfx-code': 'Transiciones (código)',
+  'pursuer-code': 'Soldado perseguidor (código)',
   reserved: 'Reservado (SCC)',
   free: 'Libre',
 };

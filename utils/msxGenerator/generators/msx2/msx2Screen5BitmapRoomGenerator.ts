@@ -27,6 +27,7 @@ import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEnti
 import { normalizeStateMachineInput } from '../../../stateMachineInputs';
 import type { Msx2CollectorGemsConfig } from '../../../msx2PlatformPhysics';
 import { buildBitmapPerceptionSystemAsm, bitmapPerceptionWindowNeeded } from './msx2BitmapPerceptionGenerator';
+import { planBitmapPursuer, buildBitmapPursuerSystem, buildBitmapPursuerBank, BITMAP_PURSUER_SOLDIER_PARAM } from './msx2BitmapPursuerGenerator';
 import { buildBitmapLightingSystemAsm, isBitmapLightingRoom, isBitmapMushroomEntity, bitmapHaloHalfWidthSlices, BITMAP_LIGHT_DIM_CMD_CALL, BITMAP_LANTERN_HALF_WIDTH, BITMAP_LANTERN_HALF_HEIGHT } from './msx2BitmapLightingGenerator';
 import {
   bitmapAirDashEnabled,
@@ -14924,6 +14925,8 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
   // but do not make every other slot pay for the slime's two extra variants.
   const slotMaxFrameCounts: number[] = [];
   const slotNeedsCeilingVariants: boolean[] = [];
+  // Alert rooms (utils/msx2Pursuer.ts): the synthesized soldier is entity 0, so it owns pool slots 0..N-1.
+  const pursuerRooms: Array<{ soldierSlots: number; slotsDropped: number } | undefined> = [];
   const roomSlotSets = rooms.map(room => {
     const entities = (room.entities || []).filter((entity: any) =>
       (entity.kind === 'enemy' || entity.kind === 'hazard')
@@ -14997,6 +15000,8 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       console.warn(`MSX2 bitmap room "${room.name}": ${truncatedHardwareSlots} enemy hardware sprite layer(s) exceeded the ${BITMAP_MAX_ENEMY_SLOTS}-slot bitmap enemy budget and were skipped.`);
     }
     maxSlots = Math.max(maxSlots, expanded.length);
+    const soldierSlots = expanded.filter(entry => entry.entity?.params?.[BITMAP_PURSUER_SOLDIER_PARAM] === true).length;
+    if (soldierSlots > 0) pursuerRooms[rooms.indexOf(room)] = { soldierSlots, slotsDropped: truncatedHardwareSlots };
     return expanded;
   });
   if (maxSlots === 0) return {
@@ -15068,7 +15073,8 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       // Extra layers carry the follower marker instead of the body's movement
       // mode: the runtime dispatches on this byte, so this is what keeps the
       // behaviour from being run once per hardware sprite.
-      const modeByte = pair.isFollower ? MSX2_ENEMY_MOVEMENT_LAYER_FOLLOWER : slot.mode;
+      // The pursuer soldier of an alert room loads hidden (#FF = dead and invisible); its runtime writes the real modes on appearance.
+      const modeByte = pair.entity?.params?.[BITMAP_PURSUER_SOLDIER_PARAM] === true ? 0xFF : pair.isFollower ? MSX2_ENEMY_MOVEMENT_LAYER_FOLLOWER : slot.mode;
       // A second colour layer of the same cell sits exactly where its leader
       // does, so its DamageOnTouch box is the leader's box tested twice. The
       // touch loop skips slots with damage 0, which makes the duplicate free.
@@ -15125,6 +15131,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     scriptedBehaviorPrograms,
     darkEyesEnabled,
     layeredEnemies,
+    pursuerRooms: pursuerRooms.length ? pursuerRooms : undefined,
     patternGroupOffsets,
     patternVariantCounts,
     patternGroupCount,
@@ -17201,7 +17208,9 @@ ${airAnimBodyAsm}`;
   // layers (bullets shift past them), pattern groups after the foreground ones.
   // Built HERE, ahead of the data-bank packer, because its sprite art is one of
   // the banked blocks and the packer has to see it to assign a bank.
-  const enemyData = buildBitmapRoomEnemyData(analysis, rooms);
+  // Alert zones: the soldier is synthesized as entity 0 of each alert room (hidden until its runtime shows it).
+  const pursuerPlan = planBitmapPursuer(analysis, rooms);
+  const enemyData = buildBitmapRoomEnemyData(analysis, pursuerPlan.rooms);
   const bankedDataBlocks = isKonamiMegaRom
     ? [
       ...buildBankedRleDataBlocks(allHudSeedRleChunks, `Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed mirrored on page 0/1, packed 4bpp RLE`),
@@ -18458,6 +18467,13 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
   });
   hudLinkedRamCursor += enemySystem.ramBytes;
   markRam("Enemigos");
+  // Pursuer soldier (alert zones): 6 bytes of countdown state; its runtime is a code bank (msx2BitmapPursuerGenerator.ts).
+  const pursuerSystem = buildBitmapPursuerSystem(pursuerPlan, enemyData, {
+    ramBase: hudLinkedRamCursor,
+    pauseGateAsm: `${dialogueSystem.enabled ? '    ld a, (bitmap_dlg_state)   ; NPC dialogue open: the soldier countdown freezes too\n    or a\n    ret nz\n' : ''}${perceptionPauseGateAsm}`,
+  });
+  hudLinkedRamCursor += pursuerSystem.ramBytes;
+  markRam("Perseguidor");
   const turretSystem = buildBitmapTurretSystemAsm(turretData, {
     ramBase: hudLinkedRamCursor,
     bankedTables: isKonamiMegaRom,
@@ -19018,7 +19034,7 @@ ${vramFree.map(gap => `;   rows ${String(gap.from).padStart(4)}..${String(gap.to
     gravityHookAsm: gravityHooks,
     landClearAsm: landClearHooks,
     leaveGroundAsm: leaveGroundHooks,
-  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${healSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}${crumbleSystem.pendingPageDrawCall}${swaySystem.pendingPageDrawCall}${bitmapAtlasAnimationSystem.pendingPageDrawCall}${destroyTileApplyPendingCall}${lightingSystem.pendingPageCallAsm}`, keyDoorSystem.solidProbeCallAsm, `${shaftSystem.preLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${bossWindowLoadCallAsm}${bossSystem.loadCallAsm}${infiniteRoomSystem.commitCarryLoadAsm(carryAndThrowSystem.loadCallAsm)}${infiniteRoomSystem.loadCallAsm}${shaftSystem.commitCallAsm}`);
+  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${healSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}${crumbleSystem.pendingPageDrawCall}${swaySystem.pendingPageDrawCall}${bitmapAtlasAnimationSystem.pendingPageDrawCall}${destroyTileApplyPendingCall}${lightingSystem.pendingPageCallAsm}`, keyDoorSystem.solidProbeCallAsm, `${shaftSystem.preLoadCallAsm}${enemySystem.loadCallAsm}${pursuerSystem.initCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${bossWindowLoadCallAsm}${bossSystem.loadCallAsm}${infiniteRoomSystem.commitCarryLoadAsm(carryAndThrowSystem.loadCallAsm)}${infiniteRoomSystem.loadCallAsm}${shaftSystem.commitCallAsm}`);
   // Foreground sprite load routine + its per-room dispatch/data tables (only when
   // some room actually defines foreground tiles).
   const foregroundLoadRoutineAsm = foregroundCount > 0 ? buildBitmapLoadForegroundSpritesAsm(foregroundContext) : '';
@@ -19191,7 +19207,7 @@ ${multiWorld
     ; Boss load deliberately comes AFTER player placement. The Room Lock chain
     ; must see the real entry cell so it can leave that cell open until the
     ; frozen player is released and steps clear.
-${bossWindowLoadCallAsm}${bossSystem.loadCallAsm}${deadlySystem.initAsm}${heartsHud.initAsm}${linkedHudInitAsm}${multiWorldRestoreProgressAsm}    ; Re-select page 0 after all room/HUD uploads. This is defensive against
+${pursuerSystem.initCallAsm}${bossWindowLoadCallAsm}${bossSystem.loadCallAsm}${deadlySystem.initAsm}${heartsHud.initAsm}${linkedHudInitAsm}${multiWorldRestoreProgressAsm}    ; Re-select page 0 after all room/HUD uploads. This is defensive against
     ; BIOS/VDP state left by CHGMOD or command-engine setup.
     ld a, #02
     ld e, #${BITMAP_ROOM_PAGE0_R2.toString(16).toUpperCase().padStart(2, '0')}
@@ -19476,6 +19492,19 @@ ${psgMusicRam ? `${psgMusicRam.asm}\n` : ''}` : '';
     musicTick: musicTickTransitions,
   });
   const bitmapTfxEngineBanked = bitmapTfxBank.banksAsm !== '';
+  // Pursuer soldier runtime: one code bank, the very last one (after music, Intro, Transition FX and the transition engine).
+  // Empty without an alert zone, so such a ROM keeps its exact bytes.
+  const bitmapPursuerBank = buildBitmapPursuerBank(pursuerSystem, {
+    firstBank: bitmapTfxBank.banks.length > 0
+      ? bitmapTfxBank.lastBank + 1
+      : bitmapFx.banks.length > 0
+        ? bitmapFx.lastBank + 1
+        : bitmapIntro.banks.length > 0
+          ? bitmapIntro.lastBank + 1
+          : introFirstBank,
+    megaRom: isKonamiMegaRom,
+    maxBank: BITMAP_ROOM_MEGAROM_MAX_BANK,
+  });
   // One-line JSON consumed by the IDE MegaROM bank map (utils/msx2Screen5MemoryBudget.ts).
   // Comment only: it never changes the assembled ROM. Banks 0-3 are the boot image and are not listed.
   // Entries without `used` are sized by the IDE after the compile: from their `endLabel` symbol in the
@@ -19518,6 +19547,15 @@ ${psgMusicRam ? `${psgMusicRam.asm}\n` : ''}` : '';
           blockCount: bitmapTfxBank.tableNames.length,
           blocks: bitmapTfxBank.tableNames.map(name => `Transition: ${name}`),
         })),
+        // The pursuer soldier runtime (appearance countdown + alert table) is a code bank sized from its end label.
+        ...bitmapPursuerBank.banks.map(bank => ({
+          bank: bank.bank,
+          kind: 'pursuer-code',
+          endLabel: 'BITMAP_PURSUER_CODE_BANK_USED_END',
+          startAddr: 0x8000,
+          blockCount: bitmapPursuerBank.blockNames.length,
+          blocks: bitmapPursuerBank.blockNames,
+        })),
       ],
     })}
 `
@@ -19525,7 +19563,7 @@ ${psgMusicRam ? `${psgMusicRam.asm}\n` : ''}` : '';
   // The Intro's, the Transition FX's and the transition engine's resident routines go where buildRuntimeAsm left the marker
   // (below #8000); empty when there is none of them. With nothing to place and no Intro/effect (the old condition for emitting
   // the marker at all) the marker block itself is removed, so such ROMs keep exactly the ASM they always had.
-  const residentSpliceAsm = `${bitmapIntro.residentAsm}${bitmapFx.residentAsm}${bitmapTfxBank.residentAsm}`;
+  const residentSpliceAsm = `${bitmapIntro.residentAsm}${bitmapFx.residentAsm}${bitmapTfxBank.residentAsm}${bitmapPursuerBank.residentAsm}`;
   const runtimeAsmWithIntro = !runtimeAsm.includes(INTRO_RESIDENT_MARKER)
     ? runtimeAsm
     : legacyIntroResidentMarker || residentSpliceAsm !== ''
@@ -19736,7 +19774,7 @@ ${platformDropEquates}; Active room behavior map copied here by load_room (16x12
 ; Used by surface skills such as ice_slide. Kept away from the compact player
 ; state/skill chain so future optional skills do not overlap it.
 bitmap_room_behavior_map EQU #C200
-${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equates}${turretSystem.equates}${platformSystem.equates}${shaftSystem.equates}${bossSystem.equates}${carryAndThrowSystem.equates}${infiniteRoomSystem.equates}${destroyTileEquates}${multiWorldEquates}
+${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equates}${pursuerSystem.equates}${turretSystem.equates}${platformSystem.equates}${shaftSystem.equates}${bossSystem.equates}${carryAndThrowSystem.equates}${infiniteRoomSystem.equates}${destroyTileEquates}${multiWorldEquates}
 ; Mideas channel-C convention: gameplay SFX own PSG channel C. Every
 ; fire-and-forget SFX stores its R7 bits for C here (bit2 tone, bit5 noise);
 ; the music mixer merges them so its per-frame R7 heal never cuts a blip.
@@ -19749,7 +19787,7 @@ ${!needsWindowSafeRle ? '' : `; Data bank for bitmap_decompress_banked_rle_to_vr
 ; gap between that and the SFX/music state, and the generator asserts it.
 bitmap_banked_rle_bank EQU #C3FD
 `}psg_sfx_r7_c_bits EQU #C3FE
-${bitmapFlowTextEquatesAsm}${sccMusicEquates}${bitmapIntro.equatesAsm}${bitmapFx.equatesAsm}${bitmapTfxBank.equatesAsm}    org #4000
+${bitmapFlowTextEquatesAsm}${sccMusicEquates}${bitmapIntro.equatesAsm}${bitmapFx.equatesAsm}${bitmapTfxBank.equatesAsm}${bitmapPursuerBank.equatesAsm}    org #4000
 
     db "AB"
     dw init_rom
@@ -19805,7 +19843,7 @@ ${playerColorsUpdateCall}${enemySystem.colorCallAsm}${bossSystem.colorCallAsm}${
 ${platformSystem.updateCallAsm}${shaftSystem.updateCallAsm}${bossSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${bossSystem.playerGateAsm}${perceptionSystem.inventoryGateAsm}${platformDropGate}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
 ${playerStateMachine.mainLoopCall}${playerAirAnimCall}${dashGate}${weaponSystem.updateCallAsm}${shootGate}${lightingSystem.bulletLanternCall}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}${destroyTileGate}${platformSystem.detectCallAsm}${shaftSystem.detectCallAsm}.skip_player_movement:
-${worldExitSystem.mainLoopCall}${perceptionSystem.mainLoopCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${turretSystem.updateCallAsm}${carryAndThrowSystem.updateCallAsm}${infiniteRoomSystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}${carryAndThrowSystem.bitmapDrawCallAsm}${lightingSystem.mainLoopCall}${musicUpdateCall}    jp bitmap_enter_game_loop
+${worldExitSystem.mainLoopCall}${perceptionSystem.mainLoopCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${pursuerSystem.tickCallAsm}${enemySystem.updateCallAsm}${turretSystem.updateCallAsm}${carryAndThrowSystem.updateCallAsm}${infiniteRoomSystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}${carryAndThrowSystem.bitmapDrawCallAsm}${lightingSystem.mainLoopCall}${musicUpdateCall}    jp bitmap_enter_game_loop
 ${sccMusic ? `.bitmap_gameflow_exit:
     ; This loop is the ONLY thing ticking music_update. Leaving it with the song
     ; mid-note left the SCC/PSG holding whatever registers the last frame wrote,
@@ -19926,6 +19964,7 @@ ${shootBulletDataTables}${weaponSystem.dataAsm}bitmap_resident_end:
 ${bankedDataAsm}${musicBanksAsm}${bitmapIntro.banksAsm ? `${bitmapIntro.banksAsm}
 ` : ''}${bitmapFx.banksAsm ? `${bitmapFx.banksAsm}
 ` : ''}${bitmapTfxBank.banksAsm ? `${bitmapTfxBank.banksAsm}
+` : ''}${bitmapPursuerBank.banksAsm ? `${bitmapPursuerBank.banksAsm}
 ` : ''}    end
 `;
 }
