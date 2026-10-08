@@ -25,7 +25,17 @@ import { makeHumanoidSpriteAsset, makeSoldierSpriteAsset, makeSoldierBehaviorAss
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..', '..');
-const outPath = process.argv[2] ? path.resolve(process.argv[2]) : path.join(here, 'pursuer_lab.json');
+const args = process.argv.slice(2);
+if (args.includes('--help') || args.includes('-h')) {
+  console.log('usage: node test/msx2-pursuer/make_pursuer_lab.mjs [out.json]   (default: test/msx2-pursuer/pursuer_lab.json)');
+  process.exit(0);
+}
+if (args.length > 1 || args.some(a => a.startsWith('-'))) {
+  console.error(`make_pursuer_lab: unexpected argument(s): ${args.join(' ')}`);
+  console.error('usage: node test/msx2-pursuer/make_pursuer_lab.mjs [out.json]');
+  process.exit(2);
+}
+const outPath = args[0] ? path.resolve(args[0]) : path.join(here, 'pursuer_lab.json');
 const base = JSON.parse(fs.readFileSync(path.join(root, 'test', 'msx2-behavior', 'fixture_scripted_enemy.json'), 'utf8'));
 
 const COLS = 16, ROWS = 12;
