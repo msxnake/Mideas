@@ -11,7 +11,23 @@ GEN=${1:-}; WORK=${2:-}; FRAMES=${3:-800}; SAB=${4:-none}
 [ -n "$GEN" ] && [ -n "$WORK" ] || { sed -n '2,8p' "$0"; exit 2; }
 HERE="$(cd "$(dirname "$0")" && pwd -W 2>/dev/null || pwd)"
 REPO="$(cd "$(dirname "$0")/../.." && pwd -W 2>/dev/null || pwd)"
-LAB=${MIDEAS_LAB:-$HERE/pursuer_lab.json}
+# winpath <label> <path>: the absolute mixed-form (C:/dir/file) path, or exit 2 with a clear message.
+winpath() {
+  local label=$1 p=$2 out
+  if [ -z "$p" ]; then echo "error: $label is empty" >&2; exit 2; fi
+  if command -v cygpath >/dev/null 2>&1; then
+    out=$(cygpath -am "$p" 2>/dev/null) || { echo "error: cygpath cannot convert $label '$p'" >&2; exit 2; }
+  else
+    out=$p
+  fi
+  case "$out" in
+    [A-Za-z]:/*) printf '%s' "$out" ;;
+    *) echo "error: $label '$p' is not an absolute Windows path (C:/...) and cygpath is not available to convert it" >&2; exit 2 ;;
+  esac
+}
+GEN=$(winpath "gen-dir" "$GEN") || exit 2
+WORK=$(winpath "work-dir" "$WORK") || exit 2
+LAB=$(winpath "lab" "${MIDEAS_LAB:-$HERE/pursuer_lab.json}") || exit 2
 mkdir -p "$WORK"
 P="$WORK/cpu_C"
 node "$HERE/make_pursuer_alert_lab.mjs" --lab "$LAB" --start-room C --out "$P.json" >/dev/null || exit 2
