@@ -2225,7 +2225,7 @@ export function buildBitmapBossSystemAsm(
   // hold-still-while-firing (bit 2: skip boss movement while a burst is in
   // flight) are both build-time constants read straight off the records.
   const shootSprayUsed = shootRecords.some(record => (record[0] & 0x30) !== 0);
-  const shootFreezeUsed = shootRecords.some(record => (record[0] & 0x04) !== 0);
+  const shootFreezeUsed = hasShoots && shootRecords.some(record => (record[0] & 0x04) !== 0);
   // Resolved-phase scratch: interval, projectile speed, shoot index, laser
   // interval, body cadence, movement steps. Recomputed from boss_hp at the top
   // of every boss update, so it is NOT part of the per-instance saved state the
