@@ -100,6 +100,20 @@ const CASES = [
     covers: 'bitmap-room boss: attack phases, path, sprite bullets, damage zones, barrier',
   },
   {
+    id: 'bitmap-room-boss-no-enemy-freeze',
+    fixture: 'test/msx2-boss/fixture_boss_burst_freeze_no_enemy.json',
+    // Derived by test/msx2-boss/make_burst_freeze_no_enemy_fixture.mjs (103 KB; rerun it to
+    // regenerate). A boss, ZERO enemies anywhere (so the bosses get no hardware-sprite bullets
+    // and the burst RAM is never declared) and a path node firing a shoot pattern whose record
+    // has bit 2 (freezeWhileFiring). Before 4a53642e the boss movement code read the undeclared
+    // `boss_burst_idx` anyway and glass stopped with "Symbol not found: boss_burst_idx".
+    romMode: 'megarom',
+    // The regression is a failure to ASSEMBLE, not a hash drift, so this case always runs
+    // glass.jar (with or without --rom): a pre-fix generator fails here as ASSEMBLY FAILED.
+    alwaysAssemble: true,
+    covers: 'bitmap-room boss + zero enemies + shoot record bit 2: must assemble (boss_burst_idx regression)',
+  },
+  {
     id: 'bitmap-room-enemies',
     fixture: 'test/msx2-shoot/shoot_verify.json',
     romMode: 'megarom',
@@ -436,7 +450,8 @@ function main() {
 
   const compiledIndex = buildGenerator(args);
   const generator = require(compiledIndex);
-  const glassJar = args.rom ? findGlassJar() : null;
+  // Cases flagged `alwaysAssemble` run glass.jar even without --rom (a build failure is their whole point).
+  const glassJar = args.rom || cases.some(item => item.alwaysAssemble) ? findGlassJar() : null;
 
   const results = {};
   const failures = [];
@@ -454,7 +469,7 @@ function main() {
       continue;
     }
     const entry = { fixture: testCase.fixture, covers: testCase.covers, asmSha256: sha256(asm), asmBytes: asm.length };
-    if (glassJar) {
+    if (glassJar && (args.rom || testCase.alwaysAssemble)) {
       try {
         entry.romSha256 = assembleRom(glassJar, asm, testCase.id, args.verbose);
       } catch (error) {
