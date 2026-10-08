@@ -6,8 +6,12 @@
 //   node test/msx2-pursuer/sabotage_pursuer_asm.mjs <in.asm> <out.asm> <mode>
 //
 // modes
-//   no-boot-init     drop the `call bitmap_pursuer_init` of the boot / WorldLink path (the one NOT preceded by bitmap_load_enemies)
-//   no-commit-init   drop the `call bitmap_pursuer_init` of the room-change path
+//   no-boot-init     drop the `call bitmap_pursuer_init` of the boot / WorldLink path (the one NOT inside commit_room_flip)
+//   no-commit-init   drop the `call bitmap_pursuer_init` of the room-change path (the one inside commit_room_flip)
+//   boot-init-before-place  move the boot `call bitmap_pursuer_init` to right after the boot-path `call bitmap_load_enemies`, i.e.
+//                    BEFORE "; Place the player at the room spawn point": the soldier's entry point is read from an unplaced player
+//   timer-low-byte   `dec hl` -> `dec l` in bitmap_pursuerb_tick: the countdown only works while it fits in a byte (2 s yes, 5 s never)
+//   no-park          the init no longer parks the hidden soldier slots at y = #E0 (they stay where the loader left them)
 //   leader-only      the bank writes the leader's movement mode (14) but not the follower's (15)
 //   ignore-guard     the appearance ignores how close the player is (no `ret c` after the |dy| test)
 //   no-tick          drop the per-frame `call bitmap_pursuer_tick`
@@ -27,7 +31,11 @@ const lines = text.split(/\r?\n/);
 const fail = msg => { console.error(`sabotage "${mode}" NOT applied: ${msg}`); process.exit(3); };
 
 const initCalls = lines.map((l, i) => (/^\s*call bitmap_pursuer_init\s*$/.test(l) ? i : -1)).filter(i => i >= 0);
-const prevCode = i => { for (let k = i - 1; k >= 0; k--) { const t = lines[k].trim(); if (t && !t.startsWith(';')) return t; } return ''; };
+// The room-change hook is the init call that sits inside `commit_room_flip` (its nearest preceding non-local label); the other is the boot one.
+// (It used to be "the call right after `call bitmap_load_enemies`", but the hook is now the LAST loader of commit_room_flip.)
+const enclosingLabel = i => { for (let k = i; k >= 0; k--) { const m = lines[k].match(/^([A-Za-z_][A-Za-z0-9_]*):/); if (m) return m[1]; } return ''; };
+const isCommitHook = i => enclosingLabel(i) === 'commit_room_flip';
+const bootLoadEnemies = lines.map((l, i) => (/^\s*call bitmap_load_enemies\s*$/.test(l) && !isCommitHook(i) ? i : -1)).filter(i => i >= 0);
 const bankStart = lines.findIndex(l => /^bitmap_pursuerb_begin:/.test(l));
 const bankEnd = lines.findIndex(l => /^bitmap_pursuerb_code_end:/.test(l));
 
@@ -37,9 +45,22 @@ switch (mode) {
   case 'no-boot-init':
   case 'no-commit-init': {
     const wantCommit = mode === 'no-commit-init';
-    const hits = initCalls.filter(i => /^call bitmap_load_enemies$/.test(prevCode(i)) === wantCommit);
+    const hits = initCalls.filter(i => isCommitHook(i) === wantCommit);
     if (hits.length !== 1) fail(`expected exactly one ${wantCommit ? 'commit' : 'boot'} init call, found ${hits.length} (of ${initCalls.length})`);
     dropLine(hits[0]);
+    break;
+  }
+  case 'boot-init-before-place': {
+    // The boot hook moves from after "Place the player" to right after the boot-path `call bitmap_load_enemies`: it then reads
+    // player_x / player_y BEFORE the spawn point is written, so the soldier's entry point is whatever the RAM held.
+    const bootInits = initCalls.filter(i => !isCommitHook(i));
+    if (bootInits.length !== 1) fail(`expected exactly one boot init call, found ${bootInits.length} (of ${initCalls.length})`);
+    if (bootLoadEnemies.length !== 1) fail(`expected exactly one boot-path 'call bitmap_load_enemies', found ${bootLoadEnemies.length}`);
+    const place = lines.findIndex(l => /^\s*; Place the player at the room spawn point/.test(l));
+    if (place < 0 || place < bootLoadEnemies[0] || place > bootInits[0]) fail('"; Place the player" is not between the boot loaders and the boot init call');
+    const initLine = lines[bootInits[0]];
+    dropLine(bootInits[0]);
+    lines.splice(bootLoadEnemies[0] + 1, 0, initLine.replace(/\s*$/, '') + '      ; SABOTAGE: before the player is placed');
     break;
   }
   case 'leader-only': {
@@ -58,6 +79,28 @@ switch (mode) {
     for (let i = bankStart; i < bankEnd; i++) if (/^\s*ret c\s+;/.test(lines[i])) idx.push(i);
     if (idx.length !== 1) fail(`expected one 'ret c' guard exit, found ${idx.length}`);
     dropLine(idx[0]);
+    break;
+  }
+  case 'timer-low-byte': {
+    // The countdown is 16 bits (a delay above 255 frames is allowed: up to 30 s = 1800). A byte-wide decrement works for 2 s
+    // (121 frames) and never reaches zero for 5 s (301): only a long-delay run can see it.
+    if (bankStart < 0 || bankEnd < 0) fail('no bank code found');
+    const idx = [];
+    for (let i = bankStart; i < bankEnd; i++) if (/^\s*dec hl\s*$/.test(lines[i])) idx.push(i);
+    if (idx.length !== 1) fail(`expected one 'dec hl' in the bank, found ${idx.length}`);
+    lines[idx[0]] = '    dec l                                   ; SABOTAGE: the high byte of the countdown never moves';
+    break;
+  }
+  case 'no-park': {
+    // Drop the init's "park the hidden body below the room" writes: the group `ld a, #E0` + one `ld (slot + 1), a` per soldier slot.
+    if (bankStart < 0 || bankEnd < 0) fail('no bank code found');
+    const at = [];
+    for (let i = bankStart; i < bankEnd; i++) if (/^\s*ld a, #E0\b/.test(lines[i])) at.push(i);
+    if (at.length !== 1) fail(`expected one 'ld a, #E0' in the bank, found ${at.length}`);
+    let end = at[0] + 1;
+    while (end < bankEnd && /^\s*ld \(bitmap_enemy_pool \+ \d+ \+ 1\), a\s*$/.test(lines[end])) end++;
+    if (end === at[0] + 1) fail('no slot y store follows the park value');
+    lines.splice(at[0], end - at[0]);
     break;
   }
   case 'no-tick': {
