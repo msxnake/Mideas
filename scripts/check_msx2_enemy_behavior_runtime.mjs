@@ -175,6 +175,25 @@ check('THE BUG THIS GUARDS: probing above the room lid is answered deliberately,
 check('Walking off the right of the room is an edge, not a carry into column 0',
   /add a, 16\s*\n\s*jp c, bitmap_enemy_script_edge/.test(code));
 
+// PLAYER_IN_SIGHT, ray facing LEFT. The ray walks in 16 px steps from the guard's X;
+// `sub 16` on an 8-bit X BORROWS when B was below 16, which happens whenever the
+// guard's X is not a multiple of 16. The loop invariant (player_x < B) puts the player
+// in column 0 with the ray at that point, so the borrow itself is the answer: TRUE.
+// Without the exit B wrapped to 240+ and the ray walked the room again (the main loop
+// never returned when the row was free; a solid cell on the right made it answer FALSE
+// instead). The exit has to be the very next instruction after the `sub 16`: any
+// instruction in between (ld b, a ...) can disturb the carry or let the wrapped value in.
+const leftRayLines = (() => {
+  const from = code.indexOf('.sight_step_left:');
+  if (from < 0) return [];
+  const to = code.indexOf('jp .sight_step_left', from);
+  if (to < 0) return [];
+  return code.slice(from, to).split('\n').map(line => line.trim()).filter(line => line !== '');
+})();
+const leftSubAt = leftRayLines.indexOf('sub 16');
+check('THE BUG THIS GUARDS: the left ray answers TRUE on the borrow of sub 16, instead of wrapping to column 15 and walking the room for ever',
+  leftRayLines.length > 0 && leftSubAt >= 0 && leftRayLines[leftSubAt + 1] === 'jp c, bitmap_enemy_script_true');
+
 // ---- the mode number --------------------------------------------------------
 check('The scripted mode takes the next free number after FlyBounce8 (13)',
   MSX2_ENEMY_MOVEMENT_SCRIPTED === 14);

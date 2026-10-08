@@ -9,6 +9,16 @@
  *   sight_left_hang_wall.json   guard at x=104 + a solid cell on the ray row (column 2)
  *                               -> must stay BLIND (no shot) before and after the fix:
  *                                  the carry exit may only fire when the ray is free
+ *   sight_left_hang_wall15.json guard at x=104 + a solid cell on the ray row ONLY in
+ *                               column 15 (x 240..255)
+ *                               -> the case whose answer CHANGED with the fix. The
+ *                                  wrapped ray (8 - 16 = 248) used to land in that
+ *                                  column and answer FALSE, so the guard was blind
+ *                                  (0 shots, no hang); with the borrow exit the ray
+ *                                  stops at column 0 and answers TRUE (>= 10 shots).
+ *                                  It is the only fixture that tells the old
+ *                                  behaviour from the new one by its shot count
+ *                                  alone, with a main loop that is alive on both.
  *
  * THE BUG THEY PROVE
  *   bitmap_enemy_script_cond_player_in_sight walks a left-facing ray in 16 px
@@ -147,6 +157,8 @@ const cases = [
   { file: 'sight_left_hang_ctrl.json', name: 'Sight left hang control (guard x=96)', guardTileX: 6 },
   // Column 2 (x 32..47): the player at x=2 spans columns 0-1, so it does not stand inside the wall.
   { file: 'sight_left_hang_wall.json', name: 'Sight left hang wall (guard x=104, wall col 2)', guardTileX: 6.5, wallCol: 2 },
+  // Column 15 (x 240..255): the only cell the wrapped ray (8 - 16 = 248) can land on. Nothing else on the row is solid.
+  { file: 'sight_left_hang_wall15.json', name: 'Sight left hang wall15 (guard x=104, wall col 15 only)', guardTileX: 6.5, wallCol: 15 },
 ];
 for (const item of cases) {
   const project = build(item);
