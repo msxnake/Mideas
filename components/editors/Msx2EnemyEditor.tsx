@@ -16,6 +16,8 @@ import {
 } from '../../types';
 import { GLOBAL_ENEMY_TEMPLATES, createEnemyFromTemplate } from '../../data/enemyLibrary';
 import { addEntryToMsx2EnemyLibrary } from '../../utils/msx2EnemyLibrary';
+import { normalizeMsx2Pursuer, resolveMsx2PursuerProject } from '../../utils/msx2Pursuer';
+import { applyPursuerPatch } from '../../utils/msx2PursuerEditor';
 
 interface Msx2EnemyEditorProps {
   enemy: EnemyDefinition;
@@ -306,6 +308,10 @@ export const Msx2EnemyEditor: React.FC<Msx2EnemyEditorProps> = ({
   const behaviorTransitions = buildBehaviorTransitions(enemy);
   const selectedRole = renderRoles[Math.min(selectedRoleIndex, Math.max(0, renderRoles.length - 1))];
   const selectedRoleSprite = allAssets.find(asset => asset.id === selectedRole?.spriteId) || selectedSprite;
+  // `pursuer` is not in EnemyDefinition yet (it lives in the asset data). The errors are project-wide: the resolver
+  // looks at every msx2enemy asset, so this editor sees the same problems the generator would report.
+  const pursuerEnabled = normalizeMsx2Pursuer((enemy as EnemyDefinition & { pursuer?: unknown }).pursuer).enabled;
+  const pursuerErrors = useMemo(() => resolveMsx2PursuerProject(allAssets).errors, [allAssets]);
 
   const patch = (next: Partial<EnemyDefinition>) => onUpdate({ ...enemy, ...next });
   const patchRender = (next: Partial<EnemyDefinition['render']>) => patch({ render: { ...enemy.render, ...next } });
@@ -541,6 +547,21 @@ export const Msx2EnemyEditor: React.FC<Msx2EnemyEditorProps> = ({
                 <span>Notes</span>
                 <textarea className="h-28 w-full rounded border border-slate-700 bg-[#111821] p-2 text-xs text-slate-100 outline-none focus:border-red-500" value={enemy.notes || ''} onChange={event => patch({ notes: event.target.value })} />
               </label>
+              <div className="space-y-2 rounded border border-slate-700 bg-[#111821] p-3">
+                <div className="text-xs font-bold uppercase tracking-wide text-red-300">Soldado perseguidor</div>
+                <Checkbox
+                  label="Es el soldado perseguidor (pursuer.enabled)"
+                  checked={pursuerEnabled}
+                  onChange={checked => onUpdate(applyPursuerPatch(enemy, { enabled: checked }))}
+                />
+                {pursuerEnabled && pursuerErrors.length > 0 && (
+                  <div className="space-y-1">
+                    {pursuerErrors.map(error => (
+                      <div key={error} className="rounded border border-amber-700 bg-amber-950/30 p-2 text-xs text-amber-100">{error}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </section>
 

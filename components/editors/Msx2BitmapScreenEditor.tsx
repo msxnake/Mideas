@@ -36,6 +36,13 @@ import {
 import { filterMsx2EntityPresetsForProfile } from '../../utils/msx2ProjectProfiles';
 import { createDefaultMsx2BitmapPlayerEntries, normalizeMsx2BitmapPlayerEntries } from '../../utils/msx2PlayerDefaults';
 import { parseMsx2PlayerImport } from '../../utils/msx2PlayerImport';
+import {
+  MSX2_ALERT_MAX_GUARD_PX,
+  MSX2_ALERT_MAX_SPAWN_DELAY_SEC,
+  MSX2_ALERT_MIN_SPAWN_DELAY_SEC,
+  getMsx2RoomAlertZone,
+} from '../../utils/msx2Pursuer';
+import { applyAlertZonePatch, Msx2AlertZonePatch } from '../../utils/msx2PursuerEditor';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { Msx2BitmapTileEditor } from './Msx2BitmapTileEditor';
@@ -571,6 +578,40 @@ const CollapsiblePanel: React.FC<CollapsiblePanelProps> = ({ title, isOpen, onTo
     {isOpen && <div className="p-2">{children}</div>}
   </section>
 );
+
+/**
+ * Number box of the alert zone. While the user types, the raw text is shown ("2." on the way to "2.5"); every parseable
+ * value is committed at once, and the model normalizes it (clamp, rounding). On blur the stored value is shown again.
+ */
+const AlertZoneNumberField: React.FC<{
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onCommit: (value: number) => void;
+}> = ({ label, value, min, max, step, onCommit }) => {
+  const [draft, setDraft] = useState<string | null>(null);
+  return (
+    <label className="space-y-1">
+      {label}
+      <input
+        type="number"
+        min={min}
+        max={max}
+        step={step}
+        value={draft ?? String(value)}
+        onChange={event => {
+          const text = event.target.value;
+          setDraft(text);
+          if (text.trim() !== '' && Number.isFinite(Number(text))) onCommit(Number(text));
+        }}
+        onBlur={() => setDraft(null)}
+        className="w-full bg-msx-bgcolor border border-msx-border rounded px-2 py-1"
+      />
+    </label>
+  );
+};
 
 interface PanelBulkToggleProps {
   /** True while at least one panel of the sidebar is open. */
@@ -1301,18 +1342,19 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const [openHud, setOpenHud] = useState(true);
   const [openLighting, setOpenLighting] = useState(true);
   const [openInfinite, setOpenInfinite] = useState(true);
+  const [openAlertZone, setOpenAlertZone] = useState(true);
 
   // "Contraer/expandir todo", scoped per sidebar column (the centre minimap panel keeps its own toggle).
   const anyLeftPanelOpen = openTools || openAtlas || openAutotile || openStamps || openBitmapTiles
     || openCategories || openLayers || openForeground || openPlacement;
-  const anyRightPanelOpen = openConfig || openHud || openLighting || openInfinite || openGridOptions || openTarget
+  const anyRightPanelOpen = openConfig || openHud || openLighting || openInfinite || openAlertZone || openGridOptions || openTarget
     || openPalette || openBudget;
   const setLeftPanelsOpen = (open: boolean) => {
     for (const setOpen of [setOpenTools, setOpenAtlas, setOpenAutotile, setOpenStamps, setOpenBitmapTiles,
       setOpenCategories, setOpenLayers, setOpenForeground, setOpenPlacement]) setOpen(open);
   };
   const setRightPanelsOpen = (open: boolean) => {
-    for (const setOpen of [setOpenConfig, setOpenHud, setOpenLighting, setOpenInfinite, setOpenGridOptions, setOpenTarget,
+    for (const setOpen of [setOpenConfig, setOpenHud, setOpenLighting, setOpenInfinite, setOpenAlertZone, setOpenGridOptions, setOpenTarget,
       setOpenPalette, setOpenBudget]) setOpen(open);
   };
 
@@ -1465,6 +1507,13 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     () => isDarkRoom && placedEntities.some(entity => entity?.kind === 'boss'),
     [isDarkRoom, placedEntities],
   );
+  // Alert zone (pursuer soldier, runtime.alertZone). The generator refuses a boss in an alert room, so the warning
+  // is only raised for rooms whose alert zone is on (the generator ignores the boss of any other room).
+  const alertZone = getMsx2RoomAlertZone(room);
+  const alertRoomHasBoss = alertZone.enabled && placedEntities.some(entity => entity?.kind === 'boss');
+  const updateAlertZone = (patch: Msx2AlertZonePatch) => {
+    onUpdate({ runtime: applyAlertZonePatch(baseRuntime(), patch) });
+  };
   const keyItems = useMemo<Msx2KeyItemDefinition[]>(
     () => (Array.isArray(room.keyItems) ? room.keyItems : []),
     [room.keyItems],
@@ -7645,6 +7694,52 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                 intensos 0..7 de la paleta emparejada. Al agotarse el tiempo, recupera sus colores
                 normales y las setas comidas regeneran su tile y vuelven a brillar. Sin la skill,
                 el jugador lleva una lámpara siempre encendida.
+              </div>
+            )}
+          </CollapsiblePanel>
+
+          <CollapsiblePanel title="Zona de alerta" isOpen={openAlertZone} onToggle={() => setOpenAlertZone(v => !v)}>
+            <label className="flex items-center gap-2 text-xs text-msx-textsecondary">
+              <input
+                type="checkbox"
+                checked={alertZone.enabled}
+                onChange={event => {
+                  updateAlertZone({ enabled: event.target.checked });
+                  setStatusBarMessage?.(
+                    event.target.checked
+                      ? 'SCREEN 5: zona de alerta activada. El soldado perseguidor aparece tras el retardo.'
+                      : 'SCREEN 5: zona de alerta desactivada.'
+                  );
+                }}
+              />
+              Activar
+            </label>
+            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-msx-textsecondary">
+              <AlertZoneNumberField
+                key={`alert-delay-${room.id}`}
+                label="Retardo (s)"
+                value={alertZone.spawnDelaySec}
+                min={MSX2_ALERT_MIN_SPAWN_DELAY_SEC}
+                max={MSX2_ALERT_MAX_SPAWN_DELAY_SEC}
+                step={0.5}
+                onCommit={spawnDelaySec => updateAlertZone({ spawnDelaySec })}
+              />
+              <AlertZoneNumberField
+                key={`alert-guard-${room.id}`}
+                label="Guarda (px)"
+                value={alertZone.guardPx}
+                min={0}
+                max={MSX2_ALERT_MAX_GUARD_PX}
+                step={1}
+                onCommit={guardPx => updateAlertZone({ guardPx })}
+              />
+            </div>
+            <div className="mt-2 text-[0.65rem] text-msx-textsecondary leading-tight">
+              Al entrar en la sala, el soldado aparece por la puerta de entrada cuando pasa el retardo. Si en ese momento el jugador sigue a menos de «Guarda» px de ese punto, espera a que se aleje.
+            </div>
+            {alertRoomHasBoss && (
+              <div className="mt-2 rounded border border-msx-warning bg-msx-bgcolor p-2 text-[0.65rem] text-msx-textsecondary leading-tight">
+                <span className="text-msx-warning font-semibold">Una sala de alerta no puede tener boss: el generador dará error.</span>
               </div>
             )}
           </CollapsiblePanel>
