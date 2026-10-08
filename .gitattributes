@@ -1,0 +1,3 @@
+# Shell scripts must be checked out with LF endings whatever core.autocrlf says:
+# bash cannot run a CRLF script (the shebang and every command get a stray \r).
+*.sh text eol=lf
