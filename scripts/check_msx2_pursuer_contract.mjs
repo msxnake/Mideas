@@ -6,7 +6,10 @@
  *   3. every generator error the Director asked for, each triggered from the real lab project and each expected to THROW
  *      with the right message: boss in an alert room, more than the 4 enemy hardware slots, two soldiers, no soldier at all,
  *      soldier also placed by hand, wrong sprite, path_follow program, non-MegaROM export;
- *   4. the OFF promise: a pursuer enemy asset with no alert zone anywhere generates the exact same ASM as the project without it.
+ *   4. the OFF promise: a pursuer enemy asset with no alert zone anywhere generates the exact same ASM as the project without it;
+ *   5. the ORDER of the room-change hook: in commit_room_flip, `call bitmap_pursuer_init` is the last call before the final
+ *      `call bitmap_room_restore_resident_banks`. The init reads player_x / player_y as the soldier's entry point, and a loader
+ *      that runs after it can still move the player (bitmap_shaft_after_commit rewrites player_y to the lift cabin's).
  *
  *   node scripts/check_msx2_pursuer_contract.mjs [--gen <dir with the tsc output of utils/msxGenerator/index.ts>] [--lab <pursuer_alert_lab.json>]
  *
@@ -85,6 +88,39 @@ const soldierAsset = p => p.assets.find(a => a.type === 'msx2enemy' && a.data.pu
   const base = generate(load());
   check('the lab itself generates (alert rooms B and C)', typeof base === 'string' && base.includes('bitmap_pursuerb_tick:') && base.includes('"kind":"pursuer-code"'));
 }
+// The calls of commit_room_flip in program order (its body ends at the next `; FUNCTION:` header). Static checks on the real generator
+// output: no emulator, and no flag set by hand (the hook comes from the authored alert zone).
+function commitRoomFlipCalls(asm) {
+  const lines = asm.split(/\r?\n/);
+  const start = lines.findIndex(l => /^commit_room_flip:\s*$/.test(l));
+  let end = lines.findIndex((l, i) => i > start && /^; FUNCTION:/.test(l));
+  if (end < 0) end = lines.length;
+  const calls = start < 0 ? [] : lines.slice(start, end).map((l, i) => ({ line: start + i + 1, m: l.match(/^\s*call\s+([A-Za-z_.][A-Za-z0-9_.]*)\s*(?:;.*)?$/) })).filter(c => c.m).map(c => ({ line: c.line, target: c.m[1] }));
+  return { found: start >= 0, calls, tail: calls.slice(-4).map(c => `${c.target}@${c.line}`).join(' -> ') };
+}
+{
+  const { found, calls, tail } = commitRoomFlipCalls(generate(load()));
+  const inits = calls.filter(c => c.target === 'bitmap_pursuer_init');
+  const last = calls.length - 1;
+  const ok = found && inits.length === 1 && last >= 1 && calls[last].target === 'bitmap_room_restore_resident_banks' && calls[last - 1].target === 'bitmap_pursuer_init';
+  check('commit_room_flip: `call bitmap_pursuer_init` is the last call before `call bitmap_room_restore_resident_banks`', ok,
+    found ? `init calls=${inits.length}; last calls: ${tail}` : 'no commit_room_flip label');
+}
+{
+  // The reason for the order: with a lift (platform_shaft) in the project, bitmap_shaft_after_commit rewrites player_y to the cabin's.
+  // The hook has to run AFTER it, or the soldier comes out at the Y of the room edge the player entered by.
+  const p = load();
+  room(p, 'a').data.entities.push({
+    id: 'lift_ab', name: 'Lift A-B', kind: 'platform_shaft', position: { x: 8, y: 10 },
+    components: { msx2_hardware_sprite: { msx2SpriteAssetId: '' } },
+    params: { path: [room(p, 'a').id, room(p, 'b').id], bottomSlot: 0, bottomY: 176, topSlot: 1, topY: 16, startSlot: 0, startY: 176, speed: 1 },
+  });
+  const { found, calls, tail } = commitRoomFlipCalls(generate(p));
+  const shaftAt = calls.findIndex(c => c.target === 'bitmap_shaft_after_commit');
+  const initAt = calls.findIndex(c => c.target === 'bitmap_pursuer_init');
+  check('commit_room_flip with a lift: `call bitmap_pursuer_init` comes AFTER `call bitmap_shaft_after_commit`', found && shaftAt >= 0 && initAt > shaftAt,
+    found ? `shaft hook at call #${shaftAt}, pursuer init at call #${initAt}; last calls: ${tail}` : 'no commit_room_flip label');
+}
 {
   const p = load();
   room(p, 'b').data.entities.push({ id: 'a_boss', name: 'Boss', kind: 'boss', position: { x: 8, y: 6 }, components: {}, params: {} });
@@ -147,7 +183,7 @@ const soldierAsset = p => p.assets.find(a => a.type === 'msx2enemy' && a.data.pu
   expectThrow('soldier behaviour is a path_follow route -> error', p, /path_follow/);
 }
 {
-  expectThrow('alert zone in a non-MegaROM export -> error', load(), /MegaROM/, { ...config, romMode: 'normal', targetFormat: 'plain' });
+  expectThrow('alert zone in a non-MegaROM export -> error', load(), /Alert zones need a Konami MegaROM/, { ...config, romMode: 'normal', targetFormat: 'plain' });
 }
 
 // ---- 4. OFF = identical ---------------------------------------------------------------------------------------------------------------

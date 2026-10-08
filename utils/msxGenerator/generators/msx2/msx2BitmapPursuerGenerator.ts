@@ -12,6 +12,8 @@
  *   entities of every alert room, so it becomes slots 0..N-1 of the pool and the enemy generator allocates its sprite art,
  *   colours and program exactly as for any other enemy. Only one thing differs: its movement-mode bytes in the room table are
  *   written as #FF ("dead and invisible"), which the update loop, the contact-damage pass and the SAT writer already skip.
+ *   The init hook also parks the hidden body at y = #E0, below the visible room, because the pressure-plate overlap test and
+ *   ENEMY_AHEAD do not filter #FF.
  *   To make it appear, the runtime writes x/y of every soldier slot and the real modes (14 for the leader, 15 for the
  *   followers) in the SAME frame. The next `bitmap_update_enemies` finds a complete body.
  *
@@ -29,8 +31,14 @@
  *   bank-mapping routine leaves them (bitmap_room_restore_resident_banks).
  *
  * ORDER OF THE HOOKS
- *   - commit_room_flip (room change): the player is placed BEFORE the enemies are loaded, so the init hook goes right after
- *     enemySystem.loadCallAsm.
+ *   The init hook reads the entry point from player_x / player_y, so it has to run once the player is FINAL, and it has to
+ *   leave the enemies of the room (already loaded) the way it wants them.
+ *   - commit_room_flip (room change): the player is placed BEFORE the enemies are loaded, but several later hooks still move the
+ *     player: bitmap_shaft_after_commit (the last entry of the loader list) rewrites player_y to put the player back on the
+ *     lift cabin. The init hook is therefore the LAST call of that list, after shaftSystem.commitCallAsm; right after
+ *     enemySystem.loadCallAsm, a player who enters an alert room riding a lift would give the soldier the edge Y (2 or 158)
+ *     instead of the cabin's. The check scripts/check_msx2_pursuer_contract.mjs keeps it last (it must be the last call before
+ *     bitmap_room_restore_resident_banks in commit_room_flip).
  *   - boot init / WorldLink: the enemies are loaded BEFORE the player is placed, so the init hook goes after "Place the
  *     player". Both paths are needed: a hook in only one leaves the start room (or every other room) without a soldier.
  *
@@ -75,6 +83,13 @@ const POOL_X_OFF = 14;
 const POOL_Y_OFF = 15;
 /** Movement mode of a slot that is "dead and invisible" for every enemy pass. */
 const MODE_HIDDEN = 0xff;
+/**
+ * Y of a hidden soldier slot. Not every enemy pass skips mode #FF: bitmap_pressure_any_enemy_overlaps (a pressure plate that
+ * enemies press) and the ENEMY_AHEAD probe do not, and a body parked at the loader's (0,0) would press a plate under the top-left
+ * corner of the room. #E0 (224) is below the 192 visible lines, so none of those 16x16 boxes can meet a plate or an enemy there.
+ * The appearance rewrites x and y of every slot, so nothing depends on this value afterwards.
+ */
+const HIDDEN_PARK_Y = 0xe0;
 
 const hex = (value: number, digits = 2): string => `#${(value & ((1 << (digits * 4)) - 1)).toString(16).toUpperCase().padStart(digits, '0')}`;
 
@@ -194,7 +209,7 @@ export interface BitmapPursuerSystem {
   ramBytes: number;
   /** RAM EQUs (goes with the other systems' equates). */
   equates: string;
-  /** `call bitmap_pursuer_init`: after the enemies are loaded and the player is placed. */
+  /** `call bitmap_pursuer_init`: after the enemies are loaded and the player is FINAL (the last hook of commit_room_flip, see the header). */
   initCallAsm: string;
   /** `call bitmap_pursuer_tick`: once per game frame, before bitmap_update_enemies. */
   tickCallAsm: string;
@@ -360,6 +375,7 @@ bitmap_pursuer_resident_end:
 `;
 
   const hideAsm = slots.map(slot => `    ld (${slotBase(slot)} + ${POOL_MODE}), a`).join('\n');
+  const parkAsm = slots.map(slot => `    ld (${slotBase(slot)} + ${POOL_Y}), a`).join('\n');
   const writeSlotAsm = slots.map(slot => {
     const mode = slot === 0 ? MSX2_ENEMY_MOVEMENT_SCRIPTED : MSX2_ENEMY_MOVEMENT_LAYER_FOLLOWER;
     return `    ; slot ${slot}: ${slot === 0 ? 'the leader (decides)' : 'a follower (copies the leader)'}
@@ -383,8 +399,8 @@ bitmap_pursuer_resident_end:
     output: 'bitmap_pursuer_state = 1 with the timer, guard and entry point set in an alert room, 0 elsewhere.',
     destroys: 'AF, BC, DE, HL.',
     preserves: 'IX, IY.',
-    side: `Writes bitmap_pursuer_*; writes movement mode #FF into the ${system.soldierSlots} soldier slot(s) of an alert room (idempotent: the loader already did).`,
-    notes: 'RAM and own-bank reads only. The entry point is the player position AFTER placement: the spot the soldier will come out of.',
+    side: `Writes bitmap_pursuer_*; writes movement mode ${hex(MODE_HIDDEN)} and y = ${hex(HIDDEN_PARK_Y)} into the ${system.soldierSlots} soldier slot(s) of an alert room (the mode is idempotent: the loader already did).`,
+    notes: `RAM and own-bank reads only. The entry point is the player position AFTER placement: the spot the soldier will come out of.\nThe hidden body is parked at y = ${hex(HIDDEN_PARK_Y)}: the enemy passes that do not skip mode ${hex(MODE_HIDDEN)} (pressure plates, ENEMY_AHEAD) must not meet a body at (0,0).`,
   })}${P}_begin:
 ${P}_init:
     xor a
@@ -409,6 +425,8 @@ ${P}_init:
     ld (bitmap_pursuer_timer), de
     ld a, ${hex(MODE_HIDDEN)}
 ${hideAsm}
+    ld a, ${hex(HIDDEN_PARK_Y)}                              ; parked below the room (see HIDDEN_PARK_Y in the generator)
+${parkAsm}
     ld a, (player_x)
     ld (bitmap_pursuer_entry_x), a
     ld a, (player_y)
