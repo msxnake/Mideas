@@ -3369,8 +3369,8 @@ ${body}
 ; of these bytes are zero (OR-accumulated; test [a] short-circuits the common fight):
 ;   [a] slot 0 boss_active   = saved block byte +0   (0 none/dead, 1 alive, 2 death FX)
 ;   [b] slot 1 boss_active   = byte +0 of the second block
-${hasPooledSfx ? `;   [c] boss_death_sfx_active  (pooled channel-C sound): update_one begins by ticking
-;       that sequencer in EVERY boss state, once per slot, so a playing sound
+${hasPooledSfx ? `;   [c] boss_death_sfx_active  (pooled channel-C sound): the dispatcher below ticks
+;       that sequencer ONCE per frame, in EVERY boss state, so a playing sound
 ;       (death sound, zone hit sound) keeps the full path alive until it ends.
 ` : ''}${hasDefeatSequence ? `;   [d] boss_defeat_state  (Final Sequence WAIT/DIALOGUE step): slot 0 keeps running
 ;       bitmap_boss_defeat_frame while it is non-zero although boss_active is
@@ -3755,7 +3755,8 @@ ${hasMole ? `    ld a, (boss_mole_state)
 ; ------------------------------------------------------------
 ; The public entry point swaps and updates both saved instances.
 ${idleExitAsm}bitmap_boss_update:
-${idleExitTestsAsm}    ld a, (boss_slot)
+${idleExitTestsAsm}${hasPooledSfx ? `    call bitmap_boss_death_sfx_tick  ; pooled channel-C audio (death + zone hits): ONCE per frame here, not once per slot pass
+` : ''}    ld a, (boss_slot)
     push af
     xor a
     ld (boss_slot), a
@@ -3784,8 +3785,7 @@ ${idleExitTestsAsm}    ld a, (boss_slot)
 ; DESTROYS: AF, BC, DE, HL, IX.
 ; ------------------------------------------------------------
 bitmap_boss_update_one:
-${hasPooledSfx ? `    call bitmap_boss_death_sfx_tick  ; pooled channel-C audio (death + zone hits) advances once per frame, in every boss state
-` : ''}${pauseGate}${hasHitBlast ? `    ; Blast countdown, in real frames so the authored number means what it says.
+${pauseGate}${hasHitBlast ? `    ; Blast countdown, in real frames so the authored number means what it says.
     ; Guarded: decrementing an idle 0 would wrap to 255 and leave the explosion
     ; stuck on the body for four seconds. This runs BEFORE boss_active is read,
     ; because the dispatch below still needs A.
