@@ -3361,6 +3361,17 @@ ${body}
   if (hasHitBlast && blastTimerBlockOffset < 0) {
     throw new Error('bitmap boss: boss_blast_timer is not in the saved state block');
   }
+  // The per-slot idle skip below drops the pause gate together with the rest of an
+  // idle pass, which is exact only while the gate is a pure read (`ld a, (sym)` /
+  // `or a` / `ret nz`). The only caller (the bitmap room generator) emits exactly
+  // that; anything else must be reviewed against the skip before it is allowed.
+  const pauseGateIsPure = pauseGate.split('\n').every(line => {
+    const code = line.replace(/;.*$/, '').trim();
+    return code === '' || /^ld a, \([a-z_][a-z_0-9]*\)$/.test(code) || code === 'or a' || code === 'ret nz';
+  });
+  if (!pauseGateIsPure) {
+    throw new Error('bitmap boss: the per-slot idle skip needs a side-effect free pause gate (ld a,(sym) / or a / ret nz)');
+  }
   const idleExitAsm = `; IDLE EARLY EXIT. A room with no live boss used to pay 3 bitmap_boss_state_load +
 ; 2 bitmap_boss_state_save (BOSS_INSTANCE_STATE_BYTES bytes each) and two
 ; bitmap_boss_update_one passes that do nothing, on EVERY frame (1.8-2.8 ms of
@@ -3409,7 +3420,82 @@ ${hasPooledSfx ? `    ld hl, boss_death_sfx_active
     ld hl, boss_instance_state + BOSS_INSTANCE_STATE_BYTES + ${blastTimerBlockOffset}
     or (hl)                                   ;     slot 1 blast countdown
 ` : ''}    ret z                                     ; nothing to do: no copies, no passes
-.boss_upd_run:
+`;
+
+  // Per-slot idle skip. The dispatcher runs bitmap_boss_update_one once per slot and
+  // wraps every pass in a state_load + state_save; the second slot of the usual room
+  // with ONE boss is empty, so it paid two block copies, a pass that does nothing and
+  // the final reload of boss_slot on every frame (1.1-1.6 ms of CPU).
+  const slotPassTestsAsm = `    ld a, (hl)                                ; [1] boss_active of this slot (block byte +0)
+    or a
+    jr nz, .boss_upd_do                       ; a live boss needs no further test
+${hasHitBlast ? `    ld de, ${blastTimerBlockOffset}
+    add hl, de
+    or (hl)                                   ; [2] boss_blast_timer of this slot
+` : ''}${hasDefeatSequence ? `    ld hl, boss_defeat_state
+    or (hl)                                   ; [3] Final Sequence step running
+` : ''}${hasHitBlast || hasDefeatSequence ? `    jr nz, .boss_upd_do
+` : ''}`;
+  const slotSkipAsm = `; PER-SLOT IDLE SKIP. A slot's pass (state_load, bitmap_boss_update_one, state_save) is
+; skipped when ALL of these bytes are zero, read from that slot's SAVED block:
+;   [1] boss_active   = block byte +0   (0 none/dead, 1 alive, 2 death FX)
+${hasHitBlast ? `;   [2] boss_blast_timer: update_one counts it down BEFORE it reads boss_active, so a
+;       countdown still running in an inactive slot must be allowed to finish.
+` : ''}${hasDefeatSequence ? `;   [3] boss_defeat_state: global, but only slot 0's pass acts on it (slot 1 returns at
+;       once with \`ret nz\`). Testing it for both slots is therefore conservative for
+;       slot 1: a slot-1 pass during a Final Sequence step is the unchanged full path.
+` : ''};   Tests [2] and [3] exist only in ROMs that emit the feature they guard.
+; EVERYTHING an idle pass does, in order, and what the skip does instead:
+${hasPooledSfx ? `;   a. (the pooled-sound tick is not part of a pass: the dispatcher ticks it once per
+;      frame, whatever number of passes run.)
+` : `;   a. (no pooled sound in this ROM.)
+`};   b. the pause gate: pure reads and \`ret nz\` (checked when the ASM is generated).
+${hasHitBlast ? `;   c. the blast countdown: only decrements when non-zero, so it is a no-op under [2].
+` : `;   c. (no weak-point blast in this ROM.)
+`}${hasDefeatSequence ? `;   d. the Final Sequence test: slot 1 -> \`ret nz\`; slot 0 -> bitmap_boss_defeat_frame,
+;      which is why [3] is tested. With boss_defeat_state = 0 it falls through.
+` : `;   d. (no Final Sequence in this ROM.)
+`};   e. \`ld a, (boss_active) / or a / ret z\`: returns under [1]. Everything after it (death
+;      FX, Room Lock intro, barrier resweep, attack phases, movement, render, contact
+;      damage) is reachable only with boss_active <> 0.
+; So an idle pass does nothing, and its state_load/state_save pair
+; copies a block into the working copy and back unchanged.
+; WHY NOT RELOADING IS EXACT (same premise as the early exit above): on entry the
+; working copy equals the block of boss_slot, and after a pass's state_save it equals
+; the block of the slot that pass ran. boss_slot is only changed when a pass really
+; runs, so at the end boss_slot names the last slot whose pass ran (or the original
+; slot if none ran). When it is the original slot the working copy already is its
+; block and the final reload is skipped; otherwise it is reloaded as before. Final
+; memory (working copy, boss_slot, both blocks, sound state) is identical to running
+; both passes.
+`;
+  const slotDispatchAsm = `.boss_upd_run:
+${hasPooledSfx ? `    call bitmap_boss_death_sfx_tick           ; pooled channel-C audio (death + zone hits): ONCE per frame, not once per slot pass
+` : ''}    ld a, (boss_slot)
+    push af                                   ; the slot the caller had selected
+    ld hl, boss_instance_state
+    ld b, 0
+    call .boss_upd_pass
+    ld hl, boss_instance_state + BOSS_INSTANCE_STATE_BYTES
+    ld b, 1
+    call .boss_upd_pass
+    pop af
+    ld hl, boss_slot
+    cp (hl)
+    ret z                                     ; the working copy already is that slot's block
+    ld (boss_slot), a
+    jp bitmap_boss_state_load
+
+; INPUT: HL = that slot's saved block, B = slot (0 or 1).
+; OUTPUT: the slot's pass run, or nothing when it is idle.
+.boss_upd_pass:
+${slotPassTestsAsm}    ret                                       ; idle: nothing to do
+.boss_upd_do:
+    ld a, b
+    ld (boss_slot), a
+    call bitmap_boss_state_load
+    call bitmap_boss_update_one
+    jp bitmap_boss_state_save
 `;
 
   const routinesAsm = `
@@ -3754,24 +3840,8 @@ ${hasMole ? `    ld a, (boss_mole_state)
 ; FUNCTION: bitmap_boss_update
 ; ------------------------------------------------------------
 ; The public entry point swaps and updates both saved instances.
-${idleExitAsm}bitmap_boss_update:
-${idleExitTestsAsm}${hasPooledSfx ? `    call bitmap_boss_death_sfx_tick  ; pooled channel-C audio (death + zone hits): ONCE per frame here, not once per slot pass
-` : ''}    ld a, (boss_slot)
-    push af
-    xor a
-    ld (boss_slot), a
-    call bitmap_boss_state_load
-    call bitmap_boss_update_one
-    call bitmap_boss_state_save
-    ld a, 1
-    ld (boss_slot), a
-    call bitmap_boss_state_load
-    call bitmap_boss_update_one
-    call bitmap_boss_state_save
-    pop af
-    ld (boss_slot), a
-    jp bitmap_boss_state_load
-
+${idleExitAsm}${slotSkipAsm}bitmap_boss_update:
+${idleExitTestsAsm}${slotDispatchAsm}
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_update_one
 ; ------------------------------------------------------------
