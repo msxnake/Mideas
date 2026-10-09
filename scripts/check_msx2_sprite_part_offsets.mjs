@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
-import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { dirname, resolve, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const output = join(root, 'work', 'msx2-sprite-part-offsets');
-mkdirSync(output, { recursive: true });
+// The esbuild bundle and the smoke ASM weigh ~6 MB: write them to a fresh temp directory, never into the repo tree.
+const output = mkdtempSync(join(tmpdir(), 'mideas_sprite_part_offsets_'));
 const modulePath = join(output, 'helpers.mjs');
 await build({ stdin: { contents: `
 export { resolveMsx2SpriteParts, composeMsx2SpriteFrame, msx2SpriteScanlineCounts, orderMsx2SpriteCells } from './utils/msx2SpriteComposition';
