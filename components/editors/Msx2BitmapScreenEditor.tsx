@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { composeMsx2SpriteFrame } from '../../utils/msx2SpriteComposition';
 import {
   ConnectionDirection,
   BitmapTileScreen5,
@@ -1991,10 +1992,11 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         const px = pixelX * zoom;
         const py = pixelY * zoom;
         let painted = false;
-        frame.data.forEach((row, y) => row.forEach((color, x) => {
+        const composition = composeMsx2SpriteFrame(sprite);
+        composition.pixels.forEach((row, y) => row.forEach((color, x) => {
           if (!color || color === bg || color === 'rgba(0,0,0,0)' || color === 'transparent') return;
           ctx.fillStyle = color;
-          ctx.fillRect(px + x * zoom, py + y * zoom, zoom, zoom);
+          ctx.fillRect(px + (x + composition.originX) * zoom, py + (y + composition.originY) * zoom, zoom, zoom);
           painted = true;
         }));
         return painted;

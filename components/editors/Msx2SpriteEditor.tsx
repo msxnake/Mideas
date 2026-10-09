@@ -4,6 +4,7 @@ import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { Tooltip } from '../common/Tooltip';
 import { ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
+import { composeMsx2SpriteFrame, resolveMsx2SpriteParts, msx2SpriteScanlineCounts, ResolvedMsx2SpritePart } from '../../utils/msx2SpriteComposition';
 import { addEntryToMsx2SpriteLibrary } from '../../utils/msx2SpriteLibrary';
 import { Msx2ExternalSpriteImportModal } from '../modals/Msx2ExternalSpriteImportModal';
 import { PaletteEditor } from './PaletteEditor';
@@ -61,6 +62,11 @@ interface Msx2SpriteEditorProps {
 }
 
 const TRANSPARENT_HEX = 'rgba(0,0,0,0)';
+
+// Zone identity is independent of the selected drawing color and the OR planes.
+const ZONE_MARKER_COLORS = ['#38BDF8', '#FB923C', '#C084FC', '#FB7185', '#2DD4BF', '#FACC15'];
+const zoneMarkerColor = (index: number) => ZONE_MARKER_COLORS[index]
+  || `hsl(${(index * 137.508) % 360}, 75%, 65%)`;
 
 /** Weapon layer drawn on the grid (read-only overlay, positioned relative to the owner sprite). */
 interface WeaponOverlay {
@@ -374,17 +380,19 @@ const buildSeparatedHardwareLayerPreviews = (
   height: number,
   palette: { slotIndex: number; hex: string }[],
   backgroundColor: MSXColorValue,
-  useOrColor: boolean
+  useOrColor: boolean,
+  parts?: ResolvedMsx2SpritePart[]
 ): SeparatedHardwareLayerPreview[] => {
   const slotByIndex = new Map(palette.map(slot => [slot.slotIndex, slot.hex as MSXColorValue]));
   const bg = normalizeColor(backgroundColor);
   const cellColumns = Math.max(1, Math.ceil(width / 16));
-  const cellRows = Math.max(1, Math.ceil(height / 16));
   const previews: SeparatedHardwareLayerPreview[] = [];
-  for (let cellY = 0; cellY < cellRows; cellY++) {
-    for (let cellX = 0; cellX < cellColumns; cellX++) {
-      const xOffset = cellX * 16;
-      const yOffset = cellY * 16;
+  const cells = parts || resolveMsx2SpriteParts({ size: { width, height } });
+  for (const [partIndex, part] of cells.entries()) {
+      const cellX = partIndex % cellColumns;
+      const cellY = Math.floor(partIndex / cellColumns);
+      const xOffset = part.offsetX;
+      const yOffset = part.offsetY;
       const layers: SeparatedHardwareLayerPreview[] = [];
       const ensureLayer = (index: number): SeparatedHardwareLayerPreview => {
         if (!layers[index]) {
@@ -403,9 +411,9 @@ const buildSeparatedHardwareLayerPreviews = (
         return layers[index];
       };
       for (let y = 0; y < 16; y++) {
-        const sourceY = yOffset + y;
+        const sourceY = part.sourceY + y;
         const rowSlots = Array.from({ length: 16 }, (_unused, x) => {
-          const sourceX = xOffset + x;
+          const sourceX = part.sourceX + x;
           if (sourceX >= width || sourceY >= height) return 0;
           const color = String(frame[sourceY]?.[sourceX] || '');
           const normalized = normalizeColor(color);
@@ -438,7 +446,6 @@ const buildSeparatedHardwareLayerPreviews = (
         });
       }
       previews.push(...layers.filter(Boolean));
-    }
   }
   return previews.map(layer => ({
     ...layer,
@@ -644,7 +651,7 @@ const Msx2PixelGrid: React.FC<{
           }}
         />
       )}
-      {metaSpriteParts.map(part => (
+      {metaSpriteParts.map((part, partIndex) => (
         <div
           key={part.id}
           className="absolute border border-msx-highlight/70 pointer-events-none"
@@ -653,9 +660,10 @@ const Msx2PixelGrid: React.FC<{
             top: part.offsetY * zoom,
             width: part.width * zoom,
             height: part.height * zoom,
+            borderColor: zoneMarkerColor(partIndex),
           }}
         >
-          <span className="absolute left-0 top-0 bg-msx-highlight px-1 text-[10px] leading-tight text-msx-bgcolor">
+          <span className="absolute left-0 top-0 px-1 text-[10px] font-bold leading-tight text-black" style={{ backgroundColor: zoneMarkerColor(partIndex) }}>
             {part.label}
           </span>
         </div>
@@ -691,6 +699,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
   const [onionSkinEnabled, setOnionSkinEnabled] = useState(true);
   const [onionSkinOpacity, setOnionSkinOpacity] = useState(0.3);
   const [showSeparatedLayers, setShowSeparatedLayers] = useState(false);
+  const [isAssemblyView, setIsAssemblyView] = useState(false);
   const [isExternalImportOpen, setIsExternalImportOpen] = useState(false);
   const [paletteEditorSlot, setPaletteEditorSlot] = useState<number | null>(null);
   const [selectedSavedPaletteId, setSelectedSavedPaletteId] = useState('');
@@ -766,17 +775,30 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
   const inferredSuperSpriteLayout = inferMetaSpriteLayout(sprite.size.width, sprite.size.height);
   const superSpriteLayout = sprite.superSpriteLayout || inferredSuperSpriteLayout;
   const superSpriteParts = useMemo(
-    () => (sprite.superSpriteParts?.length
-      ? sprite.superSpriteParts.map(part => ({ ...part }))
-      : buildMetaSpriteParts(superSpriteLayout, sprite.size.width, sprite.size.height)),
+    () => resolveMsx2SpriteParts(sprite),
     [sprite.size.height, sprite.size.width, sprite.superSpriteParts, superSpriteLayout]
   );
   const superSpriteBaseParts = superSpriteParts.length;
+  const paletteUsageByPart = useMemo(() => superSpriteParts.map((part, index) => {
+    const usedSlots = new Set<number>();
+    sprite.frames.forEach(spriteFrame => {
+      for (let y = part.sourceY; y < part.sourceY + part.height; y++) {
+        for (let x = part.sourceX; x < part.sourceX + part.width; x++) {
+          const color = spriteFrame.data?.[y]?.[x];
+          if (color === undefined) continue;
+          const slot = paletteSlotForSpritePixel(String(color), palette);
+          if (typeof slot === 'number') usedSlots.add(slot);
+        }
+      }
+    });
+    return { part, usedSlots, markerColor: zoneMarkerColor(index) };
+  }), [superSpriteParts, sprite.frames, palette]);
   const rowDiagnostics = useMemo(() => {
-    return Array.from({ length: sprite.size.height }, (_, y) =>
-      Array.from({ length: cellColumns }, (_, cellX) => {
-        const xOffset = cellX * 16;
-        const rowSlice = frame[y]?.slice(xOffset, xOffset + 16) || [];
+    return superSpriteParts.flatMap((part, partIndex) =>
+      Array.from({ length: 16 }, (_, localY) => {
+        const y = part.sourceY + localY;
+        const cellX = partIndex % cellColumns;
+        const rowSlice = frame[y]?.slice(part.sourceX, part.sourceX + 16) || [];
         const colors = visibleRowColors(rowSlice, sprite.backgroundColor);
         const bg = normalizeColor(sprite.backgroundColor);
         const slots = rowSlice
@@ -789,7 +811,9 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
         const { layerCount, usesOrColor } = hardwareRowLayerCount(slots, useOrColor);
         return {
           y,
+          localY,
           cellX,
+          partIndex,
           colors,
           slots: Array.from(new Set(slots)).sort((a, b) => a - b),
           layerCount,
@@ -797,8 +821,8 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
           invalid: layerCount > 8,
         };
       })
-    ).flat();
-  }, [cellColumns, frame, palette, sprite.backgroundColor, sprite.size.height, useOrColor]);
+    );
+  }, [cellColumns, frame, palette, sprite.backgroundColor, superSpriteParts, useOrColor]);
   const spritePaletteUsage = useMemo(() => {
     const usedSlots = new Set<number>();
     const orBaseSlots = new Set<number>();
@@ -814,9 +838,9 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
         });
       });
 
-      for (let y = 0; y < sprite.size.height; y++) {
-        for (let cellX = 0; cellX < cellColumns; cellX++) {
-          const xOffset = cellX * 16;
+      for (const part of superSpriteParts) {
+        for (let y = part.sourceY; y < part.sourceY + 16; y++) {
+          const xOffset = part.sourceX;
           const row = data[y] || [];
           const rowSlots = row.slice(xOffset, xOffset + 16)
             .map(color => {
@@ -833,7 +857,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
     });
 
     return { usedSlots, orBaseSlots, orOverlaySlots, orResultSlots };
-  }, [cellColumns, palette, sprite.frames, sprite.size.height, useOrColor]);
+  }, [superSpriteParts, palette, sprite.frames, useOrColor]);
   const paletteSlotsByColor = useMemo(() => {
     const slotsByColor = new Map<string, number[]>();
     palette.forEach(slot => {
@@ -878,23 +902,38 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
   const orColorLineCount = rowDiagnostics.filter(row => row.usesOrColor).length;
   const stackedColorLineCount = rowDiagnostics.filter(row => row.layerCount > 1).length;
   const threeColorLineCount = rowDiagnostics.filter(row => row.slots.length >= 3 || row.layerCount >= 3).length;
-  const maxCellLayerCount = Math.max(0, ...rowDiagnostics.map(row => row.layerCount));
-  const maxSpritesPerScanline = Math.max(
-    1,
-    ...Array.from({ length: sprite.size.height }, (_, y) =>
-      rowDiagnostics.filter(row => row.y === y).reduce((sum, row) => sum + row.layerCount, 0)
-    )
-  );
+  const partLayerCounts = useMemo(() => {
+    const counts = superSpriteParts.map(part => Math.max(0, ...sprite.frames.flatMap(spriteFrame =>
+      Array.from({ length: 16 }, (_unused, y) => {
+        const slots = Array.from({ length: 16 }, (_pixel, x) =>
+          paletteSlotForColor(normalizeColor(String(spriteFrame.data?.[part.sourceY + y]?.[part.sourceX + x] || '')), palette) || 0);
+        return hardwareRowLayerCount(slots, useOrColor).layerCount;
+      })
+    )));
+    // SCREEN 5 pads every emitted cell to the same layer count across all animation frames.
+    const allocated = Math.max(1, ...counts);
+    return sprite.vdpMode === 'SCREEN5' ? counts.map(count => count ? allocated : 0) : counts;
+  }, [superSpriteParts, sprite.frames, sprite.vdpMode, palette, useOrColor]);
+  const maxCellLayerCount = Math.max(0, ...partLayerCounts);
+  const maxSpritesPerScanline = Math.max(0, ...msx2SpriteScanlineCounts(superSpriteParts, partLayerCounts).values());
   const scanlineOverflow = maxSpritesPerScanline > 8;
   const separatedHardwareLayers = useMemo(
-    () => buildSeparatedHardwareLayerPreviews(frame, sprite.size.width, sprite.size.height, palette, sprite.backgroundColor, useOrColor),
-    [frame, palette, sprite.backgroundColor, sprite.size.height, sprite.size.width, useOrColor]
+    () => buildSeparatedHardwareLayerPreviews(frame, sprite.size.width, sprite.size.height, palette, sprite.backgroundColor, useOrColor, superSpriteParts),
+    [frame, palette, sprite.backgroundColor, sprite.size.height, sprite.size.width, useOrColor, superSpriteParts]
   );
   const partLabelByOffset = useMemo(() => {
     const labels = new Map<string, string>();
     superSpriteParts.forEach(part => labels.set(`${part.offsetX},${part.offsetY}`, part.label));
     return labels;
   }, [superSpriteParts]);
+  const setPartOffset = (index: number, axis: 'offsetX' | 'offsetY', value: number) => {
+    if (!Number.isFinite(value)) return;
+    const parts = superSpriteParts.map((part, partIndex) => partIndex === index
+      ? { ...part, [axis]: Math.max(-255, Math.min(255, Math.trunc(value))) } : { ...part });
+    onUpdate({ superSpriteParts: parts, superSpriteLayout: 'custom' });
+    setIsAssemblyView(true);
+    setShowSeparatedLayers(false);
+  };
 
   // ---- Weapon combinations (player frame -> weapon frame + offset + front/behind) ----
   const weaponBindings = sprite.weaponBindings || [];
@@ -911,18 +950,18 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
     : null;
   const weaponOverlayVisible = showWeapon && !showSeparatedLayers && !!activeWeaponPixels;
   const weaponMirroredView = weaponOverlayVisible && weaponPreviewMirrored;
-  const mirroredCurrentFrame = useMemo(() => mirrorPixelDataHorizontally(frame), [frame]);
 
   const weaponOverlay = useMemo<WeaponOverlay | null>(() => {
     if (!weaponOverlayVisible || !activeWeaponSprite || !activeWeaponRow || !activeWeaponPixels) return null;
     const weaponWidth = activeWeaponSprite.size.width;
+    const composition = composeMsx2SpriteFrame(activeWeaponSprite, activeWeaponRow.weaponFrame, weaponMirroredView);
     return {
-      pixels: weaponMirroredView ? mirrorPixelDataHorizontally(activeWeaponPixels) : activeWeaponPixels,
-      width: weaponWidth,
-      height: activeWeaponSprite.size.height,
+      pixels: composition.pixels,
+      width: composition.width,
+      height: composition.height,
       // Automatic mirror: the weapon box is reflected around the owner sprite's vertical axis.
-      offsetX: weaponMirroredView ? sprite.size.width - activeWeaponRow.offsetX - weaponWidth : activeWeaponRow.offsetX,
-      offsetY: activeWeaponRow.offsetY,
+      offsetX: (weaponMirroredView ? sprite.size.width - activeWeaponRow.offsetX - weaponWidth : activeWeaponRow.offsetX) + composition.originX,
+      offsetY: activeWeaponRow.offsetY + composition.originY,
       backgroundColor: activeWeaponSprite.backgroundColor,
       inFront: activeWeaponRow.inFront,
     };
@@ -939,12 +978,13 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
     const pixels = activeWeaponSprite.frames[row.weaponFrame]?.data;
     if (!pixels) return null;
     const weaponWidth = activeWeaponSprite.size.width;
+    const composition = composeMsx2SpriteFrame(activeWeaponSprite, row.weaponFrame, mirrored);
     return {
-      pixels: mirrored ? mirrorPixelDataHorizontally(pixels) : pixels,
-      width: weaponWidth,
-      height: activeWeaponSprite.size.height,
-      offsetX: mirrored ? sprite.size.width - row.offsetX - weaponWidth : row.offsetX,
-      offsetY: row.offsetY,
+      pixels: composition.pixels,
+      width: composition.width,
+      height: composition.height,
+      offsetX: (mirrored ? sprite.size.width - row.offsetX - weaponWidth : row.offsetX) + composition.originX,
+      offsetY: row.offsetY + composition.originY,
       backgroundColor: activeWeaponSprite.backgroundColor,
       inFront: row.inFront,
     };
@@ -984,29 +1024,26 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
    */
   const weaponScanlineBudget = useMemo(() => {
     if (!weaponOverlay || !activeWeaponSprite || !activeWeaponPixels) return null;
-    const countByCellRow = (layers: SeparatedHardwareLayerPreview[]) => {
-      const counts = new Map<number, number>();
-      layers.forEach(layer => counts.set(layer.cellY, (counts.get(layer.cellY) || 0) + 1));
-      return counts;
-    };
-    const playerCounts = countByCellRow(separatedHardwareLayers);
+    const playerCounts = msx2SpriteScanlineCounts(superSpriteParts, partLayerCounts);
     const { slots: weaponPalette } = ensureScreen5PaletteSlots(activeWeaponSprite.palette);
-    const weaponCounts = countByCellRow(buildSeparatedHardwareLayerPreviews(
+    const weaponLayers = buildSeparatedHardwareLayerPreviews(
       activeWeaponPixels,
       activeWeaponSprite.size.width,
       activeWeaponSprite.size.height,
       weaponPalette,
       activeWeaponSprite.backgroundColor,
-      activeWeaponSprite.hardware?.useOrColor !== false
-    ));
-    const top = Math.min(0, weaponOverlay.offsetY);
-    const bottom = Math.max(sprite.size.height, weaponOverlay.offsetY + weaponOverlay.height);
+      activeWeaponSprite.hardware?.useOrColor !== false,
+      resolveMsx2SpriteParts(activeWeaponSprite)
+    );
+    const bindingOffsetY = activeWeaponRow?.offsetY || 0;
+    const weaponCounts = msx2SpriteScanlineCounts(weaponLayers.map(layer => ({ offsetY: layer.yOffset + bindingOffsetY })), weaponLayers.map(() => 1));
+    const top = Math.min(0, ...playerCounts.keys(), ...weaponCounts.keys());
+    const bottom = Math.max(sprite.size.height, ...playerCounts.keys(), ...weaponCounts.keys()) + 1;
     const ranges: Array<{ from: number; to: number; player: number; weapon: number; total: number }> = [];
     let max = 0;
     for (let y = top; y < bottom; y++) {
-      const player = y >= 0 && y < sprite.size.height ? playerCounts.get(Math.floor(y / 16)) || 0 : 0;
-      const weaponY = y - weaponOverlay.offsetY;
-      const weapon = weaponY >= 0 && weaponY < weaponOverlay.height ? weaponCounts.get(Math.floor(weaponY / 16)) || 0 : 0;
+      const player = playerCounts.get(y) || 0;
+      const weapon = weaponCounts.get(y) || 0;
       const total = player + weapon;
       max = Math.max(max, total);
       const last = ranges[ranges.length - 1];
@@ -1014,7 +1051,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
       else ranges.push({ from: y, to: y, player, weapon, total });
     }
     return { ranges, max };
-  }, [activeWeaponPixels, activeWeaponSprite, separatedHardwareLayers, sprite.size.height, weaponOverlay]);
+  }, [activeWeaponPixels, activeWeaponSprite, activeWeaponRow, partLayerCounts, superSpriteParts, sprite.size.height, weaponOverlay]);
 
   const writeWeaponBindings = (next: Msx2WeaponBinding[]) => onUpdate({ weaponBindings: next });
 
@@ -1063,18 +1100,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
     if (action === 'delete') rows.splice(frameIndex, 1);
     return { ...binding, frames: rows };
   });
-  const estimatedHardwareSprites = Array.from({ length: cellRows }, (_, cellY) =>
-    Array.from({ length: cellColumns }, (_, cellX) => {
-      const firstY = cellY * 16;
-      const lastY = Math.min(sprite.size.height, firstY + 16);
-      return Math.max(
-        0,
-        ...rowDiagnostics
-          .filter(row => row.cellX === cellX && row.y >= firstY && row.y < lastY)
-          .map(row => row.layerCount)
-      );
-    }).reduce((sum, value) => sum + value, 0)
-  ).reduce((sum, value) => sum + value, 0);
+  const estimatedHardwareSprites = partLayerCounts.reduce((sum, value) => sum + value, 0);
 
   useEffect(() => {
     if (paletteChanged) {
@@ -1406,16 +1432,19 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
   };
 
   const exportPng = () => {
+    const compositions = sprite.frames.map((_frame, index) => composeMsx2SpriteFrame(sprite, index));
+    const width = compositions[0]?.width || sprite.size.width;
+    const height = compositions[0]?.height || sprite.size.height;
     const canvas = document.createElement('canvas');
-    canvas.width = sprite.size.width * sprite.frames.length;
-    canvas.height = sprite.size.height;
+    canvas.width = width * sprite.frames.length;
+    canvas.height = height;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    sprite.frames.forEach((spriteFrame, frameIndex) => {
-      spriteFrame.data.forEach((row, y) => row.forEach((color, x) => {
+    compositions.forEach((composition, frameIndex) => {
+      composition.pixels.forEach((row, y) => row.forEach((color, x) => {
         if (color === sprite.backgroundColor || color === TRANSPARENT_HEX) return;
         ctx.fillStyle = color;
-        ctx.fillRect((frameIndex * sprite.size.width) + x, y, 1, 1);
+        ctx.fillRect((frameIndex * width) + x, y, 1, 1);
       }));
     });
     const link = document.createElement('a');
@@ -1483,7 +1512,13 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
   const previewFrame = sprite.frames[previewFrameIndex]?.data || frame;
   /** Owner frame index actually shown by the Animation Tools preview (same fallback as previewFrame). */
   const previewAnimationFrameIndex = sprite.frames[previewFrameIndex] ? previewFrameIndex : currentFrameIdx;
-  const mirroredPreviewFrame = useMemo(() => mirrorPixelDataHorizontally(previewFrame), [previewFrame]);
+  const assembledFrame = composeMsx2SpriteFrame(sprite, currentFrameIdx, weaponMirroredView);
+  const assembledPreview = composeMsx2SpriteFrame(sprite, previewAnimationFrameIndex);
+  const assembledMirrorPreview = composeMsx2SpriteFrame(sprite, previewAnimationFrameIndex, true);
+  const assemblyParts = assembledFrame.parts.map(part => ({ ...part, offsetX: part.offsetX - assembledFrame.originX, offsetY: part.offsetY - assembledFrame.originY }));
+  const sourceParts = superSpriteParts.map(part => ({ ...part, offsetX: part.sourceX, offsetY: part.sourceY }));
+  const positionOverlay = (overlay: WeaponOverlay | null, composition: { originX: number; originY: number }) => overlay
+    ? { ...overlay, offsetX: overlay.offsetX - composition.originX, offsetY: overlay.offsetY - composition.originY } : null;
   const facingDirection = sprite.facingDirection ?? 'neutral';
   const hasHorizontalFacing = facingDirection === 'right' || facingDirection === 'left';
   const isFrameEmpty = frame.every(row => row.every(color => color === sprite.backgroundColor));
@@ -1605,10 +1640,29 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
               </Button>
             </div>
           )}
+          <div className="space-y-2 border-b border-msx-border p-2 text-[11px] text-msx-textsecondary">
+            <div className="flex flex-wrap items-center gap-1" aria-label="Leyenda de colores por zona">
+              <span>Usados en:</span>
+              {paletteUsageByPart.map(({ part, markerColor }) => (
+                <span key={part.id} className="rounded px-1.5 py-0.5 font-bold text-black" style={{ backgroundColor: markerColor }}>
+                  Zona {part.label}
+                </span>
+              ))}
+            </div>
+            <p>Marcas por zona, en todos los frames. Un color compartido muestra varias marcas.</p>
+            <div className="flex items-center gap-1.5 text-msx-textprimary" aria-label="Color elegido para pintar">
+              <PencilIcon className="h-3.5 w-3.5" />
+              Pincel: S{paletteSlotForSpritePixel(String(selectedColor), palette) ?? '?'}
+              <PaletteSlotSwatch hex={String(selectedColor)} className="h-3 w-3 rounded-sm border border-msx-border" />
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-2 p-2">
             {palette.map(slot => {
               const isTransparentSlot = slot.slotIndex === 0;
               const isUsed = spritePaletteUsage.usedSlots.has(slot.slotIndex);
+              const usedInParts = paletteUsageByPart.filter(usage => usage.usedSlots.has(slot.slotIndex));
+              const zoneLabels = usedInParts.map(usage => usage.part.label).join(', ');
+              const isBrushColor = selectedColor === slot.hex;
               const isAmbiguousReplaceSource = isReplaceSlotAmbiguous(slot.slotIndex);
               const ambiguousReplaceWarning = describeAmbiguousReplaceSlot(slot.slotIndex);
               const isOrBase = spritePaletteUsage.orBaseSlots.has(slot.slotIndex);
@@ -1624,7 +1678,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
                 <button
                   key={slot.slotIndex}
                   type="button"
-                  className={`relative h-8 overflow-hidden rounded border ${selectedColor === slot.hex ? 'border-msx-highlight ring-1 ring-msx-highlight' : 'border-msx-border'} ${isOrResult ? 'ring-1 ring-amber-300' : ''} ${draggedReplaceSlot !== null && draggedReplaceSlot !== slot.slotIndex ? 'outline outline-1 outline-msx-highlight/70' : ''}`}
+                  className={`relative min-h-10 overflow-hidden rounded border ${isBrushColor ? 'border-msx-highlight ring-1 ring-msx-highlight' : 'border-msx-border'} ${draggedReplaceSlot !== null && draggedReplaceSlot !== slot.slotIndex ? 'outline outline-1 outline-msx-highlight/70' : ''}`}
                   style={{ backgroundColor: slot.hex === sprite.backgroundColor ? '#111827' : slot.hex }}
                   onClick={() => setSelectedColor(slot.hex)}
                   onDoubleClick={() => setPaletteEditorSlot(slot.slotIndex)}
@@ -1636,8 +1690,10 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
                     event.preventDefault();
                     handlePaletteSlotDrop(slot.slotIndex);
                   }}
-                  title={`Slot ${slot.slotIndex}: ${slot.hex}${slot.masterIndex >= 0 ? ` / master ${slot.masterIndex}` : ''}${usageTitle ? ` (${usageTitle})` : ''} — doble click para editar la paleta`}
-                  aria-label={`Slot ${slot.slotIndex}${usageTitle ? ` ${usageTitle}` : ''}`}
+                  title={`Slot ${slot.slotIndex}: ${slot.hex}${slot.masterIndex >= 0 ? ` / master ${slot.masterIndex}` : ''}${usageTitle ? ` (${usageTitle})` : ''}${zoneLabels ? ` — usado en zona ${zoneLabels}` : ''}${isBrushColor ? ' — pincel seleccionado' : ''} — doble click para editar la paleta compartida`}
+                  aria-label={`Slot ${slot.slotIndex}${usageTitle ? ` ${usageTitle}` : ''}${zoneLabels ? ` zonas ${zoneLabels}` : ''}${isBrushColor ? ' pincel seleccionado' : ''}`}
+                  aria-pressed={isBrushColor}
+                  data-used-zones={zoneLabels}
                 >
                   {isUsed && isTransparentSlot && (
                     <span
@@ -1647,13 +1703,12 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
                       T
                     </span>
                   )}
-                  {isUsed && !isTransparentSlot && (
+                  {isUsed && (
                     <span
-                      draggable={!isAmbiguousReplaceSource}
-                      className={`absolute left-1 top-1 h-4 w-4 rounded-full border border-black/70 bg-msx-highlight shadow ${isAmbiguousReplaceSource ? 'cursor-not-allowed opacity-60' : 'cursor-grab active:cursor-grabbing'}`}
-                      title={ambiguousReplaceWarning || `Arrastra para reemplazar S${slot.slotIndex} por otro color`}
+                      draggable={!isTransparentSlot && !isAmbiguousReplaceSource}
+                      className={`absolute ${isTransparentSlot ? 'left-5' : 'left-1'} right-1 top-1 flex flex-wrap gap-0.5 ${isAmbiguousReplaceSource ? 'cursor-not-allowed opacity-60' : isTransparentSlot ? '' : 'cursor-grab active:cursor-grabbing'}`}
+                      title={ambiguousReplaceWarning || `Usado en zona ${zoneLabels || 'sin identificar'}. Arrastrar reemplaza S${slot.slotIndex} en todo el sprite y todos los frames.`}
                       aria-label={`Drag used color slot ${slot.slotIndex} to replace it`}
-                      onClick={event => event.stopPropagation()}
                       onDragStart={event => {
                         event.stopPropagation();
                         if (ambiguousReplaceWarning) {
@@ -1667,7 +1722,18 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
                         event.dataTransfer.setData('text/plain', String(slot.slotIndex));
                       }}
                       onDragEnd={() => setDraggedReplaceSlot(null)}
-                    />
+                    >
+                      {usedInParts.map(({ part, markerColor }) => (
+                        <span key={part.id} aria-hidden="true" className="rounded border border-black/50 px-1 text-[10px] font-bold leading-4 text-black shadow" style={{ backgroundColor: markerColor }}>
+                          {part.label}
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                  {isBrushColor && (
+                    <span aria-hidden="true" className="absolute bottom-0.5 right-0.5 rounded bg-black/80 p-0.5 text-white" title="Color elegido para pintar">
+                      <PencilIcon className="h-3 w-3" />
+                    </span>
                   )}
                   {isOrResult && (
                     <span
@@ -2021,26 +2087,28 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
             </div>
           ) : (
             <div className="flex flex-col items-center gap-1">
-              {weaponMirroredView && (
-                <span className="text-[11px] text-msx-warning">Vista espejada (solo lectura): desactiva "Ver espejado" para pintar.</span>
-              )}
+              <div className="flex gap-2">
+                <Button size="sm" variant={!isAssemblyView ? 'primary' : 'secondary'} onClick={() => setIsAssemblyView(false)}>Editar píxeles</Button>
+                <Button size="sm" variant={isAssemblyView ? 'primary' : 'secondary'} onClick={() => setIsAssemblyView(true)}>Montaje</Button>
+              </div>
+              {(isAssemblyView || weaponMirroredView) && <span className="text-[11px] text-msx-textsecondary">Vista de montaje. Cambia X/Y por zona; usa Editar píxeles para dibujar.</span>}
               <Msx2PixelGrid
-                frame={weaponMirroredView ? mirroredCurrentFrame : frame}
-                width={sprite.size.width}
-                height={sprite.size.height}
+                frame={isAssemblyView || weaponMirroredView ? assembledFrame.pixels : frame}
+                width={isAssemblyView || weaponMirroredView ? assembledFrame.width : sprite.size.width}
+                height={isAssemblyView || weaponMirroredView ? assembledFrame.height : sprite.size.height}
                 zoom={zoom}
                 backgroundColor={sprite.backgroundColor}
-                onPixel={weaponMirroredView ? () => undefined : handlePixel}
-                onCellMouseDown={!weaponMirroredView && toolMode === 'select' ? handleGridMouseDown : undefined}
-                onCellMouseEnter={!weaponMirroredView && toolMode === 'select' ? handleGridMouseEnter : undefined}
-                onCellMouseUp={!weaponMirroredView && toolMode === 'select' ? handleGridMouseUp : undefined}
-                onionSkinEnabled={onionSkinEnabled && !weaponMirroredView}
+                onPixel={isAssemblyView || weaponMirroredView ? () => undefined : handlePixel}
+                onCellMouseDown={!isAssemblyView && !weaponMirroredView && toolMode === 'select' ? handleGridMouseDown : undefined}
+                onCellMouseEnter={!isAssemblyView && !weaponMirroredView && toolMode === 'select' ? handleGridMouseEnter : undefined}
+                onCellMouseUp={!isAssemblyView && !weaponMirroredView && toolMode === 'select' ? handleGridMouseUp : undefined}
+                onionSkinEnabled={onionSkinEnabled && !isAssemblyView && !weaponMirroredView}
                 onionSkinOpacity={onionSkinOpacity}
                 prevFrame={prevFrame}
                 nextFrame={nextFrame}
-                metaSpriteParts={superSpriteParts}
-                selectionRect={!weaponMirroredView && toolMode === 'select' ? selectionRect : null}
-                weaponOverlay={weaponOverlay}
+                metaSpriteParts={isAssemblyView || weaponMirroredView ? assemblyParts : sourceParts}
+                selectionRect={!isAssemblyView && !weaponMirroredView && toolMode === 'select' ? selectionRect : null}
+                weaponOverlay={isAssemblyView || weaponMirroredView ? positionOverlay(weaponOverlay, assembledFrame) : weaponOverlay}
               />
             </div>
           )}
@@ -2062,30 +2130,30 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
               <div className="flex flex-wrap items-end gap-2">
                 <div className="space-y-1">
                   <Msx2PixelGrid
-                    frame={previewFrame}
-                    width={sprite.size.width}
-                    height={sprite.size.height}
+                    frame={assembledPreview.pixels}
+                    width={assembledPreview.width}
+                    height={assembledPreview.height}
                     zoom={4}
                     backgroundColor={sprite.backgroundColor}
                     onPixel={() => undefined}
                     onionSkinEnabled={false}
                     onionSkinOpacity={0}
-                    weaponOverlay={weaponOverlayForFrame(previewAnimationFrameIndex, false)}
+                    weaponOverlay={positionOverlay(weaponOverlayForFrame(previewAnimationFrameIndex, false), assembledPreview)}
                   />
                   <div className="text-center text-[10px] text-msx-textsecondary">Base</div>
                 </div>
                 {hasHorizontalFacing && showMirrorPreview && (
                   <div className="space-y-1">
                     <Msx2PixelGrid
-                      frame={mirroredPreviewFrame}
-                      width={sprite.size.width}
-                      height={sprite.size.height}
+                      frame={assembledMirrorPreview.pixels}
+                      width={assembledMirrorPreview.width}
+                      height={assembledMirrorPreview.height}
                       zoom={4}
                       backgroundColor={sprite.backgroundColor}
                       onPixel={() => undefined}
                       onionSkinEnabled={false}
                       onionSkinOpacity={0}
-                      weaponOverlay={weaponOverlayForFrame(previewAnimationFrameIndex, true)}
+                      weaponOverlay={positionOverlay(weaponOverlayForFrame(previewAnimationFrameIndex, true), assembledMirrorPreview)}
                     />
                     <div className="text-center text-[10px] text-msx-textsecondary">Mirror</div>
                   </div>
@@ -2177,13 +2245,24 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
               </div>
             </div>
             <div className="space-y-1">
-              {superSpriteParts.map(part => (
-                <div key={part.id} className="flex items-center justify-between rounded border border-msx-border/70 bg-msx-bgcolor/40 px-2 py-1">
-                  <span>{part.label}</span>
-                  <span className="text-msx-textsecondary">x{part.offsetX}, y{part.offsetY}, 16x16</span>
+              {superSpriteParts.map((part, partIndex) => (
+                <div key={part.id} className="space-y-1 rounded border border-msx-border/70 bg-msx-bgcolor/40 px-2 py-1">
+                  <span className="rounded px-1.5 font-bold text-black" style={{ backgroundColor: zoneMarkerColor(partIndex) }}>Zona {part.label}</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['offsetX', 'offsetY'] as const).map(axis => (
+                      <label key={axis} className="flex items-center gap-1">
+                        {axis === 'offsetX' ? 'X' : 'Y'}
+                        <input type="number" min={-255} max={255} value={part[axis]}
+                          aria-label={`Offset ${axis === 'offsetX' ? 'X' : 'Y'} zona ${part.label}`}
+                          onChange={event => setPartOffset(partIndex, axis, Number(event.target.value))}
+                          className="min-w-0 w-full rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-msx-textprimary" />
+                      </label>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
+            <p className="text-msx-textsecondary">X/Y posicionan cada zona desde el origen del sprite. Sus píxeles se conservan en todos los frames.</p>
             <p className="text-msx-textsecondary">Each part is a 16x16 MSX2 hardware sprite cell. Extra color planes from OR/masks multiply the hardware sprite cost per cell.</p>
           </div>
         </Panel>
@@ -2217,11 +2296,11 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
             <div className="grid grid-cols-4 gap-1">
               {rowDiagnostics.map(row => (
                 <div
-                  key={`${row.cellX}-${row.y}`}
+                  key={`${row.partIndex}-${row.localY}`}
                   className={`rounded border px-1 py-0.5 ${row.invalid ? 'border-msx-warning text-msx-warning' : row.layerCount >= 3 ? 'border-msx-highlight text-msx-highlight' : row.layerCount > 1 ? 'border-msx-border text-msx-textprimary' : 'border-msx-border text-msx-textsecondary'}`}
-                  title={row.colors.length ? `Cell ${row.cellX}, line ${row.y}: ${row.colors.join(', ')}; slots ${row.slots.join(', ') || 'none'}` : `Cell ${row.cellX}, line ${row.y}: transparent`}
+                  title={row.colors.length ? `Zona ${superSpriteParts[row.partIndex].label}, línea ${row.localY}: ${row.colors.join(', ')}; slots ${row.slots.join(', ') || 'none'}` : `Zona ${superSpriteParts[row.partIndex].label}, línea ${row.localY}: transparente`}
                 >
-                  c{row.cellX} y{row.y}: {row.layerCount ? `${row.layerCount}${row.usesOrColor ? '+' : ''}` : 'T'}
+                  {superSpriteParts[row.partIndex].label} y{row.localY}: {row.layerCount ? `${row.layerCount}${row.usesOrColor ? '+' : ''}` : 'T'}
                 </div>
               ))}
             </div>
@@ -2258,13 +2337,13 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
                     </div>
                     <div className="grid grid-cols-3 gap-1">
                       <Button size="sm" variant="ghost" className="justify-start text-[10px]" onClick={() => useOrBrushColor(pair.baseHex as MSXColorValue)}>
-                        <span className="mr-1 h-3 w-3 rounded-sm border border-msx-border" style={{ backgroundColor: pair.baseHex }} />A {pair.base}
+                        <span className="mr-1 h-3 w-3 rounded-sm border border-msx-border" style={{ backgroundColor: pair.baseHex }} />Base {pair.base}
                       </Button>
                       <Button size="sm" variant="ghost" className="justify-start text-[10px]" onClick={() => useOrBrushColor(pair.overlayHex as MSXColorValue)}>
-                        <span className="mr-1 h-3 w-3 rounded-sm border border-msx-border" style={{ backgroundColor: pair.overlayHex }} />B {pair.overlay}
+                        <span className="mr-1 h-3 w-3 rounded-sm border border-msx-border" style={{ backgroundColor: pair.overlayHex }} />Capa {pair.overlay}
                       </Button>
                       <Button size="sm" variant="ghost" className="justify-start text-[10px]" onClick={() => useOrBrushColor(pair.resultHex as MSXColorValue)}>
-                        <span className="mr-1 h-3 w-3 rounded-sm border border-msx-border" style={{ backgroundColor: pair.resultHex }} />A|B {pair.result}
+                        <span className="mr-1 h-3 w-3 rounded-sm border border-msx-border" style={{ backgroundColor: pair.resultHex }} />OR {pair.result}
                       </Button>
                     </div>
                   </div>

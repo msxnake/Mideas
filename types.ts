@@ -264,6 +264,10 @@ export type Msx2SuperSpriteLayout = 'single16' | 'stackVertical' | 'stackHorizon
 export interface Msx2SuperSpritePart {
   id: string;
   label: string;
+  /** Source cell in frames[].data; omitted values use the original row-major 16x16 grid. */
+  sourceX?: number;
+  sourceY?: number;
+  /** Destination in pixels relative to the sprite origin, independent of the source cell. */
   offsetX: number;
   offsetY: number;
   width: 16;

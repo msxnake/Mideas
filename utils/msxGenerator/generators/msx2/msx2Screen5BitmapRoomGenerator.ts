@@ -1,5 +1,6 @@
 import { MSX2_WORLDLINK_MUSIC_NONE, ConnectionDirection, Msx2BitmapRoomCommand, Msx2GameFlowEndNode, Msx2GameFlowGraph, Msx2GameFlowNode, Msx2GameFlowScreen5PresentationNode, Msx2GameFlowTransitionNode, Msx2HudAsset, Msx2HudElement, Msx2HudFontAsset, Msx2HudIconEntry, Msx2HudWidget, Msx2PlayerDefinition, Msx2Screen5BitmapRoom, Msx2Screen5PresentationConfig, Msx2Sprite, PaletteAsset, ProjectAsset, PSGSoundData, Screen5PaletteSlot } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
+import { orderMsx2SpriteCells } from '../../../msx2SpriteComposition';
 import { isMsx2Screen5Purpose } from '../../../msx2GameFlowPurpose';
 import { repairSubMenuConnections } from '../../../msx2GameFlowSubMenuLinks';
 import { bakeBossPathFixed } from '../../../msx2BossPath';
@@ -3755,6 +3756,7 @@ function buildRuntimeAsm(
   playerAnimation: { frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right'; layerCount: number; spriteOffsets: BitmapSpriteSlotOffset[]; totalFrameCount?: number; hasStateAnimations?: boolean; glowingTailColors?: boolean; weaponSyncHook?: boolean },
   options: {
     bankedRle: boolean;
+    playerSpriteWidth?: number;
     sccMusicTick?: boolean;
     subCellShapes?: boolean;
     platformCells?: boolean;
@@ -6392,7 +6394,7 @@ ${enableBlink ? `    ; Blink i-frames feedback: while invulnerable (player_invul
 .blink_hide_done:
 ` : ''}${playerAnimation.spriteOffsets.map((offset, slotIndex) => {
   const yWriteNormal = `    ld a, (player_y)
-    add a, ${BITMAP_ROOM_GAME_Y_OFFSET}${offset.y ? `\n    add a, ${offset.y}                   ; cell row +${offset.y}px` : ''}
+    add a, ${BITMAP_ROOM_GAME_Y_OFFSET}${offset.y ? `\n    add a, ${offset.y & 0xff}                   ; cell row +${offset.y}px` : ''}
     ; Natural 8-bit wrap: player_y in #C0..#FF (above the top edge) lands this
     ; layer over the HUD band or partially clipped by the display top, so the
     ; jump arc stays visible over the HUD instead of pinning below it.
@@ -6403,7 +6405,19 @@ ${enableBlink ? `    ; Blink i-frames feedback: while invulnerable (player_invul
     out (${VDP_DATA_PORT}), a`;
   const yWriteHidden = `    ld a, #D4                      ; off-screen but NOT the #D8 SAT terminator:
     out (${VDP_DATA_PORT}), a      ; enemy/platform/bullet sprites after the player must stay visible`;
-  const xPatEc = `    ld a, (player_x)${offset.x ? `\n    add a, ${offset.x}                   ; cell col +${offset.x}px` : ''}
+  const xLoad = (x: number) => `    ld a, (player_x)${x ? `\n    add a, ${x & 0xff}                   ; cell col +${x}px` : ''}`;
+  const mirroredX = (options.playerSpriteWidth || 16) - 16 - offset.x;
+  // AF only, like the existing coordinate writes; BC/DE/HL and the stack are untouched.
+  const xPosition = playerAnimation.mirror && playerAnimation.authoredFacing && mirroredX !== offset.x
+    ? `    ld a, (player_facing)
+    or a
+    jp ${playerAnimation.authoredFacing === 'right' ? 'z' : 'nz'}, .ply_slot_${slotIndex}_x_mirror
+${xLoad(offset.x)}
+    jp .ply_slot_${slotIndex}_x_done
+.ply_slot_${slotIndex}_x_mirror:
+${xLoad(mirroredX)}
+.ply_slot_${slotIndex}_x_done:` : xLoad(offset.x);
+  const xPatEc = `${xPosition}
     out (${VDP_DATA_PORT}), a
     ld a, (player_pat)
 ${slotIndex ? `    add a, ${slotIndex * 4}\n` : ''}    out (${VDP_DATA_PORT}), a
@@ -14803,7 +14817,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
         if (!cellMap.has(cellKey(layer))) cellMap.set(cellKey(layer), { x: layer.xOffset, y: layer.yOffset });
       }
     }
-    const cells = Array.from(cellMap.values()).sort((a, b) => (a.y - b.y) || (a.x - b.x));
+    const cells = orderMsx2SpriteCells(sprite, Array.from(cellMap.values()));
     const normalizedCells = cells.length ? cells : [{ x: 0, y: 0 }];
     const maxAuthoredColorLayers = Math.max(1, ...frameLayerSets.flatMap(layers =>
       normalizedCells.map(cell => layersForCell(layers, cell).length || 1)
@@ -15461,7 +15475,7 @@ function buildSpriteTables(sprite: Msx2Sprite | undefined): { colors: number[]; 
         if (!cellMap.has(cellKey(layer))) cellMap.set(cellKey(layer), { x: layer.xOffset, y: layer.yOffset });
       }
     }
-    const cells = Array.from(cellMap.values()).sort((a, b) => (a.y - b.y) || (a.x - b.x));
+    const cells = orderMsx2SpriteCells(sprite, Array.from(cellMap.values()));
     const cellCount = Math.max(1, cells.length);
 
     const layersForCell = (layers: typeof rawFrameLayerSets[number], cell: BitmapSpriteSlotOffset) =>
@@ -19018,6 +19032,7 @@ ${vramFree.map(gap => `;   rows ${String(gap.from).padStart(4)}..${String(gap.to
     weaponSyncHook,
   }, {
     bankedRle: isKonamiMegaRom,
+    playerSpriteWidth: playerSprite?.size.width || 16,
     introResidentMarker: true, // always emitted; the splice below removes it again when nothing goes there (ASM stays identical)
     sccMusicTick: sccMusicTickEnabled,
     subCellShapes,

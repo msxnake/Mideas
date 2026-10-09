@@ -1,4 +1,5 @@
 import { Msx2PlayerDefinition, Msx2Sprite, ProjectAsset } from '../types';
+import { resolveMsx2SpriteParts, msx2SpriteScanlineCounts } from './msx2SpriteComposition';
 
 export const MSX2_HARDWARE_SPRITE_CAPACITY = 32;
 export const MSX2_HARDWARE_SPRITE_PATTERN_CAPACITY = 64;
@@ -32,6 +33,7 @@ export interface Msx2SpriteFrameHardwareUsage {
   mirrorEnabled: boolean;
   mirrorPatternVariantCount: 1 | 2;
   emittedPatternCount: number;
+  worstScanlineHardwareSprites: number;
 }
 
 export interface Msx2PlayerHardwareSpriteUsage {
@@ -167,11 +169,8 @@ export const calculateMsx2SpriteFrameHardwareUsage = (
   frameIndex: number,
 ): Msx2SpriteFrameHardwareUsage => {
   const frame = sprite.frames?.[frameIndex] || sprite.frames?.[sprite.currentFrameIndex || 0] || sprite.frames?.[0];
-  const width = Math.max(1, sprite.size?.width || 16);
-  const height = Math.max(1, sprite.size?.height || 16);
   const useOrColor = sprite.hardware?.useOrColor !== false;
-  const cellColumns = Math.max(1, Math.ceil(width / 16));
-  const cellRows = Math.max(1, Math.ceil(height / 16));
+  const parts = resolveMsx2SpriteParts(sprite);
   const mirrorEnabled = hasHorizontalMirrorVariant(sprite);
   const mirrorPatternVariantCount: 1 | 2 = mirrorEnabled ? 2 : 1;
   const layerCountsByCell: number[] = [];
@@ -179,13 +178,12 @@ export const calculateMsx2SpriteFrameHardwareUsage = (
   let emittedPatternCount = 0;
   let hardwareSprites = 0;
 
-  for (let cellY = 0; cellY < cellRows; cellY++) {
-    for (let cellX = 0; cellX < cellColumns; cellX++) {
-      const xOffset = cellX * 16;
-      const yOffset = cellY * 16;
+  for (const part of parts) {
+      const cellX = part.sourceX / 16;
+      const cellY = part.sourceY / 16;
       const rowCompositions = Array.from({ length: 16 }, (_, y) => {
         const slots = Array.from({ length: 16 }, (_unused, x) =>
-          paletteSlotForSpriteColor(sprite, frame?.data?.[yOffset + y]?.[xOffset + x]) || 0
+          paletteSlotForSpriteColor(sprite, frame?.data?.[part.sourceY + y]?.[part.sourceX + x]) || 0
         );
         return buildCellRowComposition(slots, useOrColor);
       });
@@ -205,7 +203,6 @@ export const calculateMsx2SpriteFrameHardwareUsage = (
       }
       layerCountsByCell.push(visibleLayers);
       hardwareSprites += visibleLayers;
-    }
   }
 
   return {
@@ -213,12 +210,13 @@ export const calculateMsx2SpriteFrameHardwareUsage = (
     spriteName,
     frameIndex,
     hardwareSprites,
-    cellCount: cellColumns * cellRows,
+    cellCount: parts.length,
     layerCountsByCell,
     distinctPatternKeys: Array.from(distinctPatternKeys),
     mirrorEnabled,
     mirrorPatternVariantCount,
     emittedPatternCount,
+    worstScanlineHardwareSprites: Math.max(0, ...msx2SpriteScanlineCounts(parts, layerCountsByCell).values()),
   };
 };
 

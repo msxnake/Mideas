@@ -1,6 +1,7 @@
 import { DEFAULT_SCREEN5_CUSTOM_PALETTE as DEFAULT_SCREEN4_CUSTOM_PALETTE } from '../../../../constants';
 import { EnemyDefinition, EnemyRenderRoleBinding, GameFlowConnection, GameFlowNode, Msx2PlayerDefinition, Msx2PlayerEntry, Msx2Screen4TileScreen, Msx2Sprite, PaletteAsset, ProjectAsset, Screen5PaletteSlot as Screen4PaletteSlot, ScreenMap } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
+import { resolveMsx2SpriteParts, msx2SpriteScanlineCounts } from '../../../msx2SpriteComposition';
 import { isMsx2Screen4Purpose } from '../../../msx2GameFlowPurpose';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -3554,17 +3555,11 @@ function buildCellRowComposition(slots: number[], useOrColor: boolean): RowLayer
 export function buildHardwareSpriteLayersForFrame(sprite: Msx2Sprite, fallbackColor: number, frameIndex: number): Msx2HardwareLayer[] {
   const frame = sprite.frames?.[frameIndex] || sprite.frames?.[sprite.currentFrameIndex || 0] || sprite.frames?.[0];
   const useOrColor = sprite.hardware?.useOrColor !== false;
-  const cellColumns = Math.max(1, Math.ceil((sprite.size?.width || 16) / 16));
-  const cellRows = Math.max(1, Math.ceil((sprite.size?.height || 16) / 16));
   const layers: Msx2HardwareLayer[] = [];
-
-  for (let cellY = 0; cellY < cellRows; cellY++) {
-    for (let cellX = 0; cellX < cellColumns; cellX++) {
-      const xOffset = cellX * 16;
-      const yOffset = cellY * 16;
+  for (const part of resolveMsx2SpriteParts(sprite)) {
       const rowCompositions = Array.from({ length: 16 }, (_, y) => {
         const slots = Array.from({ length: 16 }, (_, x) =>
-          paletteSlotForSpriteColor(sprite, frame?.data?.[yOffset + y]?.[xOffset + x]) || 0
+          paletteSlotForSpriteColor(sprite, frame?.data?.[part.sourceY + y]?.[part.sourceX + x]) || 0
         );
         return buildCellRowComposition(slots, useOrColor);
       });
@@ -3576,11 +3571,10 @@ export function buildHardwareSpriteLayersForFrame(sprite: Msx2Sprite, fallbackCo
         layers.push({
           pattern: buildHardwareSpritePatternForLayer(rowCompositions, layerIndex),
           colors: colors.map(color => color || Math.max(1, Math.min(15, fallbackColor))),
-          xOffset,
-          yOffset,
+          xOffset: part.offsetX,
+          yOffset: part.offsetY,
         });
       }
-    }
   }
 
   return layers.length ? layers : [{
@@ -4053,6 +4047,11 @@ function buildMsx2VramByteWriteAsm(): string {
 function addImmediateToA(value: number): string {
   if (!value) return '';
   return `    add a, ${Math.max(0, Math.min(255, value))}\n`;
+}
+
+// Coordinate deltas are signed; wrapping the immediate preserves A/flags and clobbers no other register.
+function addSpriteOffsetToA(value: number): string {
+  return value ? `    add a, ${Math.trunc(value) & 0xff}\n` : '';
 }
 
 function buildMsx2HudTextRuntimeAsm(analysis: ProjectAnalysis, useKonamiDataBank = false): string {
@@ -4617,11 +4616,11 @@ function buildHardwareSpriteRuntimeAsm(
     return `    ; Sprite layer ${layerIndex}: x+${layer.xOffset}, y+${layer.yOffset}
 ${playerHardwareVisible
       ? `    ld a, (msx2_player_sprite_y)
-${addImmediateToA(layer.yOffset)}`
+${addSpriteOffsetToA(layer.yOffset)}`
       : '    ld a, 208\n'}    ld hl, #${attrAddress.toString(16).toUpperCase().padStart(4, '0')}
     call write_vram_byte_ext
     ld a, (msx2_player_sprite_x)
-${addImmediateToA(layer.xOffset)}    ld hl, #${(attrAddress + 1).toString(16).toUpperCase().padStart(4, '0')}
+${addSpriteOffsetToA(layer.xOffset)}    ld hl, #${(attrAddress + 1).toString(16).toUpperCase().padStart(4, '0')}
     call write_vram_byte_ext
 ${buildHardwareSpritePatternIndexAsm(basePatternIndex, framePatternStride, layerIndex * 4, animationFrameCount, mirrorPatternOffset, horizontalFacing, String(layerIndex))}
     ld hl, #${(attrAddress + 2).toString(16).toUpperCase().padStart(4, '0')}
@@ -10087,10 +10086,8 @@ function estimateMsx2SpriteStoragePolicy(analysis: ProjectAnalysis, sprite: Msx2
         height: 16,
       }))
     ).flat();
-  const hardwareLayerCountsByRow = Array.from({ length: cellRows }, (_unused, cellY) =>
-    authoredLayers.filter(layer => layer.yOffset === cellY * 16).length
-  );
-  const worstScanlineHardwareSprites = Math.max(0, ...hardwareLayerCountsByRow);
+  const scanlineCounts = msx2SpriteScanlineCounts(authoredLayers.map(layer => ({ offsetY: layer.yOffset })), authoredLayers.map(() => 1));
+  const worstScanlineHardwareSprites = Math.max(0, ...scanlineCounts.values());
   const patternBytes = Math.max(1, layers.length) * Math.max(1, animationFrameCount) * mirrorPatternVariantCount * 32;
   const colorBytes = Math.max(1, layers.length) * 16;
   const rawBytes = patternBytes + colorBytes;
