@@ -650,9 +650,15 @@ bitmap_shaft_ride_detect:
     ld ix, bitmap_shaft_state
     ld b, 0
 .shaft_detect_one:
+    ; Hand-over in flight (rider = 2): only the commit resolves it. This test runs
+    ; BEFORE the "push bc" below, so it must skip to .shaft_detect_advance, the
+    ; label AFTER the "pop bc". Jumping to .shaft_detect_next would pop a word
+    ; this iteration never pushed -- the caller's return address -- and the final
+    ; "ret" would leave one level too high (the game loop ended up returning to
+    ; the GameFlow node that called it). B is still the cabin index here.
     ld a, (ix+3)
     cp 2
-    jp z, .shaft_detect_next  ; hand-over in flight: only the commit resolves it
+    jp z, .shaft_detect_advance
     push bc
     call bitmap_shaft_room_for_slot
     ld hl, current_screen_index
@@ -673,7 +679,8 @@ bitmap_shaft_ride_detect:
     xor a
     ld (ix+3), a
 .shaft_detect_next:
-    pop bc
+    pop bc                    ; pairs with the push bc above: every path that gets here pushed
+.shaft_detect_advance:        ; stack depth = that of .shaft_detect_one (nothing pushed)
     ld de, ${SHAFT_RAM_STRIDE}
     add ix, de
     inc b
