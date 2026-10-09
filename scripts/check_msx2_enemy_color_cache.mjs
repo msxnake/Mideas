@@ -43,7 +43,16 @@ const CONFIGS = {
 async function loadGenerator(label, pinnedModuleSource) {
   const outfile = join(root, 'work', 'enemy-color-cache-check', `${label}.mjs`);
   mkdirSync(dirname(outfile), { recursive: true });
-  const plugins = pinnedModuleSource == null ? [] : [{
+  // Isolate this historical contract from later pattern remapping and body
+  // physics. Their regression cartridges exercise those additions separately.
+  const plugins = [{
+    name: 'isolate-colour-cache-from-pattern-compaction',
+    setup(plugin) {
+      plugin.onLoad({ filter: /msx2BitmapEnemyPatternCompaction\.ts$/ }, () => ({
+        contents: 'export const compactBitmapEnemyPatterns = data => ({ ...data, bodyBoundsBytes: undefined });', loader: 'ts',
+      }));
+    },
+  }, ...(pinnedModuleSource == null ? [] : [{
     name: 'pin-enemy-module',
     setup(plugin) {
       plugin.onLoad({ filter: /generators[\\/]msx2[\\/]msx2BitmapEnemyGenerator\.ts$/ }, () => ({
@@ -52,7 +61,7 @@ async function loadGenerator(label, pinnedModuleSource) {
         resolveDir: dirname(join(root, enemyModule)),
       }));
     },
-  }];
+  }])];
   await build({
     stdin: { contents: `export { generateModularASM } from './utils/msxGenerator/index.ts';`, resolveDir: root, loader: 'ts' },
     bundle: true, format: 'esm', platform: 'node', outfile, logLevel: 'silent', plugins,
@@ -84,7 +93,7 @@ function splitSegments(text) {
   };
 }
 
-const EQU_RE = /^(\w+)\s+EQU #([0-9A-F]{4})$/;
+const EQU_RE = /^(\w+)\s+EQU #([0-9A-F]{4})(?:\s*;.*)?$/;
 function maxSlotsOf(text) {
   const idx = [...text.matchAll(/^\.color_slot_(\d+):/gm)].map(m => parseInt(m[1], 10) + 1);
   const fromMap = parseInt(text.match(/ENEMY runtime state \(\d+ bytes\): count \+ (\d+) slot/)?.[1] || '0', 10);
@@ -95,9 +104,23 @@ function maxSlotsOf(text) {
 // Cache-specific lines (equates handled above; cache map comments) are DROPPED
 // from both sides so their presence alone cannot hide other changes.
 function canonicalize(lines, base, maxSlots) {
+  const hasColorCache = lines.some(line => /^bitmap_enemy_color_keys\s+EQU /.test(line));
   return lines
     .filter(line => !/colour cache|bitmap_enemy_color_(keys|valid)/i.test(line))
     .map(line => {
+      // The exporter now also emits a JSON RAM map. Normalize precisely the
+      // cache's existing 2-byte/slot growth instead of comparing this metadata
+      // literally; all other sections/addresses still have to match.
+      if (hasColorCache && line.startsWith('; @mideas-ram-budget ')) {
+        const map = JSON.parse(line.slice('; @mideas-ram-budget '.length));
+        const delta = 2 * maxSlots;
+        const enemy = map.sections.findIndex(section => section.name === 'Enemigos');
+        assert(enemy >= 0, 'RAM metadata contains enemy section');
+        map.chainEnd -= delta;
+        map.sections[enemy].bytes -= delta;
+        map.sections.slice(enemy + 1).forEach(section => { section.start -= delta; });
+        return '; @mideas-ram-budget ' + JSON.stringify(map);
+      }
       // The exact byte-total growth is asserted numerically in assertEquates.
       line = line.replace(/ENEMY runtime state \(\d+ bytes\)/, 'ENEMY runtime state (N bytes)');
       const m = line.match(EQU_RE);
@@ -114,8 +137,12 @@ function canonicalize(lines, base, maxSlots) {
 }
 
 function assertSequence(context, baseSeg, curSeg, baseEquMap, curEquMap, maxSlots) {
-  const a = canonicalize(baseSeg.split('\n'), baseEquMap, maxSlots);
-  const b = canonicalize(curSeg.split('\n'), curEquMap, maxSlots);
+  // The historical pin puts the final SAT label on its own line; current HEAD
+  // puts the same terminator instruction after it. Normalize only that layout,
+  // preserving the exact label and every instruction for the sequence check.
+  const splitLines = segment => segment.replace(/^(\.sat_slot_\d+_end:)(?=    ld a, #D8)/gm, '$1\n').split('\n');
+  const a = canonicalize(splitLines(baseSeg), baseEquMap, maxSlots);
+  const b = canonicalize(splitLines(curSeg), curEquMap, maxSlots);
   assert.equal(b.length, a.length, `${context}: line count must match`);
   for (let i = 0; i < a.length; i++) {
     assert.equal(b[i], a[i], `${context}: line ${i + 1} must be identical (only cache-shifted equates allowed)\n  baseline: ${a[i]}\n  current : ${b[i]}`);

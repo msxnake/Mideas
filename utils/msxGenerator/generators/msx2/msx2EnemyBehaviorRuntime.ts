@@ -2,6 +2,7 @@ import {
   MSX2_ENEMY_BEHAVIOR_MAX_STATES,
   MSX2_ENEMY_BEHAVIOR_NEXT_STATE_STAY,
 } from '../../../msx2EnemyBehavior';
+import { buildEnemyBodyCollisionAsm } from './msx2EnemyBodyCollision';
 
 /**
  * The single Z80 interpreter that walks a baked ENEMY BEHAVIOUR program.
@@ -74,8 +75,8 @@ export const MSX2_ENEMY_SCRIPT_SCRATCH_BYTES = 9;
  * after this block moves with it: a project that does not use gravity would get
  * a whole ROM of shifted addresses for a byte it never reads.
  */
-export function enemyScriptScratchBytes(programsUseGravity: boolean): number {
-  return MSX2_ENEMY_SCRIPT_SCRATCH_BYTES + (programsUseGravity ? 1 : 0);
+export function enemyScriptScratchBytes(programsUseGravity: boolean, fullBodyCollision = false): number {
+  return MSX2_ENEMY_SCRIPT_SCRATCH_BYTES + (programsUseGravity ? 1 : 0) + (fullBodyCollision ? 4 : 0);
 }
 
 /** Value the damage path stamps on a slot when a player bullet connects. */
@@ -102,6 +103,8 @@ const TERMINAL_VELOCITY = 0xfc;   // -4 px per logic tick
 const PLATFORM_LAND_BAND = 4;
 
 export interface EnemyBehaviorRuntimeOptions {
+  /** Resident descriptors of the complete sprite keyed by base colour offset. */
+  bodyBoundsLabel?: string;
   /** First byte of the engine's shared scratch. */
   ramBase: number;
   /** Pool offsets of the scripted bytes, from the slot base. */
@@ -255,6 +258,7 @@ export function buildEnemyBehaviorRuntimeAsm(options: EnemyBehaviorRuntimeOption
   const bullets = options.enemyBullets;
   const playerBullets = options.playerBulletPool;
   const gravity = options.programsUseGravity === true;
+  const fullBodyCollision = Boolean(options.bodyBoundsLabel);
   const path = options.programsUsePath === true;
   const PNODE = options.poolPathNodeOffset ?? (options.poolVelocityOffset + 3);
   const PBRANCH = options.poolPathBranchOffset ?? (options.poolVelocityOffset + 4);
@@ -296,7 +300,7 @@ export function buildEnemyBehaviorRuntimeAsm(options: EnemyBehaviorRuntimeOption
     verticalMoved: base + 9,
   };
 
-  const equates = `; --- scripted ENEMY behaviour engine (${enemyScriptScratchBytes(gravity)} shared bytes) ---
+  const equates = `; --- scripted ENEMY behaviour engine (${enemyScriptScratchBytes(gravity, fullBodyCollision)} shared bytes) ---
 ; Shared, not per slot: only one enemy is ever mid-interpretation at a time.
 bitmap_enemy_script_base   EQU ${asmWord(addr.programBase)}
 bitmap_enemy_script_cursor EQU ${asmWord(addr.cursor)}
@@ -305,6 +309,7 @@ bitmap_enemy_script_arg    EQU ${asmWord(addr.arg)}
 bitmap_enemy_script_next   EQU ${asmWord(addr.next)}
 bitmap_enemy_script_seed   EQU ${asmWord(addr.seed)}
 bitmap_enemy_script_ahead_mode EQU ${asmWord(addr.aheadMode)}
+${fullBodyCollision ? `bitmap_enemy_body_bounds EQU ${asmWord(base + enemyScriptScratchBytes(gravity))}\n` : ''}
 ${gravity ? `; Set by any action that moved the body vertically, so automatic gravity does
 ; not integrate the same tick twice. Cleared at the top of every step.
 bitmap_enemy_script_vmoved EQU ${asmWord(addr.verticalMoved)}` : ''}
@@ -473,6 +478,7 @@ bitmap_enemy_script_path_step:
     jp (hl)
 ` : ''}bitmap_enemy_script_step:
     push bc                        ; the update loop's slot counter lives in B
+${fullBodyCollision ? '    call bitmap_enemy_body_load\n' : ''}
 ${gravity ? `    xor a
     ld (bitmap_enemy_script_vmoved), a     ; nothing has moved this body yet
 ` : ''}
@@ -691,7 +697,7 @@ bitmap_enemy_script_edge:
     ret
 ; Probe ahead of the facing edge. IN: C = rows below the logical origin.
 ; OUT: Z = passable, NZ = solid.
-bitmap_enemy_script_probe_floor_ahead:
+${fullBodyCollision ? buildEnemyBodyCollisionAsm({ boundsLabel: options.bodyBoundsLabel!, visualXOffset: VXOFF, visualYOffset: VYOFF, floorProbe: FLOOR_PROBE }) : `bitmap_enemy_script_probe_floor_ahead:
     ; The LEDGE question: "is there something to stand on over there?"
     ld a, 1
     ld (bitmap_enemy_script_ahead_mode), a
@@ -767,6 +773,7 @@ bitmap_enemy_script_probe_above:
     ld b, a
     jp bitmap_probe_solid
 
+`}
 ; ------------------------------------------------------------
 ; CONDITIONS. Each one falls out through _true or _false.
 ; ------------------------------------------------------------
@@ -927,7 +934,8 @@ bitmap_enemy_script_cond_no_wall_ahead:
 bitmap_enemy_script_cond_on_platform_tile:
     ; The cell under the feet carries the one-way bit. probe_solid hands the raw
     ; cell value back in A, so this needs no second read of the map.
-    call bitmap_enemy_script_origin
+${fullBodyCollision ? `    call bitmap_enemy_script_probe_below
+` : `    call bitmap_enemy_script_origin
     ld a, e
     add a, 16
     ld c, a
@@ -935,6 +943,7 @@ bitmap_enemy_script_cond_on_platform_tile:
     add a, 8
     ld b, a
     call bitmap_probe_solid
+`}
     bit 5, a
     jp nz, bitmap_enemy_script_true
     jp bitmap_enemy_script_false
@@ -1167,8 +1176,8 @@ bitmap_enemy_script_act_walk:
 ; DESTROYS: AF, D. PRESERVES: BC, E, HL, IX, IY.
 ; ------------------------------------------------------------
 bitmap_enemy_script_walk_body:
-    ; Deliberately blind: walls and ledges are the rules' business, not the
-    ; action's. Only the authored patrol bounds stop it.
+    ; Rules decide whether to turn at ledges; physical walls also stop every
+    ; individual pixel step when complete-body geometry is available.
     ld a, (ix+2)
     or a
     jp nz, .walk_go
@@ -1182,7 +1191,9 @@ bitmap_enemy_script_walk_body:
     ld a, (ix+0)
     cp (ix+5)                      ; x vs maxX
     ret nc
-    inc (ix+0)
+${fullBodyCollision ? `    call bitmap_enemy_script_probe_ahead
+    ret nz
+` : ''}    inc (ix+0)
     dec d
     jp nz, .walk_px
     ret
@@ -1191,7 +1202,9 @@ bitmap_enemy_script_walk_body:
     cp (ix+4)                      ; x vs minX
     ret z
     ret c
-    dec (ix+0)
+${fullBodyCollision ? `    call bitmap_enemy_script_probe_ahead
+    ret nz
+` : ''}    dec (ix+0)
     dec d
     jp nz, .walk_px
     ret
@@ -1343,7 +1356,9 @@ bitmap_enemy_script_act_walk_back:
     cp (ix+4)
     jp z, bitmap_enemy_script_apply
     jp c, bitmap_enemy_script_apply
-    dec (ix+0)
+${fullBodyCollision ? `    call bitmap_enemy_body_probe_back
+    jp nz, bitmap_enemy_script_apply
+` : ''}    dec (ix+0)
     dec d
     jp nz, .back_px
     jp bitmap_enemy_script_apply
@@ -1351,7 +1366,9 @@ bitmap_enemy_script_act_walk_back:
     ld a, (ix+0)
     cp (ix+5)
     jp nc, bitmap_enemy_script_apply
-    inc (ix+0)
+${fullBodyCollision ? `    call bitmap_enemy_body_probe_back
+    jp nz, bitmap_enemy_script_apply
+` : ''}    inc (ix+0)
     dec d
     jp nz, .back_px
     jp bitmap_enemy_script_apply
@@ -1385,7 +1402,8 @@ bitmap_enemy_script_act_drop_through:
     ; move when there is no one-way platform underfoot, so an author who fires
     ; this on solid ground gets an enemy that stays put, not one that sinks
     ; through the world.
-    call bitmap_enemy_script_origin
+${fullBodyCollision ? `    call bitmap_enemy_script_probe_below
+` : `    call bitmap_enemy_script_origin
     ld a, e
     add a, 16
     ld c, a
@@ -1393,6 +1411,7 @@ bitmap_enemy_script_act_drop_through:
     add a, 8
     ld b, a
     call bitmap_probe_solid
+`}
     bit 5, a
     jp z, bitmap_enemy_script_apply
     ld a, (ix+1)
@@ -1625,7 +1644,7 @@ bitmap_enemy_script_act_table:
   return {
     equates,
     routinesAsm,
-    ramBytes: enemyScriptScratchBytes(gravity),
+    ramBytes: enemyScriptScratchBytes(gravity, fullBodyCollision),
     // Reported separately because it sits at its own ramBase, which the caller
     // chose: this is how much of it is actually in use.
     bulletRamBytes: BULLET_SLOTS * 4,

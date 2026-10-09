@@ -4,7 +4,7 @@
  *   1. the alert-zone normalizer: defaults (4 s, 32 px), limits (0.5..30 s, 0..255 px), garbage in -> disabled;
  *   2. the project resolver: exactly one enemy with pursuer.enabled; 16x32 stackVertical sprite; a `rules` program;
  *   3. every generator error the Director asked for, each triggered from the real lab project and each expected to THROW
- *      with the right message: boss in an alert room, more than the 4 enemy hardware slots, two soldiers, no soldier at all,
+ *      with the right message: boss in an alert room, exceeding the 32 hardware slots, two soldiers, no soldier at all,
  *      soldier also placed by hand, wrong sprite, path_follow program, non-MegaROM export;
  *   4. the OFF promise: a pursuer enemy asset with no alert zone anywhere generates the exact same ASM as the project without it;
  *   5. the ORDER of the room-change hook: in commit_room_flip, `call bitmap_pursuer_init` is the last call before the final
@@ -29,9 +29,7 @@ let genDir = val('--gen');
 const labPath = val('--lab') || path.join(ROOT, 'test', 'msx2-pursuer', 'pursuer_alert_lab.json');
 
 if (!genDir) {
-  genDir = path.join(os.tmpdir(), 'mideas_pursuer_contract_gen');
-  fs.rmSync(genDir, { recursive: true, force: true });
-  fs.mkdirSync(genDir, { recursive: true });
+  genDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mideas_pursuer_contract_gen_'));
   try {
     execFileSync(process.execPath, [path.join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc'), '--pretty', 'false', '--module', 'commonjs', '--target', 'ES2020',
       '--outDir', genDir, '--moduleResolution', 'node', '--skipLibCheck', '--noEmitOnError', 'false', 'utils/msxGenerator/index.ts'], { cwd: ROOT, stdio: 'pipe', maxBuffer: 1 << 28 });
@@ -127,7 +125,7 @@ function commitRoomFlipCalls(asm) {
   expectThrow('alert room with a boss -> error', p, /has a boss/);
 }
 {
-  // soldier = 2 slots; two more 16x32 enemies (2 slots each) = 6 > 4
+  // Soldier = 2 slots; two more 16x32 enemies = 6. All layers must survive.
   const p = load();
   const asset = soldierAsset(p);
   const extra = i => ({
@@ -142,12 +140,39 @@ function commitRoomFlipCalls(asm) {
     params: { runtime: 'MSX2', engine: 'staticEnemy', movement: 'scripted', behaviorAssetId: asset.data.behavior.behaviorAssetId },
   });
   room(p, 'c').data.entities.push(extra(0), extra(1));
-  expectThrow('alert room with more than 4 enemy hardware slots -> error', p, /would not fit/);
-  // the SAME extras in a room without alert keep the old behaviour (warning + truncation, no error)
+  const expanded = generate(p);
+  check('alert room reserves all six enemy hardware slots', /ENEMY runtime state[^\n]*count \+ 6 slot/.test(expanded));
+  check('pursuer retains both body cells with other enemies', /BITMAP_PURSUER_SLOTS\s+EQU\s+2\b/i.test(expanded));
+  // A room without alert must also keep every layer rather than silently truncating.
   const q = load();
   room(q, 'a').data.entities.push(extra(0), extra(1), extra(2));
-  let ok = true; try { generate(q); } catch (e) { ok = false; }
-  check('more than 4 slots in a room WITHOUT alert is still only a warning (old behaviour)', ok);
+  const withoutAlert = generate(q);
+  check('non-alert room reserves all six enemy hardware slots', /ENEMY runtime state[^\n]*count \+ 6 slot/.test(withoutAlert));
+  // More than 12 logical enemies must be inspected: SCREEN 4's entity cap must not hide SCREEN 5 overflow.
+  const overflow = load();
+  room(overflow, 'a').data.entities = Array.from({ length: 17 }, (_, i) => extra(i));
+  expectThrow('17 two-cell enemies exceed the real 32-slot ceiling', overflow, /enemies need 34 hardware sprite slots.*32/);
+  const combined = load();
+  for (const letter of ['a', 'b', 'c', 'd']) delete room(combined, letter).data.runtime.alertZone;
+  // One-cell, one-frame art keeps the pattern reservation below 64 groups;
+  // the failure must be the SAT budget, independently of pattern memory.
+  const simple = structuredClone(combined.assets.find(a => a.id === 'smoke_player_sprite'));
+  simple.id = 'slot_budget_enemy'; simple.data.id = simple.id;
+  simple.data.frames = simple.data.frames.slice(0, 1);
+  simple.data.frames[0].data = Array.from({ length: 16 }, () => Array(16).fill('#FFFFFF'));
+  combined.assets.push(simple);
+  room(combined, 'a').data.entities = Array.from({ length: 28 }, (_, i) => ({
+    id: `budget_${i}`, kind: 'enemy', position: { x: i % 14 + 1, y: 9 }, spriteAssetId: simple.id,
+    components: { msx2_hardware_sprite: { msx2SpriteAssetId: simple.id }, msx2_movement: { mode: 'patrol' } },
+    params: {},
+  }));
+  expectThrow('28 single-cell enemies plus the player and reserved slots exceed total SAT capacity', combined, /sprite allocation needs.*32/);
+  room(combined, 'a').data.entities.length = 26;
+  check('exactly 32 total SAT slots fit with SHOOT disabled', !!generate(combined));
+  const player = combined.assets.find(a => a.type === 'msx2player').data.player;
+  player.activeSkills.push('shoot');
+  player.skillParameters.shoot = { maxBullets: 1 };
+  expectThrow('a player bullet beyond the 32 total slots is rejected', combined, /sprite allocation needs 33 hardware slots/);
 }
 {
   const p = load();

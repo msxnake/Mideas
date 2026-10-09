@@ -15,6 +15,7 @@ import {
   buildEnemyBehaviorProgramAsm,
   enemyProgramsUseGravity,
 } from './msx2EnemyBehaviorRuntime';
+import { buildEnemyBodyCollisionAsm, buildEnemyBodyWalkerAsm } from './msx2EnemyBodyCollision';
 
 /**
  * SCREEN 5 bitmap-room ENEMY runtime — patrol MVP.
@@ -62,7 +63,9 @@ import {
  *                                 (x2 on slime builds: flipped tables appended)
  */
 
-export const BITMAP_MAX_ENEMY_SLOTS = 4;
+/** Absolute SAT ceiling. Each project reserves only the room's actual maximum;
+ * the bitmap-room allocator also accounts for player, bullets and other systems. */
+export const BITMAP_MAX_ENEMY_SLOTS = 32;
 export const BITMAP_MAX_ENEMY_FRAMES = 4;
 export const BITMAP_ENEMY_POOL_STRIDE = 24;  // RAM bytes per slot (base build)
 /** Slime builds append travelPx/travelCount/phase to every pool slot. */
@@ -130,6 +133,9 @@ function asmWord(value: number): string {
 }
 
 export interface BitmapEnemyRoomData {
+  /** Resident complete-body descriptors: signed X/Y offsets, width-1, height-1
+   * for each source colour block. Physics never uses the damage hitbox. */
+  bodyBoundsBytes?: number[];
   /** Shared resident position tables and per-room hardware-slot references (-1 = none). */
   konamiPaths?: Array<{ bytes: number[]; loop: boolean }>;
   konamiRoomPaths?: number[][];
@@ -198,6 +204,16 @@ export interface BitmapEnemyRoomData {
   patternVariantCounts?: number[];
   /** Total number of groups reserved by the compact per-slot allocation. */
   patternGroupCount?: number;
+  /** Shared patterns per room; SAT lookups retain each slot's independent colours. */
+  compactPatterns?: {
+    mapBytes: number;
+    slotMapOffsets: number[];
+    roomPacks: number[];
+    packs: Array<{ bytes: number[]; patternGroups: number; patternPool: number }>;
+    patternPools: number[][];
+    originalPatternGroups: number;
+    originalPatternBytes: number;
+  };
   /**
    * Alert-zone rooms (utils/msx2Pursuer.ts), by global room index: how many pool slots the synthesized pursuer soldier takes
    * (always the first ones) and how many hardware sprites of the room's other enemies did not fit the slot budget.
@@ -364,6 +380,7 @@ export function buildBitmapEnemySystemAsm(
   // MegaROM: the sprite art lives in a data bank, so every copy goes through the
   // below-#8000 helper that owns the swap (these routines sit in #8000-#9FFF).
   const bankedArt = opts.bankedSpriteData === true;
+  const compact = data.compactPatterns;
   const copyArt = (label: string): string => (bankedArt
     ? `    ld a, ${label}_DATA_BANK
     call bitmap_copy_banked_to_vram`
@@ -480,10 +497,12 @@ bitmap_enemy_konami_step:
       + 'from buildBitmapEnemySystemAsm.',
     );
   }
-  const enemyBulletRamBase = scriptedScratchAddr + enemyScriptScratchBytes(programsUseGravity);
+  const fullBodyCollision = Boolean(data.bodyBoundsBytes?.length);
+  const enemyBulletRamBase = scriptedScratchAddr + enemyScriptScratchBytes(programsUseGravity, fullBodyCollision);
   const scriptedRuntime = scripted
     ? buildEnemyBehaviorRuntimeAsm({
       ramBase: scriptedScratchAddr,
+      bodyBoundsLabel: fullBodyCollision ? 'bitmap_enemy_sprite_body_bounds' : undefined,
       poolProgramOffset: SCRIPTED_PROGRAM_OFFSET,
       poolStateOffset: SCRIPTED_STATE_OFFSET,
       poolTimerOffset: SCRIPTED_TIMER_OFFSET,
@@ -511,14 +530,19 @@ bitmap_enemy_konami_step:
       programsUsePlayerBulletSense,
       playerBulletPool: opts.playerBullets,
     })
-    : undefined;
+    : fullBodyCollision ? {
+      ramBytes: 4, bulletRamBytes: 0,
+      equates: `; Complete-body scratch shared by legacy walkers.\nbitmap_enemy_body_bounds EQU ${asmWord(scriptedScratchAddr)}\n`,
+      routinesAsm: buildEnemyBodyCollisionAsm({ boundsLabel: 'bitmap_enemy_sprite_body_bounds', visualXOffset: 14, visualYOffset: 15, floorProbe: opts.floorProbeLabel || 'bitmap_probe_solid', skipAbove: true }),
+    } : undefined;
   const colorCacheOffset = baseRamBytes
     + (scriptedRuntime?.ramBytes || 0)
     + (scriptedRuntime?.bulletRamBytes || 0);
   // Append after all optional scratch/bullet storage; every byte offset is valid.
   const colorKeysAddr = opts.ramBase + colorCacheOffset;
   const colorValidAddr = colorKeysAddr + maxSlots;
-  const totalRamBytes = colorCacheOffset + 2 * maxSlots;
+  const patternMapAddr = colorValidAddr + maxSlots;
+  const totalRamBytes = colorCacheOffset + 2 * maxSlots + (compact?.mapBytes || 0);
 
   const equates = `; --- ENEMY runtime state (${totalRamBytes} bytes): count + ${maxSlots} slot(s) x ${POOL_STRIDE}${fly8 ? ' + PRNG seed' : ''}
 ; (x,y,dx,dy,minX,maxX,minY,maxY,animTick,animFrame,frameCount,animDelay,colorOff,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,logicInterval,logicCountdown${slime ? ',travelPx,travelCount,phase' : ''}${gear ? ',gearState,gearCooldownLo,gearCooldownHi,gearDelayLo,gearDelayHi' : ''}${fly8 ? ',flyLeft,flyTurnPx' : ''}${scripted ? ',scriptProgram,scriptState,scriptTimer,scriptVelocity,scriptShield,scriptHit' : ''}${programsUsePath ? ',pathNode,pathBranchMask' : ''}) ---
@@ -526,7 +550,9 @@ bitmap_enemy_count EQU ${asmWord(countAddr)}
 bitmap_enemy_pool  EQU ${asmWord(poolAddr)}
 bitmap_enemy_color_keys EQU ${asmWord(colorKeysAddr)}
 bitmap_enemy_color_valid EQU ${asmWord(colorValidAddr)}
-${fly8 ? `bitmap_enemy_rand_seed EQU ${asmWord(randSeedAddr)}
+${compact ? `; Hot frame/facing -> shared pattern group map, staged once on room load.
+bitmap_enemy_pattern_map EQU ${asmWord(patternMapAddr)}
+` : ''}${fly8 ? `bitmap_enemy_rand_seed EQU ${asmWord(randSeedAddr)}
 ` : ''}${bankedArt ? `; Room record staged out of its data bank (${TABLE_BYTES} bytes) before it is walked.
 bitmap_enemy_table_buf EQU ${asmWord(tableBufAddr)}
 ` : ''}${scriptedRuntime?.equates || ''}`;
@@ -612,7 +638,7 @@ ${programsUsePath ? `    xor a
     ld (${poolBase} + ${SCRIPTED_PATH_NODE_OFFSET}), a
     ld (${poolBase} + ${SCRIPTED_PATH_BRANCH_OFFSET}), a
 ` : ''}
-` : ''}${slime && slotVariants < 4 ? `    ; --- upload frameCount x [right,left] pairs -> VRAM ${asmWord(patternVram)} (group ${patternGroup}+) ---
+` : ''}${compact ? '    ; Patterns already uploaded once for this room; colours remain per slot.' : slime && slotVariants < 4 ? `    ; --- upload frameCount x [right,left] pairs -> VRAM ${asmWord(patternVram)} (group ${patternGroup}+) ---
     ; Slime builds store 4 variants per frame in ROM ([R,L,ceilR,ceilL]) for
     ; EVERY sprite, but this slot only reserves the facing pair: copy 64 of
     ; every 128 source bytes so frame N lands on group ${patternGroup}+N*2.
@@ -939,7 +965,7 @@ ${slime ? `    cp ${MSX2_ENEMY_MOVEMENT_SLIME_CEILING}
     dec d
     jp nz, .enemy_chase_left_px
     jp .enemy_anim
-.enemy_step_walker_gravity:
+${fullBodyCollision ? buildEnemyBodyWalkerAsm() : `.enemy_step_walker_gravity:
     ; Logical origin = SAT x/y minus the visual cell offset. This keeps multi-cell
     ; hardware sprites moving as one physics body.
     ; Gravity probes every traversed pixel at the authored speed.
@@ -1033,7 +1059,7 @@ ${slime ? `    cp ${MSX2_ENEMY_MOVEMENT_SLIME_CEILING}
     jp nz, .walker_left
     jp .enemy_anim
 .walker_turn_right:
-    ld (ix+2), #01
+    ld (ix+2), #01`}
 ${gear ? `    jp .enemy_anim
 .enemy_step_gear:
     ; GearWheel uses one logical 16x16 body per emitter. State 1 falls,
@@ -2010,7 +2036,13 @@ ${scripted ? `    ; Scripted enemies record the impact before checking their gua
   // ---- bitmap_update_enemy_sat: fixed slots after the player layers ----
   // Pattern byte = slot base group *4 + animFrame*8 (2 variants/frame) + 4
   // when patrolling left (variant 1 = mirrored/facing-left).
-  const satSlotBlocks = Array.from({ length: maxSlots }, (_unused, i) => {
+  // Remapping changes when SAT writes reach the VDP. Space each data-port
+  // write in the compact path so consecutive hidden/terminator bytes remain
+  // valid during active SCREEN 5 display as well as during vertical blanking.
+  const paceSatWrites = (asm: string): string => compact
+    ? asm.replace(/    out \(VDP_DATA_PORT\), a/g, '    nop\n    nop\n    nop\n    nop\n    nop\n    out (VDP_DATA_PORT), a')
+    : asm;
+  const satSlotBlocks = paceSatWrites(Array.from({ length: maxSlots }, (_unused, i) => {
     const slotVariants = slotPatternVariants[i];
     const slotUsesCeilingVariants = slotVariants >= 4;
     const patternByteBase = ((opts.patternGroupBase + slotPatternOffsets[i]) * 4) & 0xff;
@@ -2053,7 +2085,17 @@ ${slotUsesCeilingVariants ? `    ld d, a
     add a, 8                  ; +2 pattern groups: the vertical-flip pair
 .sat_slot_${i}_noflip:
 ` : ''}    add a, e
-    add a, ${asmByte(patternByteBase)}
+${compact ? `    ; Virtual frame/facing offset is a multiple of 4; resolve the shared plane.
+    rrca
+    rrca
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_enemy_pattern_map + ${compact.slotMapOffsets[i]}
+    add hl, de
+    ld a, (hl)
+    add a, a
+    add a, a
+    add a, ${asmByte(opts.patternGroupBase * 4)}` : `    add a, ${asmByte(patternByteBase)}`}
     out (VDP_DATA_PORT), a    ; pattern
     xor a
     out (VDP_DATA_PORT), a    ; EC = 0
@@ -2066,8 +2108,25 @@ ${slotUsesCeilingVariants ? `    ld d, a
     out (VDP_DATA_PORT), a
     out (VDP_DATA_PORT), a
 .sat_slot_${i}_end:`;
-  }).join('\n');
+  }).join('\n'));
 
+  const satTailAsm = paceSatWrites(`${compact ? '\n' : ''}${(opts.satPadSlots || 0) > 0 ? `    ; Park the ${opts.satPadSlots} slot(s) reserved for boss sprite bullets beyond the
+    ; enemy pool, so the terminator lands after the whole reserved range.
+    ld b, ${opts.satPadSlots}
+.sat_pad_reserved:
+    ld a, #D4
+    out (VDP_DATA_PORT), a
+    xor a
+    out (VDP_DATA_PORT), a
+    out (VDP_DATA_PORT), a
+    out (VDP_DATA_PORT), a
+    djnz .sat_pad_reserved
+` : ''}    ld a, #D8
+    out (VDP_DATA_PORT), a    ; terminator
+    xor a
+    out (VDP_DATA_PORT), a
+    out (VDP_DATA_PORT), a
+    out (VDP_DATA_PORT), a`);
   const colorUploadSlotBlocks = Array.from({ length: maxSlots }, (_unused, i) => {
     const slotUsesCeilingVariants = slotPatternVariants[i] >= 4;
     const colorVram = opts.colorBase + i * 16;
@@ -2299,6 +2358,81 @@ ${enemyBulletSatTerminator}    xor a
     ret
 `;
 
+  const compactLoadRoutine = !compact ? '' : `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_load_enemy_patterns
+; PURPOSE: Stage this room's frame/facing map, then upload its unique planes.
+; INPUT: current_screen_index. OUTPUT: bitmap_enemy_pattern_map and VRAM patterns.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+; CALLS: ${bankedArt ? 'bitmap_copy_banked_to_ram, bitmap_copy_banked_to_vram' : 'copy_to_vram_ext'}.
+; SIDE EFFECTS: ${bankedArt ? 'Banked wrappers restore the mapper window.' : 'Copies the lookup with LDIR.'}
+; NOTES: Empty rooms skip the zero-length VRAM copy. Colours are independent.
+; ------------------------------------------------------------
+bitmap_load_enemy_patterns:
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_enemy_pattern_pack_ptrs
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    push hl                   ; pack source, before the map copy advances HL
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_enemy_pattern_pack_sizes
+    add hl, de
+    add hl, de
+    ld c, (hl)
+    inc hl
+    ld b, (hl)                ; unique pattern bytes (can be zero)
+    push bc
+${bankedArt ? `    ld hl, bitmap_enemy_pattern_pack_banks
+    add hl, de
+    ld a, (hl)                ; DE is the room index, not the doubled word index
+` : ''}    pop bc
+    pop hl
+    push hl
+    push bc
+    push af                   ; bank survives staging (copy destroys AF)
+    ld de, bitmap_enemy_pattern_map
+    ld bc, ${compact.mapBytes}
+${bankedArt ? '    call bitmap_copy_banked_to_ram' : '    ldir'}
+    pop af
+    pop bc
+    pop hl
+    push af
+    ld a, b
+    or c
+    jp z, .empty
+    pop af
+    push bc
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_enemy_pattern_pool_ptrs
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+${bankedArt ? `    push hl
+    ld hl, bitmap_enemy_pattern_pool_banks
+    add hl, de
+    ld a, (hl)
+    pop hl
+` : ''}    pop bc
+    ld de, ${asmWord(0xF800 + opts.patternGroupBase * 32)}
+${bankedArt ? '    call bitmap_copy_banked_to_vram' : '    call copy_to_vram_ext'}
+    ret
+.empty:
+    pop af
+    ret
+`;
   const routinesAsm = `
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_load_enemies
@@ -2355,9 +2489,9 @@ ${bankedArt ? `    ; The room record lives in a data bank. Resolve its bank, LDI
     inc hl
     push hl
     pop ix                    ; IX -> slot 0 (${SCRIPTED_TABLE_STRIDE} bytes/slot)
-${loadSlotBlocks}${enemyBulletLoadAsm ? `\n${enemyBulletLoadAsm}` : '\n'}    pop ix
+${compact ? '    call bitmap_load_enemy_patterns\n' : ''}${loadSlotBlocks}${enemyBulletLoadAsm ? `\n${enemyBulletLoadAsm}` : '\n'}    pop ix
     ret
-
+${compactLoadRoutine}${compact ? '' : `
 ; HL = bitmap_enemy_sprite_patterns + A*32 (A = pattern group offset).
 bitmap_enemy_patterns_offset:
     ld l, a
@@ -2370,7 +2504,7 @@ bitmap_enemy_patterns_offset:
     ld de, bitmap_enemy_sprite_patterns
     add hl, de
     ret
-
+`}
 ; HL = bitmap_enemy_sprite_colors + A*16 (A = color block offset).
 bitmap_enemy_colors_offset:
     ld l, a
@@ -2419,23 +2553,7 @@ bitmap_update_enemy_sat:
     and #3F
     or #40
     out (VDP_CTRL_PORT), a
-${satSlotBlocks}${(opts.satPadSlots || 0) > 0 ? `    ; Park the ${opts.satPadSlots} slot(s) reserved for boss sprite bullets beyond the
-    ; enemy pool, so the terminator lands after the whole reserved range.
-    ld b, ${opts.satPadSlots}
-.sat_pad_reserved:
-    ld a, #D4
-    out (VDP_DATA_PORT), a
-    xor a
-    out (VDP_DATA_PORT), a
-    out (VDP_DATA_PORT), a
-    out (VDP_DATA_PORT), a
-    djnz .sat_pad_reserved
-` : ''}    ld a, #D8
-    out (VDP_DATA_PORT), a    ; terminator
-    xor a
-    out (VDP_DATA_PORT), a
-    out (VDP_DATA_PORT), a
-    out (VDP_DATA_PORT), a
+${satSlotBlocks}${satTailAsm}
     xor a
     ld e, a
     ld a, #0E
@@ -2498,6 +2616,28 @@ ${data.konamiPaths!.map((path, i) => emitBytes(`bitmap_enemy_konami_path_${i}`, 
     ? emitBytes('bitmap_enemy_bullet_pattern_data', ENEMY_BULLET_PATTERN_BYTES, 'Scripted enemy FIRE: shared 16x16 pattern', 'bitmap_enemy_bullet_pattern_data_end')
       + emitBytes('bitmap_enemy_bullet_color_data', ENEMY_BULLET_COLOR_BYTES, 'Scripted enemy FIRE: one 16-byte line-colour block per SAT slot', 'bitmap_enemy_bullet_color_data_end')
     : '';
+  const patternPackBlocks = compact ? [
+    ...compact.packs.map((pack, index) => ({
+      label: `bitmap_enemy_pattern_pack_${index}`, bytes: pack.bytes.slice(0, compact.mapBytes),
+      description: `${compact.mapBytes}-byte frame/facing map for shared pool ${pack.patternPool}`,
+    })),
+    ...compact.patternPools.map((bytes, index) => ({
+      label: `bitmap_enemy_pattern_pool_${index}`, bytes,
+      description: `${bytes.length / 32} unique 16x16 patterns, shared by rooms using subsets of this art`,
+    })),
+  ] : [];
+  const compactPatternDataAsm = !compact ? '' : `; Shared enemy planes: VRAM ${compact.originalPatternGroups} -> ${data.patternGroupCount} groups.
+bitmap_enemy_pattern_pack_ptrs:
+${compact.roomPacks.map(pack => `    DW bitmap_enemy_pattern_pack_${pack}`).join('\n')}
+bitmap_enemy_pattern_pack_sizes:
+${compact.roomPacks.map(pack => `    DW ${compact.packs[pack].patternGroups * 32}`).join('\n')}
+bitmap_enemy_pattern_pool_ptrs:
+${compact.roomPacks.map(pack => `    DW bitmap_enemy_pattern_pool_${compact.packs[pack].patternPool}`).join('\n')}
+${bankedArt ? `bitmap_enemy_pattern_pack_banks:
+    DB ${compact.roomPacks.map(pack => `bitmap_enemy_pattern_pack_${pack}_DATA_BANK`).join(',')}
+bitmap_enemy_pattern_pool_banks:
+    DB ${compact.roomPacks.map(pack => `bitmap_enemy_pattern_pool_${compact.packs[pack].patternPool}_DATA_BANK`).join(',')}
+` : patternPackBlocks.map(block => emitBytes(block.label, block.bytes, block.description)).join('')}`;
   const dataAsm = data.roomTables.map((table, index) =>
     (bankedArt ? '' : emitBytes(`bitmap_room_enemy_table_${index}`, table, `Room ${index} enemies: count + ${maxSlots} slot(s) x ${SCRIPTED_TABLE_STRIDE} (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,logicInterval${slime ? ',travelPx' : ''}${gear ? ',respawnFramesLo,respawnFramesHi' : ''}${fly8 ? ',turnPx' : ''}${scripted ? ',scriptProgram' : ''})`))
   ).join('')
@@ -2515,8 +2655,10 @@ ${data.konamiPaths!.map((path, i) => emitBytes(`bitmap_enemy_konami_path_${i}`, 
     + `bitmap_room_enemy_ptr_table:\n${data.roomTables.map((_t, index) => `    DW bitmap_room_enemy_table_${index}`).join('\n')}\n`
     + (bankedArt
       ? '; Enemy sprite pattern/colour art is emitted in a Konami MegaROM data bank below.\n'
-      : emitBytes('bitmap_enemy_sprite_patterns', data.patternBytes, `Enemy sprites: ${data.patternBytes.length / 32} pattern group(s), ${slime ? '[right, left, ceilRight, ceilLeft] variants' : '[right, left] variant pair'} per frame (mode 2 quadrants)`)
+      : (compact ? '' : emitBytes('bitmap_enemy_sprite_patterns', data.patternBytes, `Enemy sprites: ${data.patternBytes.length / 32} pattern group(s), ${slime ? '[right, left, ceilRight, ceilLeft] variants' : '[right, left] variant pair'} per frame (mode 2 quadrants)`))
         + emitBytes('bitmap_enemy_sprite_colors', data.colorBytes, `Enemy sprites: 16-byte line colour tables per unique sprite layer frame${slime ? ' (normal tables then vertical flips)' : ''}`))
+    + compactPatternDataAsm
+    + (fullBodyCollision ? emitBytes('bitmap_enemy_sprite_body_bounds', data.bodyBoundsBytes!, 'Complete sprite body: signed x/y offsets, inclusive width/height spans per source colour block; resident') : '')
     + konamiDataAsm
     + scriptedProgramAsm
     + enemyBulletDataAsm;
@@ -2528,7 +2670,7 @@ ${data.konamiPaths!.map((path, i) => emitBytes(`bitmap_enemy_konami_path_${i}`, 
         bytes: table,
         description: `Room ${index} enemy records, banked; staged into bitmap_enemy_table_buf by bitmap_load_enemies`,
       })),
-      { label: 'bitmap_enemy_sprite_patterns', bytes: data.patternBytes, description: `Enemy sprites: ${data.patternBytes.length / 32} pattern group(s), banked; read only through bitmap_copy_banked_to_vram` },
+      ...(compact ? patternPackBlocks : [{ label: 'bitmap_enemy_sprite_patterns', bytes: data.patternBytes, description: `Enemy sprites: ${data.patternBytes.length / 32} pattern group(s), banked; read only through bitmap_copy_banked_to_vram` }]),
       { label: 'bitmap_enemy_sprite_colors', bytes: data.colorBytes, description: 'Enemy sprites: 16-byte line colour tables, banked; read only through bitmap_copy_banked_to_vram' },
     ]
     : [];

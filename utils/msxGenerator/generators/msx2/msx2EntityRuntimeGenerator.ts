@@ -147,7 +147,8 @@ const truthyConfigValue = (value: unknown): boolean =>
   value === true || value === 1 || String(value).trim().toLowerCase() === 'true' || String(value).trim() === '1';
 
 export function getMsx2EnemyHazardRuntimeSlots(
-  screen: Msx2Screen4TileScreen | undefined
+  screen: Msx2Screen4TileScreen | undefined,
+  maxEntities = MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN,
 ): Msx2EnemyHazardRuntimeSlot[] {
   return (screen?.layers?.entities || [])
     .filter(entity =>
@@ -164,7 +165,7 @@ export function getMsx2EnemyHazardRuntimeSlots(
       // their own dedicated sprite slots, never enemy/hazard bodies.
       && !isMsx2CarryableEntity(entity)
     )
-    .slice(0, MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN)
+    .slice(0, maxEntities)
     .map(entity => {
       const xTile = clampTileCoordinate(entity.position?.x, 15);
       const yTile = clampTileCoordinate(entity.position?.y, 11);

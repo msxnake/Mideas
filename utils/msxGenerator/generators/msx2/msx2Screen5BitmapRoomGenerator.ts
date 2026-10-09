@@ -253,6 +253,8 @@ import {
   bitmapEnemySystemEnabled,
   buildBitmapEnemySystemAsm,
 } from './msx2BitmapEnemyGenerator';
+import { compactBitmapEnemyPatterns } from './msx2BitmapEnemyPatternCompaction';
+import { getEnemySpriteBodyBounds } from './msx2EnemyBodyCollision';
 import {
   BITMAP_MAX_PLATFORM_SLOTS,
   BitmapPlatformRoomData,
@@ -14524,6 +14526,8 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
   const spriteGrids = new Map<string, EnemySpriteGrid>();
   const patternBytes: number[] = [];
   const colorBytes: number[] = [];
+  // Physics is keyed by the complete sprite, independently of colour layers.
+  const bodyBoundsBytes: number[] = [];
   let maxFrames = 1;
   const isLegacyBitmapEnemyMovementSupported = (mode: number): boolean =>
     mode === MSX2_ENEMY_MOVEMENT_PATROL
@@ -14928,6 +14932,10 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
         }
       }
     }
+    const body = getEnemySpriteBodyBounds(grid.sprite?.size, grid.cells);
+    for (let block = record.colorOff; block < colorBytes.length / 16; block++) {
+      bodyBoundsBytes.push(...body.bytes);
+    }
     maxFrames = Math.max(maxFrames, record.frameCount);
     spriteRecords.set(key, record);
     return record;
@@ -14954,14 +14962,15 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       && entity.params?.box2 !== true
       && !isMsx2CarryableEntity(entity)
     ).map(normalizeBitmapEnemyEntity);
-    const geometry = getMsx2EnemyHazardRuntimeSlots({ layers: { entities } } as any);
+    // SCREEN 4 retains its legacy logical-entity limit. Bitmap rooms expand
+    // all bodies first and validate their actual hardware-slot requirement.
+    const geometry = getMsx2EnemyHazardRuntimeSlots({ layers: { entities } } as any, Infinity);
     const paired = geometry.map((slot, index) => ({ slot, entity: entities[index] as any }));
     const skipped = paired.filter(pair => !isBitmapEnemyMovementSupported(pair.slot.mode));
     if (skipped.length) {
       console.warn(`⚠️ MSX2 bitmap room "${room.name}": ${skipped.length} enemy slot(s) use non-patrol movement modes not yet ported to the bitmap backend; skipping them.`);
     }
     const expanded: EnemyHardwareSlot[] = [];
-    let truncatedHardwareSlots = 0;
     for (const pair of paired.filter(pair => isBitmapEnemyMovementSupported(pair.slot.mode))) {
       const logicUpdateIntervalFrames = logicUpdateIntervalFramesForEntity(pair.entity);
       if (pair.slot.mode === MSX2_ENEMY_MOVEMENT_SLIME_CEILING) slimeEnabled = true;
@@ -14979,13 +14988,20 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
         darkEyesEnabled = true;
       }
       const grid = spriteGrid(render);
+      if (pair.slot.mode === MSX2_ENEMY_MOVEMENT_SCRIPTED || pair.slot.mode === MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY) {
+        const body = getEnemySpriteBodyBounds(grid.sprite?.size, grid.cells);
+        // Bounds are logical origins, including signed visual part offsets.
+        const minX = -body.left, maxX = 256 - body.right;
+        const minY = -body.top, maxY = 192 - body.bottom;
+        pair.slot = { ...pair.slot,
+          x: clampInt(pair.slot.x, minX, maxX, minX), y: clampInt(pair.slot.y, minY, maxY, minY),
+          minX: clampInt(pair.slot.minX, minX, maxX, minX), maxX: clampInt(pair.slot.maxX, minX, maxX, maxX),
+          minY: clampInt(pair.slot.minY, minY, maxY, minY), maxY: clampInt(pair.slot.maxY, minY, maxY, maxY),
+        };
+      }
       const hardwareSlots = grid.slots.length ? grid.slots : [{ x: 0, y: 0 }];
       const contact = resolveContactForEntity(pair.entity);
       for (let spriteLayerIndex = 0; spriteLayerIndex < hardwareSlots.length; spriteLayerIndex++) {
-        if (expanded.length >= BITMAP_MAX_ENEMY_SLOTS) {
-          truncatedHardwareSlots++;
-          continue;
-        }
         const slotIndex = expanded.length;
         slotMaxFrameCounts[slotIndex] = Math.max(
           1,
@@ -15010,12 +15026,12 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
         });
       }
     }
-    if (truncatedHardwareSlots > 0) {
-      console.warn(`MSX2 bitmap room "${room.name}": ${truncatedHardwareSlots} enemy hardware sprite layer(s) exceeded the ${BITMAP_MAX_ENEMY_SLOTS}-slot bitmap enemy budget and were skipped.`);
+    if (expanded.length > BITMAP_MAX_ENEMY_SLOTS) {
+      throw new Error(`SCREEN 5 bitmap room "${room.name}": enemies need ${expanded.length} hardware sprite slots, but the V9938 only has ${BITMAP_MAX_ENEMY_SLOTS} in total, before reserving the player and bullets. Use fewer enemies or fewer colour layers.`);
     }
     maxSlots = Math.max(maxSlots, expanded.length);
     const soldierSlots = expanded.filter(entry => entry.entity?.params?.[BITMAP_PURSUER_SOLDIER_PARAM] === true).length;
-    if (soldierSlots > 0) pursuerRooms[rooms.indexOf(room)] = { soldierSlots, slotsDropped: truncatedHardwareSlots };
+    if (soldierSlots > 0) pursuerRooms[rooms.indexOf(room)] = { soldierSlots, slotsDropped: 0 };
     return expanded;
   });
   if (maxSlots === 0) return {
@@ -15140,6 +15156,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     gearEnabled,
     fly8Enabled,
     scriptedEnabled,
+    bodyBoundsBytes: scriptedEnabled || roomSlotSets.some(slots => slots.some(entry => entry.slot.mode === MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY)) ? bodyBoundsBytes : undefined,
     scriptedProgramsUseFire,
     scriptedProgramsUsePlayerBulletSense,
     scriptedBehaviorPrograms,
@@ -17224,7 +17241,7 @@ ${airAnimBodyAsm}`;
   // the banked blocks and the packer has to see it to assign a bank.
   // Alert zones: the soldier is synthesized as entity 0 of each alert room (hidden until its runtime shows it).
   const pursuerPlan = planBitmapPursuer(analysis, rooms);
-  const enemyData = buildBitmapRoomEnemyData(analysis, pursuerPlan.rooms);
+  const enemyData = compactBitmapEnemyPatterns(buildBitmapRoomEnemyData(analysis, pursuerPlan.rooms));
   const bankedDataBlocks = isKonamiMegaRom
     ? [
       ...buildBankedRleDataBlocks(allHudSeedRleChunks, `Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed mirrored on page 0/1, packed 4bpp RLE`),
@@ -17597,10 +17614,13 @@ ${bossWindowRoomBlobIndices.map((indices, roomIndex) => (indices.length === 0
   const enemyPatternVariantSummary = enemyData.patternVariantCounts?.length
     ? enemyData.patternVariantCounts.join('/')
     : String(enemyVariantsPerFrame);
+  const enemyPatternAllocationSummary = enemyData.compactPatterns
+    ? `${enemyPatternGroupCount} unique groups after sharing repeated patterns (${enemyData.compactPatterns.originalPatternGroups} before sharing)`
+    : `${enemyData.maxSlots} slot(s) x ${enemyData.maxFrames} max frame(s) x ${enemyPatternVariantSummary} variants/slot${enemyData.slimeEnabled ? ', slime ceiling flips included' : ''}`;
   if (enemyData.maxSlots > 0 && enemyPatternGroupBase + enemyPatternGroupCount > 64) {
     throw new Error(
       `SCREEN 5 bitmap-room enemies need sprite pattern groups ${enemyPatternGroupBase}..${enemyPatternGroupBase + enemyPatternGroupCount - 1} ` +
-      `(${enemyData.maxSlots} slot(s) x ${enemyData.maxFrames} max frame(s) x ${enemyPatternVariantSummary} variants/slot${enemyData.slimeEnabled ? ', slime ceiling flips included' : ''}), but the V9938 sprite pattern table only holds 64 groups ` +
+      `(${enemyPatternAllocationSummary}), but the V9938 sprite pattern table only holds 64 groups ` +
       `(player uses ${playerPatternGroups}, +${foregroundCount} foreground; optional bullets are allocated only after enemies). ` +
       `Reduce player animation frames/layers, foreground tiles, enemy frames or enemies per room.`,
     );
@@ -17817,6 +17837,13 @@ ${bossWindowRoomBlobIndices.map((indices, roomIndex) => (indices.length === 0
   const weaponSlotCount = weaponConfig.enabled ? weaponGraphicsData.slotCount : 0;
   const weaponSlotStart = (enemyBulletSatBase + enemyBulletSlots * 4 - playerSatBase) / 4;
   const shootSlotStart = weaponSlotStart + weaponSlotCount;
+  // This is the absolute SAT chain, including reserved/foreground/front-weapon
+  // slots before the player. Validate it even when SHOOT and weapons are off.
+  const playerBulletSlotCount = shootConfig.enabled ? Math.max(1, Math.min(8, Math.floor(shootConfig.maxBullets) || 3)) : 0;
+  const totalHardwareSlots = (playerSatBase - reservedSatBase) / 4 + shootSlotStart + playerBulletSlotCount;
+  if (totalHardwareSlots > 32) {
+    throw new Error(`SCREEN 5 sprite allocation needs ${totalHardwareSlots} hardware slots (${enemyData.maxSlots} enemy layers, plus player, reserved slots, bullets and other sprite systems), but the V9938 only has 32. Use fewer simultaneous enemies, colour layers or bullets.`);
+  }
   // Boss sprite bullets are part of the authored room content, so they take
   // priority over the player's optional SHOOT pattern. They reuse idle enemy
   // SAT/color slots but need an independently allocated pattern range.

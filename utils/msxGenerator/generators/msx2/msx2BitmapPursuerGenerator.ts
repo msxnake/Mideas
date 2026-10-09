@@ -144,7 +144,7 @@ function buildSoldierEntity(soldier: Msx2PursuerSoldier, room: Msx2Screen5Bitmap
       msx2_transform: { tileX: 0, tileY: 0, pixelX: 0, pixelY: 0, spawnX: 0, spawnY: 0 },
       msx2_hardware_sprite: { msx2SpriteAssetId: soldier.spriteAssetId, frame: 0, paletteSlot: 10, visible: true },
       // Bounds are the whole room width: the soldier appears wherever the player came in, including the edge columns.
-      msx2_movement: { mode: 'scripted', direction: 1, speed: 1, minX: 0, maxX: 240, minY: 0, maxY: 176, boundsUnit: 'px' },
+      msx2_movement: { mode: 'scripted', direction: 1, speed: 1, minX: 0, maxX: 240, minY: 0, maxY: 192 - MSX2_PURSUER_BODY_HEIGHT, boundsUnit: 'px' },
       msx2_ai: { behaviorAssetId: soldier.behaviorAssetId, logicUpdateIntervalFrames: soldier.logicUpdateIntervalFrames },
       msx2_collision: { hitboxW: 16, hitboxH: MSX2_PURSUER_BODY_HEIGHT, offsetX: 0, offsetY: 0, solid: false, damage: 1 },
     },
@@ -237,8 +237,9 @@ export const EMPTY_BITMAP_PURSUER_SYSTEM: Readonly<BitmapPursuerSystem> = Object
 /**
  * Checks the enemy tables that were built from `plan.rooms` and lays out the RAM / call sites.
  *
- * Throws when a room does not have room for the soldier AND its other enemies (the enemy system has 4 hardware slots and drops
- * the rest with a warning; a silently missing enemy is worse than a build error here).
+ * The room allocator reserves every soldier layer and the room's other enemies,
+ * then checks the complete SAT chain against the hardware ceiling. Retain the
+ * dropped-slot check for callers supplying legacy/incomplete enemy tables.
  */
 export function buildBitmapPursuerSystem(
   plan: BitmapPursuerPlan,
@@ -255,7 +256,7 @@ export function buildBitmapPursuerSystem(
       throw new Error(`Alert zone in "${alert.roomName}": the soldier did not reach the enemy table of the room (internal error).`);
     }
     if (info.slotsDropped > 0) {
-      throw new Error(`Alert zone in "${alert.roomName}": the soldier needs ${info.soldierSlots} of the ${BITMAP_MAX_ENEMY_SLOTS} enemy hardware sprites of a room and ${info.slotsDropped} more sprite(s) of the other enemies would not fit. Remove an enemy from the room or use a simpler soldier sprite.`);
+      throw new Error(`Alert zone in "${alert.roomName}": the enemy table contains only ${info.soldierSlots} soldier layer(s) and omits ${info.slotsDropped} required hardware sprite layer(s). All soldier and enemy layers must fit together with the player and bullets in the ${BITMAP_MAX_ENEMY_SLOTS} hardware slots.`);
     }
     if (soldierSlots !== 0 && soldierSlots !== info.soldierSlots) {
       throw new Error(`Alert zone in "${alert.roomName}": the soldier takes ${info.soldierSlots} slot(s) here but ${soldierSlots} in another room (internal error).`);
