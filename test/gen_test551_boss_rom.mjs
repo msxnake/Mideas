@@ -121,7 +121,6 @@ const wanted = [
   'bitmap_boss_draw_cells',
   'bitmap_boss_launch_cmd',
   'bitmap_boss_restore_strips',
-  'bitmap_boss_draw_animated',
   'bitmap_boss_pick_cell_list',
   'boss_cmd_buf',
   'boss_x',
