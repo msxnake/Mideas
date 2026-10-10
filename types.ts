@@ -4649,6 +4649,7 @@ export enum EditorType {
   EnemyLibrary = "EnemyLibrary",
   Boss = "Boss",
   WorldView = "WorldView",
+  SpriteView = "SpriteView",
   GameFlow = "GameFlow",
   Dialogue = "Dialogue",
   Msx2Dialogue = "Msx2Dialogue",

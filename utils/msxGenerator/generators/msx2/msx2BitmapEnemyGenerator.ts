@@ -91,13 +91,13 @@ export const BITMAP_ENEMY_BULLET_SLOTS = 2;
 /** First-cut enemy projectile speed, in logical pixels per video frame. */
 export const BITMAP_ENEMY_BULLET_SPEED = 3;
 /** Built-in 16x16 mode-2 projectile: a small centred diamond in four quadrants. */
-const ENEMY_BULLET_PATTERN_BYTES = [
+export const ENEMY_BULLET_PATTERN_BYTES = [
   0x00, 0x00, 0x00, 0x00, 0x18, 0x00, 0x3C, 0x00,
   0x7E, 0x00, 0x3C, 0x00, 0x18, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
-const ENEMY_BULLET_COLOR_BYTES = Array.from({ length: 16 }, () => 0xF1);
+export const ENEMY_BULLET_COLOR_BYTES = Array.from({ length: 16 }, () => 0xF1);
 
 /** RAM pool stride actually used by the generated runtime for this project.
  *  One term per optional movement engine: enumerating the combinations instead

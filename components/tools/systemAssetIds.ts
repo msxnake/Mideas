@@ -15,6 +15,8 @@ export const COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID = "COMPONENT_DEF_EDITOR_SYSTEM
 export const ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID = "ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET";
 /** System asset ID for the World View. */
 export const WORLD_VIEW_SYSTEM_ASSET_ID = "WORLD_VIEW_SYSTEM_ASSET";
+/** System asset ID for the SCREEN 5 sprite pattern inspector. */
+export const SPRITE_VIEW_SYSTEM_ASSET_ID = "SPRITE_VIEW_SYSTEM_ASSET";
 /** System asset ID for the Game Flow editor. */
 export const GAME_FLOW_SYSTEM_ASSET_ID = "GAME_FLOW_SYSTEM_ASSET_ID";
 /** System asset ID for the Global Variables editor. */

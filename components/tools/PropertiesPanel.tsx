@@ -2274,6 +2274,16 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           'Open rooms directly when a visual or collision fix is needed.',
         ],
       },
+      [EditorType.SpriteView]: {
+        title: 'Sprite View Help',
+        summary: 'Inspect MSX2 SCREEN 4 / SCREEN 5 sprite patterns in 16x16 hardware cells.',
+        tips: [
+          'Choose a World to see its general player bank, including animation states and mirrored patterns.',
+          'All sprite assets shows every authored frame and color layer.',
+          'Choose a Screen from the selected World to see its dynamic sprites together with the general bank and check the combined VRAM usage.',
+          'The VRAM footer counts only general pattern bytes; screen-specific uploads use part of the remaining space.',
+        ],
+      },
       [EditorType.Code]: {
         title: 'Code Editor Help',
         summary: 'Edit ASM/code assets that feed exports or custom runtime hooks.',

@@ -30,7 +30,7 @@ import { EDITABLE_CHAR_CODES_SUBSET } from './utils/msxFontRenderer';
 import { Msx2EnemyBehaviorAsset } from '../utils/msx2EnemyBehavior';
 import { buildDetailedMsx2PlayerDocument, mergeMsx2PlayerUpdate } from '../utils/msx2PlayerDocument';
 import { getUsedMsx2SpritePaletteSlots, reconcileMsx2SpriteIntoProjectPalette } from '../utils/msx2PaletteCompatibility';
-import { TILE_BANKS_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './tools/systemAssetIds';
+import { TILE_BANKS_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, SPRITE_VIEW_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './tools/systemAssetIds';
 import { StatusBar } from './layout/StatusBar';
 import { Msx2MemoryBudgetIndicator } from './layout/Msx2MemoryBudgetIndicator';
 import { Toolbar } from './layout/Toolbar';
@@ -61,6 +61,7 @@ const ScreenEditor = deferredPanel(() => import('./editors/ScreenEditor').then(m
 const CodeEditor = deferredPanel(() => import('./editors/CodeEditor').then(module => ({ default: module.CodeEditor })));
 const WorldMapEditor = deferredPanel(() => import('./editors/WorldMapEditor').then(module => ({ default: module.WorldMapEditor })));
 const WorldViewEditor = deferredPanel(() => import('./editors/WorldViewEditor').then(module => ({ default: module.WorldViewEditor })));
+const SpriteViewEditor = deferredPanel(() => import('./editors/SpriteViewEditor').then(module => ({ default: module.SpriteViewEditor })));
 const SoundEditor = deferredPanel(() => import('./editors/SoundEditor').then(module => ({ default: module.SoundEditor })));
 const TrackerComposer = deferredPanel(() => import('./editors/TrackerComposer').then(module => ({ default: module.TrackerComposer })));
 const TileBankEditor = deferredPanel(() => import('./editors/TileBankEditor').then(module => ({ default: module.TileBankEditor })));
@@ -501,7 +502,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
 
 
 
-  const nonAssetEditorTypes = [EditorType.HelpDocs, EditorType.WorldView, EditorType.PngMsxChars, EditorType.EnemyLibrary];
+  const nonAssetEditorTypes = [EditorType.HelpDocs, EditorType.WorldView, EditorType.SpriteView, EditorType.PngMsxChars, EditorType.EnemyLibrary];
   const isUndoDisabled = history.undoStack.length === 0 || nonAssetEditorTypes.includes(currentEditor);
   const isRedoDisabled = history.redoStack.length === 0 || nonAssetEditorTypes.includes(currentEditor);
 
@@ -1292,6 +1293,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         onOpenMsx2PaletteLibrary={() => setIsMsx2PaletteLibraryOpen(true)}
         onOpenEnemyLibrary={() => onSelectAsset(null, EditorType.EnemyLibrary)}
         onOpenWorldView={() => onSelectAsset(WORLD_VIEW_SYSTEM_ASSET_ID, EditorType.WorldView)}
+        onOpenSpriteView={() => onSelectAsset(SPRITE_VIEW_SYSTEM_ASSET_ID, EditorType.SpriteView)}
         onOpenPngMsxTool={() => {
           onSelectAsset(null, EditorType.PngMsxChars);
           setStatusBarMessage('Opened MSX1 PNG a MSX conversion tool.');
@@ -1527,6 +1529,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           {currentEditor === EditorType.BehaviorEditor && activeAsset?.type === 'behavior' && ( <BehaviorEditor behaviorScript={activeAsset.data as BehaviorScript} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} userSnippets={userSnippets} onSnippetSelect={handleSnippetSelected} onAddSnippet={() => handleOpenSnippetEditor(null)} onEditSnippet={handleOpenSnippetEditor} onDeleteSnippet={handleDeleteSnippet} isSnippetsPanelEnabled={snippetsEnabled} /> )}
           {currentEditor === EditorType.WorldMap && activeAsset?.type === 'worldmap' && ( <WorldMapEditor worldMapGraph={activeAsset.data as WorldMapGraph} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} availableScreenMaps={assets.filter(a => a.type === 'screenmap' || a.type === 'msx2screen' || a.type === 'msx2bitmaproom').map(a => a.data as ScreenMap | Msx2Screen4TileScreen | Msx2Screen5BitmapRoom)} tileset={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} currentScreenMode={currentScreenMode} dataOutputFormat={dataOutputFormat} paletteAssets={assets.filter(asset => asset.type === 'palette') as Array<{ id: string; name: string; data?: PaletteAsset }>} onNavigateToAsset={onSelectAsset} onShowContextMenu={showContextMenu} setStatusBarMessage={setStatusBarMessage} />)}
           {currentEditor === EditorType.WorldView && ( <WorldViewEditor allWorldMapGraphs={allWorldMapGraphs} allScreenMaps={assets.filter(a => a.type === 'screenmap' || a.type === 'msx2screen' || a.type === 'msx2bitmaproom').map(a => a.data as ScreenMap | Msx2Screen4TileScreen | Msx2Screen5BitmapRoom)} allTiles={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} currentScreenMode={currentScreenMode} paletteAssets={assets.filter(asset => asset.type === 'palette') as Array<{ id: string; name: string; data?: PaletteAsset }>} /> )}
+          {currentEditor === EditorType.SpriteView && ( <SpriteViewEditor assets={assets} onNavigateToAsset={onSelectAsset} /> )}
           {currentEditor === EditorType.Sound && activeAsset?.type === 'sound' && ( <SoundEditor soundData={activeAsset.data as PSGSoundData} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}/>)}
           {currentEditor === EditorType.Track && activeAsset?.type === 'track' && ( <TrackerComposer songData={activeAsset.data as TrackerSongData} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} onCreateDualChipCopy={(dualSong) => {
             const id = `track_dual_${Date.now()}`;

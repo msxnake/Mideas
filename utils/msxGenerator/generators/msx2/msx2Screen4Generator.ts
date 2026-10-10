@@ -3464,7 +3464,7 @@ function reverseSpritePatternByte(value: number): number {
   return result;
 }
 
-function mirrorHardwareSpritePatternHorizontally(pattern: number[]): number[] {
+export function mirrorHardwareSpritePatternHorizontally(pattern: number[]): number[] {
   const topLeft = pattern.slice(0, 8);
   const bottomLeft = pattern.slice(8, 16);
   const topRight = pattern.slice(16, 24);
@@ -9755,6 +9755,84 @@ ${layers.map((layer, index) => formatBytes(`msx2_hw_sprite_colors_${index}`, lay
 
 ${formatBytes('msx2_hw_sprite_attrs', attributes, `${layers.length} player hardware sprite(s), ${enemyVisibleSlotCount} enemy/hazard instance slots x ${enemyHardwareLayerCount} color layer(s), ${playerBulletSlotCount} player bullet slot, ${MSX2_ENEMY_BULLET_HARDWARE_SLOTS} enemy bullet slot${hideHud ? '' : ', 3 HUD life slots'}; next Y=208 terminates the SAT`)}
 ${playerFrameColorsTable}${screenEnemyPackDataAsm}`;
+}
+
+/** Read-only view of the exact SCREEN 4 init payload; never loads per-screen enemy packs. */
+export function inspectScreen4WorldSpritePatterns(analysis: ProjectAnalysis, worldId: string, screenId?: string) {
+  const world = resolveWorldByAssetId(analysis, worldId);
+  const entryRoom = resolveTileScreenByAssetId(analysis, resolveWorldStartScreenAssetId(analysis, worldId));
+  if (!world || !entryRoom) return undefined;
+  const referenced = collectReferencedTileScreens(analysis);
+  const worldScreens = (world.nodes || []).map((node: any) => resolveTileScreenByAssetId(analysis, node.screenAssetId || node.screenId)).filter(Boolean);
+  const independentPreview = !worldScreens.some((screen: Msx2Screen4TileScreen) => referenced.includes(screen));
+  const viewAnalysis = independentPreview ? {
+    ...analysis,
+    msx2GameFlows: [{ purpose: 'screen4-runtime', nodes: [{ type: 'WorldLink', worldAssetId: worldId }], connections: [] }] as any,
+  } : analysis;
+  const tileScreens = collectReferencedTileScreens(viewAnalysis);
+  const bootRoom = getPrimaryRuntimeTileScreen(viewAnalysis)!;
+  const sprite = getHardwareSpriteSource(viewAnalysis);
+  const palette = resolveScreen4Palette(viewAnalysis);
+  const patterns: Array<{
+    label: string; assetId?: string; group: number; frame: number; mirrored: boolean;
+    x: number; y: number; layer: number; pattern: number[]; colors: number[]; dynamic?: boolean;
+  }> = [];
+  let inspectionError: string | undefined;
+  try {
+    // Read the generator's payload so frame caps, mirrors, optional assets and
+    // holes for dynamic packs retain their actual physical offsets.
+    const data = buildHardwareSpriteDataAsm(viewAnalysis, { pushBoxEnabled: usesMsx2Box2(viewAnalysis, tileScreens), tileScreens });
+    const readBytes = (label: string) => {
+      const body = data.match(new RegExp(`^${label}:\\s*\\n((?:[ \\t]*DB[^\\n]*\\n)+)`, 'mi'))?.[1] || '';
+      return Array.from(body.matchAll(/#([0-9A-F]{2})/gi), match => parseInt(match[1], 16));
+    };
+    const blocks = data.split('msx2_hw_sprite_patterns:')[1]?.split('msx2_hw_sprite_patterns_end:')[0] || '';
+    const layers = sprite ? clampHardwareSpriteCount(buildHardwareSpriteLayers(sprite, getHardwareSpriteRuntimeSettings(viewAnalysis, sprite).color)).slice(0, MSX2_MAX_PLAYER_HARDWARE_LAYERS) : [];
+    const spriteAssetId = (source: Msx2Sprite | undefined) => source ? (viewAnalysis.assets || []).find(asset => asset.type === 'msx2sprite' && (asset.data === source || (asset.data as Msx2Sprite)?.id === source.id))?.id : undefined;
+    let group = 0;
+    let enemyReserveBase = -1;
+    for (const match of blocks.matchAll(/^(\w+):[ \t]*\r?\n/gm)) {
+      const label = match[1];
+      const bytes = readBytes(label);
+      const count = bytes.length / 32;
+      if (label === 'msx2_hw_enemy_sprite_pattern_reserve') { enemyReserveBase = group; group += count; continue; }
+      const player = label.match(/^msx2_hw_sprite_frame_(\d+)_(mirror_)?pattern_(\d+)$/);
+      const frame = Number(player?.[1] || label.match(/_frame_(\d+)_/)?.[1] || 0);
+      const layerIndex = Number(player?.[3] || 0);
+      const layer = layers[layerIndex];
+      const enemy = label.startsWith('msx2_hw_enemy_sprite_');
+      const source = player ? sprite : enemy ? getEnemyHardwareSpriteSource(viewAnalysis) : label === 'msx2_hw_player_bullet_pattern' && usesControl2Players(viewAnalysis) ? getPongBallHardwareSpriteSource(viewAnalysis) : undefined;
+      const colorLabel = player ? (readBytes(`msx2_hw_player_frame_${frame}_colors_${layerIndex}`).length ? `msx2_hw_player_frame_${frame}_colors_${layerIndex}` : `msx2_hw_sprite_colors_${layerIndex}`)
+        : enemy ? 'msx2_hw_enemy_sprite_colors_0' : label.replace(/_pattern$/, '_colors');
+      const name = player ? sprite?.name || 'Player' : enemy ? `${source?.name || 'Enemy'} · shared bank`
+        : label === 'msx2_hw_player_bullet_pattern' ? usesControl2Players(viewAnalysis) ? 'Pong ball' : 'Player shot'
+        : label === 'msx2_hw_enemy_bullet_pattern' ? 'Enemy shot / HUD life marker'
+        : label === 'msx2_hw_push_box_sprite_pattern' ? 'Moving push box' : 'Carryable object';
+      for (let index = 0; index < count; index++) {
+        patterns.push({ label: name, assetId: spriteAssetId(source), group: group++, frame,
+          mirrored: label.includes('_mirror_'), x: layer?.xOffset || 0, y: layer?.yOffset || 0,
+          layer: player ? layers.slice(0, layerIndex).filter(previous => previous.xOffset === layer?.xOffset && previous.yOffset === layer?.yOffset).length : 0,
+          pattern: bytes.slice(index * 32, index * 32 + 32), colors: readBytes(colorLabel).slice(0, 16),
+        });
+      }
+    }
+    if (screenId && enemyReserveBase >= 0) {
+      const screen = resolveTileScreenByAssetId(viewAnalysis, screenId) || tileScreens.find(candidate => candidate.id === screenId);
+      const pack = buildMsx2ScreenEnemySpritePacks(viewAnalysis, tileScreens).find(candidate => candidate.screenIndex === tileScreens.indexOf(screen!));
+      if (pack?.assetId) {
+        const sprite = resolveMsx2SpriteById(viewAnalysis, pack.spriteId!);
+        for (let i = 0; i < pack.patternBytes.length / 32; i++) patterns.push({
+          label: pack.assetName || 'Screen enemy', assetId: spriteAssetId(sprite), group: enemyReserveBase + i,
+          frame: Math.floor(i / 2) % 2, mirrored: i >= 4, x: 0, y: 0, layer: i % 2,
+          pattern: pack.patternBytes.slice(i * 32, i * 32 + 32), colors: pack.colorBytes.slice((i % 2) * 16, (i % 2 + 1) * 16), dynamic: true,
+        });
+      }
+    }
+  } catch (error) {
+    inspectionError = error instanceof Error ? error.message : String(error);
+  }
+  return { patterns, palette, aliases: [] as string[], entryRoomName: entryRoom.name, bootRoomName: bootRoom.name,
+    independentPreview, sharedBank: bootRoom !== entryRoom, inspectionError };
 }
 
 function defaultTargetNodeId(connections: GameFlowConnection[] | undefined, nodeId: string): string | undefined {

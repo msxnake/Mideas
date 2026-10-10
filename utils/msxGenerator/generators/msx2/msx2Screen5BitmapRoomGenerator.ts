@@ -246,6 +246,8 @@ import {
   BITMAP_MAX_ENEMY_FRAMES,
   BITMAP_MAX_ENEMY_SLOTS,
   BITMAP_ENEMY_BULLET_SLOTS,
+  ENEMY_BULLET_PATTERN_BYTES,
+  ENEMY_BULLET_COLOR_BYTES,
   BITMAP_ENEMY_POOL_STRIDE,
   BitmapEnemyRoomData,
   bitmapEnemyPoolStride,
@@ -344,6 +346,9 @@ interface Msx2BitmapRoomConfig {
   romMode: MSXRomMode;
   targetFormat: MSXMapperFormat;
   autoMegaROM?: boolean;
+  /** Private read-only inspection path: return initial optional sprite uploads. */
+  spriteViewOnly?: boolean;
+  spriteViewScreenId?: string;
 }
 
 const SCREEN_WIDTH = 256;
@@ -15590,6 +15595,9 @@ function buildSpriteTables(sprite: Msx2Sprite | undefined): { colors: number[]; 
  * single combined pattern/colour bank serves every state.
  */
 interface BitmapStateAnimation {
+  /** Source asset metadata for the read-only pattern inspector. */
+  spriteId: string;
+  spriteName: string;
   state: string;          // State ID linked in Player Config / Graphics & Render
   animId: number;         // runtime id written to player_anim_state (1..K; 0 = base)
   frameBase: number;      // first frame index within the combined non-mirror bank
@@ -15742,6 +15750,8 @@ function resolveBitmapRoomStateAnimations(
     // The alias points back at the base frames and appends zero bytes.
     if (base.sprite && (sprite.id === base.sprite.id || sprite.name === base.sprite.name)) {
       banks.push({
+        spriteId: sprite.id,
+        spriteName: sprite.name,
         state,
         animId,
         frameBase: 0,
@@ -15758,6 +15768,8 @@ function resolveBitmapRoomStateAnimations(
     const bank = extractStateSpriteBank(sprite, base.cells, base.colorLayerCount, base.authoredFacing);
     if (!bank.ok) continue;
     banks.push({
+      spriteId: sprite.id,
+      spriteName: sprite.name,
       state,
       animId,
       frameBase: frameCursor,
@@ -15772,6 +15784,102 @@ function resolveBitmapRoomStateAnimations(
     animId += 1;
   }
   return banks;
+}
+
+/**
+ * Read-only Sprite View adapter. Uses the exact player-bank builders used by
+ * init_hardware_sprite_tables; no ASM is emitted and no runtime contract changes.
+ * Room uploads (enemies, foreground, platforms, etc.) are deliberately excluded.
+ */
+export function inspectScreen5WorldSpritePatterns(analysis: ProjectAnalysis, worldId: string, screenId?: string) {
+  const world = collectBitmapWorldRooms(analysis);
+  const selected = world.worlds.find(plan => plan.id === worldId);
+  if (!selected) return undefined;
+  // The compiler resolves one shared player bank from the boot world's start room.
+  const bootRoom = world.rooms[world.startIndex];
+  const entryRoom = world.allRooms[selected.startIndex];
+  if (!bootRoom || !entryRoom) return undefined;
+  const sprite = resolveBitmapRoomPlayerSprite(analysis, bootRoom);
+  const base = buildSpriteTables(sprite);
+  const states = resolveBitmapRoomStateAnimations(analysis, bootRoom, {
+    sprite, frameCount: base.frameCount, delayFrames: base.delayFrames,
+    cells: base.cells, colorLayerCount: base.colorLayerCount, authoredFacing: base.authoredFacing,
+  });
+  const assetIdOfSprite = (spriteId: string | undefined) => (analysis.assets || []).find(asset =>
+    asset.type === 'msx2sprite' && (asset.id === spriteId || (asset.data as Msx2Sprite)?.id === spriteId))?.id;
+  const clips = [
+    { label: sprite?.name || 'Player fallback', assetId: assetIdOfSprite(sprite?.id), frames: base.frameCount,
+      patterns: base.basePatternsNoMirror, mirrors: base.basePatternsMirror, colors: base.colors },
+    ...states.filter(bank => !bank.aliasOfBase).map(bank => ({
+      label: `${bank.spriteName} · ${bank.state}`, assetId: assetIdOfSprite(bank.spriteId), frames: bank.frameCount, patterns: bank.patternsNoMirror,
+      mirrors: bank.patternsMirror, colors: bank.colors,
+    })),
+  ];
+  const playerPatterns = [false, true].flatMap(mirrored => clips.flatMap(clip => {
+    const bytes = mirrored ? clip.mirrors : clip.patterns;
+    return Array.from({ length: bytes.length / 32 }, (_, index) => {
+      const slot = index % base.layerCount;
+      const frame = Math.floor(index / base.layerCount);
+      const cell = base.spriteOffsets[slot] || { x: 0, y: 0 };
+      return {
+        label: clip.label, assetId: clip.assetId, frame, mirrored, x: cell.x, y: cell.y,
+        layer: slot % base.colorLayerCount,
+        pattern: bytes.slice(index * 32, index * 32 + 32),
+        colors: clip.colors.slice(index * 16, index * 16 + 16),
+      };
+    });
+  }));
+  const player = resolveBitmapRoomPlayer(analysis, bootRoom);
+  const hasInitialEffects = getMsx2ShootConfigFromPlayerEntity(player).enabled
+    || bitmapDestroyTileEnabled(getMsx2DestroyTileConfigFromPlayerEntity(player))
+    || bitmapCrumbleCellCount(collectBitmapCrumbleCells(world.allRooms)) > 0;
+  let inspectionError: string | undefined;
+  let effects: Array<ReturnType<typeof readInitialSpritePatternUpload>> = [];
+  let dynamicPatterns: typeof playerPatterns = [];
+  if (hasInitialEffects || screenId) {
+    try {
+      const inspected = JSON.parse(generateUnitedFiles('SpriteView', analysis, {
+        screenMode: 'SCREEN 4 (Graphics II)', romMode: 'megarom', targetFormat: 'konami', spriteViewOnly: true,
+        spriteViewScreenId: screenId,
+      }));
+      effects = screenId ? inspected.effects : inspected;
+      dynamicPatterns = screenId ? inspected.patterns : [];
+    } catch (error) {
+      inspectionError = error instanceof Error ? error.message : String(error);
+    }
+  }
+  const occupied = new Map(playerPatterns.map((pattern, group) => [group, { ...pattern, group }]));
+  for (const effect of effects) {
+    if (effect) occupied.set(effect.group, { ...effect, assetId: undefined });
+  }
+  for (const pattern of dynamicPatterns as any[]) occupied.set(pattern.group, pattern);
+  return {
+    inspectionError,
+    patterns: Array.from(occupied.values()).sort((a, b) => a.group - b.group),
+    bootRoomName: bootRoom.name, entryRoomName: entryRoom.name,
+    sharedBank: world.worlds.length > 1,
+    palette: resolveWorldPalette(analysis, selected.paletteAssetId, entryRoom.palette),
+    aliases: states.filter(bank => bank.aliasOfBase).map(bank => bank.state),
+  };
+}
+
+/** Read the exact existing init upload and its data, including generated fallbacks. */
+function readInitialSpritePatternUpload(label: string, upload: string, data: string, patternLabel: string, colorLabel: string) {
+  const destination = upload.match(new RegExp(`ld hl, ${patternLabel}\\s+ld de, #([0-9A-F]+)`, 'i'));
+  if (!destination) return undefined; // disabled skill, or SHOOT borrows a player group at runtime
+  const readBytes = (name: string): number[] => {
+    const block = data.split(`${name}:`)[1]?.split(`${name}_end:`)[0] || '';
+    return Array.from(block.matchAll(/^\s*DB\s+([^\r\n;]+)/gim)).flatMap(match =>
+      match[1].split(',').map(byte => byte.trim().startsWith('#')
+        ? parseInt(byte.trim().slice(1), 16) : Number(byte.trim())));
+  };
+  const pattern = readBytes(patternLabel);
+  const colors = readBytes(colorLabel);
+  if (pattern.length !== 32 || colors.length !== 16) throw new Error(`Sprite View: invalid ${label} pattern data.`);
+  return {
+    label, group: (parseInt(destination[1], 16) - 0xF800) / 32,
+    frame: 0, mirrored: false, x: 0, y: 0, layer: 0, pattern, colors,
+  };
 }
 
 const COLLISION_COLS = 16;
@@ -18362,6 +18470,120 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
 `
       : ''}${perceptionPauseGateAsm}`,
   });
+  // Read-only early exit after the REAL shared/dynamic pattern allocator and
+  // init data builders. Normal exports continue unchanged through this point.
+  if (config.spriteViewOnly) {
+    const effects = [
+      readInitialSpritePatternUpload('Player shot', shootBulletInitUpload, shootBulletDataTables, 'bitmap_bullet_pattern_data', 'bitmap_bullet_color_data'),
+      readInitialSpritePatternUpload('Destroy tile debris', destroyTileInitUpload, destroyTileDataAsm, 'bitmap_destroy_chip_pattern_data', 'bitmap_destroy_chip_color_data'),
+      readInitialSpritePatternUpload('Crumbling floor debris', crumbleSystem.initUploadAsm, crumbleSystem.dataAsm, 'bitmap_crumble_chip_pattern_data', 'bitmap_crumble_chip_color_data'),
+    ].filter(Boolean);
+    if (!config.spriteViewScreenId) return JSON.stringify(effects);
+    const roomIndex = rooms.findIndex(candidate => candidate.id === config.spriteViewScreenId);
+    if (roomIndex < 0) throw new Error('The selected screen is outside the compiled world.');
+    const patterns = new Map<number, {
+      label: string; group: number; frame: number; mirrored: boolean; x: number; y: number;
+      layer: number; pattern: number[]; colors: number[]; dynamic: boolean; reserved: boolean;
+    }>();
+    const add = (label: string, group: number, bytes: number[], colors: number[], frame = 0, mirrored = false, x = 0, y = 0, layer = 0, reserved = false) => {
+      patterns.set(group, { label, group, frame, mirrored, x, y, layer,
+        pattern: Array.from({ length: 32 }, (_, i) => bytes[i] || 0),
+        colors: Array.from({ length: 16 }, (_, i) => colors[i] ?? 15), dynamic: true, reserved });
+    };
+    const reserve = (label: string, base: number, count: number) => {
+      for (let i = 0; i < count; i++) add(`${label} · reserved`, base + i, [], [], 0, false, 0, 0, 0, true);
+    };
+    const fromBank = (label: string, group: number, data: { patternBytes: number[]; colorBytes: number[] }, patternOffset: number, colorOffset: number, frame = 0, mirrored = false, x = 0, y = 0) =>
+      add(label, group, data.patternBytes.slice(patternOffset * 32, patternOffset * 32 + 32), data.colorBytes.slice(colorOffset * 16, colorOffset * 16 + 16), frame, mirrored, x, y);
+    // Keep the allocator's global cache capacities visible when this room uses
+    // fewer frames/slots. Reserved cells are not extra authored sprite frames.
+    const fgTable = foregroundData.roomTables[roomIndex] || [];
+    for (let slot = 0; slot < foregroundCount; slot++) {
+      const offset = fgTable[slot * 3 + 2];
+      if (offset !== undefined && offset !== 255) fromBank('Foreground', foregroundPatternGroupBase + slot, foregroundData, offset, offset);
+    }
+    const enemyTable = enemyData.roomTables[roomIndex] || [];
+    if (roomHasEnemy[roomIndex]) {
+      reserve('Enemy cache', enemyPatternGroupBase, enemyPatternGroupCount);
+      const compact = enemyData.compactPatterns;
+      if (compact) {
+        const pack = compact.packs[compact.roomPacks[roomIndex]];
+        for (let i = 0; i < pack.patternGroups; i++) add('Enemies · shared pattern', enemyPatternGroupBase + i, pack.bytes.slice(compact.mapBytes + i * 32, compact.mapBytes + (i + 1) * 32), []);
+        const stride = 22 + (enemyData.slimeEnabled ? 1 : 0) + (enemyData.gearEnabled ? 2 : 0) + (enemyData.fly8Enabled ? 1 : 0) + (enemyData.scriptedEnabled ? 1 : 0);
+        const colored = new Set<number>();
+        for (let slot = 0; slot < enemyTable[0]; slot++) {
+          const record = 1 + slot * stride;
+          const variants = enemyData.patternVariantCounts?.[slot] || bitmapEnemyVariantsPerFrame(enemyData);
+          for (let frame = 0; frame < enemyTable[record + 10]; frame++) for (let variant = 0; variant < variants; variant++) {
+            const index = pack.bytes[compact.slotMapOffsets[slot] + frame * variants + variant];
+            if (colored.has(index)) continue;
+            colored.add(index);
+            const entry = patterns.get(enemyPatternGroupBase + index)!;
+            const colorOffset = enemyTable[record + 9] + frame + (variant >= 2 ? enemyTable[record + 10] : 0);
+            entry.colors = enemyData.colorBytes.slice(colorOffset * 16, (colorOffset + 1) * 16);
+            entry.frame = frame; entry.mirrored = Boolean(variant & 1);
+            entry.x = enemyTable[record + 13]; entry.y = enemyTable[record + 14];
+          }
+        }
+      } else {
+        const stride = 22 + (enemyData.slimeEnabled ? 1 : 0) + (enemyData.gearEnabled ? 2 : 0) + (enemyData.fly8Enabled ? 1 : 0) + (enemyData.scriptedEnabled ? 1 : 0);
+        const sourceVariants = bitmapEnemyVariantsPerFrame(enemyData);
+        for (let slot = 0; slot < enemyTable[0]; slot++) {
+          const record = 1 + slot * stride;
+          const variants = enemyData.patternVariantCounts?.[slot] || sourceVariants;
+          const offset = enemyData.patternGroupOffsets?.[slot] ?? slot * enemyData.maxFrames * sourceVariants;
+          for (let frame = 0; frame < enemyTable[record + 10]; frame++) for (let variant = 0; variant < variants; variant++) {
+            const flipped = variant >= 2;
+            fromBank(`Enemy slot ${slot + 1}${flipped ? ' · ceiling' : ''}`, enemyPatternGroupBase + offset + frame * variants + variant, enemyData,
+              enemyTable[record + 8] + frame * sourceVariants + variant,
+              enemyTable[record + 9] + frame + (flipped ? enemyTable[record + 10] : 0), frame, Boolean(variant & 1), enemyTable[record + 13], enemyTable[record + 14]);
+          }
+        }
+      }
+    }
+    const platformTable = platformData.roomTables[roomIndex] || [];
+    if (roomHasPlatform[roomIndex]) {
+      reserve('Platform cache', platformPatternGroupBase, platformPatternGroupCount);
+      for (let slot = 0; slot < platformTable[0]; slot++) {
+        const record = 1 + slot * 11;
+        for (let cell = 0; cell < platformTable[record + 8]; cell++) fromBank(`Platform ${slot + 1}`, platformPatternGroupBase + slot * platformData.maxCells + cell, platformData, platformTable[record + 9] + cell, platformTable[record + 10] + cell, 0, false, cell * 16);
+      }
+    }
+    const carryTable = carryAndThrowData.roomTables[roomIndex] || [];
+    if (roomHasCarry[roomIndex]) {
+      reserve('Carryable cache', carryPatternGroupBase, carryPatternGroupCount);
+      for (let slot = 0; slot < carryTable[0]; slot++) {
+        const offset = carryTable[1 + slot * 6 + 2];
+        fromBank(`Carryable ${slot + 1}`, carryPatternGroupBase + slot, carryAndThrowData, offset, offset);
+      }
+    }
+    const turretTable = turretData.roomTables[roomIndex] || [];
+    if (roomHasTurret[roomIndex]) {
+      reserve('Turret cache', turretPatternGroupBase, turretPatternGroupCount);
+      for (let slot = 0; slot < turretTable[0]; slot++) {
+        const record = 1 + slot * 12;
+        fromBank(`Turret ${slot + 1} · body`, turretPatternGroupBase + slot * 2, turretData, turretTable[record + 2], turretTable[record + 9]);
+        fromBank(`Turret ${slot + 1} · aim`, turretPatternGroupBase + slot * 2 + 1, turretData, turretTable[record + 3], turretTable[record + 10]);
+      }
+      add('Turret shot', turretPatternGroupBase + turretData.maxSlots * 2, turretData.bulletPatternBytes, turretData.bulletColorBytes);
+    }
+    if (roomHasShaft[roomIndex]) {
+      reserve('Shaft cabin cache', shaftPatternGroupBase, shaftHardwareSlots);
+      shaftData.shafts.forEach((shaft, slot) => {
+        if (shaft.path.includes(roomIndex)) for (let cell = 0; cell < shaft.widthCells; cell++) fromBank(`Shaft cabin ${slot + 1}`, shaftPatternGroupBase + slot * shaftCabinCells + cell, shaftData, shaft.patOff + cell, shaft.colorOff + cell, 0, false, cell * 16);
+      });
+    }
+    if (enemyBulletSlots) add('Scripted enemy shot', enemyBulletPatternGroup, ENEMY_BULLET_PATTERN_BYTES, ENEMY_BULLET_COLOR_BYTES);
+    if (roomHasBoss[roomIndex] && bossBulletPatternGroups) {
+      reserve('Boss projectile cache', bossBulletPatternGroup, bossBulletPatternGroups);
+      bossBulletSprite?.frames.forEach((frame, i) => add('Boss projectile', bossBulletPatternGroup + i, frame.patternBytes, frame.colorBytes, i));
+    }
+    if (weaponSlotCount) {
+      reserve('Player weapon cache', weaponPatternGroupBase, weaponSlotCount);
+      weaponGraphicsData.graphics.find(graphic => graphic.frames.length)?.frames[0]?.right.forEach((layer, i) => add('Player weapon · first frame', weaponPatternGroupBase + i, layer.pattern, layer.colors, 0, false, layer.dx, layer.dy));
+    }
+    return JSON.stringify({ effects, patterns: Array.from(patterns.values()) });
+  }
   hudLinkedRamCursor += crumbleSystem.ramBytes;
   markRam("Suelo que se desmorona");
   // GRASS SWAY: cosmetic tile swap under the player body. Built here for the same

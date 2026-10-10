@@ -114,6 +114,7 @@ interface ToolbarProps {
   onOpenEnemyLibrary: () => void;
   /** Callback to open the world view editor. */
   onOpenWorldView: () => void;
+  onOpenSpriteView: () => void;
   /** Callback to open the PNG to MSX conversion tool. */
   onOpenPngMsxTool: () => void;
   /** @deprecated OBSOLETO - Callback to open the data compression modal. */
@@ -273,7 +274,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onOpenThemeSettings, dataOutputFormat, setDataOutputFormat,
   autosaveEnabled, setAutosaveEnabled, defaultExportRomMode, setDefaultExportRomMode, saveBossZoom, setSaveBossZoom, saveSpriteZoom, setSaveSpriteZoom, saveTileZoom, setSaveTileZoom, saveScreenZoom, setSaveScreenZoom, saveSectorLines, setSaveSectorLines, onSaveConfig, onResetConfig, isAutosaving,
   onUndo, onRedo, isUndoDisabled, isRedoDisabled, onOpenAbout,
-  onOpenComponentDefEditor, onOpenEntityTemplateEditor, onOpenMsx2EntityLibrary, onOpenMsx2SpriteLibrary, onOpenMsx2TileLibrary, onOpenMsx2StampLibrary, onOpenMsx2TerrainLibrary, onOpenMsx2HudIconLibrary, onOpenMsx2PaletteLibrary, onOpenEnemyLibrary, onOpenWorldView, onOpenPngMsxTool, onCompressAllDataFiles,
+  onOpenComponentDefEditor, onOpenEntityTemplateEditor, onOpenMsx2EntityLibrary, onOpenMsx2SpriteLibrary, onOpenMsx2TileLibrary, onOpenMsx2StampLibrary, onOpenMsx2TerrainLibrary, onOpenMsx2HudIconLibrary, onOpenMsx2PaletteLibrary, onOpenEnemyLibrary, onOpenWorldView, onOpenSpriteView, onOpenPngMsxTool, onCompressAllDataFiles,
   onCompileAndRun, onCompressExportCompileRun, onConfigureASM, onConfigureEmulator,
   onToggleEditor, isToggleEditorDisabled,
   currentScreenMode,
@@ -503,6 +504,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       <Button onClick={onOpenWorldView} variant="ghost" size="sm" icon={<WorldViewIcon />} title="World View">
         World View
       </Button>
+      {shouldShowMsx2Controls && (
+        <Button onClick={onOpenSpriteView} variant="ghost" size="sm" icon={<SpriteIcon />} title="Sprite View — MSX2 SCREEN 4 / SCREEN 5 sprite patterns">
+          Sprite View
+        </Button>
+      )}
       {shouldShowMsx1Controls && (
         <Button onClick={onOpenPngMsxTool} variant="ghost" size="sm" icon={<ImageIcon />} title="MSX1 PNG a Screen 2 Chars">
           MSX1 PNG a MSX
