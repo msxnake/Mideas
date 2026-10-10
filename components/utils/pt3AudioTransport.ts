@@ -17,6 +17,8 @@ export class PT3AudioTransport {
   private worker: Worker | null = null;
   private opening: Promise<void> | null = null;
   private generation = 0;
+  private playRequest = 0;
+  private closed = false;
   private playing = false;
   private duration = 0;
   private playbackHz: 50 | 60 = 50;
@@ -50,6 +52,7 @@ export class PT3AudioTransport {
   }
 
   public open(): Promise<void> {
+    if (this.closed) return Promise.reject(new Error('El reproductor PT3 está cerrado.'));
     if (this.opening) return this.opening;
     if (this.node) return Promise.resolve();
     const generation = ++this.generation;
@@ -106,9 +109,13 @@ export class PT3AudioTransport {
   }
 
   public async play(): Promise<void> {
+    const request = ++this.playRequest;
     await this.open();
-    await this.context!.resume();
-    if (!this.node || !this.context) return;
+    const context = this.context;
+    const node = this.node;
+    if (request !== this.playRequest || !context || !node) return;
+    await context.resume();
+    if (request !== this.playRequest || this.context !== context || this.node !== node) return;
     if (this.anchor.frame >= this.duration * this.playbackHz) this.seek(0);
     this.anchor = { frame: this.anchor.frame, contextTime: this.context.currentTime };
     this.playing = true; this.node.port.postMessage({ type: 'play' });
@@ -116,6 +123,8 @@ export class PT3AudioTransport {
   }
 
   public pause(): void {
+    // Also cancel play() when decoding or AudioContext.resume is still pending.
+    this.playRequest++;
     if (!this.playing) return;
     this.anchor = { frame: this.getCurrentTime() * this.playbackHz, contextTime: this.context?.currentTime ?? 0 };
     this.playing = false; this.node?.port.postMessage({ type: 'pause' });
@@ -205,6 +214,8 @@ export class PT3AudioTransport {
   }
 
   public close(): void {
+    this.closed = true;
+    this.playRequest++;
     this.generation++; this.playing = false;
     this.queuedSnapshot?.reject(new Error('Carga PT3 cancelada.')); this.queuedSnapshot = null;
     for (const request of this.requests.values()) { clearTimeout(request.timer); request.reject(new Error('Carga PT3 cancelada.')); }

@@ -25,10 +25,11 @@ interface PsgOscilloscopePanelProps {
 // Must mirror PatternEditorGrid's layout so each scope sits exactly above its
 // channel column:
 //   Row column   = w-12                                    -> 48px
-//   Channel col  = border-l-4 + px-1 + w-10 + w-7*3        -> 4 + 8 + 40 + 84 = 136px
+//   Channel col  = border-l-4 + px-1 + w-10 + w-7*3 + w-6 + w-20 = 240px
+//   Source PT3 additionally shows ENV (w-16) and inline commands (w-28).
 const ROW_COLUMN_WIDTH_PX = 48;
-const CHANNEL_COLUMN_WIDTH_PX = 136;
-const SOURCE_PT3_COMMAND_WIDTH_PX = 128;
+const CHANNEL_COLUMN_WIDTH_PX = 240;
+const SOURCE_PT3_COMMAND_WIDTH_PX = 176;
 
 // Same per-channel left accent colours as PatternEditorGrid, kept in sync so
 // the scope strip visually joins the column headers below it.
@@ -238,11 +239,12 @@ export const PsgOscilloscopePanel: React.FC<PsgOscilloscopePanelProps> = ({
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onClearChannel(channelId); }}
-                  className="absolute right-1 top-1 rounded-sm border border-msx-border/60 bg-black/60 p-0.5 text-msx-textsecondary opacity-70 transition-colors hover:border-red-500/70 hover:text-red-400 hover:opacity-100 focus:outline-none focus:ring-1 focus:ring-red-500/60"
-                  title={`Borrar el contenido del canal ${channelId} en este patrón`}
-                  aria-label={`Clear channel ${channelId}`}
+                  className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-sm border border-red-500/40 bg-red-500/10 px-2 py-1 text-xs text-red-300 transition-colors hover:border-red-400 hover:bg-red-500/20 focus:outline-none focus:ring-1 focus:ring-red-500/60"
+                  title={`Borrar solo el canal ${channelId} del patrón seleccionado. Conserva los otros canales y patrones. Puedes deshacer el cambio.`}
+                  aria-label={`Borrar canal ${channelId} del patrón actual`}
                 >
                   <EraserIcon className="h-3 w-3" />
+                  Borrar canal {channelId}
                 </button>
               )}
             </div>

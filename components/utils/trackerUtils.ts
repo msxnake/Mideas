@@ -120,6 +120,27 @@ export const createEmptyCell = (): TrackerCell => ({
   effectParams: null,
 });
 
+/** Clear a single pattern voice, including its imported PT3 commands.
+ * Release on row zero prevents the previous pattern's note from carrying on.
+ */
+export const clearTrackerPatternChannel = (
+  patterns: TrackerPattern[], patternIndex: number, channelId: TrackerChannelId,
+): TrackerPattern[] => patterns.map((pattern, index) => {
+  if (index !== patternIndex) return pattern;
+  return {
+    ...pattern,
+    rows: pattern.rows.map((row, rowIndex) => ({
+      ...row,
+      [channelId]: { ...createEmptyCell(), note: rowIndex === 0 ? '===' : null },
+    })),
+    pt3SourceRows: pattern.pt3SourceRows?.map(sourceRow => {
+      const next = { ...sourceRow };
+      if (channelId === 'A' || channelId === 'B' || channelId === 'C') delete next[channelId];
+      return next;
+    }),
+  };
+});
+
 /**
  * Creates an empty tracker row with empty cells for the given channels.
  * @param channels An array of channel IDs to create cells for. Defaults to PT3 channels.

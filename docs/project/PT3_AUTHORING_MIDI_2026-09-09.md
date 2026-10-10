@@ -27,12 +27,32 @@ player PT3 existente de la ROM. Este cambio no modifica el runtime Z80.
    está lista. No hace falta parar ni reiniciar el player. El indicador muestra
    la vuelta y la preparación/incorporación de la toma.
 8. Exportar PT3 entrega un módulo completo e incluye la toma pendiente.
+9. Recompilar PT3 reconstruye el binario desde los patrones, orden, velocidad,
+   instrumentos originales y toma MIDI pendiente. Detiene y descarta el player
+   anterior; muestra confirmación y permite escuchar el resultado con Play.
+   Play también reconstruye y valida el módulo antes de reproducirlo, para
+   recuperar proyectos cuyo binario ya no coincide con las notas visibles.
+   Si los bytes no han cambiado conserva el player pausado para poder reanudar.
+   Un error conserva el último binario válido y la toma pendiente, y se muestra
+   en el editor. Los imports antiguos sin patrones conservan su player compacto.
+10. Borrar canal A/B/C, debajo del osciloscopio correspondiente, vacía solo ese
+    canal del patrón seleccionado. Conserva los otros canales, patrones y orden.
+    Confirma la toma MIDI pendiente antes de borrar y elimina también los comandos
+    fuente PT3 del canal. La primera fila contiene `===` para cortar una nota
+    heredada del patrón anterior. En modo PT3 detiene el transporte y actualiza el
+    módulo automáticamente; Play reproduce el resultado. Se puede deshacer.
 
 La captura PT3 consulta el tiempo del player en cada note-on; no usa como reloj
 la fila del último render ni el patrón seleccionado para edición. El motor
 nativo conserva su flujo anterior.
 
 ## Transporte de audio
+
+- La recompilación previa a Play conserva la propiedad del reproductor mientras
+  carga: actualizar el asset no puede soltarlo antes de `onPlay`. Stop y Silence
+  cierran ese reproductor y cancelan un arranque pendiente. Un transporte cerrado
+  no vuelve a abrirse, y Stop durante la decodificación o `AudioContext.resume`
+  impide que el arranque asíncrono vuelva a emitir audio.
 
 - El decoder Z80 de Cowbell/Bulba se ejecuta en un Worker y genera el mismo log
   de registros que la integración Cowbell anterior. No se modifica el player
@@ -65,6 +85,20 @@ nativo conserva su flujo anterior.
   fuera del hilo principal y herramientas de edición de bloques.
 
 ## Validación
+
+- `node scripts/check_tracker_clear_channel_ui.mjs`: botones alineados con sus
+  canales, borrado durante Play, conservación de B/C y otros patrones, eliminación
+  de comandos fuente y log AY con A en silencio y C sonando.
+
+- `node scripts/check_pt3_stop_ui.mjs`: carga un PT3 original, reproduce y alterna
+  Stop/Silence; comprueba un único reproductor conectado y silencio real mediante
+  un analizador de audio. Cubre cancelación durante carga/resume y desmontaje del
+  editor. No modifica el proyecto abierto del usuario.
+
+- `node scripts/check_pt3_recompile_ui.mjs`: comprueba edición directa,
+  recuperación de binario desactualizado al pulsar Play, botón Recompilar PT3,
+  conservación del binario ante errores e importación y edición de un PT3 real.
+  Verifica las notas en los bytes enviados al decodificador de audio.
 
 - `npm run test:pt3-recording`: módulo nuevo, banco original e importado de un
   PT3 real, persistencia de toma, herencia INS, preservación de otros canales y

@@ -73,6 +73,19 @@ export function commitTrackerTake(song: TrackerSongData, take: TrackerTake): Par
   };
 }
 
+/** Rebuild the playable module from the editor, including a pending MIDI take.
+ * Keep identical bytes by reference so Pause/Play can resume the current player.
+ */
+export function recompilePT3Song(song: TrackerSongData, take: TrackerTake = new Map()): TrackerSongData {
+  if (song.playbackBackend !== 'external-pt3' || song.patterns.length === 0) return song;
+  const patch = commitTrackerTake(song, take);
+  const bytes = patch.externalPt3Data!;
+  const previous = song.externalPt3Data!;
+  const changed = bytes.length !== previous.length || bytes.some((byte, index) => byte !== previous[index]);
+  if (!changed && take.size === 0) return song;
+  return { ...song, ...patch, externalPt3Data: changed ? bytes : previous };
+}
+
 /** A genuine blank Vortex module using only Mideas' original factory samples. */
 export function createBlankPT3Song(
   bank: readonly PT3Instrument[] = PT3_FACTORY_INSTRUMENTS.map((instrument, index) => ({ ...instrument, id: index + 1 })),

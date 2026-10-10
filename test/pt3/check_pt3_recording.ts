@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createBlankPT3Song, commitTrackerTake, rebuildPT3Bank } from '../../components/utils/pt3Recording';
+import { createBlankPT3Song, commitTrackerTake, rebuildPT3Bank, recompilePT3Song } from '../../components/utils/pt3Recording';
 import { parsePT3File, parsePT3Module } from '../../components/utils/pt3Parser';
 import { PT3_FACTORY_INSTRUMENTS } from '../../utils/audio/pt3FactoryInstruments';
 import type { TrackerSongData } from '../../types';
@@ -26,6 +26,24 @@ assert.equal(decoded.patterns![0].rows[4].A.instrument, 1);
 assert.equal(decoded.patterns![0].rows[8].A.instrument, null);
 assert.equal(decoded.patterns![0].rows[12].A.note, '===');
 assert.equal(JSON.stringify(song), before);
+const staleSong = structuredClone({ ...song, ...patch });
+staleSong.patterns[0].rows[4].A.note = 'G-4';
+staleSong.patterns[0].id = 'keep-pattern-id';
+staleSong.patterns[0].name = 'Keep pattern name';
+staleSong.instruments[0].name = 'Keep instrument name';
+const staleBefore = JSON.stringify(staleSong);
+const compiled = recompilePT3Song(staleSong);
+assert.equal(parsePT3File(new Uint8Array(compiled.externalPt3Data!).buffer).patterns![0].rows[4].A.note, 'G-4');
+assert.equal(compiled.patterns[0].id, 'keep-pattern-id');
+assert.equal(compiled.patterns[0].name, 'Keep pattern name');
+assert.equal(compiled.instruments[0].name, 'Keep instrument name');
+assert.equal(JSON.stringify(staleSong), staleBefore, 'recompilation does not mutate the loaded song');
+assert.strictEqual(recompilePT3Song(compiled), compiled, 'unchanged Play preserves the paused player snapshot');
+const compiledTake = recompilePT3Song(compiled, new Map([['0:8:A', { note: 'A-4' }]]));
+assert.equal(parsePT3File(new Uint8Array(compiledTake.externalPt3Data!).buffer).patterns![0].rows[8].A.note, 'A-4');
+assert.throws(() => recompilePT3Song({ ...compiled, order: [99] }));
+assert.strictEqual(recompilePT3Song({ ...song, patterns: [] }).externalPt3Data, song.externalPt3Data,
+  'legacy player-only imports retain their source binary');
 for (let row = 0; row < 64; row++) {
   for (const channel of ['B', 'C'] as const) {
     assert.deepEqual(decoded.patterns![0].rows[row][channel], song.patterns[0].rows[row][channel]);
