@@ -19,6 +19,24 @@
 //   p2-read          the bank code reads a byte at an address in the resident P2 window; target = --target label
 //   slow-tick        the resident tick burns ~20 ms of CPU every frame (what the CPU probe must catch)
 //   rom-write        the bank code stores to #9000 (a Konami mapper register: it would swap its own bank)
+//   unlisted-call    the bank code calls a RESIDENT routine (< #8000) that is not on the whitelist of check_msx2_pursuer_bank.mjs;
+//                    target = --target label (e.g. bitmap_wait_vblank)
+//   whitelist-p2-jump  bitmap_probe_solid (a whitelisted routine) jumps into #8000-#9FFF: its closure leaves the safe zones;
+//                    target = --target label that lives in the P2 window of the ROM under test
+//   descriptor-sprite  the soldier's resident terrain descriptor 03 03 08 1C (the player's 9x29 hitbox) becomes 00 00 0F 1F: the complete
+//                    16x32 sprite, i.e. what every other scripted enemy gets
+//   descriptor-short   ... becomes 03 03 08 14: a body 8 px too short (its feet are 8 px above the sprite's)
+//   descriptor-head    ... becomes 03 00 08 1F: the head row of the body starts at the top of the sprite (top = 0, same feet row)
+//   feet-left-only   the floor probe under the body (bitmap_enemy_script_probe_below) looks at the LEFT column of the body only
+//   feet-right-only  ... at the RIGHT column only
+//   wall-one-row     the wall probe at the leading edge (bitmap_enemy_body_probe_side) looks at the TOP row of the body only
+//   head-short       the head probe looks at the row y+3 (inside the hitbox) instead of y+2 (the one the head would enter): the soldier
+//                    rises one pixel too far under a low ceiling
+//   clip-as-set-anim ANIM_CLIP is wired to the SET_ANIM handler: the clip is never stored and the automatic animation runs the whole sprite
+//   clip-late-frame  ANIM_CLIP stores the clip but does not put the animation on its first frame in the same tick: the old frame stays
+//                    on screen until the automatic animation catches up (a few video frames outside the clip)
+//   clip-restart     ANIM_CLIP no longer notices that the clip is already playing: a rule that fires every tick restarts the cycle
+//   slow-step        bitmap_enemy_script_step burns ~1 ms of CPU on every call (what the soldier-cost probe must catch)
 import fs from 'node:fs';
 import path from 'node:path';
 const [inPath, outPath, mode] = process.argv.slice(2).filter(a => !a.startsWith('--'));
@@ -109,6 +127,104 @@ switch (mode) {
     dropLine(idx[0]);
     break;
   }
+  case 'descriptor-sprite':
+  case 'descriptor-short':
+  case 'descriptor-head': {
+    // The resident table is `DB #03,#03,#08,#1C,...` lines (4 bytes per colour block). Every aligned quartet equal to the soldier's descriptor is
+    // rewritten; any other enemy's descriptor (a different size) is left alone. Fails when there is nothing to rewrite.
+    const to = { 'descriptor-sprite': [0x00, 0x00, 0x0f, 0x1f], 'descriptor-short': [0x03, 0x03, 0x08, 0x14], 'descriptor-head': [0x03, 0x00, 0x08, 0x1f] }[mode];
+    const at = lines.findIndex(l => /^bitmap_enemy_sprite_body_bounds:/.test(l));
+    if (at < 0) fail('no bitmap_enemy_sprite_body_bounds (is this ROM built with scripted enemies?)');
+    let end = at + 1;
+    const bytes = [];
+    for (; end < lines.length && /^\s*DB\b/i.test(lines[end]); end++) {
+      for (const part of lines[end].replace(/;.*$/, '').replace(/^\s*DB\s+/i, '').split(',')) {
+        const m = part.trim().match(/^#([0-9A-Fa-f]+)$/);
+        if (!m) fail(`unexpected byte syntax in the descriptor table: ${part.trim()}`);
+        bytes.push(parseInt(m[1], 16));
+      }
+    }
+    if (bytes.length % 4 !== 0) fail(`the descriptor table has ${bytes.length} bytes, not a multiple of 4`);
+    let changed = 0;
+    for (let i = 0; i < bytes.length; i += 4) {
+      if (bytes[i] === 0x03 && bytes[i + 1] === 0x03 && bytes[i + 2] === 0x08 && bytes[i + 3] === 0x1c) { bytes.splice(i, 4, ...to); changed++; }
+    }
+    if (changed === 0) fail('no descriptor equal to 03 03 08 1C in the table (is there a pursuer soldier in this ROM?)');
+    const out = [];
+    for (let i = 0; i < bytes.length; i += 16) out.push('    DB ' + bytes.slice(i, i + 16).map(b => '#' + b.toString(16).toUpperCase().padStart(2, '0')).join(',') + '   ; SABOTAGE ' + mode);
+    lines.splice(at + 1, end - at - 1, ...out);
+    console.error(`  rewrote ${changed} descriptor(s) 03 03 08 1C -> ${to.map(b => b.toString(16).toUpperCase().padStart(2, '0')).join(' ')}`);
+    break;
+  }
+  case 'feet-left-only':
+  case 'feet-right-only': {
+    // bitmap_enemy_script_probe_below sets B = left x, D = right x and scans [B, D]. Collapse the span onto one end.
+    const at = lines.findIndex(l => /^bitmap_enemy_script_probe_below:/.test(l));
+    if (at < 0) fail('no bitmap_enemy_script_probe_below (the complete-body engine)');
+    let call = -1;
+    for (let i = at; i < at + 24; i++) if (/^\s*call bitmap_enemy_body_scan_floor_x\s*$/.test(lines[i])) { call = i; break; }
+    if (call < 0 || !/^\s*ld d, a\s*$/.test(lines[call - 1])) fail('the span set-up (`ld d, a` / `call bitmap_enemy_body_scan_floor_x`) was not found');
+    if (mode === 'feet-left-only') lines[call - 1] = '    ld d, b                        ; SABOTAGE: the floor scan ends on the left column';
+    else lines.splice(call, 0, '    ld b, d                        ; SABOTAGE: the floor scan starts on the right column');
+    break;
+  }
+  case 'wall-one-row': {
+    const at = lines.findIndex(l => /^bitmap_enemy_body_probe_side:/.test(l));
+    if (at < 0) fail('no bitmap_enemy_body_probe_side');
+    let call = -1;
+    for (let i = at; i < at + 40; i++) if (/^\s*call bitmap_enemy_body_scan_y\s*$/.test(lines[i])) { call = i; break; }
+    if (call < 0 || !/^\s*ld d, a\s*$/.test(lines[call - 1])) fail('the span set-up (`ld d, a` / `call bitmap_enemy_body_scan_y`) was not found');
+    lines[call - 1] = '    ld d, c                        ; SABOTAGE: the wall scan ends on the top row (C = first Y)';
+    break;
+  }
+  case 'head-short': {
+    const at = lines.findIndex(l => /^bitmap_enemy_script_probe_head:/.test(l));
+    if (at < 0) fail('no bitmap_enemy_script_probe_head (the complete-body engine)');
+    let dec = -1;
+    for (let i = at; i < at + 16; i++) if (/^\s*dec a\s*$/.test(lines[i])) { dec = i; break; }
+    if (dec < 0) fail('no `dec a` (the row above the body top) in the head probe');
+    lines[dec] = '    nop                            ; SABOTAGE: the head probe looks at the body top row instead of the row above it';
+    break;
+  }
+  case 'clip-as-set-anim': {
+    const idx = lines.map((l, i) => (/^\s*dw bitmap_enemy_script_act_anim_clip/.test(l) ? i : -1)).filter(i => i >= 0);
+    if (idx.length !== 1) fail(`expected one action-table entry for ANIM_CLIP, found ${idx.length}`);
+    lines[idx[0]] = lines[idx[0]].replace('bitmap_enemy_script_act_anim_clip', 'bitmap_enemy_script_act_set_anim');
+    break;
+  }
+  case 'clip-restart': {
+    const at = lines.findIndex(l => /^bitmap_enemy_script_act_anim_clip:/.test(l));
+    if (at < 0) fail('no bitmap_enemy_script_act_anim_clip');
+    let or80 = -1;
+    for (let i = at; i < at + 30; i++) if (/^\s*or #80/.test(lines[i])) { or80 = i; break; }
+    if (or80 < 0 || !/^\s*cp \(ix\+\d+\)/.test(lines[or80 + 1]) || !/^\s*jp z, bitmap_enemy_script_apply/.test(lines[or80 + 2])) fail('the "same clip" test (cp / jp z) does not follow `or #80`');
+    lines.splice(or80 + 1, 2);
+    break;
+  }
+  case 'clip-late-frame': {
+    const at = lines.findIndex(l => /^bitmap_enemy_script_act_anim_clip:/.test(l));
+    if (at < 0) fail('no bitmap_enemy_script_act_anim_clip');
+    let store = -1;
+    for (let i = at; i < at + 30; i++) if (/^\s*ld \(ix\+\d+\), b\s*(;|$)/.test(lines[i])) { store = i; break; }
+    if (store < 0) fail('no `ld (ix+N), b` (the first-frame write) in the ANIM_CLIP handler');
+    lines.splice(store, 1);
+    break;
+  }
+  case 'slow-step': {
+    const at = lines.findIndex(l => /^bitmap_enemy_script_step:/.test(l));
+    if (at < 0) fail('no bitmap_enemy_script_step label');
+    if (!/^\s*push bc/.test(lines[at + 1])) fail('bitmap_enemy_script_step does not start with push bc');
+    lines.splice(at + 2, 0, '    ld de, 150                     ; SABOTAGE: ~3600 T-states of busy loop per call', '.sab_busy_step:', '    dec de', '    ld a, d', '    or e', '    jp nz, .sab_busy_step');
+    break;
+  }
+  case 'whitelist-p2-jump': {
+    if (!targetArg) fail('--target <label> is required');
+    const at = lines.findIndex(l => /^bitmap_probe_solid:/.test(l));
+    if (at < 0) fail('no bitmap_probe_solid label');
+    lines.splice(at + 1, 0, `    jp ${targetArg}                 ; SABOTAGE: a whitelisted routine that leaves for the P2 window`);
+    break;
+  }
+  case 'unlisted-call':
   case 'boss-call':
   case 'p2-read': {
     if (!targetArg) fail('--target <label> is required');
@@ -116,7 +232,7 @@ switch (mode) {
     // Insert right after the first instruction of bitmap_pursuerb_tick (a harmless xor a would become a real call/read).
     const tickAt = lines.findIndex(l => /^bitmap_pursuerb_tick:/.test(l));
     if (tickAt < 0) fail('no bitmap_pursuerb_tick label');
-    lines.splice(tickAt + 1, 0, mode === 'boss-call' ? `    call ${targetArg}              ; SABOTAGE: a call into code that lives in the P2 window` : `    ld a, (${targetArg})            ; SABOTAGE: a read from the resident P2 window`);
+    lines.splice(tickAt + 1, 0, mode !== 'p2-read' ? `    call ${targetArg}              ; SABOTAGE: a call into code that lives in the P2 window` : `    ld a, (${targetArg})            ; SABOTAGE: a read from the resident P2 window`);
     break;
   }
   case 'slow-tick': {

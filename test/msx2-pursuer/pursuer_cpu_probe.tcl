@@ -8,11 +8,20 @@
 #               the ROM of that copy is byte-identical, so the label cost nothing). Emulated time (machine_info time), no wall clock.
 #               Reported separately for the three kinds of frame the tick has: dormant (state 0: ret z), counting (state 1: bank
 #               mapped, tick, banks restored) and the appearance frame (the one that writes the body).
-#   lost frames a frame is LOST when two consecutive passes of the main loop are more than 1.25 frame times apart (20.8 ms at 60 Hz).
+#   soldier     time between the entry of bitmap_update_enemies and the instruction after its `call` in the main loop (the second local
+#               label MIDEAS_UPDATE_DONE_LABEL, same trick, same cmp proof). The soldier is the only enemy of room C, so this is the cost of
+#               the whole enemy pass for it: the interpreter step with the complete-body probes (the soldier's descriptor 03 03 08 1C), the clip-aware animation and the
+#               follower's copy. Judged against 3.5 ms for the worst frame of the measured window (Director D9, 2026-10-10: with the
+#               complete-body engine of 0eeb1e2a a thinking pass costs 2.95 ms here at HEAD and 3.00 ms with the 9x29 descriptor;
+#               the slow-step sabotage adds ~1.2 ms and must go red).
+#   lost frames measured where the loop is locked to the video: two consecutive RETURNS of the vblank wait are k frames apart and
+#               k >= 2 (> 25 ms) is a lost frame. The loop ENTRY period is printed for information only: it moves by the difference
+#               of work between consecutive frames (a body that thinks every other frame reads 20-22 ms with no frame lost).
 #               Measured over MIDEAS_FRAMES (default 800) consecutive passes after the soldier is out.
 #   slack       time the CPU spends spinning in bitmap_wait_vblank (the rest of the frame): min / median.
 #
 # Environment: MIDEAS_SYM MIDEAS_OUT MIDEAS_FRAMES MIDEAS_TICK_DONE_LABEL (default .pursuer_tick_done)
+#              MIDEAS_UPDATE_DONE_LABEL (default .enemy_update_done)   MIDEAS_SOLDIER_LIMIT_MS (default 3.5)
 
 proc env_or {name default} {
     if {[info exists ::env($name)] && $::env($name) ne ""} { return $::env($name) }
@@ -22,6 +31,8 @@ set SYM    [env_or MIDEAS_SYM ""]
 set OUT    [env_or MIDEAS_OUT "pursuer_cpu_probe_result.txt"]
 set FRAMES [env_or MIDEAS_FRAMES 800]
 set DONE_LABEL [env_or MIDEAS_TICK_DONE_LABEL .pursuer_tick_done]
+set UPD_LABEL  [env_or MIDEAS_UPDATE_DONE_LABEL .enemy_update_done]
+set SOLDIER_LIMIT [env_or MIDEAS_SOLDIER_LIMIT_MS 3.5]
 set LOG [open $OUT w]
 set throttle off   ;# all timing is emulated time (machine_info time) or frame counts: nothing depends on wall-clock speed
 proc say {s} { puts $::LOG $s; flush $::LOG }
@@ -37,6 +48,8 @@ set A_RET    [expr {$A_LOOP + 3}]
 set A_WAIT   [sym bitmap_wait_vblank]
 set A_TICK   [sym bitmap_pursuer_tick]
 set A_DONE   [sym $DONE_LABEL]
+set A_UPD    [sym bitmap_update_enemies]
+set A_UPDONE [sym $UPD_LABEL]
 set A_STATE  [sym bitmap_pursuer_state]
 set A_POOL   [sym bitmap_enemy_pool]
 set A_PX     [sym player_x]
@@ -51,8 +64,21 @@ proc rb {a} { return [debug read memory $a] }
 proc key {row mask down} { if {$down} { keymatrixdown $row $mask } else { keymatrixup $row $mask } }
 proc tapspace {} { keymatrixdown 8 0x01; after time 0.15 { keymatrixup 8 0x01 } }
 
-# instrument: the label really sits right after `call bitmap_pursuer_tick`
+# instrument: the labels really sit right after `call bitmap_pursuer_tick` / `call bitmap_update_enemies`
 set tick_call [expr {$A_DONE - 3}]
+set upd_call [expr {$A_UPDONE - 3}]
+proc rbi {a} { return [debug read memory $a] }
+# The ROM is only mapped once the game loop runs, so the two label checks happen at the FIRST pass of the main loop (see the A_LOOP breakpoint).
+proc check_labels {} {
+    if {[rbi $::upd_call] != 0xCD || ([rbi [expr {$::upd_call + 1}]] + 256 * [rbi [expr {$::upd_call + 2}]]) != $::A_UPD} {
+        bail [format "instrument: %04X is not a call bitmap_update_enemies (bytes %02X -> %04X, expected %04X)" $::upd_call [rbi $::upd_call] [expr {[rbi [expr {$::upd_call + 1}]] + 256 * [rbi [expr {$::upd_call + 2}]]}] $::A_UPD]
+    }
+    if {[rbi $::tick_call] != 0xCD || ([rbi [expr {$::tick_call + 1}]] + 256 * [rbi [expr {$::tick_call + 2}]]) != $::A_TICK} {
+        bail [format "instrument: %04X is not a call bitmap_pursuer_tick" $::tick_call]
+    }
+    say "instrument OK: both timing labels sit right after their calls"
+}
+set labels_checked 0
 say [format "loop=%04X tick=%04X done=%04X (call at %04X)  frames=%d" $A_LOOP $A_TICK $A_DONE $tick_call $FRAMES]
 
 set started 0
@@ -68,6 +94,10 @@ set slacks {}
 set cur_entry 0
 set lost 0
 set lost_log {}
+set t_ret_prev -1
+set vperiods {}
+set vlost 0
+set vlost_log {}
 set keyR 0
 set measured 0
 
@@ -101,8 +131,20 @@ set kinds_dormant {}
 set kinds_counting {}
 set kinds_appear {}
 
+# --- the soldier's whole enemy pass: bitmap_update_enemies, entry to the instruction after its call ---
+set t_upd_in 0
+set kinds_update {}
+debug set_bp $A_UPD {} {
+    # only the call of the main loop (the loaders do not call it, but the instrument is cheap)
+    set ::t_upd_in [machine_info time]
+}
+debug set_bp $A_UPDONE {} {
+    if {$::started && $::phase == 3} { lappend ::kinds_update [expr {([machine_info time] - $::t_upd_in) * 1000.0}] }
+}
+
 # --- loop period / slack ---
 debug set_bp $A_LOOP {} {
+    if {!$::labels_checked} { set ::labels_checked 1; check_labels }
     set ::started 1
     incr ::iters
     set t [machine_info time]
@@ -125,7 +167,16 @@ debug set_bp $A_LOOP {} {
     step_scenario
 }
 debug set_bp $A_RET {} {
-    if {$::phase == 3} { lappend ::slacks [expr {([machine_info time] - $::cur_entry) * 1000.0}] }
+    set t [machine_info time]
+    if {$::phase == 3} {
+        lappend ::slacks [expr {($t - $::cur_entry) * 1000.0}]
+        if {$::t_ret_prev >= 0} {
+            set p [expr {($t - $::t_ret_prev) * 1000.0}]
+            lappend ::vperiods $p
+            if {$p > 25.0} { incr ::vlost; if {$::vlost <= 3} { lappend ::vlost_log [format "iter=%d vblank period=%.2f ms" $::iters $p] } }
+        }
+        set ::t_ret_prev $t
+    }
 }
 
 proc step_scenario {} {
@@ -154,14 +205,20 @@ proc finish {} {
     stats tick_dormant  $::kinds_dormant
     stats tick_counting $::kinds_counting
     stats tick_appear   $::kinds_appear
+    stats soldier_update $::kinds_update
     stats period        $::periods
     stats slack         $::slacks
     say [format "soldier visible: slot0 mode=%d slot1 mode=%d enemy_count=%d room=%d player=(%d,%d)" [modeof 0] [modeof 1] [rb $::A_COUNT] [rb $::A_SCREEN] [rb $::A_PX] [rb $::A_PY]]
     set worst 0.0
     foreach l [list $::kinds_counting $::kinds_appear] { foreach v $l { if {$v > $worst} { set worst $v } } }
     say [format "worst tick (counting or appearance frame) = %.4f ms (limit 0.2)" $worst]
-    say "lost frames in [llength $::periods] consecutive passes: $::lost (first: $::lost_log)"
-    set ok [expr {$worst <= 0.2 && $::lost == 0 && [llength $::periods] >= $::FRAMES && [llength $::kinds_counting] > 0 && [llength $::kinds_appear] > 0 && [modeof 0] == 14}]
+    set worst_upd 0.0
+    foreach v $::kinds_update { if {$v > $worst_upd} { set worst_upd $v } }
+    say [format "worst soldier pass (bitmap_update_enemies, soldier only) = %.4f ms (limit %s)" $worst_upd $::SOLDIER_LIMIT]
+    say "loop-entry periods > 20.8 ms (information only, not a lost-frame proof): $::lost (first: $::lost_log)"
+    stats vperiod       $::vperiods
+    say "lost frames (vblank-aligned period > 25 ms) in [llength $::vperiods] frames: $::vlost (first: $::vlost_log)"
+    set ok [expr {$worst <= 0.2 && $worst_upd <= $::SOLDIER_LIMIT && [llength $::kinds_update] >= $::FRAMES && $::vlost == 0 && [llength $::vperiods] >= $::FRAMES - 1 && [llength $::kinds_counting] > 0 && [llength $::kinds_appear] > 0 && [modeof 0] == 14}]
     say "RESULT [expr {$ok ? {PASS} : {FAIL}}]"
     close $::LOG
     exit

@@ -4,7 +4,8 @@
 #   run_pursuer_cpu_probe.sh <gen-dir> <work-dir> [frames] [sabotage]     (sabotage: a mode of sabotage_pursuer_asm.mjs, e.g. slow-tick; the probe must FAIL)
 #
 # Builds the lab ROM that starts in room C, then makes a COPY of its ASM with a local label right after the main loop's
-# `call bitmap_pursuer_tick` (the end of the timed section), assembles it and proves with cmp that the ROM of the copy is
+# `call bitmap_pursuer_tick` (the end of the tick's timed section) and another right after `call bitmap_update_enemies` (the end of
+# the soldier's pass, judged against 3.5 ms), assembles it and proves with cmp that the ROM of the copy is
 # byte-identical to the original (a label costs no bytes), and runs the probe on that copy. Stops only its own OpenMSX process.
 set -u
 GEN=${1:-}; WORK=${2:-}; FRAMES=${3:-800}; SAB=${4:-none}
@@ -43,6 +44,9 @@ const fs=require('fs');const t=fs.readFileSync('$P.asm','utf8').split(/\r?\n/);
 const i=t.findIndex(l=>/^\s*call bitmap_pursuer_tick\s*$/.test(l));
 if(i<0||t.filter(l=>/^\s*call bitmap_pursuer_tick\s*$/.test(l)).length!==1){console.error('expected exactly one call bitmap_pursuer_tick');process.exit(3);}
 t.splice(i+1,0,'.pursuer_tick_done:');
+const u=t.findIndex(l=>/^\s*call bitmap_update_enemies\s*$/.test(l));
+if(u<0||t.filter(l=>/^\s*call bitmap_update_enemies\s*$/.test(l)).length!==1){console.error('expected exactly one call bitmap_update_enemies');process.exit(3);}
+t.splice(u+1,0,'.enemy_update_done:');
 fs.writeFileSync('${P}_lbl.asm',t.join('\n'));" || exit 3
 node "$HERE/build_pursuer_rom.mjs" --asm "${P}_lbl.asm" --out "${P}_lbl" --repo "$REPO" >/dev/null || exit 2
 if cmp "$P.rom" "${P}_lbl.rom"; then echo "cmp: the ROM with the timing label is byte-identical to the original ($(stat -c %s "$P.rom") bytes)"; else echo "FAIL: the label changed the ROM"; exit 4; fi
