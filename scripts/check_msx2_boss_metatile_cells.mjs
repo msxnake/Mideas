@@ -118,8 +118,11 @@ realLog(`      room ${blob.room}: ${blob.frames} frame(s) x ${blob.perFrame} cel
   + `stride ${blob.stride} B, ${blob.records.length} records`);
 
 checks.push(['The runtime cell loop is emitted', /bitmap_boss_draw_cells:/.test(asm)]);
+// The old proof of this was `jp nz, bitmap_boss_pick_cell_list` inside bitmap_boss_draw_animated.
+// That entry has had no caller since a2c0bf55 and is no longer emitted (F0.5-1), so the proof is
+// now the one live place that makes the choice: bitmap_boss_draw itself.
 checks.push(['The monolithic path is still reachable for unsplit bodies',
-  /bitmap_boss_cells_config/.test(asm) && /jp nz, bitmap_boss_pick_cell_list/.test(asm)]);
+  /^bitmap_boss_draw:\n[^\n]*\n\s*call bitmap_boss_cells_config\n\s*ld a, \(hl\)\n\s*or a\n\s*jp nz, bitmap_boss_cells_full\nbitmap_boss_draw_mono:/m.test(asm)]);
 
 // Header must describe the records that follow, or the loop walks off the end.
 checks.push(['The blob header matches the records it carries',

@@ -2063,6 +2063,10 @@ export function buildBitmapBossSystemAsm(
   const hasDefeatActions = flagCount > 0 || hasGiveKey || hasOpenDoor || hasShowMessage
     || hasChangeScreen || hasDefeatSequence;
   // FASE 3: at least one room composes its boss from 16x16 atlas cells.
+  // (There used to be a bitmap_boss_draw_animated entry here, the cadence path's draw.
+  // a2c0bf55 moved the cadence redraw to the deferred render queue and took away its
+  // only caller; it was still emitted -- 11 resident bytes nothing could reach -- until
+  // F0.5-1. Do not bring it back without a caller: scripts/check_msx2_boss_dead_code.mjs.)
   const hasBossCells = (data.cellTables || []).some(table => table && table[0] > 0);
   const cellRenderRamBytes = hasBossCells ? 3 : 0;
   const defeatedBytes = roomPoolCount * bossInstanceCount;
@@ -2130,6 +2134,12 @@ export function buildBitmapBossSystemAsm(
   const hasFallingRocks = tables.some(t => t && t[0] === 1 && t[10] === 2)
     && typeof opts.projScratchBaseY === 'number';
   // Two independent projectile back-ends; a project may use either (or neither).
+  // The whole bitmap launcher (spawn, step, tile test, save/restore/draw of the scratch
+  // rectangle, hit test) is emitted ONLY when this is true: its sole callers
+  // (bitmap_boss_shoot_update, bitmap_boss_path_fire and the kill path) are gated on it
+  // too. A project whose bosses only fire hardware-sprite bullets (hasSpriteProjectiles)
+  // still needs bitmap_boss_proj_config_ix, the phase resolver and bitmap_boss_hurt_player,
+  // and nothing else of it.
   const hasBitmapProjectiles = hasAimedBitmapProjectiles || hasFallingRocks;
   const sprites = opts.spriteBullets;
   const hasBubbleProjectiles = tables.some(t => t && t[0] === 1 && t[10] === 3);
@@ -6541,26 +6551,7 @@ ${visiblePageH}
 ;   visible page at (boss_x, boss_y + HUD offset) with one opaque HMMM.
 ; DESTROYS: AF, BC, DE, HL.
 ; ------------------------------------------------------------
-${!hasBossCells ? '' : `; ------------------------------------------------------------
-; FUNCTION: bitmap_boss_draw_animated
-; ------------------------------------------------------------
-; PURPOSE: The cadence path's draw. Only THIS entry may repaint just the cells
-;   the animation changed, because only here is the body known to be intact:
-;   nothing else has touched those pixels since the last redraw.
-;
-;   Everyone else must call bitmap_boss_draw, which repaints unconditionally.
-;   Those callers exist precisely BECAUSE something erased the body -- the
-;   dialogue close replaying the clean room, or a death blast being wiped -- and
-;   a "nothing changed, skip it" would leave the boss missing or half-drawn.
-; ------------------------------------------------------------
-bitmap_boss_draw_animated:
-    call bitmap_boss_cells_config
-    ld a, (hl)
-    or a
-    jp nz, bitmap_boss_pick_cell_list
-    jp bitmap_boss_draw_mono
-
-`}bitmap_boss_draw:
+bitmap_boss_draw:
 ${!hasBossCells ? '' : `    ; Packed cell bodies draw every cell; empty blobs use the mono path.
     call bitmap_boss_cells_config
     ld a, (hl)
@@ -9380,7 +9371,7 @@ bitmap_boss_phase_resolve:
     ld (boss_phase_speed), a
     ld a, c                    ; A = interval (return value)
     ret
-`}
+`}${hasBitmapProjectiles ? `
 ; Spawn at the boss centre, aimed 8-directionally at the player.
 ; IX -> projectile config. Uses bitmap_boss_table_ix_shadow for the boss size.
 bitmap_boss_proj_spawn:
@@ -9768,7 +9759,7 @@ ${hit.y ? `    add a, ${asmByte(hit.y)}\n` : ''}    ld b, a                    ;
     ld (boss_proj_active), a
     ld a, (ix+9)               ; projectile damage
     ; fall through to bitmap_boss_hurt_player
-
+` : ''}
 ; Apply A hearts of damage to the player (saturating health, i-frames, respawn).
 ; Mirrors the boss contact-damage contract. DESTROYS AF, BC, DE, HL.
 bitmap_boss_hurt_player:
