@@ -28,6 +28,12 @@ export const MSX2_ALERT_FRAMES_PER_SECOND = 60;
 /** The soldier is as big as the player: 16x32, i.e. two stacked 16x16 hardware cells. */
 export const MSX2_PURSUER_BODY_WIDTH = 16;
 export const MSX2_PURSUER_BODY_HEIGHT = 32;
+/**
+ * Terrain body of the soldier inside its 16x32 sprite: the hitbox of the PLAYER (x+3..x+11, y+3..y+31), so the soldier follows the
+ * trail exactly where the player fits. Resident descriptor bytes `left, top, width-1, height-1` = `03 03 08 1C`. Feet are the
+ * row y+32 under the origin. Only the soldier gets it: every other scripted enemy keeps the complete-sprite body.
+ */
+export const MSX2_PURSUER_TERRAIN_BODY = { left: 3, top: 3, width: 9, height: 29 } as const;
 
 /** `msx2bitmaproom.data.runtime.alertZone`, always fully populated after normalizing. */
 export interface Msx2AlertZoneConfig {

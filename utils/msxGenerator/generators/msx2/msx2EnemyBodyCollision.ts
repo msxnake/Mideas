@@ -1,5 +1,22 @@
-/** Complete canvas plus positioned 16x16 parts, across the selected frames. */
-export function getEnemySpriteBodyBounds(size: { width: number; height: number } | undefined, cells: Array<{ x: number; y: number }>) {
+/** An explicit terrain body, relative to the logical origin: signed offsets and a size in pixels. */
+export interface EnemyTerrainBodyOverride { left: number; top: number; width: number; height: number }
+
+/**
+ * Complete canvas plus positioned 16x16 parts, across the selected frames.
+ * `terrainBody` replaces that union with an explicit rectangle (the pursuer soldier's player-sized body): the descriptor, the
+ * spawn clamps and every other consumer then read ONE geometry from this function's result.
+ */
+export function getEnemySpriteBodyBounds(size: { width: number; height: number } | undefined, cells: Array<{ x: number; y: number }>, terrainBody?: EnemyTerrainBodyOverride) {
+  if (terrainBody) {
+    const { left, top, width, height } = terrainBody;
+    // The same limits as the generic branch below (spans of at most 256 x 192 pixels, offsets from -128) plus the ones an explicit rectangle
+    // needs: whole pixels, non-empty, offsets that fit a signed byte, and the rectangle itself inside the room.
+    if (![left, top, width, height].every(Number.isInteger) || width < 1 || height < 1 || width > 256 || height > 192
+      || left < -128 || top < -128 || left > 127 || top > 127 || left + width > 256 || top + height > 192) {
+      throw new Error('SCREEN 5 explicit enemy terrain body must be a non-empty rectangle of at most 256x192 pixels inside the room, with signed byte offsets.');
+    }
+    return { left, top, right: left + width, bottom: top + height, bytes: [left & 0xff, top & 0xff, width - 1, height - 1] };
+  }
   const left = Math.min(0, ...cells.map(cell => cell.x));
   const top = Math.min(0, ...cells.map(cell => cell.y));
   const right = Math.max(Number(size?.width) || 16, ...cells.map(cell => cell.x + 16));

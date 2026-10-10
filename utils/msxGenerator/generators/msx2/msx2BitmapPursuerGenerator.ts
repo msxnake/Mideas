@@ -54,6 +54,7 @@ import {
   msx2AlertSpawnDelayFrames,
   resolveMsx2PursuerProject,
   MSX2_PURSUER_BODY_HEIGHT,
+  MSX2_PURSUER_TERRAIN_BODY,
   type Msx2PursuerSoldier,
 } from '../../../msx2Pursuer';
 import { MSX2_ENEMY_MOVEMENT_LAYER_FOLLOWER } from './msx2EntityRuntimeGenerator';
@@ -143,9 +144,11 @@ function buildSoldierEntity(soldier: Msx2PursuerSoldier, room: Msx2Screen5Bitmap
     components: {
       msx2_transform: { tileX: 0, tileY: 0, pixelX: 0, pixelY: 0, spawnX: 0, spawnY: 0 },
       msx2_hardware_sprite: { msx2SpriteAssetId: soldier.spriteAssetId, frame: 0, paletteSlot: 10, visible: true },
-      // Bounds are the whole room width: the soldier appears wherever the player came in, including the edge columns.
-      msx2_movement: { mode: 'scripted', direction: 1, speed: 1, minX: 0, maxX: 240, minY: 0, maxY: 192 - MSX2_PURSUER_BODY_HEIGHT, boundsUnit: 'px' },
-      msx2_ai: { behaviorAssetId: soldier.behaviorAssetId, logicUpdateIntervalFrames: soldier.logicUpdateIntervalFrames },
+      // Bounds are the whole room width: the soldier appears wherever the player came in, including the edge columns. maxY is the origin
+      // whose terrain body (top 3 + height 29, see MSX2_PURSUER_TERRAIN_BODY) still ends on the last row of the room: 160.
+      msx2_movement: { mode: 'scripted', direction: 1, speed: 1, minX: 0, maxX: 240, minY: 0, maxY: 192 - (MSX2_PURSUER_TERRAIN_BODY.top + MSX2_PURSUER_TERRAIN_BODY.height), boundsUnit: 'px' },
+      // The soldier thinks every frame whatever the asset says (the room generator enforces it for the synthesized soldier).
+      msx2_ai: { behaviorAssetId: soldier.behaviorAssetId, logicUpdateIntervalFrames: 1 },
       msx2_collision: { hitboxW: 16, hitboxH: MSX2_PURSUER_BODY_HEIGHT, offsetX: 0, offsetY: 0, solid: false, damage: 1 },
     },
     params: {

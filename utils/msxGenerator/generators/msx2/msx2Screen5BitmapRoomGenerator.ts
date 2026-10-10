@@ -256,7 +256,8 @@ import {
   buildBitmapEnemySystemAsm,
 } from './msx2BitmapEnemyGenerator';
 import { compactBitmapEnemyPatterns } from './msx2BitmapEnemyPatternCompaction';
-import { getEnemySpriteBodyBounds } from './msx2EnemyBodyCollision';
+import { getEnemySpriteBodyBounds, type EnemyTerrainBodyOverride } from './msx2EnemyBodyCollision';
+import { MSX2_PURSUER_TERRAIN_BODY } from '../../../msx2Pursuer';
 import {
   BITMAP_MAX_PLATFORM_SLOTS,
   BitmapPlatformRoomData,
@@ -290,7 +291,7 @@ import {
   MSX2_ENEMY_MOVEMENT_LAYER_FOLLOWER,
   type Msx2EnemyHazardRuntimeSlot,
 } from './msx2EntityRuntimeGenerator';
-import { bakeEnemyBehavior, MSX2_ENEMY_ACT, MSX2_ENEMY_COND, type Msx2EnemyBehaviorAsset } from '../../../msx2EnemyBehavior';
+import { bakeEnemyBehavior, MSX2_ENEMY_ACT, MSX2_ENEMY_ACT_PURSUER_FIRST, MSX2_ENEMY_ACT_PURSUER_LAST, MSX2_ENEMY_COND, type Msx2EnemyBehaviorAsset } from '../../../msx2EnemyBehavior';
 import { bakePathFollow, type Msx2PathFollowProgram } from '../../../msx2PathFollow';
 import { isMsx2CarryableEntity } from './msx2CarryObjectGenerator';
 import {
@@ -14509,6 +14510,12 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
      * room and a pair of floating eyes in another.
      */
     darkEyesColor: number;
+    /**
+     * Explicit terrain body instead of the complete sprite (only the pursuer soldier has one). It is part of the cache key: sprite
+     * grids and sprite records are shared by every enemy with the same art, and the terrain descriptor travels with the record
+     * (its colour offset), so an enemy that merely shares the soldier's sprite must never inherit the soldier's body.
+     */
+    terrainBody?: EnemyTerrainBodyOverride;
     cacheKey: string;
   }
   interface EnemyHardwareSlot {
@@ -14583,11 +14590,30 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
   // Set while expanding: at least one body needs more than one hardware sprite.
   let layeredEnemies = false;
   const scriptedProgramIndexById = new Map<string, number>();
-  const scriptedBehaviorPrograms: Array<{ id: string; name: string; bytes: number[]; gravity: boolean; kind: 'rules' | 'path_follow' }> = [];
+  const scriptedBehaviorPrograms: Array<{ id: string; name: string; bytes: number[]; gravity: boolean; kind: 'rules' | 'path_follow'; clip?: boolean }> = [];
+  const behaviorAssetKey = (asset: any): string => String(asset?.id || asset?.assetId || asset?.name || '').trim();
+  // Ids of the behaviour assets the synthesized pursuer soldier runs. Decided from the soldier entities themselves (the alert
+  // planner puts them in the rooms), so a project without an alert zone gets an empty set and keeps its ROM byte for byte. It is a
+  // property of the ASSET, not of the entity: an enemy of another room that shares the soldier's behaviour runs the same program.
+  let pursuerBehaviorKeys: Set<string> | undefined;
+  const isPursuerBehaviorKey = (key: string): boolean => {
+    if (!pursuerBehaviorKeys) {
+      const keys = new Set<string>();
+      for (const room of rooms) {
+        for (const entity of (room.entities || []) as any[]) {
+          if (entity?.params?.[BITMAP_PURSUER_SOLDIER_PARAM] !== true) continue;
+          const soldierKey = behaviorAssetKey(behaviorAssetForEntity(entity));
+          if (soldierKey) keys.add(soldierKey);
+        }
+      }
+      pursuerBehaviorKeys = keys;
+    }
+    return pursuerBehaviorKeys.has(key);
+  };
   const scriptedProgramIndexForEntity = (entity: any): number => {
     const asset = behaviorAssetForEntity(entity);
     if (!asset) return 0; // the runtime's index-0 standing fallback
-    const id = String(asset.id || (asset as any).assetId || asset.name || '').trim();
+    const id = behaviorAssetKey(asset);
     if (!id) return 0;
     const existing = scriptedProgramIndexById.get(id);
     if (existing !== undefined) return existing;
@@ -14610,6 +14636,28 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     // same promise the rules path already makes: a broken asset stands still,
     // it does not run something else.
     if (isPath && baked.errors.length) return 0;
+    // Action opcodes 0x12..0x14 (the two reserved for the soldier and ANIM_CLIP) exist only in a ROM that has the soldier's behaviour
+    // program, and only that behaviour asset may use them. Anywhere else they would run as `unknown action = idle`: a silent no-op.
+    // The test is on the ASSET: another enemy that merely shares the soldier's behaviour is allowed to run it.
+    const pursuerBehavior = isPursuerBehaviorKey(id);
+    const reservedActions = isPath
+      ? Array.from({ length: Math.floor(((baked.bytes?.length || 1) - 1) / 5) }, (_unused, node) => (baked.bytes[2 + node * 5] ?? 0) & 0x1f)
+      : ((baked as any).usedActions || []) as number[];
+    const pursuerOnly = reservedActions.filter(opcode => opcode >= MSX2_ENEMY_ACT_PURSUER_FIRST && opcode <= MSX2_ENEMY_ACT_PURSUER_LAST);
+    if (pursuerOnly.length && !pursuerBehavior) {
+      throw new Error(
+        `MSX2 bitmap scripted enemy "${asset.name || id}" uses action opcode ${pursuerOnly.map(op => '0x' + op.toString(16)).join(', ')} `
+        + '(Play clip / reserved): those exist only for the behaviour of the pursuer soldier. Remove them from this behaviour, or make it the behaviour of the soldier.'
+      );
+    }
+    // SET_ANIM writes the frame by hand; with a clip stored the automatic animation would carry on from a frame outside it. One program,
+    // one way to choose the frame.
+    if (pursuerBehavior && !isPath && (baked as any).usedActions?.includes(MSX2_ENEMY_ACT.ANIM_CLIP) && (baked as any).usedActions?.includes(MSX2_ENEMY_ACT.SET_ANIM)) {
+      throw new Error(
+        `MSX2 bitmap scripted enemy "${asset.name || id}" uses both Play clip (ANIM_CLIP) and Set frame (SET_ANIM): a frame set by hand `
+        + 'would leave the clip. Use ANIM_CLIP only (a clip of length 0 or 1 holds one frame).'
+      );
+    }
     if (!isPath && (baked as any).usedActions?.includes(MSX2_ENEMY_ACT.FIRE)) scriptedProgramsUseFire = true;
     if (!isPath && (baked as any).usedConditions?.includes(MSX2_ENEMY_COND.PLAYER_BULLET_INCOMING)) scriptedProgramsUsePlayerBulletSense = true;
     const index = scriptedBehaviorPrograms.length + 1; // index 0 is the fallback
@@ -14624,6 +14672,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       // A route is kinematic: the drawn path must be the path executed, so it
       // never falls on its own.
       gravity: isPath ? false : (asset as any).gravity !== false,
+      ...(pursuerBehavior ? { clip: true } : {}),
     });
     return index;
   };
@@ -14665,6 +14714,9 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     return asset?.data as unknown as Msx2EnemyBehaviorAsset | undefined;
   };
   const logicUpdateIntervalFramesForEntity = (entity: any): number => {
+    // The synthesized soldier thinks every frame: its probes and gravity are per-pixel, and the player it hunts moves 2 px per
+    // frame. This beats the asset's own interval, which is the lab's classic 2.
+    if (entity?.params?.[BITMAP_PURSUER_SOLDIER_PARAM] === true) return 1;
     const enemyAsset = enemyAssetForEntity(entity);
     const raw = Number(
       enemyAsset?.logicUpdateIntervalFrames
@@ -14766,12 +14818,15 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     const darkEyesColor = Number.isFinite(rawDarkEyes) && rawDarkEyes >= 1 && rawDarkEyes <= 15
       ? Math.floor(rawDarkEyes)
       : 0;
+    const terrainBody = entity?.params?.[BITMAP_PURSUER_SOLDIER_PARAM] === true ? MSX2_PURSUER_TERRAIN_BODY : undefined;
     return {
       spriteId,
       frameIndices,
       delayFrames,
       darkEyesColor,
-      cacheKey: `${spriteId || '__placeholder__'}:${frameIndices.join(',')}:${delayFrames}:${darkEyesColor}`,
+      ...(terrainBody ? { terrainBody } : {}),
+      cacheKey: `${spriteId || '__placeholder__'}:${frameIndices.join(',')}:${delayFrames}:${darkEyesColor}`
+        + (terrainBody ? `:body${terrainBody.left},${terrainBody.top},${terrainBody.width},${terrainBody.height}` : ''),
     };
   };
   const resolveContactForEntity = (entity: any): EnemyHardwareSlot['contact'] => {
@@ -14839,6 +14894,9 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     spriteGrids.set(key, grid);
     return grid;
   };
+  // The ONE place that resolves the terrain body of a placed enemy: its resident descriptor and its spawn/patrol clamps both read it.
+  const terrainBodyFor = (render: EnemyRenderSelection, grid: EnemySpriteGrid) =>
+    getEnemySpriteBodyBounds(grid.sprite?.size, grid.cells, render.terrainBody);
   const spritePatternForSlot = (grid: EnemySpriteGrid, spriteLayerIndex: number, frameSetIndex: number): number[] => {
     if (!grid.sprite) return PLACEHOLDER_SPRITE_PATTERNS.slice(0, 32);
     const cellIndex = Math.floor(spriteLayerIndex / grid.colorLayerCount);
@@ -14937,7 +14995,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
         }
       }
     }
-    const body = getEnemySpriteBodyBounds(grid.sprite?.size, grid.cells);
+    const body = terrainBodyFor(render, grid);
     for (let block = record.colorOff; block < colorBytes.length / 16; block++) {
       bodyBoundsBytes.push(...body.bytes);
     }
@@ -14994,10 +15052,11 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       }
       const grid = spriteGrid(render);
       if (pair.slot.mode === MSX2_ENEMY_MOVEMENT_SCRIPTED || pair.slot.mode === MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY) {
-        const body = getEnemySpriteBodyBounds(grid.sprite?.size, grid.cells);
-        // Bounds are logical origins, including signed visual part offsets.
-        const minX = -body.left, maxX = 256 - body.right;
-        const minY = -body.top, maxY = 192 - body.bottom;
+        const body = terrainBodyFor(render, grid);
+        // Bounds are logical origins, including signed visual part offsets. A body that starts inside its sprite (left/top > 0, the
+        // soldier's) still cannot put the origin below 0.
+        const minX = Math.max(0, -body.left), maxX = 256 - body.right;
+        const minY = Math.max(0, -body.top), maxY = 192 - body.bottom;
         pair.slot = { ...pair.slot,
           x: clampInt(pair.slot.x, minX, maxX, minX), y: clampInt(pair.slot.y, minY, maxY, minY),
           minX: clampInt(pair.slot.minX, minX, maxX, minX), maxX: clampInt(pair.slot.maxX, minX, maxX, maxX),
