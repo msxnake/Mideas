@@ -33,6 +33,8 @@ export const OrnamentsPanel: React.FC<OrnamentsPanelProps> = ({
   return (
     <Panel title="Ornaments" icon={<PencilIcon/>} bodyClassName="p-2">
         <div className="max-h-28 overflow-y-auto space-y-1 pr-1 text-xs">
+            <Button size="sm" variant={activeOrnamentId === 0 ? 'primary' : 'ghost'}
+                onClick={() => onSetActiveOrnamentId(0)} className="w-full text-[0.65rem]">Sin ornamento (00)</Button>
             {ornaments.map(orn => (
                 <div 
                     key={orn.id} 

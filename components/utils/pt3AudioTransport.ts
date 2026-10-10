@@ -14,6 +14,8 @@ export interface PT3LoopRange { startFrame: number; endFrame: number }
 export class PT3AudioTransport {
   private context: AudioContext | null = null;
   private node: AudioWorkletNode | null = null;
+  private gain: GainNode | null = null;
+  private masterVolume = 1;
   private worker: Worker | null = null;
   private opening: Promise<void> | null = null;
   private generation = 0;
@@ -32,10 +34,11 @@ export class PT3AudioTransport {
   private pendingSeek: number | null = null;
   private scopes = [new Float32Array(1024), new Float32Array(1024), new Float32Array(1024)];
   private compiling = false;
+  private auditionCompilation: Promise<unknown> = Promise.resolve();
   private queuedSnapshot: { bytes: Uint8Array; revision: number; resolve: (revision: number) => void; reject: (error: Error) => void } | null = null;
   private requests = new Map<number, { resolve: (log: ArrayBuffer) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
 
-  constructor(private readonly bytes: Uint8Array, private readonly events: PT3TransportEvents = {}) {}
+  constructor(private readonly bytes: Uint8Array, private readonly events: PT3TransportEvents = {}, private readonly audition = false) {}
 
   private decode(bytes: Uint8Array): Promise<ArrayBuffer> {
     if (!this.worker) return Promise.reject(new Error('El decodificador PT3 está cerrado.'));
@@ -75,7 +78,7 @@ export class PT3AudioTransport {
       const [log] = await Promise.all([this.decode(this.bytes), context.audioWorklet.addModule('/audio/pt3-worklet.js')]);
       if (generation !== this.generation) throw new Error('Carga PT3 cancelada.');
       this.duration = log.byteLength / 15 / this.playbackHz;
-      const node = new AudioWorkletNode(context, 'mideas-pt3', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] });
+      const node = new AudioWorkletNode(context, 'mideas-pt3', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { audition: this.audition } });
       this.node = node;
       node.onprocessorerror = () => this.events.onError?.('El procesador de audio PT3 ha fallado.');
       node.port.onmessage = ({ data }) => {
@@ -94,7 +97,10 @@ export class PT3AudioTransport {
           this.events.onEnded?.();
         }
       };
-      node.connect(context.destination);
+      this.gain = context.createGain();
+      this.gain.gain.value = this.masterVolume;
+      node.connect(this.gain);
+      this.gain.connect(context.destination);
       node.port.postMessage({ type: 'load', log, revision: 0 }, [log]);
       node.port.postMessage({ type: 'rate', hz: this.playbackHz });
       node.port.postMessage({ type: 'mute', mask: this.mutedMask });
@@ -130,6 +136,36 @@ export class PT3AudioTransport {
     this.playing = false; this.node?.port.postMessage({ type: 'pause' });
     this.events.onPause?.();
     this.events.onTimeUpdate?.(this.getCurrentTime(), this.duration);
+  }
+
+  /** Immediate replacement for a note audition, without waiting for a song loop. */
+  public async playModule(bytes: Uint8Array, startFrame = 0): Promise<void> {
+    this.pause();
+    const request = ++this.playRequest;
+    await this.open();
+    if (request !== this.playRequest) return;
+    // Rapid MIDI notes keep at most one decode in flight and the newest request.
+    await this.auditionCompilation;
+    if (request !== this.playRequest) return;
+    const decoding = this.decode(bytes);
+    this.auditionCompilation = decoding.catch(() => undefined);
+    const log = await decoding;
+    const context = this.context, node = this.node;
+    if (request !== this.playRequest || !context || !node) return;
+    await context.resume();
+    if (request !== this.playRequest || this.context !== context || this.node !== node) return;
+    this.duration = log.byteLength / 15 / this.playbackHz;
+    node.port.postMessage({ type: 'load', log, revision: ++this.newestRevision }, [log]);
+    this.seek(startFrame / this.playbackHz);
+    this.anchor = { frame: startFrame, contextTime: context.currentTime };
+    this.playing = true;
+    node.port.postMessage({ type: 'play' });
+    this.events.onPlay?.();
+  }
+
+  public setMasterVolume(volume: number): void {
+    this.masterVolume = Math.max(0, Math.min(1, volume));
+    if (this.gain && this.context) this.gain.gain.setValueAtTime(this.masterVolume, this.context.currentTime);
   }
 
   public stop(): void { this.pause(); this.seek(0); }
@@ -221,6 +257,7 @@ export class PT3AudioTransport {
     for (const request of this.requests.values()) { clearTimeout(request.timer); request.reject(new Error('Carga PT3 cancelada.')); }
     this.requests.clear(); this.worker?.terminate(); this.worker = null;
     this.node?.disconnect(); this.node?.port.close(); this.node = null;
+    this.gain?.disconnect(); this.gain = null;
     void this.context?.close(); this.context = null; this.opening = null;
   }
 }

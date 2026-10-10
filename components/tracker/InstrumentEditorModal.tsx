@@ -653,6 +653,9 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
 
             synthesizer.setSongData({
                 ...originalSongData,
+                // The editor auditions an unsaved in-memory sample. Its PT3
+                // binary still contains the old bank until the user saves it.
+                playbackBackend: 'native',
                 ...(previewEnvelopePeriod !== undefined
                     ? { ayHardwareEnvelopePeriod: previewEnvelopePeriod }
                     : {}),

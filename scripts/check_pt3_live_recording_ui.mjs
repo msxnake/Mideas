@@ -26,6 +26,12 @@ try {
       constructor(...args){
         super(...args);
         if(args[1]==='mideas-pt3') this.port.addEventListener('message',({data})=>{
+          if(args[2]?.processorOptions?.audition) {
+            if(data.type==='scopes') for(const scope of data.scopes) for(const value of scope) {
+              window.testMonitorPeak=Math.max(window.testMonitorPeak,Math.abs(value));
+            }
+            return;
+          }
           if(data.type==='position') window.testTransportPosition=data;
           if(data.type==='scopes') window.testTransportScopes=data.scopes;
         });

@@ -67,12 +67,32 @@ nativo conserva su flujo anterior.
 - Parar, pausar, desarmar REC o desconectar/cambiar el dispositivo MIDI finaliza
   las notas retenidas. El binario y la vista se confirman juntos al cerrar la toma.
 
+## Piano, MIDI y selección de sonido (2026-10-10)
+
+- En módulos PT3, piano, teclado del ordenador y monitoring MIDI usan el mismo
+  decoder Cowbell/Bulba y emulador AY en AudioWorklet que Play. Conservan el banco
+  y la tabla de notas del módulo, el reloj 50/60 Hz y el volumen general.
+- Seleccionar un instrumento y un ornamento determina la escucha y los campos
+  guardados al introducir/grabar la nota. «Sin ornamento (00)» permite desactivarlo.
+- Ctrl+C sobre una celda copia el sonido de esa fila/canal: INS/ORN/VOL heredados,
+  envolvente y comandos fuente, incluido vibrato y comandos apilados. El piano
+  muestra la selección; «Quitar sonido copiado» retira los ajustes copiados.
+- «Share Propierty», junto a la selección de sonido sobre el piano, realiza la
+  misma acción que Ctrl+C. Requiere un cursor en el tracker y conserva su posición
+  para seguir tocando; selecciona propiedades sin modificar el módulo.
+- Una escucha mantiene el contexto de comandos anterior al cursor y sostiene
+  la nota sin ejecutar las notas siguientes. Decodificación fuera del hilo de UI;
+  cada canal reutiliza su transporte y las nuevas notas/releases cancelan las
+  preparaciones anteriores. Stop, Silence y desmontaje cancelan el monitoring.
+- MIDI Only play conserva el módulo intacto. La velocidad MIDI puede modificar
+  el volumen cuando Velocity → Volume está activo.
+- La paridad comprobada corresponde al sonido de Play del navegador; no se ha
+  validado acústicamente contra hardware o una ROM. El contexto anterior puede
+  requerir preparación al escuchar por primera vez un pasaje avanzado.
+
 ## Límites actuales
 
 - Esto no representa todavía la paridad funcional completa con Vortex.
-- El monitoring inmediato usa el sintetizador de preview de Mideas y sigue
-  pendiente trasladarlo también al hilo de audio. El acompañamiento PT3 ya usa
-  AudioWorklet; no se afirma paridad acústica del monitoring con la ROM.
 - El overdub continuo opera con Solo este patrón. Sin ese modo, el módulo
   confirmado se carga al siguiente Play. Una toma terminada muy cerca del borde
   puede entrar una vuelta después si su preparación no ha acabado a tiempo.
@@ -81,10 +101,15 @@ nativo conserva su flujo anterior.
   canal dejan la última. Los patrones repetidos en el orden comparten datos.
 - No se ha validado hardware MPK real ni se ha generado una ROM de prueba en
   esta sesión. No se afirma paridad acústica del monitoring con la ROM.
-- Quedan por completar la reducción de repintados de la cuadrícula, el monitoring
-  fuera del hilo principal y herramientas de edición de bloques.
+- Quedan por completar la reducción de repintados de la cuadrícula y herramientas
+  de edición de bloques.
 
 ## Validación
+
+- `node scripts/check_pt3_piano_sound_ui.mjs`: selección manual y Ctrl+C, notas
+  persistidas con los ajustes copiados, registros PSG idénticos en piano/Play,
+  audio real de piano/MIDI, Only play sin modificaciones, liberación, cancelación,
+  Silence y desmontaje.
 
 - `node scripts/check_tracker_clear_channel_ui.mjs`: botones alineados con sus
   canales, borrado durante Play, conservación de B/C y otros patrones, eliminación

@@ -1,10 +1,11 @@
-import type { PT3Instrument, PT3Ornament, TrackerCell, TrackerChannelId, TrackerPattern, TrackerSongData } from '../../types';
+import type { PT3Instrument, PT3Ornament, PT3PatternCellSource, TrackerCell, TrackerChannelId, TrackerPattern, TrackerSongData } from '../../types';
 import { parsePT3File } from './pt3Parser';
 import { rewritePT3PatternNoteStreams } from './pt3SourceEditor';
 import { createEmptyRow } from './trackerUtils';
 import { PT3_FACTORY_INSTRUMENTS } from '../../utils/audio/pt3FactoryInstruments';
 
-export type TrackerTake = ReadonlyMap<string, Partial<TrackerCell>>;
+export type TrackerTakePatch = Partial<TrackerCell> & { pt3Source?: PT3PatternCellSource };
+export type TrackerTake = ReadonlyMap<string, TrackerTakePatch>;
 
 /** Apply a take without mutating either the source song or the pending notes. */
 export function overlayTrackerTake(patterns: TrackerPattern[], take: TrackerTake): TrackerPattern[] {
@@ -21,7 +22,13 @@ export function overlayTrackerTake(patterns: TrackerPattern[], take: TrackerTake
       copied.add(index);
     }
     const row = result[index].rows[rowIndex];
-    result[index].rows[rowIndex] = { ...row, [channel]: { ...row[channel], ...patch } };
+    const { pt3Source, ...cellPatch } = patch;
+    result[index].rows[rowIndex] = { ...row, [channel]: { ...row[channel], ...cellPatch } };
+    if (pt3Source) {
+      const sourceRows = [...(result[index].pt3SourceRows ?? [])];
+      sourceRows[rowIndex] = { ...sourceRows[rowIndex], [channel]: structuredClone(pt3Source) };
+      result[index].pt3SourceRows = sourceRows;
+    }
   }
   return result;
 }

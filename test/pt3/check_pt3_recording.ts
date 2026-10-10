@@ -5,6 +5,8 @@ import { parsePT3File, parsePT3Module } from '../../components/utils/pt3Parser';
 import { PT3_FACTORY_INSTRUMENTS } from '../../utils/audio/pt3FactoryInstruments';
 import type { TrackerSongData } from '../../types';
 import { buildPT3RecordingTimeline, quantizePT3Position, resolvePT3NoteOffPosition } from '../../components/utils/pt3RecordingTiming';
+import { captureTrackerSound, applyTrackerSoundPreset } from '../../components/utils/trackerSoundPreset';
+import { buildPT3Audition } from '../../components/utils/pt3AuditionSynthesizer';
 
 const song = { id: 'test', ...createBlankPT3Song() } as TrackerSongData;
 const module = parsePT3Module(new Uint8Array(song.externalPt3Data!).buffer);
@@ -14,6 +16,37 @@ assert.equal(song.instruments.length, PT3_FACTORY_INSTRUMENTS.length);
 assert.deepEqual(song.order, [0]);
 assert(song.patterns[0].rows.every(row => ['A', 'B', 'C'].every(channel => row[channel].note === null)));
 const before = JSON.stringify(song);
+// Ctrl+C inherits selectors across the order and keeps stacked PT3 commands.
+{
+  const fixture = structuredClone(song);
+  fixture.patterns = [structuredClone(fixture.patterns[0]), structuredClone(fixture.patterns[0])];
+  fixture.order = [0, 1]; fixture.currentPatternIndexInOrder = 1;
+  fixture.patterns[0].rows[0].A = { note: 'C-4', instrument: 2, ornament: 3, volume: 7,
+    pt3Envelope: '9:004B', effectCommand: 5, effectParams: '0203' };
+  fixture.patterns[0].pt3SourceRows![0].A = { decoded: true, noteSkip: 1,
+    effects: [{ code: 5, name: 'VIBRATO', params: [2, 3], display: 'VIB 02/03' },
+      { code: 3, name: 'SAMPLE_POS', params: [1], display: 'SMP 01' }],
+    events: ['N08'], prefixBytes: [0x28, 5, 3], deferredPayloadBytes: [1, 2, 3] };
+  const original = JSON.stringify(fixture);
+  const preset = captureTrackerSound(fixture, 1, 4, 'A');
+  assert.equal(preset.cell.instrument, 2);
+  assert.equal(preset.cell.ornament, 3);
+  assert.equal(preset.cell.volume, 7);
+  assert.equal(preset.cell.pt3Envelope, '9:004B');
+  assert.equal(preset.cell.effectCommand, 5);
+  assert.equal(preset.source!.effects.length, 2);
+  assert(!('note' in preset.cell));
+  const targets = applyTrackerSoundPreset(fixture.patterns, 1, 5, 'A', preset);
+  const recorded = commitTrackerTake({ ...fixture, patterns: targets }, new Map([['1:5:A', {
+    note: 'D-4', ...preset.cell, pt3Source: preset.source,
+  }]]));
+  assert.equal(recorded.patterns![1].pt3SourceRows![5].A!.effects.length, 2, 'MIDI preserves stacked copied commands');
+  const audition = buildPT3Audition({ ...fixture, patterns: targets }, 1, 5, 'A', { note: 'D-4' });
+  const reload = parsePT3File(audition.bytes.buffer as ArrayBuffer);
+  assert.equal(reload.patterns![1].rows[5].A.note, 'D-4');
+  assert.equal(audition.startFrame, (64 + 5) * fixture.speed);
+  assert.equal(JSON.stringify(fixture), original, 'copying and auditioning preserve all original data');
+}
 const take = new Map([
   ['0:4:A', { note: 'C-4', instrument: 1, volume: 12 }],
   ['0:8:A', { note: 'E-4' }],

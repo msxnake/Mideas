@@ -467,6 +467,7 @@ export const resolveNoteEntryAutoFields = (
    * following note still inherits.
    */
   stampEvenIfInherited = false,
+  explicitlySelectedOrnamentId: number | null = null,
 ): { instrument?: number | null; ornament?: number } => {
   const applied: { instrument?: number | null; ornament?: number } = {};
 
@@ -517,7 +518,8 @@ export const resolveNoteEntryAutoFields = (
   }
 
   if (activeOrnamentId !== null
-    && (currentOrnament === null || currentOrnament === undefined || currentOrnament === 0)) {
+    && (explicitlySelectedOrnamentId === activeOrnamentId
+      || currentOrnament === null || currentOrnament === undefined || currentOrnament === 0)) {
     applied.ornament = activeOrnamentId;
   }
 
