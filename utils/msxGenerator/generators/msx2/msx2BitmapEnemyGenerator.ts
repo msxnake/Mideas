@@ -11,9 +11,11 @@ import {
   enemyScriptScratchBytes,
   MSX2_ENEMY_SCRIPT_POOL_BYTES,
   MSX2_ENEMY_PATH_POOL_BYTES,
+  MSX2_ENEMY_CLIP_POOL_BYTES,
   buildEnemyBehaviorRuntimeAsm,
   buildEnemyBehaviorProgramAsm,
   enemyProgramsUseGravity,
+  enemyProgramsUseClip,
 } from './msx2EnemyBehaviorRuntime';
 import { buildEnemyBodyCollisionAsm, buildEnemyBodyWalkerAsm } from './msx2EnemyBodyCollision';
 
@@ -80,6 +82,8 @@ export const BITMAP_ENEMY_POOL_STRIDE_FLY8_BYTES = 2;
 export const BITMAP_ENEMY_POOL_STRIDE_SCRIPTED = MSX2_ENEMY_SCRIPT_POOL_BYTES;
 /** PATH FOLLOW builds append node-index and branch-mask bytes after scripted state. */
 export const BITMAP_ENEMY_POOL_STRIDE_PATH = MSX2_ENEMY_PATH_POOL_BYTES;
+/** CLIP builds (a program that is the pursuer soldier's behaviour) append the ANIM_CLIP byte after the path bytes. */
+export const BITMAP_ENEMY_POOL_STRIDE_CLIP = MSX2_ENEMY_CLIP_POOL_BYTES;
 /**
  * Authored behaviour programs are read by bitmap_enemy_script_step on every
  * logic tick. They therefore stay in the resident ROM window; only the per-room
@@ -105,12 +109,15 @@ export const ENEMY_BULLET_COLOR_BYTES = Array.from({ length: 16 }, () => 0xF1);
 export function bitmapEnemyPoolStride(data: BitmapEnemyRoomData | undefined): number {
   const programsUsePath = data?.scriptedEnabled === true
     && data.scriptedBehaviorPrograms?.some(program => program.kind === 'path_follow') === true;
+  const programsUseClip = data?.scriptedEnabled === true
+    && enemyProgramsUseClip(data.scriptedBehaviorPrograms || []);
   return BITMAP_ENEMY_POOL_STRIDE
     + (data?.slimeEnabled ? 3 : 0)
     + (data?.gearEnabled ? 5 : 0)
     + (data?.fly8Enabled ? BITMAP_ENEMY_POOL_STRIDE_FLY8_BYTES : 0)
     + (data?.scriptedEnabled ? BITMAP_ENEMY_POOL_STRIDE_SCRIPTED : 0)
     + (programsUsePath ? BITMAP_ENEMY_POOL_STRIDE_PATH : 0)
+    + (programsUseClip ? BITMAP_ENEMY_POOL_STRIDE_CLIP : 0)
     + (data?.konamiPaths?.length ? 8 : 0);
 }
 
@@ -181,6 +188,11 @@ export interface BitmapEnemyRoomData {
     bytes: number[];
     gravity?: boolean;
     kind?: 'rules' | 'path_follow';
+    /**
+     * True when this program is the pursuer soldier's behaviour (the room generator decides it from the synthesized soldier, never
+     * from an authored flag). Any such program turns the whole build into a CLIP build: ANIM_CLIP, the clip pool byte, 21 actions.
+     */
+    clip?: boolean;
   }>;
   /** True only when a baked authored program actually contains FIRE. */
   scriptedProgramsUseFire?: boolean;
@@ -376,6 +388,8 @@ export function buildBitmapEnemySystemAsm(
   const programsUseGravity = scripted && enemyProgramsUseGravity(data.scriptedBehaviorPrograms || []);
   const programsUsePath = scripted
     && data.scriptedBehaviorPrograms?.some(program => program.kind === 'path_follow') === true;
+  // A program that is the pursuer soldier's behaviour: the clip byte and ANIM_CLIP. Off for every other project.
+  const programsUseClip = scripted && enemyProgramsUseClip(data.scriptedBehaviorPrograms || []);
   const enemyBulletSlotCount = programsUseFire ? BITMAP_ENEMY_BULLET_SLOTS : 0;
   // MegaROM: the sprite art lives in a data bank, so every copy goes through the
   // below-#8000 helper that owns the swap (these routines sit in #8000-#9FFF).
@@ -464,6 +478,9 @@ bitmap_enemy_konami_step:
   // program, state, timer, velocity, shield and hit stamp.
   const SCRIPTED_PATH_NODE_OFFSET = SCRIPTED_PROGRAM_OFFSET + MSX2_ENEMY_SCRIPT_POOL_BYTES;
   const SCRIPTED_PATH_BRANCH_OFFSET = SCRIPTED_PATH_NODE_OFFSET + 1;
+  // The ANIM_CLIP byte follows the path bytes when there are any, the scripted block otherwise.
+  const SCRIPTED_CLIP_OFFSET = SCRIPTED_PROGRAM_OFFSET + MSX2_ENEMY_SCRIPT_POOL_BYTES
+    + (programsUsePath ? BITMAP_ENEMY_POOL_STRIDE_PATH : 0);
   const SCRIPTED_TABLE_INDEX = 22 + (slime ? 1 : 0) + (gear ? 2 : 0) + (fly8 ? 1 : 0);
   const variantsPerFrame = bitmapEnemyVariantsPerFrame(data);
   const groupsPerSlot = maxFrames * variantsPerFrame;
@@ -520,6 +537,8 @@ bitmap_enemy_konami_step:
       programsUsePath,
       poolPathNodeOffset: SCRIPTED_PATH_NODE_OFFSET,
       poolPathBranchOffset: SCRIPTED_PATH_BRANCH_OFFSET,
+      programsUseClip,
+      poolClipOffset: programsUseClip ? SCRIPTED_CLIP_OFFSET : undefined,
       enemyBullets: programsUseFire ? {
         ramBase: enemyBulletRamBase,
         slotCount: enemyBulletSlotCount,
@@ -545,7 +564,7 @@ bitmap_enemy_konami_step:
   const totalRamBytes = colorCacheOffset + 2 * maxSlots + (compact?.mapBytes || 0);
 
   const equates = `; --- ENEMY runtime state (${totalRamBytes} bytes): count + ${maxSlots} slot(s) x ${POOL_STRIDE}${fly8 ? ' + PRNG seed' : ''}
-; (x,y,dx,dy,minX,maxX,minY,maxY,animTick,animFrame,frameCount,animDelay,colorOff,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,logicInterval,logicCountdown${slime ? ',travelPx,travelCount,phase' : ''}${gear ? ',gearState,gearCooldownLo,gearCooldownHi,gearDelayLo,gearDelayHi' : ''}${fly8 ? ',flyLeft,flyTurnPx' : ''}${scripted ? ',scriptProgram,scriptState,scriptTimer,scriptVelocity,scriptShield,scriptHit' : ''}${programsUsePath ? ',pathNode,pathBranchMask' : ''}) ---
+; (x,y,dx,dy,minX,maxX,minY,maxY,animTick,animFrame,frameCount,animDelay,colorOff,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,logicInterval,logicCountdown${slime ? ',travelPx,travelCount,phase' : ''}${gear ? ',gearState,gearCooldownLo,gearCooldownHi,gearDelayLo,gearDelayHi' : ''}${fly8 ? ',flyLeft,flyTurnPx' : ''}${scripted ? ',scriptProgram,scriptState,scriptTimer,scriptVelocity,scriptShield,scriptHit' : ''}${programsUsePath ? ',pathNode,pathBranchMask' : ''}${programsUseClip ? ',animClip' : ''}) ---
 bitmap_enemy_count EQU ${asmWord(countAddr)}
 bitmap_enemy_pool  EQU ${asmWord(poolAddr)}
 bitmap_enemy_color_keys EQU ${asmWord(colorKeysAddr)}
@@ -637,6 +656,7 @@ ${slime ? `    ld a, (ix+22)             ; slime hop distance in px (0 on non-sl
 ${programsUsePath ? `    xor a
     ld (${poolBase} + ${SCRIPTED_PATH_NODE_OFFSET}), a
     ld (${poolBase} + ${SCRIPTED_PATH_BRANCH_OFFSET}), a
+` : ''}${programsUseClip ? `    ld (${poolBase} + ${SCRIPTED_CLIP_OFFSET}), a  ; no clip yet: the previous room's must not animate this one
 ` : ''}
 ` : ''}${compact ? '    ; Patterns already uploaded once for this room; colours remain per slot.' : slime && slotVariants < 4 ? `    ; --- upload frameCount x [right,left] pairs -> VRAM ${asmWord(patternVram)} (group ${patternGroup}+) ---
     ; Slime builds store 4 variants per frame in ROM ([R,L,ceilR,ceilL]) for
@@ -739,6 +759,8 @@ ${enemyBulletColorUploads}` : '';
     // The program index never changes, and the hit stamp is per-layer evidence
     // that this layer took a bullet — copying it back down would replay the hit.
     if (scripted && (offset === SCRIPTED_PROGRAM_OFFSET || offset === SCRIPTED_PROGRAM_OFFSET + 5)) continue;
+    // Only the leader animates inside a clip; a follower copies the frame it ends up with, so its own clip byte is never read.
+    if (programsUseClip && offset === SCRIPTED_CLIP_OFFSET) continue;
     followerCopyOffsets.push(offset);
   }
   const followerStepAsm = `
@@ -782,6 +804,37 @@ ${followerCopyOffsets.map(offset => `    ld a, (iy+${offset})
     ld (ix+13), #FF
     pop iy
     jp .enemy_step_next
+`;
+
+  // ---- ANIM_CLIP: the automatic animation stays inside the clip the script asked for ----
+  // The clip byte is first | n << 4 | #80 (bit 7 = "a clip is set", so the byte is never 0 and a freshly loaded slot, which holds 0,
+  // animates the whole sprite as always). The script put animFrame on `first` in the tick that chose the clip, so the very first
+  // frame the SAT shows is already inside it; from then on the animation only moves inside it: the frame after the clip's last one
+  // (first + n) wraps back to `first`. A clip of 0 or 1 frames therefore wraps at once and holds still, with no special case.
+  // The sprite's own frameCount caps the end, so a clip longer than the sprite never reaches a frame it does not have.
+  // Lives behind the loop's ret, like the follower path: the loop reaches it only by jumping in and leaves it only by jumping
+  // back to .enemy_anim_store.
+  const clipAnimAsm = `.enemy_anim_clip:
+    ld c, a                   ; C = clip byte
+    and #0F
+    ld d, a                   ; D = first frame
+    ld a, c
+    rrca
+    rrca
+    rrca
+    rrca
+    and #07                   ; A = n
+    add a, d
+    ld c, a                   ; C = end of the clip, exclusive
+    ld a, (ix+9)              ; animFrame
+    inc a
+    cp c
+    jr nc, .enemy_anim_clip_wrap
+    cp (ix+10)                ; never past the frames the sprite really has
+    jp c, .enemy_anim_store
+.enemy_anim_clip_wrap:
+    ld a, d                   ; back to the first frame of the clip
+    jp .enemy_anim_store
 `;
 
   // ---- bitmap_update_enemies: per-enemy configurable logic cadence ----
@@ -1677,7 +1730,10 @@ ${gear ? `    jp .enemy_anim
     jp nz, .enemy_step_next
     ld a, (ix+11)             ; animDelay
     ld (ix+8), a
-    ld a, (ix+9)              ; animFrame
+${programsUseClip ? `    ld a, (ix+bitmap_enemy_script_clip_ofs)
+    or a
+    jp nz, .enemy_anim_clip   ; ANIM_CLIP is playing: stay inside it
+` : ''}    ld a, (ix+9)              ; animFrame
     inc a
     cp (ix+10)
     jp c, .enemy_anim_store
@@ -1691,7 +1747,7 @@ ${gear ? `    jp .enemy_anim
     jp nz, .enemy_step_loop
     pop bc
     ret
-${layered ? followerStepAsm : ''}`;
+${programsUseClip ? clipAnimAsm : ''}${layered ? followerStepAsm : ''}`;
 
   const touchDamageAsm = `
 ; ------------------------------------------------------------

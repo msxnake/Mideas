@@ -39,7 +39,10 @@ const {
   MSX2_ENEMY_MOVEMENT_SCRIPTED,
   MSX2_ENEMY_SCRIPT_COND_COUNT,
   MSX2_ENEMY_SCRIPT_ACT_COUNT,
+  MSX2_ENEMY_SCRIPT_ACT_COUNT_CLIP,
   MSX2_ENEMY_SCRIPT_POOL_BYTES,
+  enemyScriptScratchBytes,
+  enemyProgramsUseClip,
 } = await import(pathToFileURL(out).href);
 
 const bakerOut = join(workDir, 'baker.mjs');
@@ -47,7 +50,7 @@ await build({
   entryPoints: [join(repoRoot, 'utils', 'msx2EnemyBehavior.ts')],
   bundle: true, format: 'esm', platform: 'node', outfile: bakerOut, logLevel: 'silent',
 });
-const { MSX2_ENEMY_COND, MSX2_ENEMY_ACT, bakeEnemyBehavior, createMsx2EnemyBehavior } =
+const { MSX2_ENEMY_COND, MSX2_ENEMY_ACT, MSX2_ENEMY_ACT_INFO, MSX2_ENEMY_ACT_PURSUER_FIRST, MSX2_ENEMY_ACT_PURSUER_LAST, bakeEnemyBehavior, createMsx2EnemyBehavior } =
   await import(pathToFileURL(bakerOut).href);
 
 const pathOut = join(workDir, 'path.mjs');
@@ -123,13 +126,20 @@ const actTargets = tableTargets('bitmap_enemy_script_act_table');
 check('The condition table has one entry per condition opcode',
   condTargets.length === MSX2_ENEMY_SCRIPT_COND_COUNT
   && condTargets.length === Object.keys(MSX2_ENEMY_COND).length);
-check('The action table has one entry per action opcode',
+// ANIM_CLIP (0x14) and the two opcodes reserved before it (0x12, 0x13) exist only in a ROM that has the pursuer soldier's behaviour: the
+// classic table keeps its 18 entries, the `cp 18` immediates and every byte it ever had. The clip table is checked further down.
+const classicActNames = Object.entries(MSX2_ENEMY_ACT).filter(([, opcode]) => opcode < MSX2_ENEMY_SCRIPT_ACT_COUNT);
+check('The action table has one entry per CLASSIC action opcode; ANIM_CLIP (0x14) and the reserved 0x12/0x13 are not in it',
   actTargets.length === MSX2_ENEMY_SCRIPT_ACT_COUNT
-  && actTargets.length === Object.keys(MSX2_ENEMY_ACT).length);
+  && actTargets.length === classicActNames.length
+  && Object.keys(MSX2_ENEMY_ACT).length === MSX2_ENEMY_SCRIPT_ACT_COUNT + 1
+  && MSX2_ENEMY_ACT.ANIM_CLIP === 0x14
+  && MSX2_ENEMY_ACT_PURSUER_FIRST === 0x12 && MSX2_ENEMY_ACT_PURSUER_LAST === 0x14
+  && classicActNames.every(([name]) => name !== 'ANIM_CLIP'));
 
 const snake = (name) => name.toLowerCase();
 const condNames = Object.entries(MSX2_ENEMY_COND).sort((a, b) => a[1] - b[1]);
-const actNames = Object.entries(MSX2_ENEMY_ACT).sort((a, b) => a[1] - b[1]);
+const actNames = classicActNames.sort((a, b) => a[1] - b[1]);
 // TIMER_ELAPSED shortens to _timer in ASM; everything else is a literal match.
 const condAlias = { TIMER_ELAPSED: 'timer' };
 check('THE BUG THIS GUARDS: condition table order matches the opcode numbers, so no condition means another one',
@@ -481,6 +491,90 @@ const pathPrograms = buildEnemyBehaviorProgramAsm([
 check('The kind table marks the route and leaves the rules alone',
   /bitmap_enemy_script_kind_table:\s*\n\s*db #00[\s\S]*?db #00[\s\S]*?db #01/.test(pathPrograms.asm));
 
+// ---- CLIP BUILD: ANIM_CLIP and the opcodes reserved before it (the pursuer soldier's behaviour) ---------------------------------
+// The soldier's TERRAIN geometry is not here: it is the complete-body engine fed with the soldier's resident descriptor (checked in
+// check_msx2_pursuer_contract.mjs and probed in OpenMSX). What this section guards is that ANIM_CLIP exists ONLY in a build that asks
+// for it, and that a build that asks for it adds nothing else: no body profile, no tall probe, no extra scratch byte.
+const clipOptions = { ...baseOptions, poolStride: 31, programsUseClip: true, poolClipOffset: 30 };
+const clipRuntime = buildEnemyBehaviorRuntimeAsm(clipOptions);
+const clipAsm = clipRuntime.routinesAsm;
+/** Clip + automatic gravity + one-way platforms (the floor probe is a separate routine there). */
+const clipAllRuntime = buildEnemyBehaviorRuntimeAsm({ ...clipOptions, programsUseGravity: true, floorProbeLabel: 'bitmap_probe_floor' });
+const clipCode = clipAsm.replace(/;[^\n]*/g, '').replace(/[ \t]+$/gm, '');
+const labelBody = (source, label) => {
+  const from = source.indexOf(`\n${label}:`);
+  if (from < 0) return '';
+  const rest = source.slice(from + 1);
+  const next = rest.slice(label.length + 2).search(/\nbitmap_enemy_script_[a-z_]+:/);
+  return next < 0 ? rest : rest.slice(0, label.length + 2 + next);
+};
+const instrs = body => body.split('\n').map(l => l.trim()).filter(l => l && !l.endsWith(':'));
+const has = (list, ...seq) => list.some((_, at) => seq.every((line, k) => list[at + k] === line));
+
+check('Default OFF: no clip symbol, no ANIM_CLIP, the classic cp 18 and the classic scratch size (9, or 10 with gravity)',
+  !/anim_clip|clip_ofs/.test(code) && !/clip/.test(runtime.equates)
+  && (code.match(/cp 18\b/g) || []).length === 1 && (pathCode.match(/cp 18\b/g) || []).length === 2 && !/cp 21\b/.test(code)
+  && runtime.ramBytes === 9 && gravityRuntime.ramBytes === 10);
+check('THE BUG THIS GUARDS: a clip build adds NO scratch byte and NO body profile (the terrain geometry is the complete-body engine\'s)',
+  clipRuntime.ramBytes === 9 && clipAllRuntime.ramBytes === 10
+  && !/profile|_tall|esc_tall/.test(clipCode) && !/profile/.test(clipRuntime.equates)
+  && /bitmap_enemy_script_clip_ofs\s+EQU 30\b/.test(clipRuntime.equates));
+let clipThrew = false;
+try { buildEnemyBehaviorRuntimeAsm({ ...baseOptions, programsUseClip: true }); } catch { clipThrew = true; }
+check('THE BUG THIS GUARDS: a clip build without the clip offset breaks the build instead of writing the clip onto the next slot', clipThrew);
+
+const clipActTargets = (() => {
+  const body = clipAsm.slice(clipAsm.indexOf('bitmap_enemy_script_act_table:'));
+  const targets = [];
+  for (const line of body.split('\n').slice(1)) { const m = line.match(/^\s*dw\s+([A-Za-z_][A-Za-z0-9_]*)/); if (!m) break; targets.push(m[1]); }
+  return targets;
+})();
+check('THE BUG THIS GUARDS: the clip action table is 21 entries, 0x12 and 0x13 reserved as IDLE, 0x14 ANIM_CLIP; the first 18 are the classic ones',
+  MSX2_ENEMY_SCRIPT_ACT_COUNT_CLIP === 21 && clipActTargets.length === 21
+  && clipActTargets.slice(0, 18).every((target, index) => target === actTargets[index])
+  && clipActTargets[0x12] === 'bitmap_enemy_script_act_idle' && clipActTargets[0x13] === 'bitmap_enemy_script_act_idle'
+  && clipActTargets[MSX2_ENEMY_ACT.ANIM_CLIP] === 'bitmap_enemy_script_act_anim_clip');
+check('Every opcode guard of the clip build compares against 21 (one for the rules, two with the path walker), so ANIM_CLIP is not "an unknown action = idle"',
+  (clipCode.match(/cp 21\b/g) || []).length === 1 && !/cp 18\b/.test(clipCode)
+  && (() => {
+    const both = buildEnemyBehaviorRuntimeAsm({ ...clipOptions, programsUsePath: true, poolStride: 33 }).routinesAsm.replace(/;[^\n]*/g, '');
+    return (both.match(/cp 21\b/g) || []).length === 2 && !/cp 18\b/.test(both);
+  })());
+check('ANIM_CLIP is an authorable action with a documented, bounded argument (first | n << 4, n 0..7)',
+  MSX2_ENEMY_ACT_INFO.ANIM_CLIP?.arg?.min === 0 && MSX2_ENEMY_ACT_INFO.ANIM_CLIP?.arg?.max === 0x7f);
+check('The reserved opcode range is exactly 0x12..0x14',
+  MSX2_ENEMY_ACT_PURSUER_FIRST === 0x12 && MSX2_ENEMY_ACT_PURSUER_LAST === 0x14 && MSX2_ENEMY_ACT.ANIM_CLIP === 0x14);
+
+// ANIM_CLIP
+const clipBodyRuntime = buildEnemyBehaviorRuntimeAsm({ ...clipOptions, programsUseGravity: true, floorProbeLabel: 'bitmap_probe_floor', bodyBoundsLabel: 'bitmap_enemy_sprite_body_bounds' });
+const clipBodyCode = clipBodyRuntime.routinesAsm.replace(/;[^\n]*/g, '').replace(/[ \t]+$/gm, '');
+check('Clip build + complete-body engine: same 21-entry table, the clip symbol and the body scratch (4 bytes) side by side, no classic probe left',
+  (clipBodyCode.match(/cp 21\b/g) || []).length === 1 && !/cp 18\b/.test(clipBodyCode)
+  && clipBodyRuntime.ramBytes === enemyScriptScratchBytes(true, true) && enemyScriptScratchBytes(true, true) === 14
+  && /bitmap_enemy_script_clip_ofs\s+EQU 30\b/.test(clipBodyRuntime.equates) && /bitmap_enemy_body_bounds\s+EQU/.test(clipBodyRuntime.equates)
+  && clipBodyCode.includes('bitmap_enemy_body_load:')
+  );
+const clipHandler = instrs(labelBody(clipCode, 'bitmap_enemy_script_act_anim_clip'));
+check('The ANIM_CLIP handler exists and is not empty', clipHandler.length > 10);
+check('ANIM_CLIP ignores a first frame the sprite does not have, like SET_ANIM',
+  has(clipHandler, 'ld a, (bitmap_enemy_script_arg)', 'and #0F', 'cp (ix+10)', 'jp nc, bitmap_enemy_script_apply'));
+check('THE BUG THIS GUARDS: ANIM_CLIP stores the clip with bit 7 set (0 means "no clip", and clip 0|0<<4 must not look like it)',
+  has(clipHandler, 'ld a, (bitmap_enemy_script_arg)', 'or #80', 'cp (ix+30)'));
+check('THE BUG THIS GUARDS: asking for the clip already playing changes nothing, so a rule that fires every tick does not restart the cycle',
+  has(clipHandler, 'cp (ix+30)', 'jp z, bitmap_enemy_script_apply'));
+check('THE BUG THIS GUARDS: a NEW clip puts the animation on its first frame in the SAME action, before the SAT is written',
+  has(clipHandler, 'ld (ix+30), a', 'ld (ix+9), b', 'jp bitmap_enemy_script_apply'));
+check('The ANIM_CLIP handler never touches D/E/H/L (it runs inside a step whose cursor registers are live) and has no push/pop',
+  !clipHandler.some(l => /^(push|pop)\b/.test(l)) && !clipHandler.some(l => /\b[dehl]\b/.test(l.replace(/^(jp|call)\s+\S+/, ''))));
+
+// Programs: a clip build needs no table at all. A program list emits the same text with or without the clip flag.
+const classicPrograms = [{ id: 'walker', name: 'Walker', bytes: [1, 3, 0, 1, 0, 0, 0, 0, 0xff] }];
+const clipPrograms = buildEnemyBehaviorProgramAsm([{ ...classicPrograms[0], clip: true }]);
+check('THE BUG THIS GUARDS: the clip flag of a program changes no byte of the program emission (no profile table, no alias labels)',
+  clipPrograms.asm === buildEnemyBehaviorProgramAsm(classicPrograms).asm && !/profile|same bytes as program/.test(clipPrograms.asm));
+check('enemyProgramsUseClip: only a program flagged clip turns the clip build on (the fallback never does)',
+  enemyProgramsUseClip(classicPrograms) === false && enemyProgramsUseClip([{ clip: false }, { clip: true }]) === true && enemyProgramsUseClip([]) === false);
+
 // ---- program emission -------------------------------------------------------
 const preset = bakeEnemyBehavior(createMsx2EnemyBehavior('walker', 'Walker'));
 const programs = buildEnemyBehaviorProgramAsm([{ id: 'walker', name: 'Walker', bytes: preset.bytes }]);
@@ -508,6 +602,12 @@ if (!existsSync(glass)) {
     // Assembling it against the rules-only blob would fail on a missing symbol
     // and tell us nothing about the walker itself.
     { label: 'interpreter with the path walker', build: pathRuntime, body: pathRuntime.routinesAsm, programs: pathPrograms.asm },
+    // The clip builds: ANIM_CLIP and its 21-entry table, alone and with automatic gravity + one-way platforms.
+    { label: 'interpreter with the clip build', build: clipRuntime, body: clipRuntime.routinesAsm },
+    { label: 'interpreter with the clip build, gravity and one-way platforms', build: clipAllRuntime, body: clipAllRuntime.routinesAsm, floorProbe: true },
+    // The clip build next to the complete-body engine Codex made the default (what a real ROM with a soldier assembles): the descriptor
+    // table and the shared body bytes are stubbed where the room generator and the enemy generator own them.
+    { label: 'interpreter with the clip build and the complete-body engine', build: clipBodyRuntime, body: clipBodyRuntime.routinesAsm, floorProbe: true, bodyStub: true },
   ];
   for (const variant of variants) {
     const source = join(workDir, `runtime_probe_${variant.label.replace(/\W+/g, '_')}.asm`);
@@ -527,6 +627,8 @@ if (!existsSync(glass)) {
       'bitmap_probe_solid:',
       '    xor a',
       '    ret',
+      ...(variant.floorProbe ? ['bitmap_probe_floor:', '    xor a', '    ret'] : []),
+      ...(variant.bodyStub ? ['bitmap_enemy_sprite_body_bounds:', '    db #03, #03, #08, #1C, #00, #00, #0F, #1F'] : []),
       // Lives in the boss generator, which is not in this harness either.
       'bitmap_boss_hurt_player:',
       '    ret',

@@ -215,7 +215,23 @@ export const MSX2_ENEMY_ACT = {
    * is exactly the bookkeeping a node editor should remove.
    */
   SET_DIR: 0x11,
+  /**
+   * 0x12 and 0x13 are RESERVED for the pursuer soldier (FOLLOW_GUIDE, FOLLOW_TRAIL): no name yet, the interpreter maps both to
+   * IDLE. They only exist in a ROM that has the pursuer soldier's behaviour program (the "clip build").
+   *
+   * arg = first | n << 4 (first 0..15, n 0..7: a sprite has at most 4 frames). Plays frames first .. first+n-1: n of 0 or 1 holds frame
+   * `first` still, n >= 2 cycles inside the clip at the sprite's own animation speed. The SAT never shows a frame outside the
+   * clip, not even for one video frame: the frame is written in the same tick the action runs, and the automatic animation
+   * wraps at the clip's end instead of at the sprite's. Asking for the clip already playing changes nothing, so a rule that
+   * fires every tick does not restart the cycle. Only the pursuer soldier's behaviour may use it (the generator refuses it
+   * in any other behaviour asset): the clip byte exists in the pool of a clip build only.
+   */
+  ANIM_CLIP: 0x14,
 } as const;
+
+/** First and last action opcodes reserved for the pursuer soldier. Any other behaviour asset that uses one is a build error. */
+export const MSX2_ENEMY_ACT_PURSUER_FIRST = 0x12;
+export const MSX2_ENEMY_ACT_PURSUER_LAST = 0x14;
 
 export type Msx2EnemyBehaviorConditionName = keyof typeof MSX2_ENEMY_COND;
 export type Msx2EnemyBehaviorActionName = keyof typeof MSX2_ENEMY_ACT;
@@ -296,6 +312,7 @@ export const MSX2_ENEMY_ACT_INFO: Record<Msx2EnemyBehaviorActionName, Msx2EnemyB
   CHASE: { label: 'Chase the player', help: 'Turns towards the player and steps in the same tick. The one-opcode chase.' },
   DROP_THROUGH: { label: 'Drop through platform', help: 'Steps down through the one-way platform underfoot and falls to the next one. Does nothing on solid ground.' },
   SET_DIR: { label: 'Face a direction', arg: { min: 0, max: 1, unit: '0 left / 1 right' }, help: 'Absolute, unlike Turn around: it sets the facing instead of flipping it. What a path node needs.' },
+  ANIM_CLIP: { label: 'Play clip (pursuer soldier only)', arg: { min: 0, max: 127, unit: 'first frame | length << 4' }, help: 'Plays the sprite frames first .. first+length-1: a length of 0 or 1 holds one frame, 2 or more cycles inside the clip. The low nibble is the first frame, bits 4-6 the length (0..7). Only the behaviour of the pursuer soldier may use it; any other behaviour asset is a build error.' },
 };
 
 const CONDITIONS_WITH_ARG: ReadonlySet<Msx2EnemyBehaviorConditionName> = new Set(

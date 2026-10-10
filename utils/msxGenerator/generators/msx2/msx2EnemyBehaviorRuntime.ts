@@ -37,6 +37,12 @@ import { buildEnemyBodyCollisionAsm } from './msx2EnemyBodyCollision';
  *      enemy at x=0 would sense whatever sits on the right wall.
  *   Both cases resolve to "the room edge is a wall", deliberately and in one
  *   place (bitmap_enemy_script_edge).
+ *
+ * CLIP BUILD (opt-in, the pursuer soldier's behaviour only)
+ *   A build whose programs include the soldier's behaviour adds ANIM_CLIP (0x14) and the two opcodes reserved before it (0x12, 0x13:
+ *   IDLE for now), one pool byte per slot for the clip and the 21-entry action table (the classic 18 entries and their `cp 18`
+ *   immediates are untouched in every other build). Terrain geometry is NOT part of this: every scripted body is probed by the
+ *   complete-body engine (msx2EnemyBodyCollision.ts) through its resident descriptor, the soldier's being the player's hitbox.
  */
 
 /** Movement mode that hands the slot to this interpreter. */
@@ -79,6 +85,13 @@ export function enemyScriptScratchBytes(programsUseGravity: boolean, fullBodyCol
   return MSX2_ENEMY_SCRIPT_SCRATCH_BYTES + (programsUseGravity ? 1 : 0) + (fullBodyCollision ? 4 : 0);
 }
 
+/**
+ * Pool bytes a CLIP build adds to every slot: the ANIM_CLIP clip. 0 means "no clip, animate the whole sprite"; otherwise
+ * `first | n << 4 | #80` (bit 7 = "a clip is set"), which is never 0, so a slot that has never run ANIM_CLIP (or was just loaded)
+ * is already valid and a clip whose argument is 0 (frame 0 held) cannot be mistaken for "no clip".
+ */
+export const MSX2_ENEMY_CLIP_POOL_BYTES = 1;
+
 /** Value the damage path stamps on a slot when a player bullet connects. */
 export const MSX2_ENEMY_SCRIPT_HIT_STAMP = 0xff;
 
@@ -86,6 +99,16 @@ export const MSX2_ENEMY_SCRIPT_HIT_STAMP = 0xff;
 export const MSX2_ENEMY_SCRIPT_COND_COUNT = 30;
 /** Number of action opcodes. */
 export const MSX2_ENEMY_SCRIPT_ACT_COUNT = 18;
+/**
+ * Number of entries in the action table of a CLIP build: the classic 18, the two opcodes reserved for the pursuer (0x12, 0x13:
+ * both IDLE for now) and ANIM_CLIP (0x14). Every other build keeps the classic table and the classic `cp 18` immediates, byte for
+ * byte.
+ */
+export const MSX2_ENEMY_SCRIPT_ACT_COUNT_CLIP = 21;
+/** The action-table size (and the `cp` immediate that guards it) for a build. */
+export function enemyScriptActCount(programsUseClip: boolean): number {
+  return programsUseClip ? MSX2_ENEMY_SCRIPT_ACT_COUNT_CLIP : MSX2_ENEMY_SCRIPT_ACT_COUNT;
+}
 
 /** Downward velocity the fall integrator will not exceed, as a signed byte. */
 const TERMINAL_VELOCITY = 0xfc;   // -4 px per logic tick
@@ -164,6 +187,13 @@ export interface EnemyBehaviorRuntimeOptions {
   /** Pool offsets of the two path bytes; defaulted next to the scripted block. */
   poolPathNodeOffset?: number;
   poolPathBranchOffset?: number;
+  /**
+   * Set when at least one baked program is the pursuer soldier's behaviour. Off, none of the following reaches the ROM: no
+   * ANIM_CLIP, no clip symbol, and the action table and its `cp` immediates are the classic ones.
+   */
+  programsUseClip?: boolean;
+  /** Pool offset of the ANIM_CLIP byte (see MSX2_ENEMY_CLIP_POOL_BYTES). Required with programsUseClip. */
+  poolClipOffset?: number;
   /**
    * The enemy bullet pool. Omitted entirely when no authored program fires, so
    * turning the behaviour engine on costs no RAM, no SAT slots and no code for
@@ -260,6 +290,15 @@ export function buildEnemyBehaviorRuntimeAsm(options: EnemyBehaviorRuntimeOption
   const gravity = options.programsUseGravity === true;
   const fullBodyCollision = Boolean(options.bodyBoundsLabel);
   const path = options.programsUsePath === true;
+  const clip = options.programsUseClip === true;
+  if (clip && options.poolClipOffset === undefined) {
+    throw new Error(
+      'buildEnemyBehaviorRuntimeAsm: programsUseClip needs poolClipOffset (the pool byte ANIM_CLIP writes). '
+      + 'Without it the clip would land on whatever follows the slot.'
+    );
+  }
+  const CLIP = options.poolClipOffset ?? 0;
+  const ACT_COUNT = enemyScriptActCount(clip);
   const PNODE = options.poolPathNodeOffset ?? (options.poolVelocityOffset + 3);
   const PBRANCH = options.poolPathBranchOffset ?? (options.poolVelocityOffset + 4);
   const BULLET_SLOTS = bullets ? Math.max(1, Math.min(8, Math.floor(bullets.slotCount) || 2)) : 0;
@@ -320,7 +359,9 @@ bitmap_enemy_script_vmoved EQU ${asmWord(addr.verticalMoved)}` : ''}
 bitmap_enemy_script_shield_ofs EQU ${SHIELD}
 bitmap_enemy_script_hit_ofs    EQU ${HIT}
 bitmap_enemy_script_hit_stamp  EQU ${asmByte(MSX2_ENEMY_SCRIPT_HIT_STAMP)}
-${bullets ? `; --- enemy bullet pool (${BULLET_SLOTS} x 4 bytes: active, x, y, dir) ---
+${clip ? `; Pool offset of the ANIM_CLIP byte, for the animation code of the enemy generator.
+bitmap_enemy_script_clip_ofs   EQU ${CLIP}
+` : ''}${bullets ? `; --- enemy bullet pool (${BULLET_SLOTS} x 4 bytes: active, x, y, dir) ---
 ; Field order matches the player's bitmap_bullet_pool so a SAT writer reads the
 ; same offsets. dir uses the player's convention too: 0 = left, 1 = right.
 bitmap_enemy_bullet_pool  EQU ${asmWord(bullets.ramBase)}
@@ -464,7 +505,7 @@ bitmap_enemy_script_path_step:
     ld (bitmap_enemy_script_next), a       ; a route has no states to switch
     ld a, c
     and #1F                                ; opcode without the policy bits
-    cp ${MSX2_ENEMY_SCRIPT_ACT_COUNT}
+    cp ${ACT_COUNT}
     jp nc, bitmap_enemy_script_done        ; unknown opcode: walk on, do nothing
     ld l, a
     ld h, 0
@@ -604,7 +645,7 @@ bitmap_enemy_script_true:
     ld (hl), e
     inc hl                         ; -> bitmap_enemy_script_next
     ld (hl), d
-    cp ${MSX2_ENEMY_SCRIPT_ACT_COUNT}
+    cp ${ACT_COUNT}
     jp nc, bitmap_enemy_script_apply       ; unknown action behaves as idle
     ld l, a
     ld h, 0
@@ -1451,7 +1492,25 @@ bitmap_enemy_script_act_chase:
 .chase_left:
     ld (ix+2), #FF
     jp bitmap_enemy_script_act_walk
-
+${clip ? `; ANIM_CLIP. arg = first | n << 4 (first 0..15, n 0..7). Stores the clip in the slot as the same byte with bit 7 set (never 0: 0 means
+; "no clip") and puts the animation on its first frame IN THIS TICK, before the SAT is written, so no frame outside the clip is ever
+; displayed. The enemy update then animates inside the clip (see .enemy_anim_clip in the enemy generator): n of 0 or 1 is a held
+; frame, n >= 2 cycles. A clip equal to the one already stored changes nothing: a rule that fires every tick must not restart the
+; cycle. A first frame the sprite does not have is ignored, like SET_ANIM. BC is free here (the step pushed the caller's).
+bitmap_enemy_script_act_anim_clip:
+    ld a, (bitmap_enemy_script_arg)
+    and #0F                        ; first
+    cp (ix+${FRAME_COUNT})
+    jp nc, bitmap_enemy_script_apply
+    ld b, a                        ; B = first
+    ld a, (bitmap_enemy_script_arg)
+    or #80
+    cp (ix+${CLIP})
+    jp z, bitmap_enemy_script_apply
+    ld (ix+${CLIP}), a
+    ld (ix+${ANIM_FRAME}), b
+    jp bitmap_enemy_script_apply
+` : ''}
 ${bullets ? `
 ; ------------------------------------------------------------
 ; ENEMY BULLETS. Every local label here carries the .ebul_ prefix, and that is
@@ -1639,7 +1698,10 @@ bitmap_enemy_script_act_table:
     dw bitmap_enemy_script_act_chase            ; 0F CHASE
     dw bitmap_enemy_script_act_drop_through     ; 10 DROP_THROUGH
     dw bitmap_enemy_script_act_set_dir          ; 11 SET_DIR
-`;
+${clip ? `    dw bitmap_enemy_script_act_idle             ; 12 reserved (FOLLOW_GUIDE)
+    dw bitmap_enemy_script_act_idle             ; 13 reserved (FOLLOW_TRAIL)
+    dw bitmap_enemy_script_act_anim_clip        ; 14 ANIM_CLIP
+` : ''}`;
 
   return {
     equates,
@@ -1667,6 +1729,11 @@ export function enemyProgramsUseGravity(
   programs: Array<{ gravity?: boolean }>,
 ): boolean {
   return programs.some(program => program.gravity !== false);
+}
+
+/** True when at least one authored program is the pursuer soldier's behaviour (the index-0 fallback never is). */
+export function enemyProgramsUseClip(programs: Array<{ clip?: boolean }>): boolean {
+  return programs.some(program => program.clip === true);
 }
 
 export function buildEnemyBehaviorProgramAsm(
