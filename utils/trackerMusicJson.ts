@@ -95,6 +95,7 @@ export const normalizeImportedMusic = (
     id: currentSong.id,
     name: currentSong.name,
     playbackBackend,
+    pt3Force50Hz: playbackBackend === 'external-pt3' ? imported.pt3Force50Hz === true : undefined,
     title: typeof imported.title === 'string' ? imported.title : '',
     author: typeof imported.author === 'string' ? imported.author : '',
     sccEnabled: imported.soundChip === 'PSG+SCC' ? imported.sccEnabled !== false : undefined,

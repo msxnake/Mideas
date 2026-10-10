@@ -43,3 +43,35 @@ for (const rate of [44100, 48000, 11025]) {
   assert.equal(looping.processor.frame,frameBefore,'pause freezes the musical clock');
 }
 console.log('PASS: AudioWorklet loop swaps match continuous reference audio sample-for-sample at 44.1/48/11.025 kHz; pause freezes the clock.');
+
+// The same AY register stream must run at either command rate without pitch changes.
+for (const rate of [44100, 48000, 11025]) {
+  const slow = create(rate), fast = create(rate);
+  for (const [player, hz] of [[slow, 50], [fast, 60]]) {
+    player.send({ type: 'load', log: makeLog(Array(120).fill(oldFrame)), revision: 0 });
+    player.send({ type: 'rate', hz });
+    player.send({ type: 'play' });
+  }
+  for (let offset = 0; offset < rate; offset += 128) {
+    const size = Math.min(128, rate - offset);
+    slow.scope.currentTime = fast.scope.currentTime = offset / rate;
+    const a = [new Float32Array(size), new Float32Array(size)];
+    const b = [new Float32Array(size), new Float32Array(size)];
+    slow.processor.process([], [a]); fast.processor.process([], [b]);
+    assert.deepEqual(a, b, `Changing PT3 clock must preserve sustained AY pitch and phase at ${rate} Hz`);
+  }
+  for (const [player, hz] of [[slow, 50], [fast, 60]]) {
+    player.processor.report();
+    const position = player.messages.filter(message => message.type === 'position').at(-1).frame;
+    assert(Math.abs(position - hz) < 1e-6, `One second must advance ${hz} PT3 frames at ${rate} Hz`);
+  }
+  fast.send({ type: 'rate', hz: 50 });
+  assert(Math.abs(fast.messages.at(-1).frame - 60) < 1e-6, 'Live rate change preserves the musical position');
+  fast.send({ type: 'loop', range: { startFrame: 55, endFrame: 65 } });
+  fast.send({ type: 'seek', frame: 55 });
+  const a = [new Float32Array(128), new Float32Array(128)];
+  fast.processor.process([], [a]);
+  assert.equal(fast.processor.playbackHz, 50);
+  assert.equal(fast.processor.loop.startFrame, 55, 'Changing clock keeps loop frame coordinates');
+}
+console.log('PASS: 50/60 Hz advance exactly 50/60 frames per second with identical sustained pitch; live switching retains position and loops.');

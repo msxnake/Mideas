@@ -19,6 +19,7 @@ export class PT3AudioTransport {
   private generation = 0;
   private playing = false;
   private duration = 0;
+  private playbackHz: 50 | 60 = 50;
   private loop: PT3LoopRange | null = null;
   private mutedMask = 0;
   private requestId = 0;
@@ -70,7 +71,7 @@ export class PT3AudioTransport {
     this.opening = (async () => {
       const [log] = await Promise.all([this.decode(this.bytes), context.audioWorklet.addModule('/audio/pt3-worklet.js')]);
       if (generation !== this.generation) throw new Error('Carga PT3 cancelada.');
-      this.duration = log.byteLength / 15 / 50;
+      this.duration = log.byteLength / 15 / this.playbackHz;
       const node = new AudioWorkletNode(context, 'mideas-pt3', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] });
       this.node = node;
       node.onprocessorerror = () => this.events.onError?.('El procesador de audio PT3 ha fallado.');
@@ -86,12 +87,13 @@ export class PT3AudioTransport {
           this.events.onLoop?.(data.iteration, data.revision);
         } else if (data.type === 'ended') {
           this.playing = false;
-          this.anchor = { frame: this.duration * 50, contextTime: context.currentTime };
+          this.anchor = { frame: this.duration * this.playbackHz, contextTime: context.currentTime };
           this.events.onEnded?.();
         }
       };
       node.connect(context.destination);
       node.port.postMessage({ type: 'load', log, revision: 0 }, [log]);
+      node.port.postMessage({ type: 'rate', hz: this.playbackHz });
       node.port.postMessage({ type: 'mute', mask: this.mutedMask });
       node.port.postMessage({ type: 'loop', range: this.loop });
       if (this.pendingSeek !== null) { this.seek(this.pendingSeek); this.pendingSeek = null; }
@@ -107,7 +109,7 @@ export class PT3AudioTransport {
     await this.open();
     await this.context!.resume();
     if (!this.node || !this.context) return;
-    if (this.anchor.frame >= this.duration * 50) this.seek(0);
+    if (this.anchor.frame >= this.duration * this.playbackHz) this.seek(0);
     this.anchor = { frame: this.anchor.frame, contextTime: this.context.currentTime };
     this.playing = true; this.node.port.postMessage({ type: 'play' });
     this.events.onPlay?.();
@@ -115,7 +117,7 @@ export class PT3AudioTransport {
 
   public pause(): void {
     if (!this.playing) return;
-    this.anchor = { frame: this.getCurrentTime() * 50, contextTime: this.context?.currentTime ?? 0 };
+    this.anchor = { frame: this.getCurrentTime() * this.playbackHz, contextTime: this.context?.currentTime ?? 0 };
     this.playing = false; this.node?.port.postMessage({ type: 'pause' });
     this.events.onPause?.();
     this.events.onTimeUpdate?.(this.getCurrentTime(), this.duration);
@@ -125,11 +127,25 @@ export class PT3AudioTransport {
 
   public getCurrentTime(): number {
     let frame = this.anchor.frame;
-    if (this.playing && this.context) frame += Math.max(0, this.context.currentTime - this.anchor.contextTime) * 50;
+    if (this.playing && this.context) frame += Math.max(0, this.context.currentTime - this.anchor.contextTime) * this.playbackHz;
     if (this.loop && frame >= this.loop.endFrame) {
       frame = this.loop.startFrame + (frame - this.loop.startFrame) % (this.loop.endFrame - this.loop.startFrame);
     }
-    return Math.max(0, Math.min(frame / 50, this.duration));
+    return Math.max(0, Math.min(frame / this.playbackHz, this.duration));
+  }
+
+  public getPlaybackHz(): 50 | 60 { return this.playbackHz; }
+
+  /** Change the command clock without restarting the song or changing AY pitch. */
+  public setPlaybackHz(hz: 50 | 60): void {
+    if (hz === this.playbackHz) return;
+    const frame = this.getCurrentTime() * this.playbackHz;
+    this.duration *= this.playbackHz / hz;
+    this.playbackHz = hz;
+    this.anchor = { frame, contextTime: this.context?.currentTime ?? 0 };
+    this.node?.port.postMessage({ type: 'rate', hz });
+    this.events.onLoadedMetadata?.(this.duration);
+    this.events.onTimeUpdate?.(this.getCurrentTime(), this.duration);
   }
 
   public getLoopIteration(): number { return this.iteration; }
@@ -138,10 +154,10 @@ export class PT3AudioTransport {
   public seek(seconds: number): void {
     if (!Number.isFinite(seconds)) return;
     if (!this.node) { this.pendingSeek = seconds; return; }
-    const frame = Math.max(0, Math.min(Math.floor(seconds * 50), this.duration * 50 - 1));
+    const frame = Math.max(0, Math.min(Math.floor(seconds * this.playbackHz), this.duration * this.playbackHz - 1));
     this.anchor = { frame, contextTime: this.context?.currentTime ?? 0 }; this.iteration = 0;
     this.node.port.postMessage({ type: 'seek', frame });
-    this.events.onTimeUpdate?.(frame / 50, this.duration);
+    this.events.onTimeUpdate?.(frame / this.playbackHz, this.duration);
   }
 
   public setLoopRange(range: PT3LoopRange | null): void {

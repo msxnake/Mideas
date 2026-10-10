@@ -1310,7 +1310,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
           setExternalPt3CurrentTime(currentTime);
           setExternalPt3Duration(duration);
           const liveSong = songDataRef.current;
-          const cursor = locatePT3PlaybackFrame(liveSong, Math.floor(currentTime * 50));
+          const cursor = locatePT3PlaybackFrame(liveSong, Math.floor(currentTime * (externalPt3PlayerRef.current?.getPlaybackHz() ?? 50)));
 
           // Loop boundaries are handled sample-accurately by the AudioWorklet.
 
@@ -1365,8 +1365,13 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       ]));
     }
 
+    externalPt3PlayerRef.current.setPlaybackHz(songData.pt3Force50Hz ? 50 : 60);
     return externalPt3PlayerRef.current;
-  }, [songData.externalPt3Data, onUpdate, isPlayableNote, publishPianoVisualState, reportExternalPt3Error]);
+  }, [songData.externalPt3Data, songData.pt3Force50Hz, onUpdate, isPlayableNote, publishPianoVisualState, reportExternalPt3Error]);
+
+  useEffect(() => {
+    externalPt3PlayerRef.current?.setPlaybackHz(songData.pt3Force50Hz ? 50 : 60);
+  }, [songData.pt3Force50Hz]);
 
   useEffect(() => {
     const player = externalPt3PlayerRef.current;
@@ -1419,7 +1424,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         const span = locatePT3OrderStepFrames(songDataRef.current, orderIndex);
         if (span) {
           player.setLoopRange({ startFrame: span.startFrame, endFrame: span.startFrame + span.frameCount });
-          player.seek(span.startFrame / 50);
+          player.seek(span.startFrame / player.getPlaybackHz());
         }
       }
       await player.play();
@@ -1535,7 +1540,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       userPickedPatternRef.current = true;
       if (songDataRef.current.playbackBackend === 'external-pt3' && externalPt3PlayerRef.current) {
         const span = locatePT3OrderStepFrames(songDataRef.current, orderIndex);
-        if (span) externalPt3PlayerRef.current.seek(span.startFrame / 50);
+        if (span) externalPt3PlayerRef.current.seek(span.startFrame / externalPt3PlayerRef.current.getPlaybackHz());
       }
       return next;
     });
@@ -2210,7 +2215,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     // step-entry (editing) is always allowed.
     const liveSong = songDataRef.current;
     const pt3Cursor = recording && liveSong.playbackBackend === 'external-pt3'
-      ? quantizePT3Position(pt3RecordingTimeline, (externalPt3PlayerRef.current?.getCurrentTime() ?? 0) * 50,
+      ? quantizePT3Position(pt3RecordingTimeline, (externalPt3PlayerRef.current?.getCurrentTime() ?? 0) * (externalPt3PlayerRef.current?.getPlaybackHz() ?? 50),
           midiQuantizeRows, loopCurrentPatternRef.current ? loopOrderIndexRef.current : null)
       : null;
     const targetPatternIndex = pt3Cursor?.patternIndex ?? activePatternStorageIndex;
@@ -2355,7 +2360,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     }
     if (!held.start || !held.recordRelease || (!endingTake && (!isPlaying || !midiRecArmed))) return;
     const player = externalPt3PlayerRef.current;
-    const release = quantizePT3Position(pt3RecordingTimeline, (player?.getCurrentTime() ?? 0) * 50, held.grid, held.loopOrderIndex);
+    const release = quantizePT3Position(pt3RecordingTimeline, (player?.getCurrentTime() ?? 0) * (player?.getPlaybackHz() ?? 50), held.grid, held.loopOrderIndex);
     const position = release && resolvePT3NoteOffPosition(pt3RecordingTimeline, held.start, release, held.grid,
       held.iteration, player?.getLoopIteration() ?? 0, held.loopOrderIndex);
     if (!position) return;
@@ -3097,6 +3102,8 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         onImportPT3File={handleLoadPT3Music}
         onLoadDemoPT3File={handleLoadDemoPT3File}
         isExternalPT3={songData.playbackBackend === 'external-pt3'}
+        pt3Force50Hz={songData.pt3Force50Hz === true}
+        onPt3Force50HzChange={(enabled) => onUpdate({ pt3Force50Hz: enabled })}
       />
       <div className="flex flex-shrink-0 items-center gap-3 border-b border-msx-border px-3 py-1.5 text-xs">
         <Button size="sm" variant="ghost" onClick={() => {

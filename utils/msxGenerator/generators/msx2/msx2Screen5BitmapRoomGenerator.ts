@@ -19543,6 +19543,7 @@ ${enemySystem.satCallAsm}${bossSystem.satCallAsm}${platformSystem.satCallAsm}${c
       runtimeAsm: buildPT3MusicBlock(externalPt3Tracks, 'megarom', 'konami', {
         bankEquatePrefix: 'BITMAP_MUSIC_DATA_BANK',
         mapperRestoreMode: 'bitmap-resident',
+        videoRefreshHz: 60,
       }),
       dataBankChunks: buildPT3BankedDataChunks(externalPt3Tracks, 'konami'),
       warnings: [] as string[],

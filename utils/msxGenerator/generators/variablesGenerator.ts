@@ -110,7 +110,7 @@ export function buildExternalPT3WorkspaceAsm(pt3Base: number): { asm: string; ne
   return {
     asm: `
 ; ==================================================================
-; PT3 REPLAYER WORKSPACE (~448 bytes)
+; PT3 REPLAYER WORKSPACE (576 bytes + 2 music clock bytes)
 ; Layout matches PT3-ROM-alltables-glass.asm expected labels
 ; ==================================================================
 PT3_SETUP       EQU #${hex(0x00)}   ; PT3 state flags (bit0=loop, bit7=song_ended)
@@ -157,8 +157,10 @@ T_OLD_3         EQU #${hex(0x180)}  ; Tone table old 3
 T_OLD_0         EQU #${hex(0x182)}  ; Tone table old 0
 T_NEW_0         EQU #${hex(0x182)}  ; Tone table new 0
 T_NEW_2         EQU #${hex(0x19A)}  ; Tone table new 2 (last, ends at +0x1B2)
+music_pt3_50hz_counter EQU #${hex(0x240)} ; 0..5 video-frame divider, after the 256-byte VT_ table
+music_pt3_force_50hz  EQU #${hex(0x241)} ; Selected track's 50 Hz flag; untouched by PT3_INIT
     `,
-    nextFree: pt3Base + 0x240,
+    nextFree: pt3Base + 0x242,
   };
 }
 

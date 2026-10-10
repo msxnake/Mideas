@@ -1,5 +1,25 @@
 # PT3 Playback Timing Reference
 
+## Per-asset 50 Hz option
+
+Source PT3 assets expose a `50 Hz` checkbox, stored as `TrackerSongData.pt3Force50Hz`.
+Checked: the editor plays 50 register frames/second. A 60 Hz ROM skips one PT3
+update every six video frames; a 50 Hz ROM still updates every video frame.
+Unchecked: editor preview uses 60 Hz; ROM playback follows video refresh, retaining
+the existing ROM behavior for assets without the new flag. Song bytes, note
+periods and game timing are unchanged. The checkbox can change during preview;
+the transport preserves the musical frame, loop and AY phase while rescaling time.
+
+The divider is applied inside `buildPT3MusicBlock` before mapper switches and
+PT3_PLAY/PT3_ROUT. Its only clobbers are AF; it preserves BC/DE/HL/IX/IY,
+interrupt state, stack balance and mapper/VDP state. A skipped tick holds the
+existing PSG registers (including hardware envelope state). The per-track flag
+and 0..5 counter live at +0x241/+0x240, adding two bytes after the PT3 workspace.
+PT3_INIT builds a 256-byte volume table at VT_ (+0x140 through +0x23F), so the
+unpacked tone table area cannot hold persistent clock state. Track start resets
+the counter. SCREEN 5 bitmap
+ROMs declare their fixed 60 Hz refresh; generic ROMs use boot frequency detection.
+
 Practical note for this project: if PT3 music slows down when the player moves or when gameplay gets busy, the base cause is usually not the song data. The usual cause is variable tick cadence.
 
 ## Root Cause

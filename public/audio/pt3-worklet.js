@@ -1,7 +1,7 @@
 import './cowbell-worklet-globals.js';
 import '../vendor/cowbell/ay_chip.min.js';
 
-/** Continuous 50 Hz register playback with swaps only at a loop boundary. */
+/** Continuous 50/60 Hz register playback with swaps only at a loop boundary. */
 class PT3Processor extends AudioWorkletProcessor {
   constructor() {
     super();
@@ -10,6 +10,7 @@ class PT3Processor extends AudioWorkletProcessor {
     this.revision = 0;
     this.frame = 0;
     this.remaining = 0;
+    this.playbackHz = 50;
     this.iteration = 0;
     this.playing = false;
     this.loop = null;
@@ -38,6 +39,12 @@ class PT3Processor extends AudioWorkletProcessor {
           this.remaining = 0; this.iteration = 0; this.restoreEnvelope = true; break;
         case 'loop': this.loop = data.range; break;
         case 'mute': this.muted = data.mask; break;
+        case 'rate': {
+          const hz = data.hz === 60 ? 60 : 50;
+          this.remaining *= this.playbackHz / hz;
+          this.playbackHz = hz;
+          break;
+        }
       }
       this.report();
     };
@@ -45,7 +52,7 @@ class PT3Processor extends AudioWorkletProcessor {
 
   report(contextOffset = 0) {
     // frame is the next register frame while remaining > 0.
-    const position = this.remaining > 0 ? this.frame - this.remaining / (sampleRate / 50) : this.frame;
+    const position = this.remaining > 0 ? this.frame - this.remaining / (sampleRate / this.playbackHz) : this.frame;
     this.port.postMessage({ type: 'position', frame: position, contextTime: currentTime + contextOffset,
       playing: this.playing, iteration: this.iteration, revision: this.revision });
   }
@@ -71,7 +78,7 @@ class PT3Processor extends AudioWorkletProcessor {
     });
     this.restoreEnvelope = false;
     this.frame++;
-    this.remaining += sampleRate / 50;
+    this.remaining += sampleRate / this.playbackHz;
     return true;
   }
 

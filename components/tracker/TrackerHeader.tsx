@@ -84,6 +84,8 @@ interface TrackerHeaderProps {
   onLoadDemoPT3File?: () => void;
   /** Whether the current track uses the external PT3 backend. */
   isExternalPT3?: boolean;
+  pt3Force50Hz?: boolean;
+  onPt3Force50HzChange?: (enabled: boolean) => void;
 }
 
 /**
@@ -104,7 +106,8 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
   onExportMusicJson, onImportMusicJson,
   channels,
   soundChip, onSoundChipChange, sccEnabled, onSccEnabledChange,
-  onDuplicateAsDualChip, onImportPT3File, onLoadPT3Music, onLoadDemoPT3File, isExternalPT3
+  onDuplicateAsDualChip, onImportPT3File, onLoadPT3Music, onLoadDemoPT3File, isExternalPT3,
+  pt3Force50Hz = false, onPt3Force50HzChange
 }) => {
   const [localPatternRows, setLocalPatternRows] = useState(String(patternRows));
 
@@ -174,8 +177,14 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
           )}
           <div>
             <label className={labelClass}>{isExternalPT3 ? 'Clock' : 'BPM'}</label>
-            <input disabled={isExternalPT3} type="text" value={isExternalPT3 ? '50 Hz' : (isNaN(bpm) ? '' : bpm)} onChange={e => onBpmChange(e.target.value)} className={`${fieldClass} w-16 disabled:cursor-not-allowed disabled:opacity-70`} title={isExternalPT3 ? 'PT3 playback runs at the MSX/Vortex 50 Hz command rate; row timing is controlled by Speed and SPD commands.' : undefined} />
+            <input disabled={isExternalPT3} type="text" value={isExternalPT3 ? (pt3Force50Hz ? '50 Hz' : '60 Hz') : (isNaN(bpm) ? '' : bpm)} onChange={e => onBpmChange(e.target.value)} className={`${fieldClass} w-16 disabled:cursor-not-allowed disabled:opacity-70`} title={isExternalPT3 ? 'Preview clock. Without 50 Hz enabled, the ROM follows video refresh (50 or 60 Hz).' : undefined} />
           </div>
+          {isExternalPT3 && onPt3Force50HzChange && (
+            <label className="flex h-8 cursor-pointer items-center gap-2 px-1 text-msx-textprimary" title="Play PT3 music at 50 Hz. On 60 Hz video, music is slower while gameplay keeps its speed. Pitch is unchanged.">
+              <input type="checkbox" checked={pt3Force50Hz} onChange={event => onPt3Force50HzChange(event.target.checked)} className="accent-msx-highlight" />
+              50 Hz
+            </label>
+          )}
           <div>
             <label className={labelClass}>{isExternalPT3 ? 'Initial speed' : 'Speed'}</label>
             <input type="number" value={isNaN(speed) ? '' : speed} min="1" max="31" onChange={e => onSpeedChange(e.target.value)} className={`${fieldClass} w-14`} />

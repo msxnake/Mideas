@@ -2951,6 +2951,8 @@ export interface TrackerSongData {
   name: string;
   /** Playback backend used by the music asset. */
   playbackBackend?: 'native' | 'external-pt3';
+  /** Force source PT3 playback to 50 Hz; otherwise ROM playback follows video refresh. */
+  pt3Force50Hz?: boolean;
   /** The sound chip to target. 'PSG+SCC' = dual-chip song: channels A-C on the
    *  PSG plus channels 1-5 on the SCC, like real Konami SCC games. */
   soundChip: 'PSG' | 'SCC' | 'PSG+SCC';

@@ -1191,6 +1191,8 @@ export interface PT3MusicBlockOptions {
   /** Bitmap SCREEN 5 owns deterministic resident P2/P3 banks and has no generic
    * mapper push/pop helpers, so restore those fixed banks after each PT3 call. */
   mapperRestoreMode?: 'push-pop' | 'bitmap-resident';
+  /** Specialized backends can declare their fixed refresh; generic ROMs use boot detection. */
+  videoRefreshHz?: 50 | 60;
 }
 
 export function buildPT3MusicBlock(
@@ -1206,6 +1208,7 @@ export function buildPT3MusicBlock(
   const secondaryDataPage = targetFormat === 'konami' ? 'p3' : 'p4';
   const bankEntrySize = targetFormat === 'ascii16' ? 1 : 2;
   const usesBitmapResidentRestore = options.mapperRestoreMode === 'bitmap-resident';
+  const uses50HzClock = tracks.some(track => track.pt3Force50Hz === true);
   const mapSelectedTrackAsm = usesBankedPt3Data
     ? targetFormat === 'ascii16'
       ? [
@@ -1256,6 +1259,7 @@ export function buildPT3MusicBlock(
     '    ld (music_loop), a',
     '    ld (music_track_index), a',
     '    ld (PT3_SETUP), a',
+    ...(uses50HzClock ? ['    ld (music_pt3_50hz_counter), a', '    ld (music_pt3_force_50hz), a'] : []),
     '    ret',
     '',
     '; ------------------------------------------------------------------',
@@ -1363,6 +1367,16 @@ export function buildPT3MusicBlock(
     '; ------------------------------------------------------------------',
     'music_play_track:',
     '    ld (music_track_index), a',
+    ...(uses50HzClock ? [
+      '    ld e, a',
+      '    ld d, 0',
+      '    ld hl, music_pt3_50hz_table',
+      '    add hl, de',
+      '    ld a, (hl)',
+      '    ld (music_pt3_force_50hz), a',
+      '    xor a',
+      '    ld (music_pt3_50hz_counter), a',
+    ] : []),
     ...(usesBankedPt3Data ? [
       `    ld a, (music_track_index)`,
       ...(bankEntrySize === 2 ? ['    add a, a'] : []),
@@ -1428,6 +1442,29 @@ export function buildPT3MusicBlock(
     '    ld a, (music_muted)',
     '    or a',
     '    ret nz',             // return only when muted (non-zero); playing = muted is 0
+    ...(uses50HzClock ? [
+      '    ; INPUT: none. DESTROYS: AF only. PRESERVES: BC/DE/HL/IX/IY, IRQ and mapper state.',
+      '    ; Keep five PT3 ticks per six NTSC frames; PAL already runs at 50 Hz.',
+      '    ld a, (music_pt3_force_50hz)',
+      '    or a',
+      '    jp z, .pt3_50hz_ready',
+      ...(options.videoRefreshHz === 50 ? ['    jp .pt3_50hz_ready']
+        : options.videoRefreshHz === 60 ? [] : [
+          '    ld a, (isComputer50HzOr60Hz)',
+          '    or a',
+          '    jp z, .pt3_50hz_ready',
+        ]),
+      '    ld a, (music_pt3_50hz_counter)',
+      '    inc a',
+      '    cp 6',
+      '    jp c, .pt3_50hz_store',
+      '    xor a',
+      '    ld (music_pt3_50hz_counter), a',
+      '    ret                    ; hold AY state; do not mute or retrigger R13',
+      '.pt3_50hz_store:',
+      '    ld (music_pt3_50hz_counter), a',
+      '.pt3_50hz_ready:',
+    ] : []),
     '    ; Check if song ended (CHECKLP sets bit7 of PT3_SETUP)',
     '    ld a, (PT3_SETUP)',
     '    bit 7, a',
@@ -1522,6 +1559,11 @@ export function buildPT3MusicBlock(
         lines.push(`    DW ${label} - 99    ; ${name} (.99 stripped)`);
       }
     });
+  }
+
+  if (uses50HzClock) {
+    lines.push('', '; Per-track opt-in. Unchecked tracks keep the video-frame clock.', 'music_pt3_50hz_table:');
+    lines.push(`    DB ${tracks.map(track => track.pt3Force50Hz === true ? 1 : 0).join(',')}`);
   }
 
   if (usesBankedPt3Data) {
