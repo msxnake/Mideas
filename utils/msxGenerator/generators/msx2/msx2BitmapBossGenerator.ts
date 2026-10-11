@@ -10472,12 +10472,34 @@ ${hasAnimatedSpriteBullet ? `    ld a, (iy+9)
     out (VDP_DATA_PORT), a
     jr .sb_sat_next
 .sb_sat_hidden:
+    ; bitmap_boss_kill publishes this SAT in the middle of the active raster, where
+    ; back-to-back OUTs to #98 lose bytes on a real V9938: five NOPs before EVERY OUT.
     ld a, #D4                  ; park unused bullets off-screen, NOT #D8:
+    nop
+    nop
+    nop
+    nop
+    nop
     out (VDP_DATA_PORT), a     ; Y=216 is the sprite-mode-2 SAT terminator and
                                ; would hide the platform/player-bullet slots
     xor a
+    nop
+    nop
+    nop
+    nop
+    nop
     out (VDP_DATA_PORT), a
+    nop
+    nop
+    nop
+    nop
+    nop
     out (VDP_DATA_PORT), a
+    nop
+    nop
+    nop
+    nop
+    nop
     out (VDP_DATA_PORT), a
 .sb_sat_next:
     push bc
