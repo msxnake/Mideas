@@ -72,6 +72,19 @@ import { buildEnemyBodyCollisionAsm, buildEnemyBodyWalkerAsm } from './msx2Enemy
  */
 export const BITMAP_ENEMY_LOAD_LOOP_MIN_SLOTS = 2;
 
+/**
+ * bitmap_update_enemy_sat writes the SAT slots with ONE loop from this many slots on (IY walks the RAM pool, HL a one-byte-per-slot
+ * table, B counts the slots, C the enemies still to publish). Below it the per-slot code stays unrolled, byte for byte what it always
+ * was. scripts/check_msx2_enemy_sat_loop.mjs pins both the threshold and the sizes.
+ */
+export const BITMAP_ENEMY_SAT_LOOP_MIN_SLOTS = 2;
+/**
+ * The same threshold for builds whose slots upload their own sprite art. Their looped writer pays the 5-NOP wait before every data OUT
+ * (the VDP contract of the loop), while the unrolled routine kept below the threshold has never had it, so the loop only wins from one
+ * slot later. scripts/check_msx2_enemy_sat_loop.mjs pins it.
+ */
+export const BITMAP_ENEMY_SAT_LOOP_MIN_SLOTS_OWN_ART = 3;
+
 /** Absolute SAT ceiling. Each project reserves only the room's actual maximum;
  * the bitmap-room allocator also accounts for player, bullets and other systems. */
 export const BITMAP_MAX_ENEMY_SLOTS = 32;
@@ -345,6 +358,11 @@ export interface BitmapEnemyRuntimeOptions {
    * measurements and scripts/check_msx2_enemy_load_loop.mjs set it, to emit both shapes for the same project; the room generator never does.
    */
   loadLoopMinSlots?: number;
+  /**
+   * Slot count from which bitmap_update_enemy_sat loops instead of unrolling. Absent = BITMAP_ENEMY_SAT_LOOP_MIN_SLOTS. Only size
+   * measurements and scripts/check_msx2_enemy_sat_loop.mjs set it; the room generator never does.
+   */
+  satLoopMinSlots?: number;
 }
 
 export interface BitmapEnemySystemAsm {
@@ -2254,12 +2272,15 @@ ${scripted ? `    ; Scripted enemies record the impact before checking their gua
   // Pattern byte = slot base group *4 + animFrame*8 (2 variants/frame) + 4
   // when patrolling left (variant 1 = mirrored/facing-left).
   // Remapping changes when SAT writes reach the VDP. Space each data-port
-  // write in the compact path so consecutive hidden/terminator bytes remain
+  // write in the compact and looped paths so consecutive hidden/terminator bytes remain
   // valid during active SCREEN 5 display as well as during vertical blanking.
-  const paceSatWrites = (asm: string): string => compact
+  const satLoopMinSlots = opts.satLoopMinSlots ?? (compact ? BITMAP_ENEMY_SAT_LOOP_MIN_SLOTS : BITMAP_ENEMY_SAT_LOOP_MIN_SLOTS_OWN_ART);
+  // The one-byte table holds an index into the 127-entry window below the variant flag.
+  const useSatLoop = maxSlots >= satLoopMinSlots && (!compact || compact.mapBytes <= 127);
+  const paceSatWrites = (asm: string): string => (compact || useSatLoop)
     ? asm.replace(/    out \(VDP_DATA_PORT\), a/g, '    nop\n    nop\n    nop\n    nop\n    nop\n    out (VDP_DATA_PORT), a')
     : asm;
-  const satSlotBlocks = paceSatWrites(Array.from({ length: maxSlots }, (_unused, i) => {
+  const buildUnrolledSatSlots = (): string => paceSatWrites(Array.from({ length: maxSlots }, (_unused, i) => {
     const slotVariants = slotPatternVariants[i];
     const slotUsesCeilingVariants = slotVariants >= 4;
     const patternByteBase = ((opts.patternGroupBase + slotPatternOffsets[i]) * 4) & 0xff;
@@ -2344,6 +2365,120 @@ ${compact ? `    ; Virtual frame/facing offset is a multiple of 4; resolve the s
     out (VDP_DATA_PORT), a
     out (VDP_DATA_PORT), a
     out (VDP_DATA_PORT), a`);
+
+  // One loop instead of maxSlots copies of the same slot body. IY walks the RAM pool; HL walks bitmap_enemy_sat_desc (one byte per
+  // slot: the slot's first pattern group, or its offset into bitmap_enemy_pattern_map on shared-pattern builds; bit 7 marks a slot that
+  // reserves four pattern variants per frame when quad and pair slots are mixed); B counts the SAT slots left and C the enemies of the
+  // room still to publish. Slots past the room's count, killed enemies and waiting gears share ONE hidden writer, so the order and the
+  // bytes of the SAT are the unrolled ones. The pattern number is built in "variant index" units (frame * variants + facing + 2 *
+  // flipped pose) and multiplied by 4 at the end, which is the unrolled arithmetic divided by 4 first.
+  const satQuadSlots = slotPatternVariants.map(v => v >= 4);
+  const satAllQuad = satQuadSlots.every(Boolean);
+  const satMixedVariants = satQuadSlots.some(Boolean) && !satAllQuad;
+  const satDescBytes = Array.from({ length: maxSlots }, (_unused, i) =>
+    (compact ? compact.slotMapOffsets[i] : (opts.patternGroupBase + slotPatternOffsets[i]) & 0x3F)
+    | (satMixedVariants && satQuadSlots[i] ? 0x80 : 0));
+  const satDescAsm = useSatLoop
+    ? `; bitmap_update_enemy_sat: per-slot ${compact ? 'offset into bitmap_enemy_pattern_map' : 'first pattern group'}${satMixedVariants ? ' (bit 7: four variants per frame)' : ''}
+bitmap_enemy_sat_desc:
+${satDescBytes.map(b => `    DB ${asmByte(b)}`).join('\n')}
+`
+    : '';
+  const buildLoopedSatSlots = (): string => {
+    const phaseOffset = 26;   // slime phase 1/2 (rising/ceiling) = flipped pose
+    const pairIndexAsm = `    ld a, (iy+2)              ; dx: bit7 set = moving left = mirrored variant
+    rlca                      ; carry = facing left
+    ld a, (iy+9)              ; animFrame
+    adc a, a                  ; frame * 2 variants + facing`;
+    const quadIndexAsm = `    ld a, (iy+${phaseOffset})             ; slime phase 1/2 (rising/ceiling) = flipped pose
+    dec a
+    cp 2                      ; carry = flipped pose
+    sbc a, a
+    and 2                     ; +2 variants: the vertical-flip pair
+    ld e, a
+    ld a, (iy+9)              ; animFrame
+    add a, a
+    add a, a                  ; frame * 4 variants
+    add a, e
+    ld e, a
+    ld a, (iy+2)              ; dx: bit7 set = moving left = mirrored variant
+    rlca                      ; carry = facing left
+    ld a, e
+    adc a, 0                  ; + facing`;
+    const indexAsm = satMixedVariants
+      ? `    bit 7, (hl)               ; this slot reserves four variants per frame?
+    jp nz, .esat_quad
+${pairIndexAsm}
+    jp .esat_index_done
+.esat_quad:
+${quadIndexAsm}
+.esat_index_done:`
+      : satAllQuad ? quadIndexAsm : pairIndexAsm;
+    const patternAsm = compact
+      ? `    add a, (hl)               ; + this slot's offset into the frame/facing map${satMixedVariants ? `
+    and #7F                   ; ... without the variant flag` : ''}
+    ld de, bitmap_enemy_pattern_map
+    add a, e
+    ld e, a
+    jr nc, .esat_map_ok
+    inc d                     ; DE = map + index (the map need not sit inside one 256-byte page)
+.esat_map_ok:
+    ld a, (de)
+    add a, a
+    add a, a
+    add a, ${asmByte(opts.patternGroupBase * 4)}`
+      : `    add a, (hl)               ; + this slot's first pattern group
+    add a, a
+    add a, a                  ; pattern number = group * 4`;
+    return paceSatWrites(`    ld iy, bitmap_enemy_pool
+    ld hl, bitmap_enemy_sat_desc
+    ld a, (bitmap_enemy_count)
+    cp ${maxSlots + 1}
+    jr c, .esat_count_ok
+${`    ld a, ${maxSlots}`.padEnd(30)}; a corrupt count publishes every slot, like the unrolled routine
+.esat_count_ok:
+    ld c, a                   ; C = enemies of the room still to publish
+${`    ld b, ${maxSlots}`.padEnd(30)}; B = SAT slots left
+.esat_loop:
+    dec c
+    jp m, .esat_hidden        ; past the room's enemy count
+    ld a, (iy+13)             ; killed enemy stays in the pool but is invisible
+    inc a                     ; #FF -> 0
+    jp z, .esat_hidden
+${gear ? `    ld a, (iy+${GEAR_STATE_OFFSET})             ; GearWheel state 0 waits off-screen
+    or a
+    jp z, .esat_hidden
+` : ''}    ld a, (iy+1)
+    add a, ${opts.gameYOffset}
+    out (VDP_DATA_PORT), a    ; Y
+    ld a, (iy+0)
+    out (VDP_DATA_PORT), a    ; X
+${indexAsm}
+${patternAsm}
+    out (VDP_DATA_PORT), a    ; pattern
+    xor a
+    out (VDP_DATA_PORT), a    ; EC = 0
+    inc hl
+    ld de, ${POOL_STRIDE}
+    add iy, de
+    dec b
+    jp nz, .esat_loop
+    jp .esat_tail
+.esat_hidden:
+    ld a, ${asmByte(ENEMY_EMPTY_SPRITE_Y)}
+    out (VDP_DATA_PORT), a    ; off-screen, non-terminator
+    xor a
+    out (VDP_DATA_PORT), a
+    out (VDP_DATA_PORT), a
+    out (VDP_DATA_PORT), a
+    inc hl                    ; the same advance as the visible slot: no jump back into it
+    ld de, ${POOL_STRIDE}
+    add iy, de
+    dec b
+    jp nz, .esat_loop
+.esat_tail:`);
+  };
+  const satSlotBlocks = useSatLoop ? buildLoopedSatSlots() : buildUnrolledSatSlots();
   const colorUploadSlotBlocks = Array.from({ length: maxSlots }, (_unused, i) => {
     const slotUsesCeilingVariants = slotPatternVariants[i] >= 4;
     const colorVram = opts.colorBase + i * 16;
@@ -2752,10 +2887,12 @@ ${touchDamageAsm}${enemyBulletHurtAsm}${bulletHitAsm}
 ; OUTPUT: SAT entries at VRAM ${asmWord(opts.satBase)}..${asmWord(opts.satBase + maxSlots * 4 + 3)}.
 ; DESTROYS: AF, DE. PRESERVES: BC, HL, IX, IY.
 ; VDP STATE: R#14 restored to 0; R#15 is not changed.
-; ------------------------------------------------------------
+${useSatLoop ? `; NOTES: ONE loop (not one copy per slot) writes every SAT slot (IY = RAM pool slot, HL = bitmap_enemy_sat_desc,
+;   B = slots left, C = enemies still to publish); hidden slots share one writer.
+` : ''}; ------------------------------------------------------------
 bitmap_update_enemy_sat:
     push bc
-    push hl
+    push hl${useSatLoop ? '\n    push iy' : ''}
     ld de, ${asmWord(opts.satBase)}
     push de
     ld a, d
@@ -2776,7 +2913,7 @@ ${satSlotBlocks}${satTailAsm}
     xor a
     ld e, a
     ld a, #0E
-    call vdp_write_register
+    call vdp_write_register${useSatLoop ? '\n    pop iy' : ''}
     pop hl
     pop bc
     ret
@@ -2873,6 +3010,7 @@ bitmap_enemy_pattern_pool_banks:
       : '')
     + `bitmap_room_enemy_ptr_table:\n${data.roomTables.map((_t, index) => `    DW bitmap_room_enemy_table_${index}`).join('\n')}\n`
     + loadDescAsm
+    + satDescAsm
     + (bankedArt
       ? '; Enemy sprite pattern/colour art is emitted in a Konami MegaROM data bank below.\n'
       : (compact ? '' : emitBytes('bitmap_enemy_sprite_patterns', data.patternBytes, `Enemy sprites: ${data.patternBytes.length / 32} pattern group(s), ${slime ? '[right, left, ceilRight, ceilLeft] variants' : '[right, left] variant pair'} per frame (mode 2 quadrants)`))

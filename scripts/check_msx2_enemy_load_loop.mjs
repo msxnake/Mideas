@@ -113,7 +113,9 @@ function makeData(shape, n) {
 }
 const optsFor = (shape, extra = {}) => ({
   ramBase: 0xD000, satBase: 0xF600, colorBase: 0xF400, patternGroupBase: 8, gameYOffset: 20,
-  playerHitbox: { x: 0, y: 0, w: 16, h: 16 }, damageInvulnFrames: 60, bankedSpriteData: shape.banked, ...extra,
+  playerHitbox: { x: 0, y: 0, w: 16, h: 16 }, damageInvulnFrames: 60, bankedSpriteData: shape.banked,
+  // Keep the other per-slot routines unrolled so this check compares bitmap_load_enemies only (the SAT loop has its own check).
+  satLoopMinSlots: 99, ...extra,
 });
 const emit = (mod, shape, n, extra) => mod.buildBitmapEnemySystemAsm(makeData(shape, n), optsFor(shape, extra));
 

@@ -82,6 +82,7 @@
     "test:msx2-player-patterns-chunked": "node scripts/check_msx2_player_patterns_chunked.mjs",
     "test:msx2-enemy-color-cache": "node scripts/check_msx2_enemy_color_cache.mjs",
     "test:msx2-enemy-load-loop": "node scripts/check_msx2_enemy_load_loop.mjs",
+    "test:msx2-enemy-sat-loop": "node scripts/check_msx2_enemy_sat_loop.mjs",
     "test:msx2-boss-roomlock-ui": "node scripts/check_msx2_boss_roomlock_ui_playwright.cjs",
     "test:msx2-budget-feedback": "node scripts/check_msx2_budget_feedback_helper.mjs",
     "test:msx2-shooter60hz-asm": "node scripts/check_msx2_shooter60hz_asm.mjs",
