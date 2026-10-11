@@ -65,6 +65,13 @@ import { buildEnemyBodyCollisionAsm, buildEnemyBodyWalkerAsm } from './msx2Enemy
  *                                 (x2 on slime builds: flipped tables appended)
  */
 
+/**
+ * bitmap_load_enemies seeds and uploads the slots with ONE loop from this many slots on (IX walks the room record, IY the RAM pool).
+ * Below it the per-slot code stays unrolled, byte for byte what it always was. The loop costs a fixed overhead and saves one copy of
+ * the ~150-byte slot body per extra slot; scripts/check_msx2_enemy_load_loop.mjs pins both the threshold and the sizes.
+ */
+export const BITMAP_ENEMY_LOAD_LOOP_MIN_SLOTS = 2;
+
 /** Absolute SAT ceiling. Each project reserves only the room's actual maximum;
  * the bitmap-room allocator also accounts for player, bullets and other systems. */
 export const BITMAP_MAX_ENEMY_SLOTS = 32;
@@ -333,6 +340,11 @@ export interface BitmapEnemyRuntimeOptions {
    * the #8000-#9FFF window and must NOT map a bank in their own body.
    */
   bankedSpriteData?: boolean;
+  /**
+   * Slot count from which bitmap_load_enemies loops instead of unrolling. Absent = BITMAP_ENEMY_LOAD_LOOP_MIN_SLOTS. Only the size
+   * measurements and scripts/check_msx2_enemy_load_loop.mjs set it, to emit both shapes for the same project; the room generator never does.
+   */
+  loadLoopMinSlots?: number;
 }
 
 export interface BitmapEnemySystemAsm {
@@ -577,7 +589,93 @@ bitmap_enemy_table_buf EQU ${asmWord(tableBufAddr)}
 ` : ''}${scriptedRuntime?.equates || ''}`;
 
   // ---- bitmap_load_enemies: per-room table -> RAM pool + VRAM uploads ----
-  const loadSlotBlocks = Array.from({ length: maxSlots }, (_unused, i) => {
+  // Seeds one pool slot from its room record (IX = record). The unrolled and the looped emission share this template so they
+  // cannot drift apart: `dst(offset)` names the pool byte, an absolute address when the slots are unrolled and `(iy+offset)`
+  // when one loop walks them.
+  const slotFieldsAsm = (dst: (offset: number) => string, intervalLabel: string): string => `    ld a, (ix+11)             ; animDelay
+    ld ${dst(8)}, a   ; animTick = delay
+    ld ${dst(11)}, a  ; animDelay
+    xor a
+    ld ${dst(9)}, a   ; animFrame = 0
+    ld a, (ix+10)             ; frameCount
+    ld ${dst(10)}, a
+    ld a, (ix+9)              ; colorOff base, in 16-byte blocks
+    ld ${dst(12)}, a
+    ld a, (ix+12)             ; movement mode
+    ld ${dst(13)}, a
+    ld a, (ix+13)             ; visual X offset from logical enemy origin
+    ld ${dst(14)}, a
+    ld a, (ix+14)             ; visual Y offset from logical enemy origin
+    ld ${dst(15)}, a
+    ld a, (ix+15)             ; DamageOnTouch damage (0 = harmless)
+    ld ${dst(16)}, a
+    ld a, (ix+16)             ; damage hitbox X offset from logical origin
+    ld ${dst(17)}, a
+    ld a, (ix+17)             ; damage hitbox Y offset from logical origin
+    ld ${dst(18)}, a
+    ld a, (ix+18)             ; damage hitbox width
+    ld ${dst(19)}, a
+    ld a, (ix+19)             ; damage hitbox height
+    ld ${dst(20)}, a
+    ld a, (ix+20)             ; authored movement speed in px/update
+    ld ${dst(21)}, a
+    ld a, (ix+21)             ; logic update interval in video frames (1..255)
+    or a
+    jp nz, ${intervalLabel}
+    inc a                     ; legacy/corrupt zero falls back to every frame
+${intervalLabel}:
+    ld ${dst(22)}, a
+    ld a, 1
+    ld ${dst(23)}, a  ; first gameplay frame executes logic
+${slime ? `    ld a, (ix+22)             ; slime hop distance in px (0 on non-slime slots)
+    ld ${dst(24)}, a
+    xor a
+    ld ${dst(25)}, a  ; travelCount = 0
+    ld ${dst(26)}, a  ; phase = ground crawl
+` : ''}${gear ? `    ; GearWheel state: 1=falling, 2=rolling, 3=stopped, 0=waiting.
+    ld a, (ix+${22 + (slime ? 1 : 0)})       ; respawn delay frames (lo)
+    ld ${dst(GEAR_DELAY_LO_OFFSET)}, a
+    ld a, (ix+${23 + (slime ? 1 : 0)})       ; respawn delay frames (hi)
+    ld ${dst(GEAR_DELAY_HI_OFFSET)}, a
+    xor a
+    ld ${dst(GEAR_COOLDOWN_LO_OFFSET)}, a
+    ld ${dst(GEAR_COOLDOWN_HI_OFFSET)}, a
+    ld a, 1
+    ld ${dst(GEAR_STATE_OFFSET)}, a
+` : ''}${fly8 ? `    ; Bat flight: fly the authored distance before the first random turn.
+    ld a, (ix+${FLY8_TABLE_INDEX})          ; turnPx (0 on non-bat slots)
+    ld ${dst(FLY8_TURN_OFFSET)}, a
+    ld ${dst(FLY8_LEFT_OFFSET)}, a
+` : ''}${scripted ? `    ; Scripted mode: table byte selects the resident program; state/timer/vy start clear.
+    ld a, (ix+${SCRIPTED_TABLE_INDEX})
+    ld ${dst(SCRIPTED_PROGRAM_OFFSET)}, a
+    xor a
+    ld ${dst(SCRIPTED_STATE_OFFSET)}, a
+    ld ${dst(SCRIPTED_TIMER_OFFSET)}, a
+    ld ${dst(SCRIPTED_VELOCITY_OFFSET)}, a
+${programsUsePath ? `    xor a
+    ld ${dst(SCRIPTED_PATH_NODE_OFFSET)}, a
+    ld ${dst(SCRIPTED_PATH_BRANCH_OFFSET)}, a
+` : ''}${programsUseClip ? `    ld ${dst(SCRIPTED_CLIP_OFFSET)}, a  ; no clip yet: the previous room's must not animate this one
+` : ''}
+` : ''}`;
+
+  // Non-compact slots upload their own sprite art. A slime build stores 4 variants per frame in ROM but a slot that cannot
+  // become a ceiling crawler reserves only the facing pair ('stride'); a slot that can reserves all 4 ('quad'); a build without
+  // slimes copies frameCount x 2 contiguous groups ('pair').
+  const slotsWithQuadArt = slotPatternVariants.some(v => v >= 4);
+  const slotsWithStrideArt = slime && slotPatternVariants.some(v => v < 4);
+  const slotsWithPairArt = !slime && slotPatternVariants.some(v => v < 4);
+  // The loop supports one art shape, or the slime mix of 'stride' and 'quad' picked per slot at run time. Anything else
+  // (a pair slot beside a quad slot cannot be produced by the room generator) keeps the unrolled code.
+  const loopSelectsArtShape = slotsWithQuadArt && slotsWithStrideArt;
+  const loopSupportsArt = Boolean(compact)
+    || Number(slotsWithQuadArt) + Number(slotsWithStrideArt) + Number(slotsWithPairArt) === 1
+    || loopSelectsArtShape;
+  const loadLoopMinSlots = opts.loadLoopMinSlots ?? BITMAP_ENEMY_LOAD_LOOP_MIN_SLOTS;
+  const useLoadLoop = maxSlots >= loadLoopMinSlots && loopSupportsArt && POOL_STRIDE <= 127;
+
+  const buildUnrolledLoadSlots = (): string => Array.from({ length: maxSlots }, (_unused, i) => {
     const patternGroup = opts.patternGroupBase + slotPatternOffsets[i];
     const slotVariants = slotPatternVariants[i];
     const patternVram = 0xF800 + patternGroup * 32;
@@ -592,73 +690,7 @@ bitmap_enemy_table_buf EQU ${asmWord(tableBufAddr)}
     ld de, ${poolBase}
     ld bc, 8
     ldir                      ; movement bytes (x..maxY)
-    ld a, (ix+11)             ; animDelay
-    ld (${poolBase} + 8), a   ; animTick = delay
-    ld (${poolBase} + 11), a  ; animDelay
-    xor a
-    ld (${poolBase} + 9), a   ; animFrame = 0
-    ld a, (ix+10)             ; frameCount
-    ld (${poolBase} + 10), a
-    ld a, (ix+9)              ; colorOff base, in 16-byte blocks
-    ld (${poolBase} + 12), a
-    ld a, (ix+12)             ; movement mode
-    ld (${poolBase} + 13), a
-    ld a, (ix+13)             ; visual X offset from logical enemy origin
-    ld (${poolBase} + 14), a
-    ld a, (ix+14)             ; visual Y offset from logical enemy origin
-    ld (${poolBase} + 15), a
-    ld a, (ix+15)             ; DamageOnTouch damage (0 = harmless)
-    ld (${poolBase} + 16), a
-    ld a, (ix+16)             ; damage hitbox X offset from logical origin
-    ld (${poolBase} + 17), a
-    ld a, (ix+17)             ; damage hitbox Y offset from logical origin
-    ld (${poolBase} + 18), a
-    ld a, (ix+18)             ; damage hitbox width
-    ld (${poolBase} + 19), a
-    ld a, (ix+19)             ; damage hitbox height
-    ld (${poolBase} + 20), a
-    ld a, (ix+20)             ; authored movement speed in px/update
-    ld (${poolBase} + 21), a
-    ld a, (ix+21)             ; logic update interval in video frames (1..255)
-    or a
-    jp nz, .benemy_slot_${i}_interval_valid
-    inc a                     ; legacy/corrupt zero falls back to every frame
-.benemy_slot_${i}_interval_valid:
-    ld (${poolBase} + 22), a
-    ld a, 1
-    ld (${poolBase} + 23), a  ; first gameplay frame executes logic
-${slime ? `    ld a, (ix+22)             ; slime hop distance in px (0 on non-slime slots)
-    ld (${poolBase} + 24), a
-    xor a
-    ld (${poolBase} + 25), a  ; travelCount = 0
-    ld (${poolBase} + 26), a  ; phase = ground crawl
-` : ''}${gear ? `    ; GearWheel state: 1=falling, 2=rolling, 3=stopped, 0=waiting.
-    ld a, (ix+${22 + (slime ? 1 : 0)})       ; respawn delay frames (lo)
-    ld (${poolBase} + ${GEAR_DELAY_LO_OFFSET}), a
-    ld a, (ix+${23 + (slime ? 1 : 0)})       ; respawn delay frames (hi)
-    ld (${poolBase} + ${GEAR_DELAY_HI_OFFSET}), a
-    xor a
-    ld (${poolBase} + ${GEAR_COOLDOWN_LO_OFFSET}), a
-    ld (${poolBase} + ${GEAR_COOLDOWN_HI_OFFSET}), a
-    ld a, 1
-    ld (${poolBase} + ${GEAR_STATE_OFFSET}), a
-` : ''}${fly8 ? `    ; Bat flight: fly the authored distance before the first random turn.
-    ld a, (ix+${FLY8_TABLE_INDEX})          ; turnPx (0 on non-bat slots)
-    ld (${poolBase} + ${FLY8_TURN_OFFSET}), a
-    ld (${poolBase} + ${FLY8_LEFT_OFFSET}), a
-` : ''}${scripted ? `    ; Scripted mode: table byte selects the resident program; state/timer/vy start clear.
-    ld a, (ix+${SCRIPTED_TABLE_INDEX})
-    ld (${poolBase} + ${SCRIPTED_PROGRAM_OFFSET}), a
-    xor a
-    ld (${poolBase} + ${SCRIPTED_STATE_OFFSET}), a
-    ld (${poolBase} + ${SCRIPTED_TIMER_OFFSET}), a
-    ld (${poolBase} + ${SCRIPTED_VELOCITY_OFFSET}), a
-${programsUsePath ? `    xor a
-    ld (${poolBase} + ${SCRIPTED_PATH_NODE_OFFSET}), a
-    ld (${poolBase} + ${SCRIPTED_PATH_BRANCH_OFFSET}), a
-` : ''}${programsUseClip ? `    ld (${poolBase} + ${SCRIPTED_CLIP_OFFSET}), a  ; no clip yet: the previous room's must not animate this one
-` : ''}
-` : ''}${compact ? '    ; Patterns already uploaded once for this room; colours remain per slot.' : slime && slotVariants < 4 ? `    ; --- upload frameCount x [right,left] pairs -> VRAM ${asmWord(patternVram)} (group ${patternGroup}+) ---
+${slotFieldsAsm(offset => `(${poolBase} + ${offset})`, `.benemy_slot_${i}_interval_valid`)}${compact ? '    ; Patterns already uploaded once for this room; colours remain per slot.' : slime && slotVariants < 4 ? `    ; --- upload frameCount x [right,left] pairs -> VRAM ${asmWord(patternVram)} (group ${patternGroup}+) ---
     ; Slime builds store 4 variants per frame in ROM ([R,L,ceilR,ceilL]) for
     ; EVERY sprite, but this slot only reserves the facing pair: copy 64 of
     ; every 128 source bytes so frame N lands on group ${patternGroup}+N*2.
@@ -711,6 +743,135 @@ ${copyArt('bitmap_enemy_sprite_colors')}
     ld de, ${SCRIPTED_TABLE_STRIDE}
     add ix, de`;
   }).join('\n');
+
+  // Destination table of the looped loader for projects whose slots upload their own art: one entry per slot,
+  // [pattern VRAM word][pattern variants per frame, only when the loop must pick the art shape][colour table VRAM word].
+  // Resident data (bitmap_enemy_load_desc is read while P2/P3 are resident, like bitmap_room_enemy_ptr_table).
+  const loadDescAsm = useLoadLoop && !compact
+    ? `; bitmap_load_enemies: per-slot VRAM destinations (pattern word${loopSelectsArtShape ? ', pattern variants per frame' : ''}, line-colour word)
+bitmap_enemy_load_desc:
+${Array.from({ length: maxSlots }, (_unused, i) => `    DW ${asmWord(0xF800 + (opts.patternGroupBase + slotPatternOffsets[i]) * 32)}
+${loopSelectsArtShape ? `    DB ${slotPatternVariants[i]}
+` : ''}    DW ${asmWord(opts.colorBase + i * 16)}`).join('\n')}
+`
+    : '';
+
+  // One loop instead of maxSlots copies of the same slot body. IX walks the room record, IY the RAM pool; the loop state is
+  // the slots left (B) and one word, pushed for the whole iteration because every call below destroys all four pairs:
+  //   compact:     DE = colour table VRAM address of the slot (+16 per slot)
+  //   non-compact: HL = this slot's entry of bitmap_enemy_load_desc
+  // `ex (sp), hl` swaps that word with the pointer an offset helper just returned, so the helper never has to know about it.
+  const buildLoopedLoadSlots = (): string => {
+    const state = compact ? 'de' : 'hl';
+    const art = copyArt('bitmap_enemy_sprite_patterns');
+    const strideArtAsm = `    ld a, (ix+10)             ; frameCount (>= 1 on used slots)
+.benemy_patstride:
+    push af
+    push hl
+    push de
+    ld bc, 64                 ; one [right, left] pair
+${art}
+    pop de
+    pop hl
+    ld bc, 128                ; ROM stride: 4 variants x 32 bytes
+    add hl, bc
+    ex de, hl
+    ld bc, 64                 ; VRAM stride: 2 variants x 32 bytes
+    add hl, bc
+    ex de, hl
+    pop af
+    dec a
+    jp nz, .benemy_patstride
+`;
+    const contiguousArtAsm = (quad: boolean): string => `    ld a, (ix+10)             ; frameCount
+    add a, a                  ; *2 variants${quad ? `
+    add a, a                  ; *4 variants (ceiling flips)` : ''}
+    push hl
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl                ; *32 bytes/group
+    ld b, h
+    ld c, l
+    pop hl
+${art}
+`;
+    const artShapeAsm = loopSelectsArtShape
+      ? `    cp 4
+    jp nc, .benemy_quad
+${strideArtAsm}    jp .benemy_patterns_done
+.benemy_quad:
+${contiguousArtAsm(true)}.benemy_patterns_done:
+`
+      : slotsWithStrideArt ? strideArtAsm : contiguousArtAsm(slotsWithQuadArt);
+    const patternsAsm = compact
+      ? '    ; Patterns already uploaded once for this room; colours remain per slot.\n'
+      : `    ; --- upload this slot's sprite patterns; the VRAM address comes from bitmap_enemy_load_desc ---
+    ld a, (ix+8)
+    call bitmap_enemy_patterns_offset
+    ex (sp), hl               ; HL = dest entry, (sp) = pattern source
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                ; DE = pattern VRAM address
+    inc hl
+${loopSelectsArtShape ? `    ld a, (hl)                ; pattern variants per frame (2 or 4)
+    inc hl
+` : ''}    ex (sp), hl               ; HL = pattern source, (sp) = dest entry (colour word next)
+${artShapeAsm}`;
+    const colorsAsm = compact
+      ? `    ; --- upload 16-byte colour table -> VRAM, 16 bytes further on for every slot ---
+    ld a, (ix+9)
+    call bitmap_enemy_colors_offset
+    ex (sp), hl               ; HL = this slot's colour VRAM address, (sp) = colour source
+    ld d, h
+    ld e, l
+    ld bc, 16
+    add hl, bc
+    ex (sp), hl               ; HL = colour source, (sp) = next slot's colour VRAM address
+${copyArt('bitmap_enemy_sprite_colors')}`
+      : `    ; --- upload 16-byte colour table -> VRAM (colour word of the dest entry) ---
+    ld a, (ix+9)
+    call bitmap_enemy_colors_offset
+    ex (sp), hl               ; HL = dest entry, (sp) = colour source
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                ; DE = colour table VRAM address
+    inc hl
+    ex (sp), hl               ; HL = colour source, (sp) = next slot's dest entry
+    ld bc, 16
+${copyArt('bitmap_enemy_sprite_colors')}`;
+    return `    ld a, (bitmap_enemy_count)
+    or a
+    jp z, .benemy_slots_done  ; empty room: nothing to seed or upload
+    ld b, a                   ; B = slots in use (never more than ${maxSlots})
+    push iy
+    ld iy, bitmap_enemy_pool
+${compact ? `    ld de, ${asmWord(opts.colorBase)}            ; colour table VRAM address of slot 0` : '    ld hl, bitmap_enemy_load_desc'}
+.benemy_loop:
+    push bc
+    push ${state}
+    push ix
+    pop hl
+    push iy
+    pop de
+    ld bc, 8
+    ldir                      ; movement bytes (x..maxY)
+${slotFieldsAsm(offset => `(iy+${offset})`, '.benemy_interval_valid')}${patternsAsm}${colorsAsm}
+    ld bc, ${SCRIPTED_TABLE_STRIDE}
+    add ix, bc                ; next room record
+    ld bc, ${POOL_STRIDE}
+    add iy, bc                ; next pool slot
+    pop ${state}
+    pop bc
+    dec b
+    jp nz, .benemy_loop
+    pop iy
+.benemy_slots_done:`;
+  };
+  const loadSlotBlocks = useLoadLoop ? buildLoopedLoadSlots() : buildUnrolledLoadSlots();
 
   const enemyBulletColorUploads = Array.from({ length: enemyBulletSlotCount }, (_unused, i) => `    ld hl, bitmap_enemy_bullet_color_data
     ld de, ${asmWord((opts.enemyBulletColorBase as number) + i * 16)}
@@ -2501,9 +2662,11 @@ ${bankedArt ? '    call bitmap_copy_banked_to_vram' : '    call copy_to_vram_ext
 ; INPUT: current_screen_index.
 ; OUTPUT: bitmap_enemy_count/pool + VRAM pattern groups reserved by the
 ; compact per-slot enemy allocation.
-; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY (IX saved/restored).
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, ${useLoadLoop ? 'IY (both saved/restored)' : 'IY (IX saved/restored)'}.
 ; CALLS: copy_to_vram_ext, bitmap_enemy_patterns_offset, bitmap_enemy_colors_offset.
-; ------------------------------------------------------------
+${useLoadLoop ? `; NOTES: ONE loop (not one copy per slot) seeds and uploads every slot in use (IX = room record,
+;   IY = RAM pool slot, B = slots left). Per-slot VRAM addresses: ${compact ? 'colour table +16 per slot' : 'bitmap_enemy_load_desc'}.
+` : ''}; ------------------------------------------------------------
 bitmap_load_enemies:
     ; Room loading writes colours independently; invalidate every cached slot.
     xor a
@@ -2709,6 +2872,7 @@ bitmap_enemy_pattern_pool_banks:
         'Bat flight headings: dx,dy signs in the turret order R,DR,D,DL,L,UL,U,UR')
       : '')
     + `bitmap_room_enemy_ptr_table:\n${data.roomTables.map((_t, index) => `    DW bitmap_room_enemy_table_${index}`).join('\n')}\n`
+    + loadDescAsm
     + (bankedArt
       ? '; Enemy sprite pattern/colour art is emitted in a Konami MegaROM data bank below.\n'
       : (compact ? '' : emitBytes('bitmap_enemy_sprite_patterns', data.patternBytes, `Enemy sprites: ${data.patternBytes.length / 32} pattern group(s), ${slime ? '[right, left, ceilRight, ceilLeft] variants' : '[right, left] variant pair'} per frame (mode 2 quadrants)`))
