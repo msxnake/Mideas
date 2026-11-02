@@ -63,7 +63,7 @@ import {
   TARGET_HINTS,
 } from './knowledge';
 import { AUDIO_SPEC_MD, buildInstrumentsSketch, buildSfxSketch, buildSongSketch } from './audioSketch';
-import { WAV_SAMPLE_RATE, renderSfxToWav, renderSongToWav, resolvePlayableSong } from './audioRender';
+import { WAV_SAMPLE_RATE, encodeWav16, renderSfxToWav, renderSongToWav, resolvePlayableSong, type PrerenderedSong } from './audioRender';
 import { buildReadmeAi } from './readmeAi';
 
 export const GAME_SKETCH_SCHEMA = 'mideas.game_sketch.v1';
@@ -85,6 +85,8 @@ export interface GameSketchInput {
   msxFont?: MSXFont;
   msxFontColorAttributes?: MSXFontColorAttributes;
   options?: Partial<GameSketchOptions>;
+  /** Songs already rendered elsewhere (PT3 via the real player, see pt3CowbellRender.ts), keyed by asset id. */
+  prerenderedSongs?: Record<string, PrerenderedSong>;
   /** Injected for deterministic tests. */
   now?: Date;
 }
@@ -758,7 +760,22 @@ export function buildGameSketch(input: GameSketchInput): GameSketchResult {
     const instPath = `audio/instruments/${slug}_instruments.json`;
     song.instrumentsFile = instPath;
     let wav: any = null;
-    if (audioWav && hasRows && playable.song.soundChip !== 'SCC') {
+    const pre = input.prerenderedSongs?.[a.id];
+    if (pre?.error) warnings.push(`Song "${a.name}": ${pre.error}`);
+    if (audioWav && pre && !pre.error) {
+      const wavPath = `audio/music/${slug}.wav`;
+      const loop = pre.loopStartSample !== null && pre.loopStartSample < pre.samples.length ? { start: pre.loopStartSample, end: pre.samples.length } : null;
+      files.push({ path: wavPath, content: encodeWav16(pre.samples, pre.sampleRate, loop) });
+      wav = {
+        file: wavPath,
+        format: `PCM 16-bit mono ${pre.sampleRate} Hz`,
+        engine: pre.engine,
+        durationMs: Math.round((pre.samples.length / pre.sampleRate) * 1000),
+        loop: loop ? { startSample: loop.start, endSample: loop.end, startMs: Math.round((loop.start / pre.sampleRate) * 1000), embeddedSmplChunk: true } : null,
+        notes: pre.notes,
+      };
+      pre.notes.forEach(n => warnings.push(`Song "${a.name}": ${n}`));
+    } else if (audioWav && hasRows && playable.song.soundChip !== 'SCC') {
       try {
         const r = renderSongToWav(playable.song);
         const wavPath = `audio/music/${slug}.wav`;
@@ -766,6 +783,7 @@ export function buildGameSketch(input: GameSketchInput): GameSketchResult {
         wav = {
           file: wavPath,
           format: `PCM 16-bit mono ${r.sampleRate} Hz`,
+          engine: 'Mideas AYRegisterSynthesizer with Play mode timing',
           durationMs: r.durationMs,
           loop: r.loopStartSample !== null ? { startSample: r.loopStartSample, endSample: r.loopEndSample, startMs: Math.round((r.loopStartSample / r.sampleRate) * 1000), embeddedSmplChunk: true } : null,
           notes: r.notes,
@@ -904,7 +922,7 @@ export function buildGameSketch(input: GameSketchInput): GameSketchResult {
       spec: musicIndex.length || sfxIndex.length ? 'audio/AUDIO_SPEC.md' : null,
       wav: audioWav ? {
         format: `PCM 16-bit mono ${WAV_SAMPLE_RATE} Hz`,
-        renderedWith: 'Mideas AY-3-8910 (YM2149) emulation, same as the editor and Play mode',
+        renderedWith: 'PT3 songs: the real ZXPT3 Z80 player + Cowbell AYChip (as the tracker plays PT3). Native Mideas songs: the Mideas AY emulation with Play mode timing. Songs are peak-normalized to 0.9.',
         songs: 'Rendered with the Mideas Play mode timing, once from order[0] to the end. The loop region (order[restartPosition] to the end) is stored in a RIFF "smpl" chunk: Godot 4 loops it automatically (import option Loop Mode = "Detect From WAV", the default).',
         soundEffects: 'One-shot, no loop.',
       } : null,

@@ -166,4 +166,32 @@ const colors = new Set<string>();
 for (let i = 0; i < s3.data.length; i += 4) colors.add(Array.from(s3.data.slice(i, i + 4)).join(','));
 assert.ok(colors.size <= 3, 'Scale3x does not invent colours');
 
+// PT3 through the real player (public/audio/pt3-render-worker.js run in a vm "worker")
+{
+  const { runInContext, createContext } = await import('node:vm');
+  const { resolve, dirname } = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const { computePt3LoopFrame } = await import('../utils/gameSketch/pt3CowbellRender');
+  const workerPath = fileURLToPath(new URL('../public/audio/pt3-render-worker.js', import.meta.url));
+  const pt3 = new Uint8Array(readFileSync(new URL('../pt3/PT3/CASTLEVA/wicked child.pt3', import.meta.url)));
+  const msg: any = await new Promise((ok, fail) => {
+    const ctx: any = { console, Math, Uint8Array, Float32Array, Array, Object, Error };
+    ctx.self = ctx;
+    ctx.globalThis = ctx;
+    ctx.importScripts = (...files: string[]) => files.forEach(f => runInContext(readFileSync(resolve(dirname(workerPath), f), 'utf8'), ctx));
+    ctx.postMessage = (m: any) => (m.error ? fail(new Error(m.error)) : ok(m));
+    createContext(ctx);
+    runInContext(readFileSync(workerPath, 'utf8'), ctx);
+    ctx.onmessage({ data: { id: 1, bytes: pt3.slice().buffer, sampleRate: 44100, playbackHz: 50 } });
+  });
+  assert.equal(msg.complete, true);
+  assert.equal(new Float32Array(msg.samples).length, msg.frameCount * 882);
+  const loop = computePt3LoopFrame({
+    playbackBackend: 'external-pt3', bpm: 125, speed: 3, patterns: [], order: [], restartPosition: 0,
+    instruments: [], ornaments: [], externalPt3Data: Array.from(pt3), externalPt3HasHeader: true,
+  } as any);
+  assert.equal(loop.timelineFrames, msg.frameCount, 'PT3 timeline matches the real player frame count');
+  assert.equal(loop.loopStartFrame, 1024, 'loop starts at order[2]');
+}
+
 console.log(`OK game sketch export: ${r.files.length} files, ${r.warnings.length} warnings`);

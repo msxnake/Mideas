@@ -27,6 +27,27 @@ export interface WavRenderResult {
   notes: string[];
 }
 
+/** A song rendered outside buildGameSketch (e.g. PT3 through the real player in a Worker). */
+export interface PrerenderedSong {
+  samples: Float32Array;
+  sampleRate: number;
+  loopStartSample: number | null;
+  engine: string;
+  notes: string[];
+  /** Set when the external render failed; the exporter then falls back to renderSongToWav. */
+  error?: string;
+}
+
+/** Scales the audio so its peak reaches `target` (gain capped); silence is left untouched. */
+export function normalizePeak(samples: Float32Array, target = 0.9, maxGain = 4): Float32Array {
+  let peak = 0;
+  for (let i = 0; i < samples.length; i++) peak = Math.max(peak, Math.abs(samples[i]));
+  if (peak <= 1e-6) return samples;
+  const gain = Math.min(maxGain, target / peak);
+  for (let i = 0; i < samples.length; i++) samples[i] *= gain;
+  return samples;
+}
+
 // ---------------------------------------------------------------------------
 // WAV encoding
 // ---------------------------------------------------------------------------
@@ -215,6 +236,7 @@ export function renderSongToWav(song: TrackerSongData, sampleRate = WAV_SAMPLE_R
     synth.renderOffline(samples.subarray(blockStart, Math.min(totalSamples, blockStart + PLAY_MODE_BLOCK_SAMPLES)), sampleRate);
   }
 
+  normalizePeak(samples);
   const loopStartSample = loopStartRow !== null ? Math.round(((loopStartRow * rowMs) / 1000) * sampleRate) : null;
   const loop = loopStartSample !== null && samples.length > loopStartSample ? { start: loopStartSample, end: samples.length } : null;
   return {

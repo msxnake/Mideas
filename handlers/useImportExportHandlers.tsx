@@ -5,6 +5,7 @@ import { normalizeImportedPT3Data } from '../components/utils/trackerUtils';
 import { buildIntermediateGameJsonV1 } from '../utils/intermediateGameJson';
 import { downloadBlobFile, downloadTextFile } from '../utils/downloadUtils';
 import { buildGameSketch } from '../utils/gameSketch/buildGameSketch';
+import { prerenderPt3Songs } from '../utils/gameSketch/pt3CowbellRender';
 import { getProjectTargetFromScreenMode } from '../utils/projectTarget';
 import { createUniqueAssetId, createUniqueAssetName, parseBossExportPackage, remapBossPackageForImport } from '../utils/bossPackageUtils';
 
@@ -262,8 +263,11 @@ export const useImportExportHandlers = ({
     const scaleMethod = methodText === 'nearest' ? 'nearest' : 'smooth';
 
     try {
+      setStatusBarMessage('Building Sketch IA: rendering PT3 music...');
+      const prerenderedSongs = await prerenderPt3Songs(assets);
       setStatusBarMessage('Building Sketch IA...');
       const result = buildGameSketch({
+        prerenderedSongs,
         assets,
         currentProjectName,
         currentScreenMode,

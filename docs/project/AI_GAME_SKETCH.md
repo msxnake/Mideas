@@ -83,8 +83,16 @@ Todas las coordenadas del JSON están siempre en píxeles lógicos x1 (256x192).
   de envolvente hardware distintas (R13 reiniciado cada tick; bug visto con
   Oda1). Se renderiza desde `order[0]` hasta el final, una vez. El tramo de bucle (`order[restartPosition]` → final) va en
   un chunk RIFF `smpl`; Godot 4 lo detecta solo (Loop Mode: "Detect From WAV").
-- Canciones `external-pt3`: se decodifican con `parsePT3File`. Si el PT3 se
-  importó sin cabecera, no se puede (igual que en el editor) y se avisa.
+- Canciones `external-pt3` (PT3 importado con cabecera): se renderizan con el
+  **reproductor PT3 real**, el mismo que usa el tracker: código Z80 ZXPT3
+  ejecutado en el Z80 de Cowbell → frames de registros a 50 Hz → `AYChip` de
+  Cowbell (AY 1,7734 MHz). Worker: `public/audio/pt3-render-worker.js`;
+  cliente: `utils/gameSketch/pt3CowbellRender.ts`. El punto de bucle sale de
+  `buildPT3RecordingTimeline` (verificado: mismo nº de frames que el
+  reproductor). En la prueba A/B con `bounder10.pt3` este camino suena mucho
+  mejor que el sintetizador del editor. Si el PT3 se importó sin cabecera, no
+  se puede (igual que en el editor) y se avisa.
+- Las canciones se normalizan a pico 0,9 (ganancia máx. x4); los efectos no.
 - Efectos PSG: se escriben sus pasos directamente en los registros del chip.
 - Limitación: el SCC no se renderiza (canciones SCC sin WAV; PSG+SCC solo
   con los canales A/B/C). Se avisa en `warnings`.
