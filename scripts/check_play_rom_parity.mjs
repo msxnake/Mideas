@@ -40,7 +40,7 @@ const KNOWN = {
   componentsRomOnly: ['comp_behavior', 'comp_dash', 'comp_mirror', 'comp_physics', 'comp_pos', 'comp_wall_jump'],
   // Components simulated by Play mode but unknown to the ROM
   componentsPlayOnly: ['comp_child_link'],
-  // Default editor components implemented by NEITHER side (phase 4: hide from the editor)
+  // Default editor components implemented by NEITHER side (phase 4: hidden in the editor via utils/componentAvailability.ts)
   componentsNowhere: [
     'comp_PacmanMovementV2', 'comp_PacmanRotationV2', 'comp_aiming', 'comp_bounce',
     'comp_boss_crush_movement', 'comp_boss_neck_chain', 'comp_inventory', 'comp_pacMovement',
@@ -118,6 +118,17 @@ for (const key of Object.keys(KNOWN)) {
   } else {
     console.log(`ok   ${key}: ${got.length ? got.join(', ') : '(parity)'}`);
   }
+}
+// Phase 4 decision: components implemented by neither side are hidden from the editor pickers.
+const hiddenIds = new Set([...between(read('utils/componentAvailability.ts'), 'UNIMPLEMENTED_COMPONENT_IDS', ']);').matchAll(/'(comp_[A-Za-z0-9_]+)'/g)].map(m => m[1]));
+const notHidden = actual.componentsNowhere.filter(c => !hiddenIds.has(c));
+const hiddenButImplemented = [...hiddenIds].filter(c => !actual.componentsNowhere.includes(c)).sort();
+if (notHidden.length || hiddenButImplemented.length) {
+  failed = true;
+  if (notHidden.length) console.error(`FAIL components implemented nowhere but not hidden (add to utils/componentAvailability.ts): ${notHidden.join(', ')}`);
+  if (hiddenButImplemented.length) console.error(`FAIL hidden components that are now implemented (remove from utils/componentAvailability.ts): ${hiddenButImplemented.join(', ')}`);
+} else {
+  console.log(`ok   hidden components == implemented nowhere (${hiddenIds.size})`);
 }
 if (unimplementedEverywhere.length) {
   failed = true;

@@ -24,6 +24,7 @@ import {
   isScreen4Project,
 } from '../../utils/projectTarget';
 import { getMsx2ProfileEntityLabels } from '../../utils/msx2ProjectProfiles';
+import { isComponentDefinitionHidden, UNIMPLEMENTED_COMPONENT_NOTE } from '../../utils/componentAvailability';
 
 /**
  * Props for the EntityTemplateEditor component.
@@ -651,6 +652,9 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
                     const isExpanded = !!expandedComponents[tc.definitionId];
                     return (
                       <div key={tc.definitionId} className="p-1.5 border border-msx-border/50 rounded bg-msx-bgcolor/50">
+                        {isComponentDefinitionHidden(tc.definitionId) && (
+                          <div className="text-[10px] text-yellow-400 mb-1" title={UNIMPLEMENTED_COMPONENT_NOTE}>⚠ {UNIMPLEMENTED_COMPONENT_NOTE}</div>
+                        )}
                         <div className="flex justify-between items-center">
                           <button onClick={() => toggleComponentExpansion(tc.definitionId)} className="flex items-center text-xs text-msx-cyan hover:text-msx-highlight">
                             {isExpanded ? <CaretDownIcon className="w-2.5 h-2.5 mr-1"/> : <CaretRightIcon className="w-2.5 h-2.5 mr-1"/>}
@@ -750,12 +754,12 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
           <div className="bg-msx-panelbg p-4 rounded-lg shadow-xl w-full max-w-sm animate-slideIn" onClick={e => e.stopPropagation()}>
             <h4 className="text-md text-msx-highlight mb-3">Add Component to Template</h4>
             <div className="max-h-60 overflow-y-auto space-y-1">
-              {activeComponentDefinitions.filter(cd => !editingTemplate.components?.find(c => c.definitionId === cd.id)).map(cd => (
+              {activeComponentDefinitions.filter(cd => !isComponentDefinitionHidden(cd.id) && !editingTemplate.components?.find(c => c.definitionId === cd.id)).map(cd => (
                 <Button key={cd.id} onClick={() => handleAddComponentToTemplate(cd.id)} variant="ghost" className="w-full justify-start text-xs">
                   {cd.name}
                 </Button>
               ))}
-              {activeComponentDefinitions.filter(cd => !editingTemplate.components?.find(c => c.definitionId === cd.id)).length === 0 && (
+              {activeComponentDefinitions.filter(cd => !isComponentDefinitionHidden(cd.id) && !editingTemplate.components?.find(c => c.definitionId === cd.id)).length === 0 && (
                 <p className="text-xs text-msx-textsecondary italic p-2">All available components are already added or no components defined.</p>
               )}
             </div>

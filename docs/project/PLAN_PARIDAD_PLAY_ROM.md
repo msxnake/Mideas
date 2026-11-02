@@ -159,7 +159,21 @@ Plan original de la fase:
   con `mini_game75` y un caso de borde de plataforma: posición del jugador por
   frame en Play y en ROM.
 
-### Fase 4: componentes
+### Fase 4: componentes — OCULTADO HECHO, portado pendiente
+
+**Hecho:** los 10 componentes que no implementa nadie (Spawner, Inventory, Aiming,
+Rotate, Bounce, Pac-Man Movement v1/v2, Pac-Man Rotation V2, BossNeckChain y
+BossCrushMovement como componentes ECS) ya no aparecen en "Add Component" ni en el
+editor de definiciones (`utils/componentAvailability.ts`, por id porque cada proyecto
+guarda su copia). Las plantillas que ya los usan los conservan con un aviso; no se
+borra nada. Los bosses no se ven afectados: su cuello/aplastamiento se configura en
+el asset de boss (`phase.neckChain`), no con estos componentes. El contrato comprueba
+que la lista de ocultos coincide con "implementado en ninguno".
+
+**Pendiente:** portar a Play los "solo ROM" (Behavior, Dash, Mirror, Physics/Movement,
+Position, WallCollision, WallJump) y decidir Child Link.
+
+Plan original de la fase:
 - Ocultar del editor los componentes que no implementa nadie (tabla D), sin
   romper proyectos que ya los usen (se conservan en el JSON, con aviso).
 - Portar a Play los "solo ROM" (Behavior, Dash, Mirror, Physics/Movement,

@@ -8,6 +8,7 @@ import { PlusCircleIcon, TrashIcon, SaveIcon, PuzzlePieceIcon, LoadIcon, Documen
 import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { DEFAULT_COMPONENT_DEFINITIONS } from '../../data/defaults';
 import { getProjectTargetFromScreenMode, filterComponentDefinitionsForProject } from '../../utils/projectTarget';
+import { isComponentDefinitionHidden } from '../../utils/componentAvailability';
 
 /**
  * Props for the ComponentDefinitionEditor component.
@@ -311,7 +312,7 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
           </Button>
           {activeComponentDefinitions.length === 0 && <p className="text-xs text-msx-textsecondary italic">No {projectTarget} components defined.</p>}
           <ul className="space-y-1">
-            {activeComponentDefinitions.map(def => (
+            {activeComponentDefinitions.filter(def => !isComponentDefinitionHidden(def.id)).map(def => (
               <li key={def.id}>
                 <button
                   onClick={() => handleSelectDefinition(def.id)}
