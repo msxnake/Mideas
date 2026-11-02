@@ -164,9 +164,16 @@ Plan original de la fase:
   el bit 2. En `mini_game75` las reglas "coger llave" y "coger pistola" reaccionan a cualquier
   item. Revisar capas de colisión de los proyectos.
 
-**Pendiente:** `ON_WALL_COLLISION` (sigue por eventos en Play), sondas de tiles
-(1/3-2/3 en Play frente a *inset* adaptativo en el ROM), gracia de 200 ms y estados
-invulnerables (solo Play).
+**Hecho — `ON_WALL_COLLISION` y `HAS_COLLISION wall`:** máscara de pared por frame como
+`entity_wall_collision_flags` (#01 arriba, #02 abajo mientras se está apoyado en tiles,
+#04 izquierda, #08 derecha).
+
+**Hecho — sondas de tiles:** Play usa el *inset* adaptativo del ROM
+(`min(2, floor(span/2))` desde cada borde; `romAdaptiveProbes`) en paredes, suelo/techo y
+detección de suelo. Verificado contra `wall_build_hitbox_cache` Z80 en 560 hitboxes.
+
+**Pendiente:** gracia de 200 ms tras aparecer y supresión de colisiones en estados
+"Dead/Hurt…" (existen en Play; confirmar si el ROM las tiene), y la prueba en OpenMSX.
 
 Plan original de la fase:
 - Clasificación item/enemy: decidir componentes o capas y aplicarlo en ambos

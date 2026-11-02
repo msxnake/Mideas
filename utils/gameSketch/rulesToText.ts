@@ -4,7 +4,7 @@
  *   1. `natural`  - plain English sentence.
  *   2. `pseudo`   - engine-neutral pseudocode (maps easily to GDScript/JS/Python).
  *   3. `raw`      - the original Mideas structure (lossless).
- * Transitions are conditions evaluated each frame (ON_WALL_COLLISION reads queued wall events in Play).
+ * Transitions are conditions evaluated each frame (collision flags rebuilt on every pass, as in the ROM).
  */
 import type { Action, Condition, StateMachine, TransitionGuard } from '../../statemachine.types';
 import { normalizeStateMachineInput } from '../stateMachineInputs';

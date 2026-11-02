@@ -42,7 +42,7 @@ import { renderScreenToCanvas, createSpriteDataURL, getScreenBehaviorLayer, getS
 import { checkMsx2HazardAtWorldPixel } from '../../utils/msx2Screen4TileBehavior';
 import { parseMsx2PlayerImport } from '../../utils/msx2PlayerImport';
 import { getStateMachineBrowserInputAliases, normalizeStateMachineInput } from '../../utils/stateMachineInputs';
-import { ROM_COLLISION_EVENT_ENEMY, ROM_COLLISION_EVENT_ENTITY, ROM_COLLISION_EVENT_ITEM, ROM_MOVE_DIRECTION_IDS, romCanMoveDirection, romCollisionFlagsFromLayer, romDirectionFromVelocity } from '../../utils/romMoveTest';
+import { ROM_COLLISION_EVENT_ENEMY, ROM_COLLISION_EVENT_ENTITY, ROM_COLLISION_EVENT_ITEM, ROM_MOVE_DIRECTION_IDS, romAdaptiveProbes, romCanMoveDirection, romCollisionFlagsFromLayer, romDirectionFromVelocity } from '../../utils/romMoveTest';
 import {
     applyMsx2JumpImpulseToEntity,
     getMsx2DashConfigFromPlayerEntity,
@@ -2219,7 +2219,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 // Play reads the last complete pass (romCollFlagsStable), i.e. at most one frame behind the ROM.
                 const collisionType = String(condition.params?.collisionType || 'any').toLowerCase();
                 const flags = Number((entity as any).romCollFlagsStable ?? 0);
-                const wall = !!(entity as any).romWallStable;
+                const wall = Number((entity as any).romWallDirStable ?? 0) !== 0; // ROM: any wall flag (incl. standing)
                 switch (collisionType) {
                     case 'enemy': return (flags & ROM_COLLISION_EVENT_ENEMY) !== 0;
                     case 'item': return (flags & ROM_COLLISION_EVENT_ITEM) !== 0;
@@ -2231,27 +2231,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             }
 
             case 'ON_WALL_COLLISION': {
-                const requestedDirection = (condition.params?.direction || 'any').toLowerCase();
-                if (requestedDirection === 'any') {
-                    return (
-                        entityEvents.has('collision_wall') ||
-                        entityEvents.has('collision_wall_left') ||
-                        entityEvents.has('collision_wall_right') ||
-                        entityEvents.has('collision_wall_up') ||
-                        entityEvents.has('collision_wall_down')
-                    );
-                }
-
-                const validDirections = ['left', 'right', 'up', 'down'];
-                const normalizedDirection = validDirections.includes(requestedDirection)
-                    ? requestedDirection
-                    : 'any';
-
-                if (normalizedDirection === 'any') {
-                    return entityEvents.has('collision_wall');
-                }
-
-                return entityEvents.has(`collision_wall_${normalizedDirection}`);
+                // ROM parity (Condition_OnWallCollision): entity_wall_collision_flags rebuilt every frame,
+                // bits #01 up, #02 down (set while standing on tiles), #04 left, #08 right. Unknown dir = false.
+                const wallFlags = Number((entity as any).romWallDirStable ?? 0);
+                const requestedDirection = String(condition.params?.direction || 'any').toLowerCase();
+                const wallBit: Record<string, number> = { up: 0x01, down: 0x02, left: 0x04, right: 0x08 };
+                if (requestedDirection === 'any') return wallFlags !== 0;
+                return wallBit[requestedDirection] !== undefined && (wallFlags & wallBit[requestedDirection]) !== 0;
             }
 
             case 'HAS_DEADLY_TILE_COLLISION':
@@ -6961,7 +6947,8 @@ useEffect(() => {
             ...(entity.instance.componentOverrides?.['comp_collision'] || {})
         };
         const registerWallCollisionEvent = (direction: 'left' | 'right' | 'up' | 'down') => {
-            (entity as any).romWall = true; // ROM parity: entity_wall_collision_flags (HAS_COLLISION wall)
+            // ROM parity: entity_wall_collision_flags bits (up #01, down #02, left #04, right #08).
+            (entity as any).romWallDir = ((entity as any).romWallDir ?? 0) | ({ up: 0x01, down: 0x02, left: 0x04, right: 0x08 } as const)[direction];
             triggerEvent(entity.instance.id, 'collision_wall');
             triggerEvent(entity.instance.id, `collision_wall_${direction}`);
         };
@@ -6991,8 +6978,8 @@ useEffect(() => {
         // --- X-axis collision: use centered vertical probes to avoid top/bottom corner glitches ---
         if (entity.vx !== 0) {
             let collisionX = false;
-            const centerY1 = tentativeHitbox.y + Math.floor(tentativeHitbox.height / 3);
-            const centerY2 = tentativeHitbox.y + Math.floor((2 * tentativeHitbox.height) / 3);
+            // ROM parity (wall_build_hitbox_cache): adaptive probes, inset = min(2, span/2) from each edge.
+            const [centerY1, centerY2] = romAdaptiveProbes(tentativeHitbox.y, tentativeHitbox.height);
 
             if (entity.vx > 0) { // Derecha
                 if (checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY1, screenMap, { ignoreTopSolid: true }) ||
@@ -7023,8 +7010,8 @@ useEffect(() => {
         // --- Y-axis collision: use centered horizontal probes ---
         if (entity.vy !== 0) {
             let collisionY = false;
-            const centerX1 = tentativeHitbox.x + Math.floor(tentativeHitbox.width / 3);
-            const centerX2 = tentativeHitbox.x + Math.floor((2 * tentativeHitbox.width) / 3);
+            // ROM parity (wall_build_hitbox_cache): adaptive probes, inset = min(2, span/2) from each edge.
+            const [centerX1, centerX2] = romAdaptiveProbes(tentativeHitbox.x, tentativeHitbox.width);
 
             if (entity.vy > 0) { // Cayendo
                 const onPlatform = entity.platformUnderneath != null;
@@ -7301,9 +7288,9 @@ useEffect(() => {
         // ROM parity: publish the last complete collision pass and start a new one (HAS_COLLISION flags).
         for (const e of entitiesRef.current as any[]) {
             e.romCollFlagsStable = e.romCollFlags ?? 0;
-            e.romWallStable = !!e.romWall;
+            e.romWallDirStable = e.romWallDir ?? 0;
             e.romCollFlags = 0;
-            e.romWall = false;
+            e.romWallDir = 0;
         }
         processedCollectibleScoreRef.current.clear();
         // --- Calcular deltaTime (opcional) ---
@@ -7674,8 +7661,7 @@ useEffect(() => {
                 const props = entityCollisionProps(entityA);
                 if (props) {
                     const hitbox = getHitboxForPosition(entityA, entityA.x, entityA.y + 1, props); // Check 1px below
-                    const centerX1 = hitbox.x + Math.floor(hitbox.width / 3);
-                    const centerX2 = hitbox.x + Math.floor((2 * hitbox.width) / 3);
+                    const [centerX1, centerX2] = romAdaptiveProbes(hitbox.x, hitbox.width); // ROM parity: floor probes
                     const bottomY = hitbox.y + hitbox.height;
                     const platformContext = { hitboxBottom: bottomY, velocityY: entityA.vy };
 
@@ -7694,6 +7680,8 @@ useEffect(() => {
 
                     const hasPlatformGrace = (entityA.platformGraceFramesLeft || 0) > 0;
                     entityA.isOnGround = onTiles || onPlatformPreviousFrame || hasPlatformGrace;
+                    // ROM parity: WallCollision sets the DOWN wall flag every frame the entity stands on tiles.
+                    if (onTiles) (entityA as any).romWallDir = ((entityA as any).romWallDir ?? 0) | 0x02;
                 } else {
                     entityA.isOnGround = false;
                 }

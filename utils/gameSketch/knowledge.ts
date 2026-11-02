@@ -19,7 +19,7 @@ export const CONDITION_GLOSSARY: Record<string, string> = {
   CAN_MOVE_DIRECTION: 'True if moving one pixel in the direction would not overlap a solid tile. Test (Play = ROM): the Collision hitbox (16x16, offset 0 without Collision) moved one pixel; every 8x8 cell it covers must not be a full blocker (one-way platforms do not block; outside the screen is passable). Positions are bytes.',
   HAS_COLLISION: 'LEVEL-based (Play = ROM): true while this entity overlaps another entity (or, for wall/any, a solid tile) in the last collision pass. Both entities must accept each other (mutual layer rule). Classes come from the OTHER entity collision layer: enemy = layer bit #02, item = layer bit #10 (16), entity = any overlap, wall = tile wall contact, any = any of them. There is no itemType/template filter. No entity collides during its first 200 ms after spawning (Play).',
   PATH_CLEAR: 'True if no solid tile lies ahead in the given direction (direction 0 = deduced from the velocity; idle = clear). Test (Play = ROM): the Collision hitbox (16x16, offset 0 without Collision) moved one pixel; every 8x8 cell it covers must not be a full blocker (one-way platforms do not block; outside the screen is passable). Positions are bytes.',
-  ON_WALL_COLLISION: 'EVENT-based in Play: a tile probe hit a solid tile on the given side while moving into it; the event stays pending until a transition of the entity fires (the "down" side only fires when landing, not while standing).',
+  ON_WALL_COLLISION: 'LEVEL-based (Play = ROM): wall flags rebuilt every frame: up/left/right = a tile probe blocked the movement on that side this frame, down = standing on (or landing on) solid tiles. any = any side.',
   HAS_DEADLY_TILE_COLLISION: 'True while the CENTRE point of the entity hitbox is on a tile with causesDamage = true. Only evaluated for entities that have the "Deadly Tiles" marker component (comp_deadly_tiles); without it the condition is never true.',
   IN_WATER: 'True while the entity is inside a "water" effect zone. Requires the comp_in_water marker component.',
   IS_WALL_GRABBING: 'True while the entity is clinging to a wall. Requires comp_wall_grab + Gravity, and holding button 2 (Controls-node key, N by default) against a wall while airborne.',
@@ -150,12 +150,12 @@ export const ENGINE_RULES = {
     'Firing order: onExit actions of the old state -> state change (TIME_OUT counter reset; the new state properties.velocityX/velocityY are applied, and for the player they override its velocity every frame) -> transition actions -> onEnter actions of the new state. A self-transition, or a transition to "Any State", keeps the state: no onExit/onEnter and no counter reset. Pending collision events are cleared when a transition fires.',
     'While a WAIT action is pending, no transition of that entity is evaluated.',
     'State NAMES have engine effects: Dead/Death/Hurt/Hit/Damage/Respawn/Spawning/Invulnerable (substring, case-insensitive) suppress entity-collision events; exactly "Dead", "GameOver", "Stunned" or "Frozen" (exact, case-sensitive) disable input and physics; Dead/Death/Respawn/Spawning/Hurt/Hit/GameOver/Invulnerable (substring) disable screen exits.',
-    'Conditions are levels evaluated every frame. Exception: ON_WALL_COLLISION reads queued wall events in Play (see the glossary).',
+    'All conditions are levels evaluated every frame (collision flags are rebuilt on every pass, as in the ROM).',
   ],
   tileCollision: [
     'Solidity comes ONLY from the tile logical property isSolid (see collisionMap legend: # B X D = are blocking).',
     'familyId 2 tiles ("=" in collisionMap) are one-way platforms: solid only when the entity comes from above (its hitbox bottom was within 2 px above the tile top) and is falling or idle.',
-    'Ground/wall probes use 2 points of the leading side at 1/3 and 2/3 of the hitbox, and snap the entity flush to the tile edge.',
+    'Ground/wall probes use 2 points of the leading side at inset = min(2, floor((size-1)/2)) px from each edge (same as the ROM WallCollision), and snap the entity flush to the tile edge.',
     'Ladder tiles (interactionType "ladder", H in collisionMap) cancel gravity while overlapping them.',
   ],
   entityCollision: {

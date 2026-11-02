@@ -14,7 +14,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import vm from 'node:vm';
-import { romCanMoveDirection, romCollisionFlagsFromLayer } from '../utils/romMoveTest';
+import { romAdaptiveProbes, romCanMoveDirection, romCollisionFlagsFromLayer } from '../utils/romMoveTest';
 
 const root = new URL('..', import.meta.url).pathname;
 const read = (p: string) => readFileSync(join(root, p), 'utf8');
@@ -32,6 +32,9 @@ const ccbStart = compGen.indexOf('check_collision_box:\n    ld c, b');
 assert.ok(ccbStart > 0, 'real check_collision_box not found (stub still in place?)');
 const ccbEnd = compGen.indexOf('.ccbo_done:\n    ret', ccbStart) + '.ccbo_done:\n    ret'.length;
 const collisionBox = compGen.slice(ccbStart, ccbEnd);
+// WallCollision probe builder (first definition) + its signed-offset helper
+const hitboxCache = slice(compGen, 'wall_build_hitbox_cache:', 'wall_add_signed_offset_clamped:');
+const signedOffset = slice(compGen, 'wall_add_signed_offset_clamped:', '; wall_sub_signed_offset_clamped');
 const flagsFromLayer = slice(compGen, 'coll_flags_from_layer:', '.cffl_done:') + '.cffl_done:\n    ld a, c\n    ret\n';
 assert.ok(compGen.includes('.cffl_done:\n    ld a, c\n    ret'), 'coll_flags_from_layer epilogue changed: update this test');
 
@@ -53,6 +56,18 @@ COLLISION_EVENT_ENTITY EQU #01
 COLLISION_EVENT_ENEMY EQU #02
 COLLISION_EVENT_ITEM EQU #04
 t_layer EQU #C103
+wall_temp_x EQU #C110
+wall_temp_y EQU #C111
+wall_hit_w EQU #C112
+wall_hit_h EQU #C113
+wall_hit_left EQU #C114
+wall_hit_top EQU #C115
+wall_hit_right EQU #C116
+wall_hit_bottom EQU #C117
+wall_probe_left EQU #C118
+wall_probe_right EQU #C119
+wall_probe_top EQU #C11A
+wall_probe_bottom EQU #C11B
     ORG #4000
 test_entry:
     ld a, (t_entity)
@@ -66,6 +81,13 @@ flags_entry:
     ld a, (t_layer)
     call coll_flags_from_layer
     ld (t_result), a
+    ret
+    DS #4020 - $          ; third entry point at #4020
+probes_entry:
+    ld a, (t_entity)
+    ld e, a
+    ld d, 0
+    call wall_build_hitbox_cache
     ret
 
 ; Test stand-in for the ROM reader: behaviour byte of (B=row, C=col), out of 32x24 = passable.
@@ -101,6 +123,8 @@ get_behavior_tile:
 ${testMove}
 ${collisionBox}
 ${flagsFromLayer}
+${hitboxCache}
+${signedOffset}
 `;
 
 const dir = mkdtempSync(join(tmpdir(), 'rom-move-'));
@@ -164,5 +188,21 @@ for (let layer = 0; layer < 256; layer++) {
   cpu.runRoutine(0x4010, 0xbff0);
   assert.equal(memory[RAM.res], romCollisionFlagsFromLayer(layer), `coll_flags_from_layer mismatch for layer ${layer}`);
 }
+// wall_build_hitbox_cache adaptive probes vs romAdaptiveProbes (Play floor/wall probes)
+let probeCases = 0;
+for (let w = 1; w <= 40; w++) {
+  for (let h = 1; h <= 40; h += 3) {
+    const e = (w + h) % 32;
+    const x = (w * 37) % 200;
+    const y = (h * 53) % 160;
+    memory[RAM.w + e] = w; memory[RAM.h + e] = h; memory[RAM.ox + e] = 0; memory[RAM.oy + e] = 0;
+    memory[RAM.ent] = e; memory[0xc110] = x; memory[0xc111] = y;
+    cpu.runRoutine(0x4020, 0xbff0);
+    const [pl, pr] = romAdaptiveProbes(x, w);
+    const [pt, pb] = romAdaptiveProbes(y, h);
+    assert.deepEqual([memory[0xc118], memory[0xc119], memory[0xc11a], memory[0xc11b]], [pl, pr, pt, pb], `probe mismatch w=${w} h=${h} x=${x} y=${y}`);
+    probeCases++;
+  }
+}
 assert.ok(blocked > cases / 10 && blocked < cases * 0.9, `test map should block a fair share of moves (${blocked}/${cases})`);
-console.log(`OK ROM == Play: move test ${cases} random cases (${blocked} blocked) + coll_flags_from_layer 256 layers, Z80 assembled by glass.jar`);
+console.log(`OK ROM == Play: move test ${cases} random cases (${blocked} blocked) + coll_flags_from_layer 256 layers + ${probeCases} WallCollision probe boxes, Z80 assembled by glass.jar`);

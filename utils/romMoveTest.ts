@@ -76,3 +76,15 @@ export function romCollisionFlagsFromLayer(layer: number): number {
     | ((layer & 0x02) ? ROM_COLLISION_EVENT_ENEMY : 0)
     | ((layer & 0x10) ? ROM_COLLISION_EVENT_ITEM : 0);
 }
+
+/**
+ * ROM wall_build_hitbox_cache adaptive probes: for a hitbox side starting at `start` with
+ * `size` pixels (inclusive span size-1), returns the two probe coordinates
+ * [start + inset, start + size - 1 - inset] with inset = min(2, floor((size - 1) / 2)).
+ * WallCollision probes walls at these Y positions and floors/ceilings at these X positions.
+ */
+export function romAdaptiveProbes(start: number, size: number): [number, number] {
+  const span = Math.max(0, Math.floor(size) - 1);
+  const inset = Math.min(2, span >> 1);
+  return [start + inset, start + span - inset];
+}
