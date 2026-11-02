@@ -102,7 +102,23 @@ más los ids que comprueba `entitiesGenerator.ts`. Fuente Play: ids `comp_*` en 
 - **Hecho cuando:** el script reproduce exactamente las tablas A y D. ✔
   (`npm run test:play-rom-parity`; la lista `KNOWN` debe ir vaciándose.)
 
-### Fase 1: máquinas de estados (bajo riesgo, alto impacto)
+### Fase 1: máquinas de estados (bajo riesgo, alto impacto) — PARCIAL
+
+**Hecho (Play copia al ROM):** `XOR` (paridad impar), `MOVE_BY`, `RND` (0..255),
+`DISABLE_INPUT`/`ENABLE_INPUT` (teclas, cursores, salto y dash por entidad; ENABLE
+restaura *animateOnlyWhenMoving*), `CHANGE_WORLD_SCREEN` (= `EXIT_CURRENT_WORLD`),
+`TOGGLE_ANIMATION` (`playing` 0 = pausa, otro = play; "toggle" = play) y
+`DIVIDE_VARIABLES` entera. La lista `KNOWN` de acciones quedó vacía.
+
+**Bloqueado — bug del ROM:** `CAN_MOVE_DIRECTION`, `PATH_CLEAR` y
+`KEY_AND_MOVEMENT` dependen de `SM_TestMoveDirection` → `check_collision_box`,
+que en el ROM es un stub *deprecated* que siempre devuelve "libre"
+(`componentsGenerator.ts`, `check_collision_box`). Hoy: Play = siempre falso,
+ROM = siempre verdadero. Copiar el stub no tiene sentido: hay que implementar la
+prueba real de tiles **en el ROM** (mapa de comportamiento, como WallCollision)
+y la misma en Play. Requiere tocar Z80 y verificar en OpenMSX (decisión 4).
+
+Plan original de la fase:
 - Implementar en GFP, copiando la semántica del ASM del ROM:
   `XOR`, `CAN_MOVE_DIRECTION`, `PATH_CLEAR`, `KEY_AND_MOVEMENT`, `MOVE_BY`,
   `RND`, `DISABLE_INPUT`, `ENABLE_INPUT`, `CHANGE_WORLD_SCREEN` (→ exit world).
@@ -112,7 +128,14 @@ más los ids que comprueba `entitiesGenerator.ts`. Fuente Play: ids `comp_*` en 
 - **Hecho cuando:** la allowlist de la Fase 0 queda vacía para condiciones y
   acciones; `pacman_reply(35)` reacciona a `CAN_MOVE_DIRECTION` en Play.
 
-### Fase 2: entrada
+### Fase 2: entrada — HECHA
+
+`getStateMachineBrowserInputAliases` acepta la tecla del botón 2 MSX1; el modo Play pasa
+el ajuste del nodo Controls (N por defecto o CTRL). `action2` y el agarre a pared usan
+esa tecla, como `INPUT_BTN_GRAB` en el ROM. Un asset `msx2player` sigue mandando con su
+propio mapping.
+
+Plan original de la fase:
 - Botón 2 en Play = tecla del nodo Controls (N o CTRL), como el ROM; mantener M
   solo si hay un `msx2player` con otro mapping.
 - Agarre a pared con el mismo botón lógico en ambos.

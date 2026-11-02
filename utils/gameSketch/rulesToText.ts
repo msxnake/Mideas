@@ -10,9 +10,9 @@ import type { Action, Condition, StateMachine, TransitionGuard } from '../../sta
 import { normalizeStateMachineInput } from '../stateMachineInputs';
 
 /** Exist in the MSX ROM generator but not in Mideas Play mode (GameFlowPreviewModal). */
-export const ROM_ONLY_CONDITIONS = new Set(['XOR', 'CAN_MOVE_DIRECTION', 'PATH_CLEAR', 'KEY_AND_MOVEMENT']);
-export const ROM_ONLY_ACTIONS = new Set(['MOVE_BY', 'RND', 'DISABLE_INPUT', 'ENABLE_INPUT']);
-const ROM_ONLY_NOTE = ' [ROM only: never true in Play mode]';
+export const ROM_ONLY_CONDITIONS = new Set(['CAN_MOVE_DIRECTION', 'PATH_CLEAR', 'KEY_AND_MOVEMENT']);
+export const ROM_ONLY_ACTIONS = new Set<string>([]);
+const ROM_ONLY_NOTE = ' [no tile check yet: always false in Play mode, always true in the ROM]';
 const ROM_ONLY_ACTION_NOTE = ' [ROM only: no effect in Play mode]';
 /** Variable names VARIABLE_COMPARE resolves on the entity itself before globals. */
 const ENTITY_VARS = new Set(['x', 'y', 'vx', 'vy', 'isonground']);
@@ -42,7 +42,7 @@ export function keyLabel(key: unknown): string {
   // Logical inputs stored by the state machine editor (utils/stateMachineInputs.ts).
   const logical = normalizeStateMachineInput(k);
   if (logical === 'fire') return 'FIRE (button 1, SPACE)';
-  if (logical === 'action2') return 'BUTTON 2 (action2: key M by default in Play mode)';
+  if (logical === 'action2') return 'BUTTON 2 (action2: Controls-node key, N by default)';
   if (/^f[1-5]$/.test(logical)) return logical.toUpperCase();
   if (['up', 'down', 'left', 'right'].includes(logical)) return logical.toUpperCase();
   if (/^Key[A-Z]$/.test(k)) return k.slice(3);
@@ -79,7 +79,7 @@ export function conditionToNatural(cond: Condition | null | undefined, r: NameRe
   switch (cond.type) {
     case 'AND': return subs.length ? subs.map(c => `(${conditionToNatural(c, r)})`).join(' AND ') : 'always';
     case 'OR': return subs.length ? subs.map(c => `(${conditionToNatural(c, r)})`).join(' OR ') : 'never';
-    case 'XOR': return `exactly one of: ${subs.map(c => `(${conditionToNatural(c, r)})`).join(', ')}${ROM_ONLY_NOTE}`;
+    case 'XOR': return `exactly one of: ${subs.map(c => `(${conditionToNatural(c, r)})`).join(', ')} (an odd number of them)`;
     case 'NOT': return `NOT (${subs[0] ? conditionToNatural(subs[0], r) : 'nothing'})`;
     case 'KEY_PRESSED': return `the player is pressing ${keyLabel(p.key)}`;
     case 'KEY_RELEASED': return `${keyLabel(p.key)} is not being held`;
@@ -169,7 +169,7 @@ export function actionToNatural(a: Action, r: NameResolver): string {
   switch (a.type) {
     case 'NONE': return 'do nothing';
     case 'SET_POSITION': return `set position to (${p.x ?? 0}, ${p.y ?? 0}) px`;
-    case 'MOVE_BY': return `move by (${p.x ?? 0}, ${p.y ?? 0}) px${ROM_ONLY_ACTION_NOTE}`;
+    case 'MOVE_BY': return `move by (${p.x ?? 0}, ${p.y ?? 0}) px`;
     case 'SET_VELOCITY': return `set velocity to (${p.x ?? 0}, ${p.y ?? 0}) px/frame`;
     case 'APPLY_FORCE': return `apply force/impulse (${p.x ?? 0}, ${p.y ?? 0}) px/frame`;
     case 'CHANGE_SPRITE': return `change sprite to ${ref(r, p.sprite)}`;
@@ -203,7 +203,7 @@ export function actionToNatural(a: Action, r: NameResolver): string {
     case 'CHANGE_GAME_FLOW_NODE': return `jump to Game Flow node ${ref(r, p.nodeId ?? p.targetNodeId)}`;
     case 'REGENERATE_HUD': return 'redraw the HUD';
     case 'CLEAN_SPRITES': return 'skip drawing sprites for one frame';
-    case 'CHANGE_WORLD_SCREEN': return 'exit the current world (CHANGE_WORLD_SCREEN: no effect in Play, EXIT_CURRENT_WORLD in the ROM)';
+    case 'CHANGE_WORLD_SCREEN': return 'exit the current world (same as EXIT_CURRENT_WORLD)';
     case 'EXIT_CURRENT_WORLD': return 'exit the current world (continue the Game Flow after the WorldLink node)';
     case 'DECREASE_LIVES': return `subtract ${p.amount ?? 1} from this entity's Health.current and copy it to the global Lives (no automatic game over)`;
     case 'INCREASE_LIVES': return `add ${p.amount ?? 1} to this entity's Health.current and copy it to the global Lives`;
@@ -214,7 +214,7 @@ export function actionToNatural(a: Action, r: NameResolver): string {
     case 'MOVE_TILE_AREA':
     case 'SHIFT_TILE_AREA':
       return `${a.type === 'MOVE_TILE_AREA' ? 'move' : 'shift'} the tile area (${p.x},${p.y}) size ${p.width}x${p.height} cells ${p.direction}${p.distance ? ` by ${p.distance}` : ''}${p.fillTileId ? `, filling with ${ref(r, p.fillTileId)}` : ''}`;
-    case 'RND': return `store a random number in ${fmtVar(p.targetVariable ?? p.variable)}${ROM_ONLY_ACTION_NOTE}`;
+    case 'RND': return `store a random number in ${fmtVar(p.targetVariable ?? p.variable)} (0..255)`;
     case 'POINT_AT': return `set the velocity towards (${p.x2 ?? '?'}, ${p.y2 ?? '?'}) at speed ${p.speed ?? 1}`;
     case 'ADD_VARIABLES':
     case 'SUBTRACT_VARIABLES':
@@ -225,8 +225,8 @@ export function actionToNatural(a: Action, r: NameResolver): string {
       return `${fmtVar(p.targetVariable)} = ${operand(p, 1)} ${op} ${operand(p, 2)}`;
     }
     case 'ASSIGN_VARIABLE': return `${fmtVar(p.targetVariable)} = ${p.sourceType === 'variable' ? fmtVar(p.sourceVariable) : q(p.sourceValue ?? p.value)}`;
-    case 'DISABLE_INPUT': return `disable player input${ROM_ONLY_ACTION_NOTE}`;
-    case 'ENABLE_INPUT': return `enable player input${ROM_ONLY_ACTION_NOTE}`;
+    case 'DISABLE_INPUT': return 'disable input for this entity';
+    case 'ENABLE_INPUT': return 'enable input for this entity';
     default:
       return `${String((a as any).type)}(${Object.entries(p).map(([k, v]) => `${k}=${q(v)}`).join(', ')})`;
   }
@@ -237,7 +237,7 @@ export function actionToPseudo(a: Action): string {
   switch (a.type) {
     case 'NONE': return 'pass';
     case 'SET_POSITION': return `self.position = (${p.x ?? 0}, ${p.y ?? 0})`;
-    case 'MOVE_BY': return `self.position += (${p.x ?? 0}, ${p.y ?? 0})  # ROM only`;
+    case 'MOVE_BY': return `self.position += (${p.x ?? 0}, ${p.y ?? 0})`;
     case 'SET_VELOCITY': return `self.velocity = (${p.x ?? 0}, ${p.y ?? 0})`;
     case 'APPLY_FORCE': return `self.velocity += (${p.x ?? 0}, ${p.y ?? 0})`;
     case 'CHANGE_SPRITE': return `self.sprite = sprite(${q(p.sprite)})`;
@@ -251,7 +251,7 @@ export function actionToPseudo(a: Action): string {
     case 'TOGGLE_ANIMATION': return `self.animation.${String(p.mode ?? 'toggle')}()`;
     case 'GOTO_STATE': return `state = ${q(p.stateName ?? p.state ?? p.stateId)}`;
     case 'POINT_AT': return `self.velocity = normalize((${p.x2 ?? 0}, ${p.y2 ?? 0}) - self.position) * ${p.speed ?? 1}`;
-    case 'RND': return `globals.${fmtVar(p.targetVariable ?? p.variable)} = random()  # ROM only`;
+    case 'RND': return `globals.${fmtVar(p.targetVariable ?? p.variable)} = random_byte()`;
     case 'INCREMENT_VARIABLE': return `globals.${fmtVar(p.variable)} += ${p.amount ?? 1}`;
     case 'DECREMENT_VARIABLE': return `globals.${fmtVar(p.variable)} -= ${p.amount ?? 1}`;
     case 'SET_COMPONENT_PROPERTY': return `self.components[${q(p.componentId ?? p.component ?? p.compId)}].${fmtVar(p.propertyName ?? p.prop ?? p.name)} = ${q(p.value)}`;
@@ -279,13 +279,13 @@ export function actionToPseudo(a: Action): string {
     case 'ADD_VARIABLES': return `globals.${fmtVar(p.targetVariable)} = ${operand(p, 1, true)} + ${operand(p, 2, true)}`;
     case 'SUBTRACT_VARIABLES': return `globals.${fmtVar(p.targetVariable)} = ${operand(p, 1, true)} - ${operand(p, 2, true)}`;
     case 'MULTIPLY_VARIABLES': return `globals.${fmtVar(p.targetVariable)} = ${operand(p, 1, true)} * ${operand(p, 2, true)}`;
-    case 'DIVIDE_VARIABLES': return `globals.${fmtVar(p.targetVariable)} = (${operand(p, 2, true)} != 0) ? ${operand(p, 1, true)} / ${operand(p, 2, true)} : 0`;
+    case 'DIVIDE_VARIABLES': return `globals.${fmtVar(p.targetVariable)} = (${operand(p, 2, true)} != 0) ? int(${operand(p, 1, true)} / ${operand(p, 2, true)}) : 0`;
     case 'MODULO_VARIABLES': return `globals.${fmtVar(p.targetVariable)} = (${operand(p, 2, true)} != 0) ? ${operand(p, 1, true)} % ${operand(p, 2, true)} : 0`;
     case 'DECREASE_LIVES': return `self.health.current = max(0, self.health.current - ${p.amount ?? 1}); globals.Lives = self.health.current`;
     case 'INCREASE_LIVES': return `self.health.current += ${p.amount ?? 1}; globals.Lives = self.health.current`;
-    case 'CHANGE_WORLD_SCREEN': return 'game_flow.exit_world()  # ROM behaviour; no-op in Play';
-    case 'DISABLE_INPUT': return 'input.enabled = false  # ROM only';
-    case 'ENABLE_INPUT': return 'input.enabled = true  # ROM only';
+    case 'CHANGE_WORLD_SCREEN': return 'game_flow.exit_world()';
+    case 'DISABLE_INPUT': return 'self.input_enabled = false';
+    case 'ENABLE_INPUT': return 'self.input_enabled = true';
     default:
       return `${String((a as any).type).toLowerCase()}(${Object.entries(p).map(([k, v]) => `${k}=${q(v)}`).join(', ')})`;
   }

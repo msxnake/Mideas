@@ -29,8 +29,8 @@ const read = (p) => readFileSync(join(root, p), 'utf8');
 // ---------------------------------------------------------------------------
 const KNOWN = {
   // In the ROM, missing in Play mode (phase 1)
-  conditionsRomOnly: ['CAN_MOVE_DIRECTION', 'KEY_AND_MOVEMENT', 'PATH_CLEAR', 'XOR'],
-  actionsRomOnly: ['CHANGE_WORLD_SCREEN', 'DISABLE_INPUT', 'ENABLE_INPUT', 'MOVE_BY', 'RND'],
+  conditionsRomOnly: ['CAN_MOVE_DIRECTION', 'KEY_AND_MOVEMENT', 'PATH_CLEAR'], // ROM check_collision_box is a stub (always clear): see plan
+  actionsRomOnly: [],
   // In Play mode, missing in the ROM
   conditionsPlayOnly: [],
   actionsPlayOnly: [],

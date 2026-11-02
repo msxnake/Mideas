@@ -667,6 +667,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         jumpActionButton: 'button1',
         actionButton: 'button2',
     });
+    // ROM parity: MSX1 button 2 (state machine "action2" and wall grab) is the Controls-node key.
+    const msx1Button2KeyRef = useRef<'N' | 'CTRL'>('N');
+    msx1Button2KeyRef.current = previewControlSettings.keyboardButton2 === 'CTRL' ? 'CTRL' : 'N';
+    const isMsx1Button2Pressed = () => (msx1Button2KeyRef.current === 'CTRL'
+        ? ['Control', 'ControlLeft', 'ControlRight'].some(k => pressedKeys.current.has(k))
+        : ['KeyN', 'n', 'N'].some(k => pressedKeys.current.has(k)));
     const [currentScreenMap, setCurrentScreenMap] = useState<ScreenMap | null>(null);
     const [currentWorldMapGraph, setCurrentWorldMapGraph] = useState<WorldMapGraph | null>(null);
     const [isDynamic, setIsDynamic] = useState(initialIsDynamic);
@@ -2144,15 +2150,17 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 // Check whether the specified key is currently pressed
                 const key = condition.params?.key;
                 if (!key) return false;
+                // ROM parity (Condition_KeyPressed): DISABLE_INPUT makes every key read as not pressed.
+                if ((entity as any).inputDisabled) return false;
                 const pressedAliases = new Set(Array.from(pressedKeys.current, value => String(value).toLowerCase()));
-                return getStateMachineBrowserInputAliases(key, allAssets, entity.stateMachine?.id)
+                return getStateMachineBrowserInputAliases(key, allAssets, entity.stateMachine?.id, msx1Button2KeyRef.current)
                     .some(alias => pressedAliases.has(alias.toLowerCase()));
 
             case 'KEY_RELEASED': {
                 const releasedKey = condition.params?.key;
                 if (!releasedKey) return false;
                 const pressedAliases = new Set(Array.from(pressedKeys.current, value => String(value).toLowerCase()));
-                return getStateMachineBrowserInputAliases(releasedKey, allAssets, entity.stateMachine?.id)
+                return getStateMachineBrowserInputAliases(releasedKey, allAssets, entity.stateMachine?.id, msx1Button2KeyRef.current)
                     .every(alias => !pressedAliases.has(alias.toLowerCase()));
             }
 
@@ -2385,6 +2393,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
             case 'OR':
                 return condition.conditions?.some((c: any) => evaluateCondition(c, entity)) ?? false;
+
+            case 'XOR':
+                // ROM parity (stateMachineGenerator Condition_Xor): true when an ODD number of subconditions are true.
+                return ((condition.conditions ?? []).filter((c: any) => evaluateCondition(c, entity)).length % 2) === 1;
 
             case 'NOT':
                 return condition.conditions
@@ -2698,6 +2710,43 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     break;
                 }
 
+                case 'MOVE_BY': {
+                    // ROM parity (Action_MoveBy): add the signed DX/DY bytes to the position once.
+                    entity.x += Number(action.params.x ?? action.params.dx ?? 0) || 0;
+                    entity.y += Number(action.params.y ?? action.params.dy ?? 0) || 0;
+                    break;
+                }
+
+                case 'RND': {
+                    // ROM parity (Action_Rnd): store a pseudorandom byte 0..255 in the variable.
+                    const rawVarName = action.params.variable ?? action.params.variableName ?? action.params.targetVariable ?? action.params.name;
+                    const resolvedVarName = normalizeVariableName(rawVarName) ?? (rawVarName !== undefined && rawVarName !== null ? `${rawVarName}`.trim() : undefined);
+                    if (resolvedVarName) {
+                        const value = Math.floor(Math.random() * 256);
+                        updateGameGlobalVariables(prev => ({ ...prev, [resolvedVarName]: value }));
+                    }
+                    break;
+                }
+
+                case 'DISABLE_INPUT': {
+                    // ROM parity (Action_DisableInput / entity_input_disabled): no key conditions, cursors, jump or dash for this entity.
+                    (entity as any).inputDisabled = true;
+                    break;
+                }
+
+                case 'ENABLE_INPUT': {
+                    // ROM parity (Action_EnableInput): input back on and "animate only when moving" restored.
+                    (entity as any).inputDisabled = false;
+                    if (!entity.instance.componentOverrides) entity.instance.componentOverrides = {};
+                    if (entity.template.components.some(c => c.definitionId === 'comp_animation')) {
+                        entity.instance.componentOverrides['comp_animation'] = {
+                            ...(entity.instance.componentOverrides['comp_animation'] || {}),
+                            animateOnlyWhenMoving: true,
+                        };
+                    }
+                    break;
+                }
+
                 case 'SET_VARIABLE': {
                     const rawVarName = action.params.variable ?? action.params.variableName ?? action.params.name;
                     const resolvedVarName = normalizeVariableName(rawVarName) ?? (rawVarName !== undefined && rawVarName !== null ? `${rawVarName}`.trim() : undefined);
@@ -2719,6 +2768,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     cleanSpritesNextFrameRef.current = true;
                     break;
 
+                case 'CHANGE_WORLD_SCREEN': // ROM parity: same action id as EXIT_CURRENT_WORLD (stateMachineGenerator ACTION_IDS)
                 case 'EXIT_CURRENT_WORLD':
                     if (currentNode?.type === 'WorldLink') {
                         gameFlowExitRequestedRef.current = true;
@@ -2810,7 +2860,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     if (action.type === 'ADD_VARIABLES') result = operand1 + operand2;
     else if (action.type === 'SUBTRACT_VARIABLES') result = operand1 - operand2;
     else if (action.type === 'MULTIPLY_VARIABLES') result = operand1 * operand2;
-    else if (action.type === 'DIVIDE_VARIABLES') result = operand2 !== 0 ? operand1 / operand2 : 0;
+    else if (action.type === 'DIVIDE_VARIABLES') result = operand2 !== 0 ? Math.trunc(operand1 / operand2) : 0; // ROM parity: integer division (Action_DivVars)
     else if (action.type === 'MODULO_VARIABLES') result = operand2 !== 0 ? operand1 % operand2 : 0;
     updateGameGlobalVariables(prev => ({ ...prev, [resolvedTargetVar]: result }));
     break;
@@ -3091,15 +3141,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             ?? animComp.defaultValues?.isPlaying
             ?? true;
 
-        // Determine new state based on mode
-        let newPlaying = currentPlaying;
-        if (mode === 'start') {
-            newPlaying = true;
-        } else if (mode === 'stop') {
-            newPlaying = false;
-        } else { // toggle
-            newPlaying = !currentPlaying;
-        }
+        // ROM parity (Action_ToggleAnim): the ROM only knows pause (playing = 0) or play
+        // (non-zero); the editor exports "toggle" as play. Prefer `playing`, fall back to `mode`.
+        void currentPlaying;
+        const playingParam = action.params.playing;
+        const newPlaying = playingParam !== undefined && playingParam !== null && playingParam !== ''
+            ? Number(playingParam) !== 0
+            : mode !== 'stop';
 
         // Update the override
         entity.instance.componentOverrides['comp_animation'].isPlaying = newPlaying;
@@ -3839,6 +3887,7 @@ const checkKeyTransitions = useCallback((entityId: string, pressedKey: string, i
             condition.params?.key,
             allAssets,
             entity.stateMachine?.id,
+            msx1Button2KeyRef.current,
         ).some(alias => alias.toLowerCase() === String(pressedKey).toLowerCase());
         if (isKeyDown && condition.type === 'KEY_PRESSED' && matchesConfiguredInput) {
             conditionMet = true;
@@ -7738,7 +7787,8 @@ useEffect(() => {
 
                 // Check if current state allows input
                 const statesWithoutInput = ['Dead', 'GameOver', 'Stunned', 'Frozen']; // States that disable controls
-                const canProcessInput = !entityA.currentState || !statesWithoutInput.includes(entityA.currentState);
+                const canProcessInput = (!entityA.currentState || !statesWithoutInput.includes(entityA.currentState))
+                    && !(entityA as any).inputDisabled; // ROM parity: DISABLE_INPUT (entity_input_disabled)
                 entityA.isOnLadder = detectLadderStateForEntity(entityA, screenMapToRender ?? null);
 
                 // Process input (cursors, jump, actions) - Only if state allows it
@@ -8339,7 +8389,7 @@ useEffect(() => {
                         ...(entityA.instance.componentOverrides?.['comp_wall_grab'] || {})
                     };
                     const wallGrabEnabled = wallGrabProps.isEnabled !== false && wallGrabProps.isEnabled !== 'false';
-                    const grabPressed = pressedKeys.current.has('KeyN') || pressedKeys.current.has('n') || pressedKeys.current.has('N');
+                    const grabPressed = isMsx1Button2Pressed(); // ROM parity: INPUT_BTN_GRAB = Controls-node button 2 (N or CTRL)
                     const onGroundNow = !!entityA.isOnGround;
                     const wallGrabFacing: FacingDirection | undefined =
                         entityA.isTouchingWallLeft ? 'left' :

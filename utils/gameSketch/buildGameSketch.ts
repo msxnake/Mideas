@@ -769,7 +769,7 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
     switch (n.type) {
       case 'Start': return 'Entry point of the game.';
       case 'SubMenu': return `Menu "${x.title}" with options: ${(x.options || []).map((o: any) => `"${o.text}"`).join(', ')}. Each option follows its own output connection.`;
-      case 'Controls': return `Controls/redefine screen "${x.title}" (MSX keyboard: button 1 = ${x.keyboardButton1 ?? 'SPC'}, button 2 = ${x.keyboardButton2 ?? 'N'}; in Mideas Play mode button 2 / action2 is key M by default, see engineRules.inputs).`;
+      case 'Controls': return `Controls/redefine screen "${x.title}" (MSX keyboard: button 1 = ${x.keyboardButton1 ?? 'SPC'}, button 2 = ${x.keyboardButton2 ?? 'N'}; the same key is used by Play mode and the ROM, see engineRules.inputs).`;
       case 'WorldLink': return `GAMEPLAY: play the world "${names.get(x.worldAssetId) ?? x.worldAssetId}" starting at its start screen until a rule exits the world (EXIT_CURRENT_WORLD) or jumps to another node (CHANGE_GAME_FLOW_NODE). Running out of lives does not end it by itself.`;
       case 'End': return `${x.endType === 'Victory' ? 'VICTORY' : 'GAME OVER'} ending: "${x.message}".`;
       case 'Text': return `Text screen "${x.title}": "${x.message}". Waits for fire/space.`;

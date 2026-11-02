@@ -174,15 +174,24 @@ const browserAliasesForButtonBinding = (binding: unknown): string[] => {
   }
 };
 
+/** MSX1 physical button 2 as configured by the Game Flow "Controls" node (ROM: N or CTRL). */
+export type Msx1Button2Key = 'N' | 'CTRL';
+
+const msx1Button2Aliases = (key: Msx1Button2Key | undefined): string[] =>
+  key === 'CTRL' ? ['control', 'controlleft', 'controlright'] : ['keyn', 'n'];
+
 export const getStateMachineBrowserInputAliases = (
   value: unknown,
   allAssets: ProjectAsset[] = [],
   stateMachineAssetId?: string,
+  msx1Button2Key?: Msx1Button2Key,
 ): string[] => {
   const input = normalizeStateMachineInput(value).toLowerCase();
   const player = resolveStateMachinePlayer(allAssets, stateMachineAssetId);
   if (input === 'fire') return browserAliasesForButtonBinding(player?.inputMapping.jump);
-  if (input === 'action2') return browserAliasesForButtonBinding(player?.inputMapping.attack || 'm');
+  // MSX2 player assets carry their own mapping. Without one (MSX1), button 2 follows the
+  // ROM: the key chosen in the Controls node, N by default (interruptGenerator INPUT_BTN_GRAB).
+  if (input === 'action2') return player ? browserAliasesForButtonBinding(player.inputMapping.attack || 'm') : msx1Button2Aliases(msx1Button2Key);
   if (/^f[1-5]$/.test(input)) return [input];
   if (['up', 'down', 'left', 'right'].includes(input)) return [input, `arrow${input}`];
   return [input];
