@@ -255,9 +255,18 @@ pygame, a DAW...) or recreated by a musician.
 - Short PSG programs: per channel, a sequence of steps with tone period
   (and its frequency in Hz), noise on/off, volume and duration in ms.
 
+## Ready-to-use WAV files
+- \`audio/music/*.wav\` and \`audio/sfx/*.wav\`: PCM 16-bit mono 44100 Hz, rendered
+  with the same AY-3-8910 emulation used by the Mideas editor and Play mode.
+- Songs are rendered once (order[0] to the end). The loop region (from
+  order[restartPosition] to the end) is embedded as a RIFF \`smpl\` chunk and
+  also written in the song JSON (\`wav.loop\`). Godot 4 imports it as a looping
+  AudioStreamWAV automatically (Loop Mode: "Detect From WAV").
+- Only the PSG is rendered: SCC channels are not in the WAV (see the warnings).
+
 ## Recreating the audio
-1. Fastest: synthesize square waves + noise with the formulas above (a few
-   dozen lines in WebAudio or Godot).
+1. Fastest: use the WAV files. Alternatively synthesize square waves + noise
+   with the formulas above (a few dozen lines in WebAudio or Godot).
 2. Higher quality remake: give the JSON (notes, timing, instrument descriptions)
    to a musician or a MIDI converter; channels A/B/C map to 3 MIDI tracks.
 `;

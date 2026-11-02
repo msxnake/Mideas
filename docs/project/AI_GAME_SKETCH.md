@@ -43,8 +43,10 @@ Todas las coordenadas del JSON están siempre en píxeles lógicos x1 (256x192).
 │   └── x1/, xN/              tiles, tileset_atlas, sprites (frames + sheet), screens, fonts
 ├── audio/
 │   ├── AUDIO_SPEC.md         PSG AY-3-8910, SCC, fórmulas, tracker
+│   ├── music/*.wav           canciones en WAV con puntos de bucle (Godot)
 │   ├── music/*.json          canciones como eventos de nota con frecuencia
 │   ├── instruments/*.json    instrumentos y ornamentos con descripción
+│   ├── sfx/*.wav             efectos en WAV (one-shot)
 │   └── sfx/*.json            efectos PSG por pasos
 └── code/*.asm                scripts Z80 legacy (solo referencia)
 ```
@@ -66,8 +68,24 @@ Todas las coordenadas del JSON están siempre en píxeles lógicos x1 (256x192).
 - **README_AI en inglés**: los modelos rinden mejor; el resto de la doc de
   Mideas sigue en español.
 
+## Audio WAV (para Godot)
+
+- PCM 16 bits, mono, 44100 Hz, renderizado **offline** con la misma emulación
+  AY-3-8910/YM2149 que el editor y el modo Play (`AYRegisterSynthesizer` en
+  modo offline: `setOfflineClock`, `playNoteOffline`, `stepFrameOffline`,
+  `renderOffline`). Código: `utils/gameSketch/audioRender.ts`.
+- Canciones: se recorren las filas como en el modo Play (A/B/C por fila,
+  `speed` ticks de 2500/bpm ms, efecto SPEED respetado) desde `order[0]` hasta
+  el final, una vez. El tramo de bucle (`order[restartPosition]` → final) va en
+  un chunk RIFF `smpl`; Godot 4 lo detecta solo (Loop Mode: "Detect From WAV").
+- Canciones `external-pt3`: se decodifican con `parsePT3File`. Si el PT3 se
+  importó sin cabecera, no se puede (igual que en el editor) y se avisa.
+- Efectos PSG: se escriben sus pasos directamente en los registros del chip.
+- Limitación: el SCC no se renderiza (canciones SCC sin WAV; PSG+SCC solo
+  con los canales A/B/C). Se avisa en `warnings`.
+
 ## Fuera de esta versión (v1)
 
 Bosses, diálogos, retratos y presentation screens se listan en
 `game_sketch.json > notIncludedInThisVersion` pero no se describen todavía.
-Tampoco se renderiza el audio a WAV (solo datos + especificación).
+El chip SCC no se renderiza a WAV todavía.

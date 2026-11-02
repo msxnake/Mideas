@@ -70,6 +70,7 @@ ${screens}
 | \`rules/state_machines.md\` | **Gameplay rules**: every state machine in plain English + pseudocode + Mermaid diagram. |
 | \`rules/game_flow.md\` | Menus/screens sequence and world map connections (Mermaid). |
 | \`rules/glossary.json\` | Exact meaning of every condition, action, component and enemy behaviour. |
+| \`audio/music/*.wav\`, \`audio/sfx/*.wav\` | **Ready-to-use audio** (16-bit 44.1 kHz). Songs include loop points (smpl chunk, auto-detected by Godot). |
 | \`audio/music/*.json\` | Tracker songs as timed note events (with frequencies). |
 | \`audio/instruments/*.json\` | Instrument and ornament definitions with readable descriptions. |
 | \`audio/sfx/*.json\` | Sound effects (PSG step programs). |
@@ -98,7 +99,7 @@ ${bullet([
 4. Create one prefab/class per entity template (\`entities.templates\`), with the resolved component values of each instance.
 5. Implement the systems: input, movement/physics (formulas), tile collision, entity collision (layers), state machines (\`rules/state_machines.md\`), animation, HUD.
 6. Implement the world map navigation (screen borders) and the game flow (menus, texts, game over, victory).
-7. Add audio: synthesize from \`audio/\` (see AUDIO_SPEC.md) or recreate the songs.
+7. Add audio: use the WAV files in \`audio/\` (music loops automatically in Godot); the JSON + AUDIO_SPEC.md allow re-synthesis or a remake.
 8. Compare each screen with its PNG and the original behaviour description; then, optionally, enhance graphics/audio while keeping sizes, hitboxes and timings.
 
 ## 5. Target specific hints

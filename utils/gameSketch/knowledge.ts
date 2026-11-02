@@ -151,13 +151,13 @@ export const TARGET_HINTS: Record<string, string[]> = {
     'Each entity template becomes a scene (CharacterBody2D for players/enemies, Area2D for items/triggers). Components become exported variables; state machines become a script with an enum + match in _physics_process.',
     'collisionLayer/collidesWith map 1:1 to Godot collision_layer / collision_mask bits.',
     'Game Flow becomes an autoload (singleton) that switches scenes: menus, text screens, world, game over, victory.',
-    'Music: either render the tracker data with a small PSG synth (AudioStreamGenerator) or recreate the songs from audio/music/*.json.',
+    'Audio: use the ready-made WAVs (audio/music/*.wav, audio/sfx/*.wav). Songs already contain their loop points (smpl chunk), so keep the import option Loop Mode = "Detect From WAV". Play music with an AudioStreamPlayer on a "Music" bus and effects with AudioStreamPlayer/AudioStreamPlayer2D on an "SFX" bus.',
   ],
   html5: [
     'Use a 256x192 canvas scaled with CSS (image-rendering: pixelated) or draw graphics/xN/ assets on an N-times bigger canvas.',
     'Fixed timestep game loop at 60 updates per second (requestAnimationFrame + accumulator).',
     'Tilemaps are 32x24 arrays; collision is AABB vs tile grid using the solid/deadly flags in screens/*.json.',
-    'Audio: WebAudio square-wave oscillators reproduce the AY-3-8910 PSG well (3 tone channels + noise); see audio/AUDIO_SPEC.md.',
+    'Audio: play the WAVs in audio/ with HTMLAudioElement or WebAudio (loop songs from wav.loop.startMs); or synthesize the PSG with WebAudio from the JSON (see audio/AUDIO_SPEC.md).',
   ],
   msx2: [
     'SCREEN 4 keeps the same 32x24 tile layout and sprite mode 2: each sprite line can have its own colour, so multi-layer MSX1 sprites can become single sprites with per-line colours.',

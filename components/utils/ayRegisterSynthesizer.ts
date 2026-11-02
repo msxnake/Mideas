@@ -97,6 +97,8 @@ export class AYRegisterSynthesizer {
   ] = [undefined, undefined, undefined];
   /** True while the tracker row scheduler drives this synth (see setRowPlaybackActive). */
   private rowPlaybackActive = false;
+  /** True while an offline renderer drives stepFrameOffline() (see setOfflineClock). */
+  private offlineClock = false;
   private pt3SongId: string | null = null;
   private pt3FrameCaptureHook: ((frame: AyFrameOutput, index: number) => void) | null = null;
   private pt3FrameIndex = 0;
@@ -202,7 +204,49 @@ export class AYRegisterSynthesizer {
     effectParams: string | null = null,
   ): Promise<void> {
     if (!await this.ensureAudioContext()) return;
+    this.applyNoteCommand(channel, noteStringFromCell, instrumentIdFromCell, ornamentIdFromCell, volumeFromCell, effectCommand, effectParams);
+  }
 
+  /**
+   * Offline rendering (no AudioContext, no timers): the caller owns the clock.
+   * Used by the AI Game Sketch exporter to bounce songs and sound effects to
+   * WAV with exactly the same chip emulation as the editor/Play mode.
+   * Call `stepFrameOffline()` once per tracker tick and `renderOffline()` to
+   * pull samples.
+   */
+  public setOfflineClock(enabled: boolean): void {
+    this.offlineClock = enabled;
+  }
+
+  public playNoteOffline(
+    channel: 0 | 1 | 2,
+    noteStringFromCell: string | null,
+    instrumentIdFromCell: number | null,
+    ornamentIdFromCell: number | null,
+    volumeFromCell: number | null,
+    effectCommand: number | null = null,
+    effectParams: string | null = null,
+  ): void {
+    this.applyNoteCommand(channel, noteStringFromCell, instrumentIdFromCell, ornamentIdFromCell, volumeFromCell, effectCommand, effectParams);
+  }
+
+  public stepFrameOffline(): void {
+    this.advanceTrackerFrame();
+  }
+
+  public renderOffline(output: Float32Array, sampleRate: number): void {
+    this.renderInto(output, sampleRate);
+  }
+
+  private applyNoteCommand(
+    channel: 0 | 1 | 2,
+    noteStringFromCell: string | null,
+    instrumentIdFromCell: number | null,
+    ornamentIdFromCell: number | null,
+    volumeFromCell: number | null,
+    effectCommand: number | null,
+    effectParams: string | null,
+  ): void {
     const state = this.channelStates[channel];
     const isCut = noteStringFromCell === '===';
     const isKeep = noteStringFromCell === '---' || noteStringFromCell === null;
@@ -412,9 +456,10 @@ export class AYRegisterSynthesizer {
 
   private renderAudio = (event: AudioProcessingEvent): void => {
     if (!this.audioContext) return;
+    this.renderInto(event.outputBuffer.getChannelData(0), this.audioContext.sampleRate);
+  };
 
-    const output = event.outputBuffer.getChannelData(0);
-    const sampleRate = this.audioContext.sampleRate;
+  private renderInto(output: Float32Array, sampleRate: number): void {
     const chipTicksPerSample = AY_CLOCK_FREQUENCY / sampleRate;
     const lowPassCoefficient = this.getLowPassCoefficient(sampleRate);
     for (let i = 0; i < output.length; i++) {
@@ -444,7 +489,7 @@ export class AYRegisterSynthesizer {
       this.analogLowPassOutput += lowPassCoefficient * (dcBlocked - this.analogLowPassOutput);
       output[i] = this.analogLowPassOutput;
     }
-  };
+  }
 
   private advanceTone(channel: number, chipTicksPerSample: number): void {
     const tonePeriodTicks = Math.max(8, 8 * this.getTonePeriodFromRegisters(channel));
@@ -512,7 +557,7 @@ export class AYRegisterSynthesizer {
     // commands wait for the next frame boundary like in the reference replayer;
     // an immediate flush there would add an extra engine tick to every held PT3
     // voice on note-heavy rows.
-    if (this.rowPlaybackActive && this.frameIntervalId !== null) return;
+    if (this.rowPlaybackActive && (this.frameIntervalId !== null || this.offlineClock)) return;
 
     // An isolated preview -- typing a note, clicking the piano -- has no row
     // clock to ride on. Leaving its command in the queue meant waiting up to a

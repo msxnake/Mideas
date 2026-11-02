@@ -63,6 +63,7 @@ import {
   TARGET_HINTS,
 } from './knowledge';
 import { AUDIO_SPEC_MD, buildInstrumentsSketch, buildSfxSketch, buildSongSketch } from './audioSketch';
+import { WAV_SAMPLE_RATE, renderSfxToWav, renderSongToWav, resolvePlayableSong } from './audioRender';
 import { buildReadmeAi } from './readmeAi';
 
 export const GAME_SKETCH_SCHEMA = 'mideas.game_sketch.v1';
@@ -71,6 +72,8 @@ export interface GameSketchOptions {
   /** Extra integer upscale (1 = only original pixels). */
   scale: number;
   scaleMethod: ScaleMethod;
+  /** Render songs and sound effects to WAV (default true). */
+  audioWav: boolean;
 }
 
 export interface GameSketchInput {
@@ -229,6 +232,7 @@ export function buildGameSketch(input: GameSketchInput): GameSketchResult {
   const scale = Math.max(1, Math.min(8, Math.floor(num(input.options?.scale, 1))));
   const scaleMethod: ScaleMethod = input.options?.scaleMethod === 'nearest' ? 'nearest' : 'smooth';
   const scales = scale > 1 ? [1, scale] : [1];
+  const audioWav = input.options?.audioWav !== false;
   const warnings: string[] = [];
   const files: GameSketchFile[] = [];
   const projectName = input.currentProjectName || 'Mideas_Project';
@@ -745,19 +749,53 @@ export function buildGameSketch(input: GameSketchInput): GameSketchResult {
   const audioSlug = makeUniqueSlugger();
   const musicIndex = songAssets.map(a => {
     const slug = audioSlug(a.name);
-    const song = buildSongSketch(a.data, a.id, a.name);
-    const inst = buildInstrumentsSketch(a.data);
+    const playable = resolvePlayableSong(a.data);
+    playable.notes.forEach(n => n.includes('could not') && warnings.push(`Song "${a.name}": ${n}`));
+    const hasRows = (playable.song.order?.length ?? 0) > 0 && (playable.song.patterns?.length ?? 0) > 0;
+    const song: any = buildSongSketch(playable.song, a.id, a.name);
+    if (playable.decodedFromPt3) song.notes.push('Patterns and instruments were decoded from the embedded PT3 module (instrumentMode "pt3-sample").');
+    const inst = buildInstrumentsSketch(playable.song);
     const instPath = `audio/instruments/${slug}_instruments.json`;
     song.instrumentsFile = instPath;
+    let wav: any = null;
+    if (audioWav && hasRows && playable.song.soundChip !== 'SCC') {
+      try {
+        const r = renderSongToWav(playable.song);
+        const wavPath = `audio/music/${slug}.wav`;
+        files.push({ path: wavPath, content: r.wav });
+        wav = {
+          file: wavPath,
+          format: `PCM 16-bit mono ${r.sampleRate} Hz`,
+          durationMs: r.durationMs,
+          loop: r.loopStartSample !== null ? { startSample: r.loopStartSample, endSample: r.loopEndSample, startMs: Math.round((r.loopStartSample / r.sampleRate) * 1000), embeddedSmplChunk: true } : null,
+          notes: r.notes,
+        };
+        r.notes.forEach(n => warnings.push(`Song "${a.name}": ${n}`));
+      } catch (err) {
+        warnings.push(`Song "${a.name}": WAV rendering failed (${(err as Error)?.message ?? err}).`);
+      }
+    }
+    (song as any).wav = wav;
     files.push({ path: `audio/music/${slug}.json`, content: JSON.stringify(song, null, 2) });
     files.push({ path: instPath, content: JSON.stringify(inst, null, 2) });
-    return { id: a.id, name: a.name, title: song.title, chip: song.soundChip, durationSeconds: song.timing.approxSongDurationSeconds, file: `audio/music/${slug}.json`, instrumentsFile: instPath };
+    return { id: a.id, name: a.name, title: song.title, chip: song.soundChip, durationSeconds: song.timing.approxSongDurationSeconds, file: `audio/music/${slug}.json`, wavFile: wav?.file ?? null, loop: wav?.loop ?? null, instrumentsFile: instPath };
   });
   const sfxIndex = sfxAssets.map(a => {
     const slug = audioSlug(a.name);
-    const sfx = buildSfxSketch(a.data, a.id, a.name);
+    const sfx: any = buildSfxSketch(a.data, a.id, a.name);
+    sfx.wavFile = null;
+    if (audioWav) {
+      try {
+        const r = renderSfxToWav(a.data);
+        sfx.wavFile = `audio/sfx/${slug}.wav`;
+        files.push({ path: sfx.wavFile, content: r.wav });
+        if (r.notes.length) sfx.wavNotes = r.notes;
+      } catch (err) {
+        warnings.push(`Sound effect "${a.name}": WAV rendering failed (${(err as Error)?.message ?? err}).`);
+      }
+    }
     files.push({ path: `audio/sfx/${slug}.json`, content: JSON.stringify(sfx, null, 2) });
-    return { id: a.id, name: a.name, durationMs: sfx.durationMs, file: `audio/sfx/${slug}.json` };
+    return { id: a.id, name: a.name, durationMs: sfx.durationMs, file: `audio/sfx/${slug}.json`, wavFile: sfx.wavFile };
   });
   if (musicIndex.length || sfxIndex.length) files.push({ path: 'audio/AUDIO_SPEC.md', content: AUDIO_SPEC_MD });
 
@@ -862,7 +900,17 @@ export function buildGameSketch(input: GameSketchInput): GameSketchResult {
     },
     stateMachines: smSketches.map(sm => ({ ...sm, usedBy: smUsage(sm), doc: 'rules/state_machines.md' })),
     globals: globalsSketch,
-    audio: { spec: musicIndex.length || sfxIndex.length ? 'audio/AUDIO_SPEC.md' : null, music: musicIndex, soundEffects: sfxIndex },
+    audio: {
+      spec: musicIndex.length || sfxIndex.length ? 'audio/AUDIO_SPEC.md' : null,
+      wav: audioWav ? {
+        format: `PCM 16-bit mono ${WAV_SAMPLE_RATE} Hz`,
+        renderedWith: 'Mideas AY-3-8910 (YM2149) emulation, same as the editor and Play mode',
+        songs: 'Rendered once from order[0] to the end. The loop region (order[restartPosition] to the end) is stored in a RIFF "smpl" chunk: Godot 4 loops it automatically (import option Loop Mode = "Detect From WAV", the default).',
+        soundEffects: 'One-shot, no loop.',
+      } : null,
+      music: musicIndex,
+      soundEffects: sfxIndex,
+    },
     code: codeIndex,
     targetHints: TARGET_HINTS,
     notIncludedInThisVersion: Object.keys(notIncluded).length ? { assets: notIncluded, note: 'These asset types exist in the project but are not described in sketch v1.' } : null,

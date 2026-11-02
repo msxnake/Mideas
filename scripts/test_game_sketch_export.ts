@@ -94,6 +94,62 @@ assert.ok(byPath.has(sketch.audio.music[0].instrumentsFile));
 const sfx = JSON.parse(byPath.get(sketch.audio.soundEffects[0].file) as string);
 assert.ok(sfx.durationMs > 0);
 
+// WAV: RIFF/WAVE 16-bit mono 44.1 kHz, songs carry a smpl loop chunk
+const wavChunks = (bytes: Uint8Array) => {
+  const b = Buffer.from(bytes);
+  assert.equal(b.toString('ascii', 0, 4), 'RIFF');
+  assert.equal(b.toString('ascii', 8, 12), 'WAVE');
+  const chunks: Record<string, Buffer> = {};
+  let o = 12;
+  while (o < b.length) {
+    const len = b.readUInt32LE(o + 4);
+    chunks[b.toString('ascii', o, o + 4)] = b.subarray(o + 8, o + 8 + len);
+    o += 8 + len;
+  }
+  return chunks;
+};
+const songWav = wavChunks(byPath.get(sketch.audio.music[0].wavFile) as Uint8Array);
+assert.equal(songWav['fmt '].readUInt16LE(2), 1, 'mono');
+assert.equal(songWav['fmt '].readUInt32LE(4), 44100, 'sample rate');
+assert.equal(songWav['fmt '].readUInt16LE(14), 16, '16-bit');
+assert.ok(songWav.data.length > 44100, 'song has audio');
+assert.ok(songWav.smpl, 'song WAV has loop points');
+assert.equal(song.wav.loop.startSample, songWav.smpl.readUInt32LE(44));
+let songPeak = 0;
+for (let i = 0; i < songWav.data.length; i += 2) songPeak = Math.max(songPeak, Math.abs(songWav.data.readInt16LE(i)));
+assert.ok(songPeak > 1000, 'song WAV is not silent');
+const sfxWav = wavChunks(byPath.get(sketch.audio.soundEffects[0].wavFile) as Uint8Array);
+assert.equal(sfxWav.data.length / 2, Math.round((sfx.durationMs * 44100) / 1000), 'sfx length matches its steps');
+assert.ok(!sfxWav.smpl, 'sfx is one-shot');
+
+// Single A-4 square note renders at 440 Hz with exact row timing and loop point
+{
+  const { renderSongToWav } = await import('../utils/gameSketch/audioRender');
+  const empty = () => ({ note: null, instrument: null, ornament: null, volume: null });
+  const rows = Array.from({ length: 16 }, () => ({ A: empty(), B: empty(), C: empty() })) as any[];
+  rows[0].A = { note: 'A-4', instrument: 1, ornament: null, volume: 15 };
+  const r = renderSongToWav({
+    id: 't', name: 't', soundChip: 'PSG', bpm: 125, speed: 6, globalVolume: 15,
+    patterns: [{ id: 'p', name: 'p', numRows: 16, rows }], order: [0, 0], lengthInPatterns: 2, restartPosition: 1,
+    instruments: [{ id: 1, name: 'square' }], ornaments: [], currentPatternIndexInOrder: 0,
+  } as any);
+  assert.equal(r.durationMs, 3840);
+  assert.equal(r.loopStartSample, 16 * 120 * 44.1);
+  const data = wavChunks(r.wav).data;
+  const N = 22050;
+  const goertzel = (f: number) => {
+    let s1 = 0, s2 = 0;
+    const c = 2 * Math.cos((2 * Math.PI * f) / 44100);
+    for (let i = 0; i < N; i++) {
+      const s = data.readInt16LE(2 * (i + 1000)) / 32768 + c * s1 - s2;
+      s2 = s1;
+      s1 = s;
+    }
+    return Math.sqrt(s1 * s1 + s2 * s2 - c * s1 * s2);
+  };
+  assert.ok(goertzel(440) > 10 * goertzel(400), 'A-4 renders at 440 Hz');
+}
+
 // Scale 1 => only x1 graphics
 const r1 = run(1, 'nearest');
 assert.ok(!r1.files.some(f => f.path.startsWith('graphics/x2') || f.path.startsWith('graphics/x3')));
