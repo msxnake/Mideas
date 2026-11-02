@@ -4,7 +4,7 @@
  *   1. `natural`  - plain English sentence.
  *   2. `pseudo`   - engine-neutral pseudocode (maps easily to GDScript/JS/Python).
  *   3. `raw`      - the original Mideas structure (lossless).
- * Transitions are conditions evaluated each frame (HAS_COLLISION / ON_WALL_COLLISION read queued collision events).
+ * Transitions are conditions evaluated each frame (ON_WALL_COLLISION reads queued wall events in Play).
  */
 import type { Action, Condition, StateMachine, TransitionGuard } from '../../statemachine.types';
 import { normalizeStateMachineInput } from '../stateMachineInputs';
@@ -95,7 +95,7 @@ export function conditionToNatural(cond: Condition | null | undefined, r: NameRe
       // templateId/templateName are stored by the editor but Play does not filter by them.
       const type = p.collisionType ?? 'any';
       const who = '';
-      const item = p.itemType && type === 'item' ? ` (itemType="${p.itemType}")` : '';
+      const item = ''; // no itemType/template filter in Play nor ROM (legacy params ignored)
       const article = /^[aeiou]/i.test(String(type)) ? 'an' : 'a';
       return type === 'any'
         ? `the entity collides with anything${who}${item}`
@@ -134,7 +134,6 @@ export function conditionToPseudo(cond: Condition | null | undefined): string {
     case 'KEY_AND_MOVEMENT': return `input.is_pressed(${q(keyId(p.key))}) and can_move(${q(p.direction)})`;
     case 'HAS_COLLISION': {
       const args: string[] = [q(p.collisionType ?? 'any')];
-      if (p.itemType && (p.collisionType ?? 'any') === 'item') args.push(`item_type=${q(p.itemType)}`);
       return `collides_with(${args.join(', ')})`;
     }
     case 'VARIABLE_COMPARE': {

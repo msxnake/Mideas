@@ -1,10 +1,10 @@
 /**
- * Pure mirror of the MSX1 ROM state-machine move test (SM_TestMoveDirection +
+ * Pure mirrors of MSX1 ROM state-machine helpers: the move test (SM_TestMoveDirection +
  * check_collision_box in utils/msxGenerator/generators/), shared by Mideas Play
  * mode (GameFlowPreviewModal) so CAN_MOVE_DIRECTION / PATH_CLEAR /
  * KEY_AND_MOVEMENT behave the same in the browser and on the MSX.
  *
- * Verified against the assembled Z80 routine (scripts/check_rom_move_test_z80.mjs).
+ * Verified against the assembled Z80 routines (scripts/check_rom_move_test.ts).
  */
 
 /** ROM direction ids: 1 up, 3 right, 5 down, 7 left (0 = none). */
@@ -59,4 +59,20 @@ export function romDirectionFromVelocity(vx: number, vy: number): number {
   if (Math.trunc(vx) !== 0) return vx < 0 ? 7 : 3;
   if (Math.trunc(vy) !== 0) return vy < 0 ? 1 : 5;
   return 0;
+}
+
+/** ROM collision event bits (constantsGenerator COLLISION_EVENT_*). */
+export const ROM_COLLISION_EVENT_ENTITY = 0x01;
+export const ROM_COLLISION_EVENT_ENEMY = 0x02;
+export const ROM_COLLISION_EVENT_ITEM = 0x04;
+
+/**
+ * ROM coll_flags_from_layer (componentsGenerator): event flags an entity receives when it
+ * overlaps another entity whose collision layer is `layer` (COLLISION_LAYER_ENEMY #02,
+ * COLLISION_LAYER_ITEM #10). Used by HAS_COLLISION in Play and in the ROM.
+ */
+export function romCollisionFlagsFromLayer(layer: number): number {
+  return ROM_COLLISION_EVENT_ENTITY
+    | ((layer & 0x02) ? ROM_COLLISION_EVENT_ENEMY : 0)
+    | ((layer & 0x10) ? ROM_COLLISION_EVENT_ITEM : 0);
 }

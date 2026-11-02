@@ -42,7 +42,7 @@ import { renderScreenToCanvas, createSpriteDataURL, getScreenBehaviorLayer, getS
 import { checkMsx2HazardAtWorldPixel } from '../../utils/msx2Screen4TileBehavior';
 import { parseMsx2PlayerImport } from '../../utils/msx2PlayerImport';
 import { getStateMachineBrowserInputAliases, normalizeStateMachineInput } from '../../utils/stateMachineInputs';
-import { ROM_MOVE_DIRECTION_IDS, romCanMoveDirection, romDirectionFromVelocity } from '../../utils/romMoveTest';
+import { ROM_COLLISION_EVENT_ENEMY, ROM_COLLISION_EVENT_ENTITY, ROM_COLLISION_EVENT_ITEM, ROM_MOVE_DIRECTION_IDS, romCanMoveDirection, romCollisionFlagsFromLayer, romDirectionFromVelocity } from '../../utils/romMoveTest';
 import {
     applyMsx2JumpImpulseToEntity,
     getMsx2DashConfigFromPlayerEntity,
@@ -2211,70 +2211,24 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 return numericTime < 1;
             }
 
-            case 'HAS_COLLISION':
-                // Verificar tipo especfico de colisin (entity, enemy, item, wall, any)
-                const collisionType = condition.params?.collisionType || 'any';
-
+            case 'HAS_COLLISION': {
+                // ROM parity (stateMachineGenerator Condition_HasCollision): LEVEL-based flags rebuilt on every
+                // collision pass, classified by the OTHER entity's collision layer (COLLISION_LAYER_ENEMY #02 ->
+                // enemy, COLLISION_LAYER_ITEM #10 -> item, any overlap -> entity) plus tile wall contacts.
+                // The ROM has no itemType/template filter (the editor no longer offers it), so neither does Play.
+                // Play reads the last complete pass (romCollFlagsStable), i.e. at most one frame behind the ROM.
+                const collisionType = String(condition.params?.collisionType || 'any').toLowerCase();
+                const flags = Number((entity as any).romCollFlagsStable ?? 0);
+                const wall = !!(entity as any).romWallStable;
                 switch (collisionType) {
-                    case 'enemy':
-                        return entityEvents.has('collision_enemy');
-
-                    case 'entity':
-                        return entityEvents.has('collision_entity');
-
-                    case 'item': {
-                        // Permite filtrar por tipo de item o plantilla concreta
-                        // Params opcionales: itemType, templateId, templateName
-                        if (!entityEvents.has('collision_item')) return false;
-                        const other = (entity as any).lastCollidedEntity;
-                        if (!other || !other.template) {
-                            console.warn('collision_item event detected but lastCollidedEntity is missing or invalid');
-                            return false;
-                        }
-
-                        // Función para normalizar valores (trim + lowercase)
-                        const normalizeValue = (value: any) => {
-                            if (value === null || value === undefined || value === '') return '';
-                            return String(value).trim().toLowerCase();
-                        };
-
-                        // Obtener parámetros de la condición (solo itemType)
-                        const wantsItemType = condition.params?.itemType;
-
-                        // Debug logging mejorado
-
-                        // Filtrar por itemType (propiedad de comp_collectible o cualquier component con itemType)
-                        if (wantsItemType) {
-                            const comp = other.template.components?.find((c: any) => c.definitionId === 'comp_collectible');
-                            if (!comp) {
-                                console.warn(`Item entity ${other.template.name} is missing comp_collectible component`);
-                                return false;
-                            }
-                            let otherItemType = comp.defaultValues?.itemType ?? collectibleDefaultItemType ?? '';
-                            const overrideItemType = other.instance?.componentOverrides?.['comp_collectible']?.itemType;
-                            if (overrideItemType !== undefined && `${overrideItemType}`.trim() !== '') {
-                                otherItemType = overrideItemType;
-                            }
-                            const normalizedWantedType = normalizeValue(wantsItemType);
-                            const normalizedActualType = normalizeValue(otherItemType);
-                            if (normalizedActualType !== normalizedWantedType) {
-                                return false;
-                            }
-                        }
-
-                        return true;
-                    }
-
-                    case 'wall':
-                        return entityEvents.has('collision_wall');
-
+                    case 'enemy': return (flags & ROM_COLLISION_EVENT_ENEMY) !== 0;
+                    case 'item': return (flags & ROM_COLLISION_EVENT_ITEM) !== 0;
+                    case 'entity': return (flags & ROM_COLLISION_EVENT_ENTITY) !== 0;
+                    case 'wall': return wall;
                     case 'any':
-                    default:
-                        return entityEvents.has('collision_entity') ||
-                            entityEvents.has('collision_enemy') ||
-                            entityEvents.has('collision_item') ||
-                            entityEvents.has('collision_wall');
+                    default: return wall || flags !== 0;
                 }
+            }
 
             case 'ON_WALL_COLLISION': {
                 const requestedDirection = (condition.params?.direction || 'any').toLowerCase();
@@ -7007,6 +6961,7 @@ useEffect(() => {
             ...(entity.instance.componentOverrides?.['comp_collision'] || {})
         };
         const registerWallCollisionEvent = (direction: 'left' | 'right' | 'up' | 'down') => {
+            (entity as any).romWall = true; // ROM parity: entity_wall_collision_flags (HAS_COLLISION wall)
             triggerEvent(entity.instance.id, 'collision_wall');
             triggerEvent(entity.instance.id, `collision_wall_${direction}`);
         };
@@ -7343,6 +7298,13 @@ useEffect(() => {
         cleanSpritesNextFrameRef.current = false;
         // Reset per-frame item collision guard
         collisionItemFrameGuardRef.current.clear();
+        // ROM parity: publish the last complete collision pass and start a new one (HAS_COLLISION flags).
+        for (const e of entitiesRef.current as any[]) {
+            e.romCollFlagsStable = e.romCollFlags ?? 0;
+            e.romWallStable = !!e.romWall;
+            e.romCollFlags = 0;
+            e.romWall = false;
+        }
         processedCollectibleScoreRef.current.clear();
         // --- Calcular deltaTime (opcional) ---
         // const deltaTime = currentTime - lastTime;
@@ -9045,6 +9007,10 @@ useEffect(() => {
 
 
                         if (aCanCollideWithB && bCanCollideWithA) {
+                            // ROM parity (componentsGenerator .record_entity_collision): both entities get the
+                            // flags of the OTHER entity's layer, OR-ed with any other hit of this pass.
+                            (entityA as any).romCollFlags = ((entityA as any).romCollFlags ?? 0) | romCollisionFlagsFromLayer(layerB);
+                            (entityB as any).romCollFlags = ((entityB as any).romCollFlags ?? 0) | romCollisionFlagsFromLayer(layerA);
                             // Check if either entity is a trigger
                             const isATrigger = propsA.isTrigger;
                             const isBTrigger = propsB.isTrigger;

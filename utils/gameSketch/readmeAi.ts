@@ -87,7 +87,7 @@ ${bullet([
     'Entities spawn at `spawnPixel` of each instance (cell * 8, or Patrol waypoint1). Hitboxes are relative to the sprite top-left corner.',
     'Collision against the level uses the **collisionMap** of each screen (blocking chars `#`, `=` one-way, `B`, `X`, `D`; see its legend).',
     'Collision between entities is **mutual**: A and B collide only when `(A.collidesWith & B.collisionLayer) != 0` AND `(B.collidesWith & A.collisionLayer) != 0`.',
-    'Behaviour rules are **conditions checked every frame**; the only exception is HAS_COLLISION / ON_WALL_COLLISION, which read queued collision events (see rules/glossary.json). Transitions of the current state (and of "Any State") are evaluated in order and the first true one fires.',
+    'Behaviour rules are **conditions checked every frame**; the only exception is ON_WALL_COLLISION, which reads queued wall events in Play (see rules/glossary.json). Transitions of the current state (and of "Any State") are evaluated in order and the first true one fires.',
     'Screens are **flip-screen** (no scrolling): leaving through a border loads the connected screen (see worlds in game_sketch.json).',
     scaleLine,
     ...s.graphics.styleRules,

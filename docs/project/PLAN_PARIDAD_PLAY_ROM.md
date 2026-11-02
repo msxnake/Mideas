@@ -149,7 +149,26 @@ Plan original de la fase:
 - Agarre a pared con el mismo botón lógico en ambos.
 - **Hecho cuando:** misma tecla en Play, ROM, editor y nodo Controls.
 
-### Fase 3: colisión y física (riesgo medio, requiere OpenMSX)
+### Fase 3: colisión y física (riesgo medio, requiere OpenMSX) — EN CURSO
+
+**Hecho — `HAS_COLLISION` como el ROM:**
+- Por **niveles**: banderas reconstruidas en cada pasada de colisión (el ROM las borra en
+  cada pasada), no eventos que persisten hasta una transición. Play lee la última pasada
+  completa (doble búfer): como mucho 1 frame de retraso respecto al ROM.
+- Clase por la **capa de la otra entidad** (`coll_flags_from_layer`): bit #02 = enemy,
+  bit #10 = item, cualquier solape = entity; wall = contacto con tiles.
+- Sin filtro `itemType`/plantilla (el ROM no lo tiene y el editor ya no lo ofrece).
+- `npm run test:rom-move-test` compara `coll_flags_from_layer` Z80 con Play en las 256 capas.
+- **Consecuencias en proyectos existentes (en Play; el ROM ya era así):** una entidad
+  coleccionable cuenta como "item" solo si su capa tiene el bit 16, y como "enemy" solo con
+  el bit 2. En `mini_game75` las reglas "coger llave" y "coger pistola" reaccionan a cualquier
+  item. Revisar capas de colisión de los proyectos.
+
+**Pendiente:** `ON_WALL_COLLISION` (sigue por eventos en Play), sondas de tiles
+(1/3-2/3 en Play frente a *inset* adaptativo en el ROM), gracia de 200 ms y estados
+invulnerables (solo Play).
+
+Plan original de la fase:
 - Clasificación item/enemy: decidir componentes o capas y aplicarlo en ambos
   (recomendado: capas, como el ROM, con migración que asigne capa a las
   plantillas con Collectible/AIBehavior/Damage).

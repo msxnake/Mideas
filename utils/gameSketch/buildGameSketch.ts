@@ -938,7 +938,7 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
   });
 
   // --- rules files ----------------------------------------------------------
-  const smMd = ['# State machines (game rules)', '', 'Rules are CONDITIONS checked every frame (60 per second). Exception: HAS_COLLISION / ON_WALL_COLLISION read queued collision events that stay pending until a transition of the entity fires (see game_sketch.json > rules glossary).', 'Each rule is given in plain English, then as engine-neutral pseudocode. The exact original data is in game_sketch.json > stateMachines[].transitions[].raw.', ''];
+  const smMd = ['# State machines (game rules)', '', 'Rules are CONDITIONS checked every frame (60 per second). Exception: ON_WALL_COLLISION reads queued wall events that stay pending until a transition of the entity fires (see rules/glossary.json).', 'Each rule is given in plain English, then as engine-neutral pseudocode. The exact original data is in game_sketch.json > stateMachines[].transitions[].raw.', ''];
   smSketches.forEach(sm => smMd.push(stateMachineToMarkdown(sm, smUsage(sm))));
   if (!smSketches.length) smMd.push('_This project has no state machines. Behaviour comes from components (see game_sketch.json > entities)._');
   files.push({ path: 'rules/state_machines.md', content: smMd.join('\n') });

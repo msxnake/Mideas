@@ -14,7 +14,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import vm from 'node:vm';
-import { romCanMoveDirection } from '../utils/romMoveTest';
+import { romCanMoveDirection, romCollisionFlagsFromLayer } from '../utils/romMoveTest';
 
 const root = new URL('..', import.meta.url).pathname;
 const read = (p: string) => readFileSync(join(root, p), 'utf8');
@@ -32,6 +32,8 @@ const ccbStart = compGen.indexOf('check_collision_box:\n    ld c, b');
 assert.ok(ccbStart > 0, 'real check_collision_box not found (stub still in place?)');
 const ccbEnd = compGen.indexOf('.ccbo_done:\n    ret', ccbStart) + '.ccbo_done:\n    ret'.length;
 const collisionBox = compGen.slice(ccbStart, ccbEnd);
+const flagsFromLayer = slice(compGen, 'coll_flags_from_layer:', '.cffl_done:') + '.cffl_done:\n    ld a, c\n    ret\n';
+assert.ok(compGen.includes('.cffl_done:\n    ld a, c\n    ret'), 'coll_flags_from_layer epilogue changed: update this test');
 
 const RAM = { w: 0xc000, h: 0xc020, ox: 0xc040, oy: 0xc060, x: 0xc080, y: 0xc0a0, ent: 0xc100, dir: 0xc101, res: 0xc102, map: 0xc200 };
 const asm = `
@@ -45,12 +47,24 @@ t_entity EQU #${RAM.ent.toString(16)}
 t_dir EQU #${RAM.dir.toString(16)}
 t_result EQU #${RAM.res.toString(16)}
 t_map EQU #${RAM.map.toString(16)}
+COLLISION_LAYER_ENEMY EQU #02
+COLLISION_LAYER_ITEM EQU #10
+COLLISION_EVENT_ENTITY EQU #01
+COLLISION_EVENT_ENEMY EQU #02
+COLLISION_EVENT_ITEM EQU #04
+t_layer EQU #C103
     ORG #4000
 test_entry:
     ld a, (t_entity)
     ld b, a
     ld a, (t_dir)
     call SM_TestMoveDirection
+    ld (t_result), a
+    ret
+    DS #4010 - $          ; second entry point at #4010
+flags_entry:
+    ld a, (t_layer)
+    call coll_flags_from_layer
     ld (t_result), a
     ret
 
@@ -86,6 +100,7 @@ get_behavior_tile:
 
 ${testMove}
 ${collisionBox}
+${flagsFromLayer}
 `;
 
 const dir = mkdtempSync(join(tmpdir(), 'rom-move-'));
@@ -142,5 +157,12 @@ for (let map = 0; map < 40; map++) {
     if (play === 0) blocked++;
   }
 }
+// coll_flags_from_layer: all 256 layers
+for (let layer = 0; layer < 256; layer++) {
+  memory[0xc103] = layer;
+  memory[RAM.res] = 0xaa;
+  cpu.runRoutine(0x4010, 0xbff0);
+  assert.equal(memory[RAM.res], romCollisionFlagsFromLayer(layer), `coll_flags_from_layer mismatch for layer ${layer}`);
+}
 assert.ok(blocked > cases / 10 && blocked < cases * 0.9, `test map should block a fair share of moves (${blocked}/${cases})`);
-console.log(`OK ROM move test == Play: ${cases} random cases (${blocked} blocked), Z80 routine assembled by glass.jar`);
+console.log(`OK ROM == Play: move test ${cases} random cases (${blocked} blocked) + coll_flags_from_layer 256 layers, Z80 assembled by glass.jar`);
