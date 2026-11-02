@@ -172,8 +172,15 @@ Plan original de la fase:
 (`min(2, floor(span/2))` desde cada borde; `romAdaptiveProbes`) en paredes, suelo/techo y
 detección de suelo. Verificado contra `wall_build_hitbox_cache` Z80 en 560 hitboxes.
 
-**Pendiente:** gracia de 200 ms tras aparecer y supresión de colisiones en estados
-"Dead/Hurt…" (existen en Play; confirmar si el ROM las tiene), y la prueba en OpenMSX.
+**Comprobado en el ROM:** el bucle de pares (`componentsGenerator`, fases 1-2 de la
+pasada de colisión) no tiene ni gracia tras aparecer ni supresión por nombre de estado.
+- Supresión "Dead/Hurt…": las banderas nuevas de `HAS_COLLISION` ya la ignoran, como el
+  ROM (solo sigue afectando a los eventos antiguos de Play).
+- **Gracia de 200 ms (solo Play):** descarta el par entero (también la separación física).
+  Sin cambiar a la espera de decisión: quitarla iguala al ROM pero puede hacer que un
+  disparo choque con su tirador o que una entidad que reaparece sea empujada.
+
+**Pendiente:** decidir la gracia de 200 ms y la prueba en OpenMSX de las Fases 1-3.
 
 Plan original de la fase:
 - Clasificación item/enemy: decidir componentes o capas y aplicarlo en ambos
