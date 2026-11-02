@@ -594,11 +594,13 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                 const entityRight = entityLeft + hitboxWidth;
                 const entityBottom = entityTop + hitboxHeight;
 
-                // Convert to tile coordinates
+                // Convert to tile coordinates. Right/bottom edges are inclusive
+                // (last occupied pixel), like the ROM generator, so an entity can
+                // stand flush against a wall or land flush on the ground.
                 const leftTile = Math.floor(entityLeft / tileSize);
                 const topTile = Math.floor(entityTop / tileSize);
-                const rightTile = Math.floor(entityRight / tileSize);
-                const bottomTile = Math.floor(entityBottom / tileSize);
+                const rightTile = Math.floor((entityRight - 1) / tileSize);
+                const bottomTile = Math.floor((entityBottom - 1) / tileSize);
 
                 // Only check tiles that are relevant to the movement direction
                 if (movingHorizontally && !movingVertically) {
@@ -613,10 +615,11 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                         return false; // Allow movement off screen
                     }
 
-                    // Horizontal movement: only check the leading edge
-                    // IMPORTANT: Don't check bottomTile - that's the ground we're standing on
+                    // Horizontal movement: only check the leading edge, over the rows
+                    // the hitbox occupies (bottomTile is inclusive, so it is the row of
+                    // the feet, not the ground below them).
                     const checkTileX = movingRight ? rightTile : leftTile;
-                    for (let tileY = topTile; tileY < bottomTile; tileY++) {
+                    for (let tileY = topTile; tileY <= bottomTile; tileY++) {
                         if (checkTileX < 0 || tileY < 0 ||
                             checkTileX >= (screenMap.width || 0) ||
                             tileY >= (screenMap.height || 0)) {
@@ -1648,10 +1651,11 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
         const entityRight = entityLeft + hitboxWidth;
         const entityBottom = entityTop + hitboxHeight;
 
-        const leftTile = Math.floor(entityLeft / 16);
-        const topTile = Math.floor(entityTop / 16);
-        const rightTile = Math.floor((entityRight - 1) / 16);
-        const bottomTile = Math.floor((entityBottom - 1) / 16);
+        // MSX1 SCREEN 2 cells are 8x8 (TILE_SIZE), not 16.
+        const leftTile = Math.floor(entityLeft / TILE_SIZE);
+        const topTile = Math.floor(entityTop / TILE_SIZE);
+        const rightTile = Math.floor((entityRight - 1) / TILE_SIZE);
+        const bottomTile = Math.floor((entityBottom - 1) / TILE_SIZE);
 
         // Debug info
         // console.log(`🔍 Checking direction ${direction}: nextPos(${nextX}, ${nextY}), hitbox(${hitboxWidth}×${hitboxHeight}), offset(${offsetX}, ${offsetY})`);
@@ -1669,7 +1673,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 // DEBUG: Check collision layer structure - always show when checking tiles
                 console.log(`🔍 DEBUG Collision vs Game Flow differences en (${tileX},${tileY}):`, {
                     tilePos: { x: tileX, y: tileY },
-                    screenPlayTileSize: actualTileSize,
+                    screenPlayTileSize: TILE_SIZE,
                     gameFlowTileSize: 8, // Game Flow Preview uses TILE_SIZE = 8
                     entityPixelPos: { x: entity.x, y: entity.y }
                 });
