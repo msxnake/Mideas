@@ -34,6 +34,8 @@ interface ToolbarProps {
   onBuildAndRunMsx2?: () => void;
   /** Callback to export an intermediate JSON representation of the game structure. */
   onExportGameStructureJson: () => void;
+  /** Callback to export the AI Game Sketch ZIP (MSX1 projects only). */
+  onExportGameSketch?: () => void;
   /** @deprecated OBSOLETO - Callback to compile the current code. */
   onCompile?: () => void;
   /** Callback for the debug action. */
@@ -270,7 +272,7 @@ const DropdownSelectItem: React.FC<{
 export const Toolbar: React.FC<ToolbarProps> = ({
   onNewProject, onNewAsset, onSaveProject, onSaveProjectAs, onLoadProject,
   onImportBossPackage,
-  onExportAllCodeFiles, onExportZ80Code, onBuildAndRunMsx2, onExportGameStructureJson, onCompile, onDebug, onRun, onOpenHelpDocs,
+  onExportAllCodeFiles, onExportZ80Code, onBuildAndRunMsx2, onExportGameStructureJson, onExportGameSketch, onCompile, onDebug, onRun, onOpenHelpDocs,
   onOpenThemeSettings, dataOutputFormat, setDataOutputFormat,
   autosaveEnabled, setAutosaveEnabled, defaultExportRomMode, setDefaultExportRomMode, saveBossZoom, setSaveBossZoom, saveSpriteZoom, setSaveSpriteZoom, saveTileZoom, setSaveTileZoom, saveScreenZoom, setSaveScreenZoom, saveSectorLines, setSaveSectorLines, onSaveConfig, onResetConfig, isAutosaving,
   onUndo, onRedo, isUndoDisabled, isRedoDisabled, onOpenAbout,
@@ -434,6 +436,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownSeparator />
         <DropdownItem onClick={onExportZ80Code} disabled={!hasActiveProject}>Export Z80 Code</DropdownItem>
         <DropdownItem onClick={onExportGameStructureJson} disabled={!hasActiveProject}>Export Game Structure (.json)</DropdownItem>
+        {shouldShowMsx1Controls && onExportGameSketch && (
+          <DropdownItem onClick={onExportGameSketch} disabled={!hasActiveProject}>Export Sketch IA (.zip)</DropdownItem>
+        )}
       </DropdownMenu>
 
       {hasActiveProject && (

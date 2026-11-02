@@ -25,6 +25,7 @@
     "test:msx2-gameflow-submenu": "npx tsx scripts/test_msx2_gameflow_submenu_links.ts && node scripts/check_msx2_gameflow_submenu_rom.mjs",
     "test:msx2-gameflow-code-entry": "node scripts/check_msx2_gameflow_code_entry_rom.mjs",
     "test:msx2-intro": "npx tsx scripts/test_msx2_intro_utils.ts && npx tsx scripts/test_msx2_intro_export.ts",
+    "test:game-sketch": "npx tsx scripts/test_game_sketch_export.ts",
     "test:msx2-intro-halfwidth": "npx tsx scripts/check_msx2_intro_half_width.ts",
     "test:msx2-intro-tetrahedron": "npx tsx scripts/check_msx2_intro_tetrahedron.ts",
     "test:msx2-orbit-tetrahedron-editor": "npx tsx scripts/check_msx2_orbit_tetrahedron_editor.ts",

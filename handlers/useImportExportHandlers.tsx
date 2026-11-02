@@ -3,7 +3,9 @@ import JSZip from 'jszip';
 import { ProjectAsset, EditorType, Sprite, MSXFont, MSXFontColorAttributes } from '../types';
 import { normalizeImportedPT3Data } from '../components/utils/trackerUtils';
 import { buildIntermediateGameJsonV1 } from '../utils/intermediateGameJson';
-import { downloadTextFile } from '../utils/downloadUtils';
+import { downloadBlobFile, downloadTextFile } from '../utils/downloadUtils';
+import { buildGameSketch } from '../utils/gameSketch/buildGameSketch';
+import { getProjectTargetFromScreenMode } from '../utils/projectTarget';
 import { createUniqueAssetId, createUniqueAssetName, parseBossExportPackage, remapBossPackageForImport } from '../utils/bossPackageUtils';
 
 interface ImportExportHandlersProps {
@@ -237,8 +239,67 @@ export const useImportExportHandlers = ({
     setStatusBarMessage
   ]);
 
+  /**
+   * Files > Export Sketch IA: engine-neutral ZIP (JSON + PNG + rules + audio)
+   * that an AI can use to rebuild the MSX1 game in Godot, HTML5, MSX2...
+   */
+  const handleExportGameSketch = useCallback(async () => {
+    if (getProjectTargetFromScreenMode(currentScreenMode) !== 'MSX1') {
+      setStatusBarMessage('Sketch IA export is only available for MSX1 (SCREEN 2) projects.');
+      return;
+    }
+    const answer = window.prompt(
+      'Sketch IA - graphics scale and upscale method.\n' +
+      'Format: <scale 1-8> <smooth|nearest>\n' +
+      '  1         = original pixels only\n' +
+      '  3 smooth  = original + x3 with Scale2x/Scale3x pixel-art filter\n' +
+      '  2 nearest = original + x2 with plain big pixels',
+      '2 smooth'
+    );
+    if (answer === null) return;
+    const [scaleText, methodText] = answer.trim().toLowerCase().split(/\s+/);
+    const scale = Math.max(1, Math.min(8, parseInt(scaleText || '1', 10) || 1));
+    const scaleMethod = methodText === 'nearest' ? 'nearest' : 'smooth';
+
+    try {
+      setStatusBarMessage('Building Sketch IA...');
+      const result = buildGameSketch({
+        assets,
+        currentProjectName,
+        currentScreenMode,
+        componentDefinitions,
+        entityTemplates,
+        msxFont,
+        msxFontColorAttributes,
+        options: { scale, scaleMethod },
+      });
+      const zip = new JSZip();
+      const root = zip.folder(result.rootFolder)!;
+      for (const file of result.files) root.file(file.path, file.content);
+      const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+      const filename = `${result.rootFolder}.zip`;
+      downloadBlobFile(filename, blob);
+      setStatusBarMessage(
+        `Sketch IA exported as "${filename}" (${result.files.length} files${result.warnings.length ? `, ${result.warnings.length} warnings` : ''}).`
+      );
+    } catch (error) {
+      console.error('Error exporting Sketch IA:', error);
+      setStatusBarMessage('Error exporting Sketch IA.');
+    }
+  }, [
+    assets,
+    currentProjectName,
+    currentScreenMode,
+    componentDefinitions,
+    entityTemplates,
+    msxFont,
+    msxFontColorAttributes,
+    setStatusBarMessage
+  ]);
+
   return {
     handleSpriteImported,
+    handleExportGameSketch,
     handleImportTrack,
     handleImportBossPackageFile,
     handleExportAllCodeFiles,
