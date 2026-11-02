@@ -200,10 +200,10 @@ const COLLISION_LEGEND = {
   '#': 'solid (blocks)',
   '=': 'one-way platform: solid only when landing from above (may also be deadly, see tileLegend)',
   B: 'solid and breakable (blocks)',
-  X: 'solid and deadly (blocks; deadly when the hitbox centre is on it)',
+  X: 'solid and deadly (blocks; deadly only for entities with the Deadly Tiles component)',
   D: 'solid and interactive, e.g. door/switch (blocks)',
   H: 'ladder (passable; cancels gravity)',
-  '!': 'deadly, passable (deadly when the hitbox centre is on it)',
+  '!': 'deadly, passable (deadly when the hitbox centre is on it, ONLY for entities with the Deadly Tiles component, see deadlyTilesEnabled)',
   b: 'breakable, passable',
   I: 'interactive, passable',
   M: 'movable, passable',
@@ -534,6 +534,7 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
   screenAssets.forEach(s => (s.data.layers?.entities || []).forEach(e => placedTemplateIds.add(e.entityTemplateId)));
 
   const roleOf = (tpl: EntityTemplate): string => {
+    if (normId(tpl.name) === 'nucleo') return 'spawn_anchor (not spawned, see engineRules.nucleo)';
     if (isPlayerTemplate(tpl, defsById)) return 'player';
     const comps = tpl.components.map(c => componentKey(defsById.get(c.definitionId), c.definitionId));
     const vals = resolveComponents(tpl);
@@ -563,6 +564,7 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
         placedInScreens: placedTemplateIds.has(t.id),
         components,
         sprites: spriteIds.map(id => ({ id, name: names.get(id) ?? id })),
+        deadlyTilesEnabled: t.components.some(c => normId(c.definitionId).includes('deadlytiles') || normId(defsById.get(c.definitionId)?.name).includes('deadlytiles')),
         stateMachines: smIds.map(id => ({ id, name: names.get(id) ?? id })),
         description: `${t.name}: ${role.replace(/_/g, ' ')} built from components ${Object.keys(components).join(', ') || '(none)'}${t.description ? `. ${t.description}` : ''}.`,
       };
@@ -922,7 +924,7 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
   };
   smAssets.forEach(sm => sm.data.transitions.forEach(t => collectKeys(t.conditions)));
   const controls = [
-    ...(playerTpls.length ? ['Cursor keys / joystick: move the player (see player components).'] : []),
+    ...(playerTpls.length ? [allCompKeys.has('cursors') ? 'Cursor keys / joystick: move the player (Cursors component).' : 'The player has no Cursors component: Mideas Play mode does not move it (its movement component is declared but not implemented; see engineRules.playVsRom).'] : []),
     ...(allCompKeys.has('jump') ? ['SPACE (joystick button 1): jump.'] : []),
     ...(allCompKeys.has('shoot') ? ['X (or the Shoot.fireKey; N in char mode): fire.'] : []),
     ...(allCompKeys.has('carry') ? ['Z (or DOWN + fire): pick up / drop a box.'] : []),
@@ -936,7 +938,7 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
   });
 
   // --- rules files ----------------------------------------------------------
-  const smMd = ['# State machines (game rules)', '', 'Mideas has no events: every rule below is a CONDITION checked every frame (60 per second).', 'Each rule is given in plain English, then as engine-neutral pseudocode. The exact original data is in game_sketch.json > stateMachines[].transitions[].raw.', ''];
+  const smMd = ['# State machines (game rules)', '', 'Rules are CONDITIONS checked every frame (60 per second). Exception: HAS_COLLISION / ON_WALL_COLLISION read queued collision events that stay pending until a transition of the entity fires (see game_sketch.json > rules glossary).', 'Each rule is given in plain English, then as engine-neutral pseudocode. The exact original data is in game_sketch.json > stateMachines[].transitions[].raw.', ''];
   smSketches.forEach(sm => smMd.push(stateMachineToMarkdown(sm, smUsage(sm))));
   if (!smSketches.length) smMd.push('_This project has no state machines. Behaviour comes from components (see game_sketch.json > entities)._');
   files.push({ path: 'rules/state_machines.md', content: smMd.join('\n') });
@@ -977,7 +979,7 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
       gridCells: [SCREEN_COLS, SCREEN_ROWS],
       origin: 'top-left, y grows downwards',
       units: 'All positions/sizes/speeds are in logical (x1) pixels; speeds in pixels per frame; 1 frame = 1/60 s.',
-      entityPosition: 'pixel = cell * 8 (top-left of the sprite)',
+      entityPosition: 'Each placed entity spawns at its spawnPixel (cell * 8, or Patrol waypoint1), top-left of the sprite; `pixel` is only the editor cell * 8.',
     },
     graphics: {
       scales: scales.map(s => `x${s}`),

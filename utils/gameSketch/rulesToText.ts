@@ -4,7 +4,7 @@
  *   1. `natural`  - plain English sentence.
  *   2. `pseudo`   - engine-neutral pseudocode (maps easily to GDScript/JS/Python).
  *   3. `raw`      - the original Mideas structure (lossless).
- * Mideas has no events: every transition is a condition evaluated each frame.
+ * Transitions are conditions evaluated each frame (HAS_COLLISION / ON_WALL_COLLISION read queued collision events).
  */
 import type { Action, Condition, StateMachine, TransitionGuard } from '../../statemachine.types';
 import { normalizeStateMachineInput } from '../stateMachineInputs';
@@ -87,7 +87,7 @@ export function conditionToNatural(cond: Condition | null | undefined, r: NameRe
     case 'CAN_MOVE_DIRECTION': return `the entity can move ${p.direction ?? '?'} (no solid tile blocks it)${ROM_ONLY_NOTE}`;
     case 'PATH_CLEAR': return `the path ${p.direction ? `to the ${p.direction} ` : ''}is clear of solid tiles${ROM_ONLY_NOTE}`;
     case 'ON_WALL_COLLISION': return `the entity is touching a wall${p.direction && p.direction !== 'any' ? ` on its ${p.direction} side` : ''}`;
-    case 'HAS_DEADLY_TILE_COLLISION': return 'the centre of the entity hitbox is on a tile marked as deadly (causesDamage)';
+    case 'HAS_DEADLY_TILE_COLLISION': return 'the centre of the entity hitbox is on a tile marked as deadly (causesDamage) [only if the entity has the Deadly Tiles component; otherwise never true]';
     case 'IN_WATER': return 'the entity is inside a water effect zone';
     case 'IS_WALL_GRABBING': return 'the entity is grabbing a wall';
     case 'ANIMATION_COMPLETE': return 'the current sprite animation has finished playing';

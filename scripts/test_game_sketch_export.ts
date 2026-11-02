@@ -136,6 +136,16 @@ assert.equal(
   assert.equal(conditionToPseudo({ type: 'VARIABLE_COMPARE', params: { variable: 'x', operator: '>', value: 100 } } as any), 'self.x > 100');
 }
 
+// Gauntlet R3: deadly tiles need the marker component; nucleo anchors; README no longer claims "never events"
+{
+  const playerTpl = sketch.entities.templates.find((t: any) => t.name === 'Player');
+  assert.equal(playerTpl.deadlyTilesEnabled, false, 'mini_game75 Player has no Deadly Tiles component');
+  assert.match(sketch.engineRules.nucleo, /not spawned/i);
+  assert.match(sketch.engineRules.tileInteractions, /button_press sets last_interaction_pending/);
+  const readme = byPath.get('README_AI.md') as string;
+  assert.ok(!/never events/.test(readme), 'README must not deny the collision events');
+}
+
 // Audio
 const song =JSON.parse(byPath.get(sketch.audio.music[0].file) as string);
 assert.equal(song.schema, 'mideas.sketch.song.v1');
