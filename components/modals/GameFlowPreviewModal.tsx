@@ -41,7 +41,8 @@ import { renderMSX1TextToDataURL, getTextDimensionsMSX1, renderUnifiedTextToData
 import { renderScreenToCanvas, createSpriteDataURL, getScreenBehaviorLayer, getScreenTileLogicalProperties, normalizeTileInteractionType } from '../utils/screenUtils';
 import { checkMsx2HazardAtWorldPixel } from '../../utils/msx2Screen4TileBehavior';
 import { parseMsx2PlayerImport } from '../../utils/msx2PlayerImport';
-import { getStateMachineBrowserInputAliases } from '../../utils/stateMachineInputs';
+import { getStateMachineBrowserInputAliases, normalizeStateMachineInput } from '../../utils/stateMachineInputs';
+import { ROM_MOVE_DIRECTION_IDS, romCanMoveDirection, romDirectionFromVelocity } from '../../utils/romMoveTest';
 import {
     applyMsx2JumpImpulseToEntity,
     getMsx2DashConfigFromPlayerEntity,
@@ -2140,6 +2141,35 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     }, []);
 
     // Evaluate whether a condition is satisfied based on the entity state
+    // ROM parity: SM_TestMoveDirection + check_collision_box, shared pure logic in utils/romMoveTest.ts.
+    // Hitbox from Collision (+ WallCollision) values as the ROM entity init does (16x16 / offset 0 when absent);
+    // only full blockers stop (familyId 2 one-way platforms do not), like the ROM behaviour map test.
+    const ROM_DIRECTION_IDS = ROM_MOVE_DIRECTION_IDS;
+    // The game loop effect publishes its checkCollisionAt here (same solidity rule as tile collision).
+    const romBlockingCellRef = useRef<((col: number, row: number, screen: ScreenMap) => boolean) | null>(null);
+    const romMoveDirectionFromVelocity = (entity: AnimatedEntity): number => romDirectionFromVelocity(entity.vx, entity.vy);
+    const romTestMoveDirection = (entity: AnimatedEntity, directionId: number): boolean => {
+        const screen = currentScreenMapRef.current;
+        if (!screen) return true;
+        const collisionComp = entity.template.components.find(c => c.definitionId === 'comp_collision');
+        const wallComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision');
+        const hasCollision = !!(collisionComp || wallComp);
+        const values: Record<string, any> = hasCollision ? {
+            ...(collisionComp?.defaultValues || {}),
+            ...(wallComp?.defaultValues || {}),
+            ...(entity.instance.componentOverrides?.['comp_collision'] || {}),
+            ...(entity.instance.componentOverrides?.['comp_wall_collision'] || {}),
+        } : {};
+        const parseByteValue = (v: any, d: number) => { const n = parseInt(String(v ?? ''), 10); return Number.isNaN(n) ? d : Math.max(0, Math.min(255, n)); };
+        const parseSigned = (v: any) => { const n = parseInt(String(v ?? ''), 10); return Number.isNaN(n) ? 0 : Math.max(-128, Math.min(127, n)); };
+        return romCanMoveDirection(entity.x, entity.y, directionId, {
+            width: hasCollision ? parseByteValue(values.hitboxWidth, 16) : 0,
+            height: hasCollision ? parseByteValue(values.hitboxHeight, 16) : 0,
+            offsetX: hasCollision ? parseSigned(values.offsetX) : 0,
+            offsetY: hasCollision ? parseSigned(values.offsetY) : 0,
+        }, (col, row) => romBlockingCellRef.current?.(col, row, screen) ?? false);
+    };
+
     const evaluateCondition = useCallback((condition: any, entity: AnimatedEntity): boolean => {
         if (!condition) return false;
 
@@ -2393,6 +2423,34 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
             case 'OR':
                 return condition.conditions?.some((c: any) => evaluateCondition(c, entity)) ?? false;
+
+            case 'CAN_MOVE_DIRECTION': {
+                // ROM parity (Condition_CanMove): unknown direction counts as clear.
+                const dirId = ROM_DIRECTION_IDS[String(condition.params?.direction || '').toLowerCase()] ?? 0;
+                return romTestMoveDirection(entity, dirId);
+            }
+
+            case 'PATH_CLEAR': {
+                // ROM parity (Condition_PathClear): no direction = deduce from velocity; idle = clear.
+                let dirId = ROM_DIRECTION_IDS[String(condition.params?.direction || '').toLowerCase()] ?? 0;
+                if (dirId === 0) dirId = romMoveDirectionFromVelocity(entity);
+                return dirId === 0 ? true : romTestMoveDirection(entity, dirId);
+            }
+
+            case 'KEY_AND_MOVEMENT': {
+                // ROM parity (Condition_KeyAndMove): key held (level), then the move test in the given
+                // direction, else the key's own direction, else the velocity direction (idle = false).
+                const kamKey = condition.params?.key;
+                if (!kamKey) return false;
+                const kamPressed = new Set(Array.from(pressedKeys.current, value => String(value).toLowerCase()));
+                const kamHeld = getStateMachineBrowserInputAliases(kamKey, allAssets, entity.stateMachine?.id, msx1Button2KeyRef.current)
+                    .some(alias => kamPressed.has(alias.toLowerCase()));
+                if (!kamHeld) return false;
+                let dirId = ROM_DIRECTION_IDS[String(condition.params?.direction || '').toLowerCase()] ?? 0;
+                if (dirId === 0) dirId = ROM_DIRECTION_IDS[normalizeStateMachineInput(kamKey)] ?? 0;
+                if (dirId === 0) dirId = romMoveDirectionFromVelocity(entity);
+                return dirId === 0 ? false : romTestMoveDirection(entity, dirId);
+            }
 
             case 'XOR':
                 // ROM parity (stateMachineGenerator Condition_Xor): true when an ODD number of subconditions are true.
@@ -4885,6 +4943,9 @@ useEffect(() => {
 
         return true;
     };
+    // ROM parity bridge for CAN_MOVE_DIRECTION / PATH_CLEAR / KEY_AND_MOVEMENT (romTestMoveDirection):
+    // a full blocker is a solid tile that is not a one-way (familyId 2) platform.
+    romBlockingCellRef.current = (col, row, screenMap) => checkCollisionAt(col * TILE_SIZE, row * TILE_SIZE, screenMap, { ignoreTopSolid: true });
 
     const getLayerCellAt = (layer: ScreenTile[][] | undefined, tileX: number, tileY: number): ScreenTile | undefined => (
         layer?.[tileY]?.[tileX]

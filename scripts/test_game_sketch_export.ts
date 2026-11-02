@@ -83,7 +83,7 @@ assert.match(smMd, /stateDiagram-v2/);
 assert.equal(conditionToPseudo({ type: 'KEY_PRESSED', params: { key: 'KeyN' } } as any), 'input.is_pressed("action2")', 'N maps to the logical action2 input');
 assert.equal(
   conditionToNatural({ type: 'AND', conditions: [{ type: 'KEY_PRESSED', params: { key: 'ArrowLeft' } }, { type: 'CAN_MOVE_DIRECTION', params: { direction: 'left' } }] } as any, { name: () => null }),
-  '(the player is pressing LEFT) AND (the entity can move left (no solid tile blocks it) [no tile check yet: always false in Play mode, always true in the ROM])'
+  '(the player is pressing LEFT) AND (the entity can move left (no solid tile blocks it))'
 );
 
 // Semantics must match the live Play mode (GameFlowPreviewModal), not dead code
@@ -132,7 +132,7 @@ assert.equal(
   assert.deepEqual([placed.spawnPixel.x, placed.spawnPixel.y, placed.spawnPixel.source], [40, 56, 'cell * 8']);
   const { keyLabel } = await import('../utils/gameSketch/rulesToText');
   assert.match(keyLabel('action2'), /BUTTON 2/);
-  assert.match(conditionToNatural({ type: 'CAN_MOVE_DIRECTION', params: { direction: 'up' } } as any, { name: () => null }), /no tile check yet/);
+  assert.doesNotMatch(conditionToNatural({ type: 'CAN_MOVE_DIRECTION', params: { direction: 'up' } } as any, { name: () => null }), /ROM only|no tile check/, 'implemented on both sides now');
   assert.equal(conditionToPseudo({ type: 'VARIABLE_COMPARE', params: { variable: 'x', operator: '>', value: 100 } } as any), 'self.x > 100');
 }
 

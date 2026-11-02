@@ -29,13 +29,15 @@ const read = (p) => readFileSync(join(root, p), 'utf8');
 // ---------------------------------------------------------------------------
 const KNOWN = {
   // In the ROM, missing in Play mode (phase 1)
-  conditionsRomOnly: ['CAN_MOVE_DIRECTION', 'KEY_AND_MOVEMENT', 'PATH_CLEAR'], // ROM check_collision_box is a stub (always clear): see plan
+  conditionsRomOnly: [],
   actionsRomOnly: [],
   // In Play mode, missing in the ROM
   conditionsPlayOnly: [],
   actionsPlayOnly: [],
   // Components read by the ROM but not simulated by Play mode (phase 4: port to Play)
-  componentsRomOnly: ['comp_behavior', 'comp_dash', 'comp_mirror', 'comp_physics', 'comp_pos', 'comp_wall_collision', 'comp_wall_jump'],
+  // NOTE (not detectable by id): Play reads comp_wall_collision only for the move-test hitbox;
+  // WallCollision tile stopping itself is still ROM-only (tracked in the plan, phase 4).
+  componentsRomOnly: ['comp_behavior', 'comp_dash', 'comp_mirror', 'comp_physics', 'comp_pos', 'comp_wall_jump'],
   // Components simulated by Play mode but unknown to the ROM
   componentsPlayOnly: ['comp_child_link'],
   // Default editor components implemented by NEITHER side (phase 4: hide from the editor)

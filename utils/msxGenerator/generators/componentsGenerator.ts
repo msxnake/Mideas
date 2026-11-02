@@ -17730,15 +17730,132 @@ check_collision_at_point:
 
 ; ------------------------------------------------------------------
 ; check_collision_box
-; Check collision for entity bounding box (16x16)
-; Input:  D = X position (top-left), E = Y position (top-left)
-; Output: Z flag set if no collision, cleared if collision detected
-;         A = Behavior flags of colliding tile
-; Destroys: BC, HL
+; Check the entity collision hitbox against the behavior map.
+; Used by the state machine (SM_TestMoveDirection: CAN_MOVE_DIRECTION,
+; PATH_CLEAR, KEY_AND_MOVEMENT). Mirrored by Mideas Play mode.
+; Input:  B = entity index, D = X position (sprite top-left), E = Y position
+; Output: Z = no blocking tile under the hitbox, NZ = blocked
+;         A = family bits (#10..#F0) of the blocking tile when NZ
+; Destroys: AF, BC, DE, HL (SM_TestMoveDirection saves BC/DE/HL)
+; Notes:
+;   - Hitbox = entity_collision_hitbox_w/h + offset_x/y; width/height 0
+;     (entity without Collision component) falls back to 16x16, offset 0.
+;   - Every 8x8 cell covered by the hitbox is tested (max 32x24).
+;   - A tile blocks when its family is not 0 and not #20 (one-way
+;     platform), the same rule as wall_behavior_is_full_blocker. That
+;     helper is only emitted with WallCollision, so the test is inlined.
+;   - get_behavior_tile treats out-of-screen cells as passable and
+;     preserves BC, DE, HL.
 ; ------------------------------------------------------------------
 check_collision_box:
-    ; Deprecated legacy helper. WallCollision uses behavior maps directly.
-    xor a                         ; passable/no collision
+    ld c, b                       ; C = entity index (B is reused below)
+    ; Hitbox height-1 and width-1 (0 => 16) saved on the stack
+    ld b, 0
+    ld hl, entity_collision_hitbox_h
+    add hl, bc
+    ld a, (hl)
+    or a
+    jr nz, .ccb_h_ok
+    ld a, 16
+.ccb_h_ok:
+    dec a
+    push af                       ; [h-1]
+    ld hl, entity_collision_hitbox_w
+    add hl, bc
+    ld a, (hl)
+    or a
+    jr nz, .ccb_w_ok
+    ld a, 16
+.ccb_w_ok:
+    dec a
+    push af                       ; [w-1]
+    ; top = clamp(Y + offset_y), left = clamp(X + offset_x)
+    ld b, 0
+    ld hl, entity_collision_offset_y
+    add hl, bc
+    ld a, e
+    call ccb_add_signed_offset    ; clobbers B
+    ld e, a                       ; E = top pixel
+    ld b, 0
+    ld hl, entity_collision_offset_x
+    add hl, bc
+    ld a, d
+    call ccb_add_signed_offset
+    ld d, a                       ; D = left pixel
+    ; right column = (left + w-1) / 8, clamped to 255 px
+    pop af                        ; A = w-1
+    add a, d
+    jr nc, .ccb_right_ok
+    ld a, 255
+.ccb_right_ok:
+    srl a
+    srl a
+    srl a
+    ld h, a                       ; H = right column
+    ; bottom row = (top + h-1) / 8, clamped to 255 px
+    pop af                        ; A = h-1
+    add a, e
+    jr nc, .ccb_bottom_ok
+    ld a, 255
+.ccb_bottom_ok:
+    srl a
+    srl a
+    srl a
+    ld l, a                       ; L = bottom row
+    ld a, e
+    srl a
+    srl a
+    srl a
+    ld b, a                       ; B = row (starts at top row)
+    ld a, d
+    srl a
+    srl a
+    srl a
+    ld d, a                       ; D = left column
+    ld e, h                       ; E = right column
+.ccb_row:
+    ld c, d                       ; C = column (starts at left column)
+.ccb_col:
+    call get_behavior_tile        ; A = behavior of (B=row, C=col); BC/DE/HL preserved
+    and #F0
+    jr z, .ccb_pass
+    cp #20                        ; one-way platform does not block
+    jr z, .ccb_pass
+    or a                          ; NZ: blocked (A = family bits)
+    ret
+.ccb_pass:
+    ld a, c
+    cp e
+    jr z, .ccb_next_row
+    inc c
+    jr .ccb_col
+.ccb_next_row:
+    ld a, b
+    cp l
+    jr z, .ccb_clear
+    inc b
+    jr .ccb_row
+.ccb_clear:
+    xor a                         ; Z: no blocking tile
+    ret
+
+; ------------------------------------------------------------------
+; ccb_add_signed_offset
+; A = clamp(A + signed byte at (HL), 0, 255). Clobbers: AF, B.
+; Same logic as wall_add_signed_offset_clamped (WallCollision-only helper).
+; ------------------------------------------------------------------
+ccb_add_signed_offset:
+    ld b, (hl)
+    add a, b
+    bit 7, b
+    jr z, .ccbo_positive
+    jr c, .ccbo_done              ; negative offset: carry = no underflow
+    xor a
+    ret
+.ccbo_positive:
+    jr nc, .ccbo_done             ; positive offset: no carry = no overflow
+    ld a, 255
+.ccbo_done:
     ret
 
 ; ------------------------------------------------------------------

@@ -10,9 +10,8 @@ import type { Action, Condition, StateMachine, TransitionGuard } from '../../sta
 import { normalizeStateMachineInput } from '../stateMachineInputs';
 
 /** Exist in the MSX ROM generator but not in Mideas Play mode (GameFlowPreviewModal). */
-export const ROM_ONLY_CONDITIONS = new Set(['CAN_MOVE_DIRECTION', 'PATH_CLEAR', 'KEY_AND_MOVEMENT']);
+export const ROM_ONLY_CONDITIONS = new Set<string>([]);
 export const ROM_ONLY_ACTIONS = new Set<string>([]);
-const ROM_ONLY_NOTE = ' [no tile check yet: always false in Play mode, always true in the ROM]';
 const ROM_ONLY_ACTION_NOTE = ' [ROM only: no effect in Play mode]';
 /** Variable names VARIABLE_COMPARE resolves on the entity itself before globals. */
 const ENTITY_VARS = new Set(['x', 'y', 'vx', 'vy', 'isonground']);
@@ -84,14 +83,14 @@ export function conditionToNatural(cond: Condition | null | undefined, r: NameRe
     case 'KEY_PRESSED': return `the player is pressing ${keyLabel(p.key)}`;
     case 'KEY_RELEASED': return `${keyLabel(p.key)} is not being held`;
     case 'TIME_OUT': return `the entity has been in the current state for ${p.duration ?? p.frames ?? 60} frames (${(Number(p.duration ?? p.frames ?? 60) / 60).toFixed(2)} s)`;
-    case 'CAN_MOVE_DIRECTION': return `the entity can move ${p.direction ?? '?'} (no solid tile blocks it)${ROM_ONLY_NOTE}`;
-    case 'PATH_CLEAR': return `the path ${p.direction ? `to the ${p.direction} ` : ''}is clear of solid tiles${ROM_ONLY_NOTE}`;
+    case 'CAN_MOVE_DIRECTION': return `the entity can move ${p.direction ?? '?'} (no solid tile blocks it)`;
+    case 'PATH_CLEAR': return `the path ${p.direction ? `to the ${p.direction} ` : ''}is clear of solid tiles`;
     case 'ON_WALL_COLLISION': return `the entity is touching a wall${p.direction && p.direction !== 'any' ? ` on its ${p.direction} side` : ''}`;
     case 'HAS_DEADLY_TILE_COLLISION': return 'the centre of the entity hitbox is on a tile marked as deadly (causesDamage) [only if the entity has the Deadly Tiles component; otherwise never true]';
     case 'IN_WATER': return 'the entity is inside a water effect zone';
     case 'IS_WALL_GRABBING': return 'the entity is grabbing a wall';
     case 'ANIMATION_COMPLETE': return 'the current sprite animation has finished playing';
-    case 'KEY_AND_MOVEMENT': return `the player presses ${keyLabel(p.key)} and the entity can move ${p.direction ?? 'in that direction'}${ROM_ONLY_NOTE}`;
+    case 'KEY_AND_MOVEMENT': return `the player presses ${keyLabel(p.key)} and the entity can move ${p.direction ?? 'in that direction'}`;
     case 'HAS_COLLISION': {
       // templateId/templateName are stored by the editor but Play does not filter by them.
       const type = p.collisionType ?? 'any';
@@ -132,7 +131,7 @@ export function conditionToPseudo(cond: Condition | null | undefined): string {
     case 'IN_WATER': return 'inside_zone("water")';
     case 'IS_WALL_GRABBING': return 'is_wall_grabbing()';
     case 'ANIMATION_COMPLETE': return 'animation_finished()';
-    case 'KEY_AND_MOVEMENT': return `input.is_pressed(${q(keyId(p.key))}) and can_move(${q(p.direction)})  # ROM only`;
+    case 'KEY_AND_MOVEMENT': return `input.is_pressed(${q(keyId(p.key))}) and can_move(${q(p.direction)})`;
     case 'HAS_COLLISION': {
       const args: string[] = [q(p.collisionType ?? 'any')];
       if (p.itemType && (p.collisionType ?? 'any') === 'item') args.push(`item_type=${q(p.itemType)}`);

@@ -102,7 +102,7 @@ más los ids que comprueba `entitiesGenerator.ts`. Fuente Play: ids `comp_*` en 
 - **Hecho cuando:** el script reproduce exactamente las tablas A y D. ✔
   (`npm run test:play-rom-parity`; la lista `KNOWN` debe ir vaciándose.)
 
-### Fase 1: máquinas de estados (bajo riesgo, alto impacto) — PARCIAL
+### Fase 1: máquinas de estados (bajo riesgo, alto impacto) — HECHA
 
 **Hecho (Play copia al ROM):** `XOR` (paridad impar), `MOVE_BY`, `RND` (0..255),
 `DISABLE_INPUT`/`ENABLE_INPUT` (teclas, cursores, salto y dash por entidad; ENABLE
@@ -110,7 +110,15 @@ restaura *animateOnlyWhenMoving*), `CHANGE_WORLD_SCREEN` (= `EXIT_CURRENT_WORLD`
 `TOGGLE_ANIMATION` (`playing` 0 = pausa, otro = play; "toggle" = play) y
 `DIVIDE_VARIABLES` entera. La lista `KNOWN` de acciones quedó vacía.
 
-**Bloqueado — bug del ROM:** `CAN_MOVE_DIRECTION`, `PATH_CLEAR` y
+**Bug del ROM corregido:** `check_collision_box` ya no es un stub: recorre todas las
+celdas 8x8 de la hitbox Collision (16x16 si no hay) y bloquea con familia ≠ 0 y ≠ #20,
+como WallCollision. Play usa la misma lógica (`utils/romMoveTest.ts`) con su
+`checkCollisionAt`. Verificado con `npm run test:rom-move-test`: la rutina Z80 real,
+ensamblada con glass.jar y ejecutada en el Z80 de Cowbell, coincide con Play en 4800
+casos aleatorios (y una mutación de la regla se detecta). ROM de prueba +135 bytes.
+Pendiente: probar en OpenMSX un proyecto que use estas condiciones.
+
+**(Histórico) Bloqueado — bug del ROM:** `CAN_MOVE_DIRECTION`, `PATH_CLEAR` y
 `KEY_AND_MOVEMENT` dependen de `SM_TestMoveDirection` → `check_collision_box`,
 que en el ROM es un stub *deprecated* que siempre devuelve "libre"
 (`componentsGenerator.ts`, `check_collision_box`). Hoy: Play = siempre falso,
