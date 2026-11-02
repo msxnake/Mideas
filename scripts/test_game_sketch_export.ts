@@ -86,8 +86,41 @@ assert.equal(
   '(the player is pressing LEFT) AND (the entity can move left (no solid tile blocks it))'
 );
 
+// Semantics must match the live Play mode (GameFlowPreviewModal), not dead code
+{
+  const comps = sketch.entities.components as any[];
+  const gravity = comps.find(c => c.id === 'comp_gravity');
+  const jump = comps.find(c => c.id === 'comp_jump');
+  assert.ok(gravity.formulas.some((f: string) => f.includes('0x40')), 'gravity uses the Z80 8.8 constants');
+  assert.ok(gravity.ignoredByPlayMode.includes('strength'));
+  assert.ok(jump.ignoredByPlayMode.includes('jumpPower'));
+  assert.ok(sketch.engineRules?.screenExits?.length > 0, 'engine rules exported');
+  // Placed entities spawn at cell*8 or at Patrol waypoint1; Position is not exported as if it were used
+  const platform = screen.entities.find((e: any) => e.templateName === 'e_platform_multi');
+  assert.deepEqual([platform.spawnPixel.x, platform.spawnPixel.y], [189, 24]);
+  assert.ok(!player.resolvedComponents.Position, 'ignored Position is not presented as spawn data');
+  assert.ok(screen.collisionMap.blockingChars.includes('#'));
+}
+{
+  const r0 = { name: () => null };
+  assert.equal(conditionToPseudo({ type: 'TIME_OUT', params: { duration: 60 } } as any), 'state_time_frames >= 60');
+  const { actionToNatural } = await import('../utils/gameSketch/rulesToText');
+  assert.equal(
+    actionToNatural({ type: 'ADD_VARIABLES', params: { targetVariable: 'Score', operand1Type: 'variable', operand1Variable: 'Score', operand2Type: 'constant', operand2Value: 10 } } as any, r0),
+    'Score = Score + 10'
+  );
+  const { buildStateMachineSketch } = await import('../utils/gameSketch/rulesToText');
+  const anySm = buildStateMachineSketch({
+    id: 'sm', name: 'sm', initialStateId: 's1', events: [],
+    states: [{ id: 's1', name: 'Idle' }, { id: 's2', name: 'Dead' }],
+    transitions: [{ id: 't', fromStateId: '__ANY_STATE__', toStateId: 's2', conditions: { type: 'HAS_DEADLY_TILE_COLLISION' } }],
+  } as any, r0);
+  assert.match(anySm.transitions[0].natural, /^In ANY state/);
+  assert.match(anySm.mermaid, /AnyState --> Dead/);
+}
+
 // Audio
-const song = JSON.parse(byPath.get(sketch.audio.music[0].file) as string);
+const song =JSON.parse(byPath.get(sketch.audio.music[0].file) as string);
 assert.equal(song.schema, 'mideas.sketch.song.v1');
 assert.ok(song.patterns[0].events.some((e: any) => e.frequencyHz > 0));
 assert.ok(byPath.has(sketch.audio.music[0].instrumentsFile));

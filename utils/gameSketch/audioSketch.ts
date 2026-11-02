@@ -163,13 +163,21 @@ export function buildSongSketch(song: TrackerSongData, assetId: string, assetNam
   };
 }
 
+/** Play mode scales every step by 120 / tempoBPM (GameFlowPreviewModal REFERENCE_BPM). */
+export function sfxDurationScale(sfx: Pick<PSGSoundData, 'tempoBPM'>): number {
+  const tempo = Number(sfx.tempoBPM) > 0 ? Number(sfx.tempoBPM) : 120;
+  return 120 / tempo;
+}
+
 export function buildSfxSketch(sfx: PSGSoundData, assetId: string, assetName: string) {
-  const channels = (sfx.channels || []).map(ch => {
+  const scale = sfxDurationScale(sfx);
+  const channels = Array.from(sfx.channels ?? []).map(ch => {
     let t = 0;
     const steps = (ch.steps || []).map(st => {
+      const effectiveMs = round2((Number(st.durationMs) || 0) * scale);
       const out = {
-        startMs: t,
-        durationMs: st.durationMs,
+        startMs: round2(t),
+        durationMs: effectiveMs,
         toneEnabled: st.toneEnabled,
         tonePeriod: st.tonePeriod,
         toneFrequencyHz: st.toneEnabled ? ayToneFrequencyHz(st.tonePeriod) : null,
@@ -178,7 +186,7 @@ export function buildSfxSketch(sfx: PSGSoundData, assetId: string, assetName: st
         useHardwareEnvelope: st.useEnvelope,
         ...(st.useEnvelope ? { envelopeShape: st.envelopeShape ?? sfx.envelopeShape } : {}),
       };
-      t += Number(st.durationMs) || 0;
+      t += effectiveMs;
       return out;
     });
     return { channel: ch.id, loop: ch.loop, totalMs: t, steps };
@@ -193,6 +201,8 @@ export function buildSfxSketch(sfx: PSGSoundData, assetId: string, assetName: st
     noiseFrequencyHz: ayNoiseFrequencyHz(sfx.noisePeriod),
     hardwareEnvelope: { period: sfx.envelopePeriod, shape: sfx.envelopeShape, frequencyHz: sfx.envelopePeriod > 0 ? round2(AY_CLOCK_HZ / (256 * sfx.envelopePeriod)) : null },
     masterVolume: sfx.masterVolume,
+    tempoBPM: sfx.tempoBPM ?? 120,
+    timing: 'Step durations already include the Play mode tempo scaling (durationMs * 120 / tempoBPM).',
     durationMs: Math.max(0, ...channels.map(c => c.totalMs)),
     channels,
     howToPlay: 'Each step is a square wave (tone) and/or white noise held for durationMs at the given volume (0-15, logarithmic, see AUDIO_SPEC.md). Steps of different channels play simultaneously.',
@@ -209,7 +219,9 @@ pygame, a DAW...) or recreated by a musician.
 
 ### AY-3-8910 PSG (always present on MSX)
 - 3 square-wave tone channels (A, B, C) + 1 shared white-noise generator.
-- Clock: 1 789 772.5 Hz.
+- Clock: 1 789 772.5 Hz (MSX). The formulas and \`frequencyHz\` values in this
+  sketch use it. The PT3 songs' WAVs come from the ZXPT3 player at 1 773 400 Hz
+  (ZX Spectrum clock, as in the Mideas tracker), about 0.9 % lower in pitch.
   - Tone frequency  = clock / (16 * tonePeriod)   (tonePeriod 1..4095)
   - Noise frequency = clock / (32 * noisePeriod)  (noisePeriod 1..31)
   - Hardware envelope frequency = clock / (256 * envelopePeriod)
@@ -257,8 +269,11 @@ pygame, a DAW...) or recreated by a musician.
   (and its frequency in Hz), noise on/off, volume and duration in ms.
 
 ## Ready-to-use WAV files
-- \`audio/music/*.wav\` and \`audio/sfx/*.wav\`: PCM 16-bit mono 44100 Hz, rendered
-  with the same AY-3-8910 emulation used by the Mideas editor and Play mode.
+- \`audio/music/*.wav\` and \`audio/sfx/*.wav\`: PCM 16-bit mono 44100 Hz. Native
+  songs and sound effects use the Mideas AY emulation (Play mode timing); PT3
+  songs use the real ZXPT3 player + Cowbell AY chip (see each song's \`wav.engine\`).
+- Songs are peak-normalised to 0.9 (gain capped at x4); sound effects keep their
+  original level, so the music/effects balance in the WAVs is not the game's mix.
 - Songs are rendered once (order[0] to the end). The loop region (from
   order[restartPosition] to the end) is embedded as a RIFF \`smpl\` chunk and
   also written in the song JSON (\`wav.loop\`). Godot 4 imports it as a looping

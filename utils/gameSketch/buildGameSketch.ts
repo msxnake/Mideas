@@ -59,6 +59,7 @@ import {
   COMPONENT_SEMANTICS,
   CONDITION_GLOSSARY,
   ENEMY_BEHAVIOR_GLOSSARY,
+  ENGINE_RULES,
   MSX1_SOURCE_PLATFORM,
   TARGET_HINTS,
 } from './knowledge';
@@ -169,19 +170,45 @@ function propsSummary(p: TileLogicalProperties | undefined) {
   if (p.isBreakable) out.breakable = true;
   if (p.isMovable) out.movable = true;
   if (p.isInteractiveSwitch || p.isInteractable) out.interactive = true;
+  if (p.isSolid && p.familyId === 2) out.oneWayPlatform = true;
+  if (p.interactionType === ('ladder' as any)) out.ladder = true;
   if (p.interactionType && p.interactionType !== ('none' as any)) out.interaction = { type: p.interactionType, value: p.interactionValue ?? null, target: p.interactionTarget ?? null };
   return out;
 }
 
+/** One char per cell. Blocking chars (isSolid in Play mode): # B X D =  (see COLLISION_LEGEND). */
 function collisionChar(p: TileLogicalProperties | undefined, present: boolean): string {
   if (!present || !p) return '.';
+  if (p.interactionType === ('ladder' as any)) return 'H';
+  if (p.isSolid) {
+    if (p.causesDamage) return 'X';
+    if (p.familyId === 2) return '=';
+    if (p.isBreakable) return 'B';
+    if (p.isInteractiveSwitch || p.isInteractable) return 'D';
+    return '#';
+  }
   if (p.causesDamage) return '!';
+  if (p.isBreakable) return 'b';
   if (p.isInteractiveSwitch || p.isInteractable) return 'I';
-  if (p.isBreakable) return p.isSolid ? 'B' : 'b';
   if (p.isMovable) return 'M';
-  if (p.isSolid) return '#';
   return '-';
 }
+
+const COLLISION_LEGEND = {
+  '.': 'empty, passable',
+  '#': 'solid (blocks)',
+  '=': 'one-way platform: solid only when landing from above',
+  B: 'solid and breakable (blocks)',
+  X: 'solid and deadly (blocks; deadly when the hitbox centre is on it)',
+  D: 'solid and interactive, e.g. door/switch (blocks)',
+  H: 'ladder (passable; cancels gravity)',
+  '!': 'deadly, passable (deadly when the hitbox centre is on it)',
+  b: 'breakable, passable',
+  I: 'interactive, passable',
+  M: 'movable, passable',
+  '-': 'tile present but passable',
+};
+const BLOCKING_CHARS = '#=BXD';
 
 /** Applies the SCREEN 2 per-line colour attribute correction used by the editor/Play renderer. */
 function tileCellImage(tile: Tile, sx: number, sy: number): RgbaImage {
@@ -431,7 +458,8 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
       name: a.name,
       sizePx: [w, h],
       frameCount: frames.length,
-      frameDurationMs: s.animationSpeedMs ?? null,
+      frameDurationMs: s.animationSpeedMs ?? 200,
+      frameDurationSource: s.animationSpeedMs !== undefined ? 'sprite.animationSpeedMs' : 'Play mode default (200 ms)',
       loops: s.loops ?? true,
       facing: s.facingDirection ?? 'neutral',
       mirroredByDefault: { horizontal: !!s.mirroredHorizontally, vertical: !!s.mirroredVertically },
@@ -496,6 +524,7 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
       name: d.name,
       meaning: sem?.meaning ?? d.description ?? '(custom component: infer from its property names)',
       ...(sem?.formulas ? { formulas: sem.formulas } : {}),
+      ...(sem?.ignoredProperties ? { ignoredByPlayMode: sem.ignoredProperties } : {}),
       properties: d.properties.map(p => ({ name: p.name, type: p.type, default: p.defaultValue ?? null, ...(p.description ? { description: p.description } : {}) })),
     };
   });
@@ -616,6 +645,13 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
     const entities = (s.layers?.entities || []).map((e: EntityInstance) => {
       const tpl = tplById.get(e.entityTemplateId);
       if (!tpl) warnings.push(`Screen "${a.name}": entity "${e.name}" uses missing template ${e.entityTemplateId}.`);
+      const resolved = resolveComponents(tpl, e.componentOverrides || {});
+      // Play spawns placed entities at cell*8, or at Patrol waypoint1 when set; Position x/y is ignored.
+      const patrol = Object.entries(resolved).find(([k]) => normId(k) === 'patrol')?.[1] as any;
+      const spawn = patrol && patrol.waypoint1_x !== undefined && patrol.waypoint1_y !== undefined
+        ? { x: Number(patrol.waypoint1_x), y: Number(patrol.waypoint1_y), source: 'Patrol.waypoint1' }
+        : { x: e.position.x * CELL, y: e.position.y * CELL, source: 'cell * 8' };
+      for (const key of Object.keys(resolved)) if (normId(key) === 'position') delete resolved[key];
       return {
         id: e.id,
         name: e.name,
@@ -624,8 +660,9 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
         role: tpl ? roleOf(tpl) : 'unknown',
         cell: { x: e.position.x, y: e.position.y },
         pixel: { x: e.position.x * CELL, y: e.position.y * CELL },
+        spawnPixel: spawn,
         overrides: e.componentOverrides || {},
-        resolvedComponents: resolveComponents(tpl, e.componentOverrides || {}),
+        resolvedComponents: resolved,
         ...(e.jobRate && e.jobRate !== 100 ? { updateRatePercent: e.jobRate } : {}),
       };
     });
@@ -658,7 +695,8 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
       },
       collisionSource: behaviorSource === 'backgroundChars' ? 'background layer tiles' : 'collision layer tiles',
       collisionMap: {
-        legend: { '.': 'empty / passable', '#': 'solid', '!': 'deadly (kills/damages on touch)', B: 'solid and breakable', b: 'breakable, not solid', M: 'movable', I: 'interactive (switch/door)', '-': 'tile present but not solid' },
+        legend: COLLISION_LEGEND,
+        blockingChars: BLOCKING_CHARS,
         rows: collisionMap,
       },
       entities,
@@ -673,7 +711,7 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
       hud,
     };
     files.push({ path: `screens/${slug}.json`, content: JSON.stringify(screenJson, null, 2) });
-    const solidCount = collisionMap.join('').replace(/[^#B]/g, '').length;
+    const solidCount = collisionMap.join('').split('').filter(ch => BLOCKING_CHARS.includes(ch)).length;
     screenIndex.push({
       id: screenJson.id,
       assetId: a.id,
@@ -709,11 +747,12 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
         exitThrough: c.fromDirection,
         to: screenName(c.toNodeId),
         enterFrom: c.toDirection,
-        transition: c.transitionMode ?? 'preserve_validated',
+        transition: c.transitionMode ?? 'preserve (keep the other coordinate)',
+        ifBlocked: c.ifBlocked ?? 'deny',
         ...(c.entryPoint ? { entryPointPx: c.entryPoint } : {}),
-        natural: `Leaving "${screenName(c.fromNodeId)}" through its ${c.fromDirection} border enters "${screenName(c.toNodeId)}" from its ${c.toDirection} border${c.transitionMode?.startsWith('preserve') || !c.transitionMode ? ' keeping the other coordinate' : ''}.`,
+        natural: `Leaving "${screenName(c.fromNodeId)}" through its ${c.fromDirection} border enters "${screenName(c.toNodeId)}" from its ${c.toDirection} border${c.transitionMode?.startsWith('preserve') || !c.transitionMode ? ' keeping the other coordinate' : ''}; and the reverse: leaving "${screenName(c.toNodeId)}" through its ${c.toDirection} border enters "${screenName(c.fromNodeId)}".`,
       })),
-      navigation: 'Flip-screen: when the player crosses a screen border, the connected screen is loaded and the player appears on the opposite border. Borders without a connection act as walls.',
+      navigation: 'Flip-screen, connections are bidirectional. Exact algorithm (active area, entry position, 300 ms lock, limit_on walls): game_sketch.json > engineRules.screenExits.',
       mermaid: lines.join('\n'),
     };
   });
@@ -725,7 +764,7 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
       case 'Start': return 'Entry point of the game.';
       case 'SubMenu': return `Menu "${x.title}" with options: ${(x.options || []).map((o: any) => `"${o.text}"`).join(', ')}. Each option follows its own output connection.`;
       case 'Controls': return `Controls/redefine screen "${x.title}" (button 1 = ${x.keyboardButton1 ?? 'SPACE'}, button 2 = ${x.keyboardButton2 ?? 'N'}).`;
-      case 'WorldLink': return `GAMEPLAY: play the world "${names.get(x.worldAssetId) ?? x.worldAssetId}" starting at its start screen until the world is exited (EXIT_CURRENT_WORLD), the player runs out of lives, or a CHANGE_GAME_FLOW_NODE action jumps elsewhere.`;
+      case 'WorldLink': return `GAMEPLAY: play the world "${names.get(x.worldAssetId) ?? x.worldAssetId}" starting at its start screen until a rule exits the world (EXIT_CURRENT_WORLD) or jumps to another node (CHANGE_GAME_FLOW_NODE). Running out of lives does not end it by itself.`;
       case 'End': return `${x.endType === 'Victory' ? 'VICTORY' : 'GAME OVER'} ending: "${x.message}".`;
       case 'Text': return `Text screen "${x.title}": "${x.message}". Waits for fire/space.`;
       case 'TextScroll':
@@ -733,7 +772,7 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
       case 'TextScroll2': return `Scrolling text "${x.title}" (${x.speedFrames} frames per step): "${String(x.text || '').slice(0, 300)}".`;
       case 'Restart': return `Restart / game-over screen "${x.title}": "${x.message}", then the game restarts.`;
       case 'Waypoint': return 'Routing point (no visual).';
-      case 'Music': return x.stop ? 'Stop the music.' : `Play music "${names.get(x.trackAssetId) ?? x.trackAssetId}"${x.loop ? ' in a loop' : ''}.`;
+      case 'Music': return x.stop ? 'Stop the music.' : `Play music "${names.get(x.trackAssetId) ?? x.trackAssetId}"${x.loop === false ? ' once' : ' in a loop'}.`;
       case 'Transition': return `Screen transition effect "${x.effect}"${x.duration ? ` (${x.duration} ms)` : ''}.`;
       case 'Group': return `Run the sub flow "${names.get(x.gameFlowAssetId) ?? x.name}".`;
       case 'IfThenElse': return `Branch: if global ${x.variableName} ${x.operator ?? '=='} "${x.compareValue}" follow the "then" output, otherwise the "else" output.`;
@@ -797,6 +836,7 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
     song.instrumentsFile = instPath;
     let wav: any = null;
     const pre = input.prerenderedSongs?.[a.id];
+    if (audioWav && playable.song.soundChip === 'SCC') warnings.push(`Song "${a.name}": SCC-only song, no WAV (the SCC chip is not rendered yet); rebuild it from its JSON.`);
     if (pre?.error) warnings.push(`Song "${a.name}": ${pre.error}`);
     if (audioWav && pre && !pre.error) {
       const wavPath = `audio/music/${slug}.wav`;
@@ -879,7 +919,9 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
   smAssets.forEach(sm => sm.data.transitions.forEach(t => collectKeys(t.conditions)));
   const controls = [
     ...(playerTpls.length ? ['Cursor keys / joystick: move the player (see player components).'] : []),
-    ...(Array.from(allCompKeys).includes('jump') ? ['FIRE (SPACE / joystick button 1): jump.'] : []),
+    ...(allCompKeys.has('jump') ? ['SPACE (joystick button 1): jump.'] : []),
+    ...(allCompKeys.has('shoot') ? ['X (or the Shoot.fireKey; N in char mode): fire.'] : []),
+    ...(allCompKeys.has('carry') ? ['Z (or DOWN + fire): pick up / drop a box.'] : []),
     ...Array.from(new Set(Array.from(keys).map(keyLabel))).map(k => `Key ${k}: used by state machine rules (see rules/state_machines.md).`),
   ];
 
@@ -966,6 +1008,7 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
       soundEffects: sfxIndex,
     },
     code: codeIndex,
+    engineRules: ENGINE_RULES,
     targetHints: TARGET_HINTS,
     notIncludedInThisVersion: Object.keys(notIncluded).length ? { assets: notIncluded, note: 'These asset types exist in the project but are not described in sketch v1.' } : null,
     warnings,

@@ -57,9 +57,13 @@ Todas las coordenadas del JSON están siempre en píxeles lógicos x1 (256x192).
   exporta como frase en inglés, pseudocódigo neutro y el `Condition`/`Action`
   original (sin pérdidas). Recordatorio: en Mideas no hay eventos, todo son
   condiciones evaluadas cada frame.
-- **Física documentada con las fórmulas del modo Play**
-  (`components/modals/ScreenPlayModal.tsx`): gravedad `vy += strength/60`,
-  salto `vy = -jumpPower/40`, etc.
+- **Semántica verificada contra el modo Play real**
+  (`components/modals/GameFlowPreviewModal.tsx`, que replica el ROM Z80):
+  física en punto fijo 8.8 (gravedad 0,25 px/frame², tope 4 px/frame, salto
+  -4 px/frame), propiedades que el juego ignora (`ignoredByPlayMode`), colisión
+  mutua entre capas, plataformas de una vía, salidas de pantalla, HUD, etc., en
+  `game_sketch.json > engineRules` (`utils/gameSketch/knowledge.ts`).
+  `ScreenPlayModal.tsx` era código muerto y se eliminó (Gauntlet R1).
 - **Restricciones MSX1 separadas del diseño** (`sourcePlatform`): la IA sabe
   qué era límite de hardware (2 colores por línea de 8 px, 4 sprites por línea)
   y qué era decisión de diseño. Incluye pistas para **Godot 4, HTML5 y MSX2**.

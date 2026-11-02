@@ -35,6 +35,14 @@ export function keyLabel(key: unknown): string {
   return k.toUpperCase();
 }
 
+/** Arithmetic operands as stored by ActionParamsEditor: operandNType ('constant'|'variable'), operandNValue, operandNVariable. */
+function operand(p: Record<string, any>, n: 1 | 2, pseudo = false): string {
+  const type = p[`operand${n}Type`] ?? 'constant';
+  if (type === 'variable') return `${pseudo ? 'globals.' : ''}${fmtVar(p[`operand${n}Variable`])}`;
+  const v = p[`operand${n}Value`];
+  return v === undefined || v === '' ? '0' : String(v);
+}
+
 function fmtVar(name: unknown): string {
   return String(name ?? 'var').replace(/[^A-Za-z0-9_]/g, '_') || 'var';
 }
@@ -53,20 +61,21 @@ export function conditionToNatural(cond: Condition | null | undefined, r: NameRe
     case 'XOR': return `exactly one of: ${subs.map(c => `(${conditionToNatural(c, r)})`).join(', ')}`;
     case 'NOT': return `NOT (${subs[0] ? conditionToNatural(subs[0], r) : 'nothing'})`;
     case 'KEY_PRESSED': return `the player is pressing ${keyLabel(p.key)}`;
-    case 'KEY_RELEASED': return `the player has released ${keyLabel(p.key)}`;
-    case 'TIME_OUT': return `${p.duration ?? p.ms ?? p.frames ?? '?'} ${p.frames !== undefined ? 'frames' : 'ms'} have elapsed in the current state`;
+    case 'KEY_RELEASED': return `${keyLabel(p.key)} is not being held`;
+    case 'TIME_OUT': return `the entity has been in the current state for ${p.duration ?? p.frames ?? 60} frames (${(Number(p.duration ?? p.frames ?? 60) / 60).toFixed(2)} s)`;
     case 'CAN_MOVE_DIRECTION': return `the entity can move ${p.direction ?? '?'} (no solid tile blocks it)`;
     case 'PATH_CLEAR': return `the path ${p.direction ? `to the ${p.direction} ` : ''}is clear of solid tiles`;
     case 'ON_WALL_COLLISION': return `the entity is touching a wall${p.direction && p.direction !== 'any' ? ` on its ${p.direction} side` : ''}`;
-    case 'HAS_DEADLY_TILE_COLLISION': return 'the entity hitbox touches a tile marked as deadly (causesDamage)';
+    case 'HAS_DEADLY_TILE_COLLISION': return 'the centre of the entity hitbox is on a tile marked as deadly (causesDamage)';
     case 'IN_WATER': return 'the entity is inside a water effect zone';
     case 'IS_WALL_GRABBING': return 'the entity is grabbing a wall';
     case 'ANIMATION_COMPLETE': return 'the current sprite animation has finished playing';
     case 'KEY_AND_MOVEMENT': return `the player presses ${keyLabel(p.key)} and the entity can move ${p.direction ?? 'in that direction'}`;
     case 'HAS_COLLISION': {
+      // templateId/templateName are stored by the editor but Play does not filter by them.
       const type = p.collisionType ?? 'any';
-      const who = p.templateId ? ` of type ${ref(r, p.templateId)}` : p.templateName ? ` of type "${p.templateName}"` : '';
-      const item = p.itemType ? ` (itemType="${p.itemType}")` : '';
+      const who = '';
+      const item = p.itemType && type === 'item' ? ` (itemType="${p.itemType}")` : '';
       const article = /^[aeiou]/i.test(String(type)) ? 'an' : 'a';
       return type === 'any'
         ? `the entity collides with anything${who}${item}`
@@ -91,20 +100,19 @@ export function conditionToPseudo(cond: Condition | null | undefined): string {
     case 'XOR': return `xor(${subs.map(c => conditionToPseudo(c)).join(', ')})`;
     case 'NOT': return `not (${subs[0] ? conditionToPseudo(subs[0]) : 'false'})`;
     case 'KEY_PRESSED': return `input.is_pressed(${q(keyLabel(p.key))})`;
-    case 'KEY_RELEASED': return `input.just_released(${q(keyLabel(p.key))})`;
-    case 'TIME_OUT': return p.frames !== undefined ? `state_time_frames >= ${p.frames}` : `state_time_ms >= ${p.duration ?? p.ms ?? 0}`;
+    case 'KEY_RELEASED': return `not input.is_pressed(${q(keyLabel(p.key))})`;
+    case 'TIME_OUT': return `state_time_frames >= ${p.duration ?? p.frames ?? 60}`;
     case 'CAN_MOVE_DIRECTION': return `can_move(${q(p.direction)})`;
     case 'PATH_CLEAR': return `path_clear(${q(p.direction ?? 'forward')})`;
     case 'ON_WALL_COLLISION': return `touching_wall(${q(p.direction ?? 'any')})`;
-    case 'HAS_DEADLY_TILE_COLLISION': return 'touching_tile(causes_damage=true)';
+    case 'HAS_DEADLY_TILE_COLLISION': return 'tile_at(hitbox_center).causes_damage';
     case 'IN_WATER': return 'inside_zone("water")';
     case 'IS_WALL_GRABBING': return 'is_wall_grabbing()';
     case 'ANIMATION_COMPLETE': return 'animation_finished()';
     case 'KEY_AND_MOVEMENT': return `input.is_pressed(${q(keyLabel(p.key))}) and can_move(${q(p.direction)})`;
     case 'HAS_COLLISION': {
       const args: string[] = [q(p.collisionType ?? 'any')];
-      if (p.templateId) args.push(`template=${q(p.templateId)}`);
-      if (p.itemType) args.push(`item_type=${q(p.itemType)}`);
+      if (p.itemType && (p.collisionType ?? 'any') === 'item') args.push(`item_type=${q(p.itemType)}`);
       return `collides_with(${args.join(', ')})`;
     }
     case 'VARIABLE_COMPARE': {
@@ -141,17 +149,17 @@ export function actionToNatural(a: Action, r: NameResolver): string {
     case 'APPLY_FORCE': return `apply force/impulse (${p.x ?? 0}, ${p.y ?? 0}) px/frame`;
     case 'CHANGE_SPRITE': return `change sprite to ${ref(r, p.sprite)}`;
     case 'PLAY_ANIMATION': return `play animation ${q(p.animation)}`;
-    case 'SET_ANIMATION_SPEED': return `set animation speed to ${p.speedMs ?? p.speed} ${p.speedMs !== undefined ? 'ms/frame' : ''}`.trim();
+    case 'SET_ANIMATION_SPEED': return p.speedMs !== undefined ? `set animation speed to ${p.speedMs} ms per frame` : `set animation speed to ${p.speed} frames (${Math.round((Number(p.speed) * 1000) / 60)} ms) per animation frame`;
     case 'TOGGLE_ANIMATION': return `${p.playing === false ? 'pause' : p.playing === true ? 'resume' : 'toggle'} the sprite animation`;
     case 'PLAY_SOUND': return `play sound effect ${ref(r, p.soundId)}`;
-    case 'PLAY_MUSIC': return `play music ${ref(r, p.trackId)}${p.loop ? ' (looping)' : ''}`;
+    case 'PLAY_MUSIC': return `play music ${ref(r, p.trackId)}${p.loop === false ? ' once' : ' (looping)'}`;
     case 'MUTE_MUSIC': return 'mute the music';
     case 'STOP_MUSIC': return 'stop the music';
     case 'SET_VARIABLE': return `set variable ${fmtVar(p.variable ?? p.variableName ?? p.name)} = ${q(p.value)}`;
     case 'INCREMENT_VARIABLE': return `increase variable ${fmtVar(p.variable)} by ${p.amount ?? 1}`;
     case 'DECREMENT_VARIABLE': return `decrease variable ${fmtVar(p.variable)} by ${p.amount ?? 1}`;
     case 'SET_COMPONENT_PROPERTY': return `set component ${q(p.componentId ?? p.component ?? p.compId)} property ${q(p.propertyName ?? p.prop ?? p.name)} = ${q(p.value)}`;
-    case 'WAIT': return `wait ${p.duration ?? p.ms ?? p.frames ?? '?'}`;
+    case 'WAIT': return `wait ${p.duration ?? p.ms ?? 1000} ms (no transition of this entity is evaluated meanwhile)`;
     case 'GOTO_STATE': return `go to state ${q(p.stateId ?? p.state)}`;
     case 'DESTROY_ENTITY': return p.target === 'other' ? 'destroy the OTHER entity involved in the collision' : 'destroy this entity';
     case 'SPAWN_ENTITY': {
@@ -161,15 +169,15 @@ export function actionToNatural(a: Action, r: NameResolver): string {
       const facing = p.matchFacing ? ', inheriting facing direction' : '';
       return `spawn entity ${tpl}${pos}${facing}${life}`;
     }
-    case 'GET_RANDOM_ENTITY_POSITION': return 'pick a random position for the entity';
+    case 'GET_RANDOM_ENTITY_POSITION': return `store the position of a random ${ref(r, p.templateId)} entity into ${fmtVar(p.targetVariableX)} / ${fmtVar(p.targetVariableY)}`;
     case 'CHANGE_GAME_FLOW_NODE': return `jump to Game Flow node ${ref(r, p.nodeId ?? p.targetNodeId)}`;
     case 'REGENERATE_HUD': return 'redraw the HUD';
     case 'CLEAN_SPRITES': return 'hide/clear all sprites';
-    case 'CHANGE_WORLD_SCREEN': return `change to world screen ${ref(r, p.screenId ?? p.nodeId)}`;
+    case 'CHANGE_WORLD_SCREEN': return 'exit the current world (CHANGE_WORLD_SCREEN: no effect in Play, EXIT_CURRENT_WORLD in the ROM)';
     case 'EXIT_CURRENT_WORLD': return 'exit the current world (continue the Game Flow after the WorldLink node)';
-    case 'DECREASE_LIVES': return `lose ${p.amount ?? 1} life/lives`;
-    case 'INCREASE_LIVES': return `gain ${p.amount ?? 1} life/lives`;
-    case 'RESPAWN_PLAYER': return p.x !== undefined || p.y !== undefined ? `respawn the player at (${p.x ?? 0}, ${p.y ?? 0})` : 'respawn the player at its start/checkpoint position';
+    case 'DECREASE_LIVES': return `subtract ${p.amount ?? 1} from this entity's Health.current and copy it to the global Lives (no automatic game over)`;
+    case 'INCREASE_LIVES': return `add ${p.amount ?? 1} to this entity's Health.current and copy it to the global Lives`;
+    case 'RESPAWN_PLAYER': return p.x !== undefined || p.y !== undefined ? `respawn the player at (${p.x ?? 0}, ${p.y ?? 0})` : 'respawn the player at the checkpoint saved when it entered this screen';
     case 'BREAK_TILE': return `break (remove) the tile ${p.direction ?? 'here'} of the entity`;
     case 'REPLACE_TILE': return `replace the tile ${p.direction ?? 'here'} of the entity with ${ref(r, p.replacementTileId)}`;
     case 'REPLACE_TILE_AT': return `replace the tile at cell (${p.x}, ${p.y}) with ${p.replacementTileId ? ref(r, p.replacementTileId) : 'nothing (empty)'}`;
@@ -184,7 +192,7 @@ export function actionToNatural(a: Action, r: NameResolver): string {
     case 'DIVIDE_VARIABLES':
     case 'MODULO_VARIABLES': {
       const op = { ADD_VARIABLES: '+', SUBTRACT_VARIABLES: '-', MULTIPLY_VARIABLES: '*', DIVIDE_VARIABLES: '/', MODULO_VARIABLES: '%' }[a.type];
-      return `${fmtVar(p.targetVariable)} = ${fmtVar(p.variable ?? p.sourceVariable)} ${op} ${p.operand ?? p.sourceValue ?? '?'}`;
+      return `${fmtVar(p.targetVariable)} = ${operand(p, 1)} ${op} ${operand(p, 2)}`;
     }
     case 'ASSIGN_VARIABLE': return `${fmtVar(p.targetVariable)} = ${p.sourceVariable ? fmtVar(p.sourceVariable) : q(p.sourceValue ?? p.value)}`;
     case 'DISABLE_INPUT': return 'disable player input';
@@ -205,7 +213,7 @@ export function actionToPseudo(a: Action): string {
     case 'CHANGE_SPRITE': return `self.sprite = sprite(${q(p.sprite)})`;
     case 'PLAY_ANIMATION': return `self.play_animation(${q(p.animation)})`;
     case 'PLAY_SOUND': return `audio.play_sfx(${q(p.soundId)})`;
-    case 'PLAY_MUSIC': return `audio.play_music(${q(p.trackId)}, loop=${!!p.loop})`;
+    case 'PLAY_MUSIC': return `audio.play_music(${q(p.trackId)}, loop=${p.loop !== false})`;
     case 'MUTE_MUSIC': return 'audio.mute_music()';
     case 'STOP_MUSIC': return 'audio.stop_music()';
     case 'SET_VARIABLE': return `globals.${fmtVar(p.variable ?? p.variableName ?? p.name)} = ${q(p.value)}`;
@@ -216,14 +224,22 @@ export function actionToPseudo(a: Action): string {
     case 'SPAWN_ENTITY': return `spawn(${q(p.templateId ?? p.entityTemplateId)}, x=${p.x ?? 0}, y=${p.y ?? 0}, relative=${!!p.isRelative}${p.lifetimeMs ? `, lifetime_ms=${p.lifetimeMs}` : ''})`;
     case 'CHANGE_GAME_FLOW_NODE': return `game_flow.goto(${q(p.nodeId ?? p.targetNodeId)})`;
     case 'EXIT_CURRENT_WORLD': return 'game_flow.exit_world()';
-    case 'DECREASE_LIVES': return `globals.lives -= ${p.amount ?? 1}`;
-    case 'INCREASE_LIVES': return `globals.lives += ${p.amount ?? 1}`;
     case 'RESPAWN_PLAYER': return 'player.respawn()';
     case 'BREAK_TILE': return `tilemap.clear_cell(self.cell_at(${q(p.direction ?? 'here')}))`;
     case 'REPLACE_TILE': return `tilemap.set_cell(self.cell_at(${q(p.direction ?? 'here')}), ${q(p.replacementTileId)})`;
     case 'REPLACE_TILE_AT': return `tilemap.set_cell((${p.x}, ${p.y}), ${q(p.replacementTileId ?? null)})`;
     case 'REGENERATE_HUD': return 'hud.redraw()';
     case 'CLEAN_SPRITES': return 'sprites.hide_all()';
+    case 'WAIT': return `self.wait_ms(${p.duration ?? p.ms ?? 1000})  # blocks this entity's transitions`;
+    case 'GET_RANDOM_ENTITY_POSITION': return `e = random_entity(${q(p.templateId)}); globals.${fmtVar(p.targetVariableX)} = e.x; globals.${fmtVar(p.targetVariableY)} = e.y`;
+    case 'ADD_VARIABLES': return `globals.${fmtVar(p.targetVariable)} = ${operand(p, 1, true)} + ${operand(p, 2, true)}`;
+    case 'SUBTRACT_VARIABLES': return `globals.${fmtVar(p.targetVariable)} = ${operand(p, 1, true)} - ${operand(p, 2, true)}`;
+    case 'MULTIPLY_VARIABLES': return `globals.${fmtVar(p.targetVariable)} = ${operand(p, 1, true)} * ${operand(p, 2, true)}`;
+    case 'DIVIDE_VARIABLES': return `globals.${fmtVar(p.targetVariable)} = (${operand(p, 2, true)} != 0) ? ${operand(p, 1, true)} / ${operand(p, 2, true)} : 0`;
+    case 'MODULO_VARIABLES': return `globals.${fmtVar(p.targetVariable)} = (${operand(p, 2, true)} != 0) ? ${operand(p, 1, true)} % ${operand(p, 2, true)} : 0`;
+    case 'DECREASE_LIVES': return `self.health.current = max(0, self.health.current - ${p.amount ?? 1}); globals.Lives = self.health.current`;
+    case 'INCREASE_LIVES': return `self.health.current += ${p.amount ?? 1}; globals.Lives = self.health.current`;
+    case 'CHANGE_WORLD_SCREEN': return 'game_flow.exit_world()  # ROM behaviour; no-op in Play';
     case 'DISABLE_INPUT': return 'input.enabled = false';
     case 'ENABLE_INPUT': return 'input.enabled = true';
     default:
@@ -265,6 +281,8 @@ function mermaidLabel(s: string, max = 60) {
 export function buildStateMachineSketch(sm: StateMachine, r: NameResolver): SketchStateMachine {
   const stateName = new Map<string, string>();
   const stateMid = new Map<string, string>();
+  const ANY = 'Any State';
+  const isAny = (id: unknown) => typeof id === 'string' && ['any', '__any_state__', 'any state (*)'].includes(id.trim().toLowerCase());
   const usedMids = new Set<string>();
   (sm.states ?? []).forEach((s, i) => {
     stateName.set(s.id, s.name || s.id);
@@ -283,8 +301,10 @@ export function buildStateMachineSketch(sm: StateMachine, r: NameResolver): Sket
   }));
 
   const transitions = (sm.transitions ?? []).map(t => {
-    const from = stateName.get(t.fromStateId) ?? t.fromStateId;
-    const to = stateName.get(t.toStateId) ?? t.toStateId;
+    const fromAny = isAny(t.fromStateId);
+    const toAny = isAny(t.toStateId);
+    const from = fromAny ? ANY : stateName.get(t.fromStateId) ?? t.fromStateId;
+    const to = toAny ? (fromAny ? ANY : from) : stateName.get(t.toStateId) ?? t.toStateId;
     const condNat = conditionToNatural(t.conditions, r);
     const guardNat = guardToNatural(t.guard);
     const actsNat = (t.actions || []).map(a => actionToNatural(a, r));
@@ -292,11 +312,13 @@ export function buildStateMachineSketch(sm: StateMachine, r: NameResolver): Sket
     const guardPseudo = guardToPseudo(t.guard);
     const actsPseudo = (t.actions || []).map(a => actionToPseudo(a));
     const whenNat = guardNat ? `${condNat} AND ${guardNat}` : condNat;
-    const natural = `While in "${from}", if ${whenNat}${actsNat.length ? ` -> ${actsNat.join('; ')}` : ''}${from !== to ? `; then switch to "${to}"` : '; stay in the same state'}.`;
+    const stays = toAny || from === to;
+    const natural = `${fromAny ? 'In ANY state' : `While in "${from}"`}, if ${whenNat}${actsNat.length ? ` -> ${actsNat.join('; ')}` : ''}${stays ? '; stay in the same state' : `; then switch to "${to}"`}.`;
+    const cond = guardPseudo ? `(${condPseudo}) and ${guardPseudo}` : condPseudo;
     const pseudoLines = [
-      `if state == ${q(from)} and ${guardPseudo ? `(${condPseudo}) and ${guardPseudo}` : condPseudo}:`,
+      fromAny ? `if ${cond}:  # from any state` : `if state == ${q(from)} and ${cond}:`,
       ...actsPseudo.map(l => `    ${l}`),
-      from !== to ? `    state = ${q(to)}` : (actsPseudo.length ? '' : '    pass'),
+      !stays ? `    state = ${q(to)}` : (actsPseudo.length ? '' : '    pass'),
     ].filter(Boolean);
     return {
       id: t.id,
@@ -318,9 +340,10 @@ export function buildStateMachineSketch(sm: StateMachine, r: NameResolver): Sket
     const mid = stateMid.get(s.id)!;
     if (mid !== s.name) lines.push(`    state "${mermaidLabel(s.name || s.id)}" as ${mid}`);
   });
+  if ((sm.transitions ?? []).some(t => isAny(t.fromStateId))) lines.push('    state "Any State" as AnyState');
   (sm.transitions ?? []).forEach(t => {
-    const a = stateMid.get(t.fromStateId);
-    const b = stateMid.get(t.toStateId);
+    const a = isAny(t.fromStateId) ? 'AnyState' : stateMid.get(t.fromStateId);
+    const b = isAny(t.toStateId) ? a : stateMid.get(t.toStateId);
     if (!a || !b) return;
     lines.push(`    ${a} --> ${b} : ${mermaidLabel(conditionToPseudo(t.conditions))}`);
   });
@@ -329,7 +352,7 @@ export function buildStateMachineSketch(sm: StateMachine, r: NameResolver): Sket
     id: sm.id,
     name: sm.name,
     initialState: sm.initialStateId ? stateName.get(sm.initialStateId) ?? null : null,
-    evaluation: 'Every frame, transitions of the current state are checked in list order; the FIRST one whose condition is true fires (its actions run, then the state changes). Self-transitions (from == to) are used as "while in this state, when X happens, do Y".',
+    evaluation: 'Every frame, the transitions whose source is the current state or "Any State" are checked in list order; the FIRST one whose condition is true fires (its actions run, then the state changes). Self-transitions (and transitions to "Any State") keep the state: "while in this state, when X happens, do Y". A pending WAIT blocks all transitions of the entity. Some state names have engine effects: see game_sketch.json > engineRules.stateMachines.',
     states,
     transitions,
     mermaid: lines.join('\n'),

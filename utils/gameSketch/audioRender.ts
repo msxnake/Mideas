@@ -8,6 +8,7 @@
  * with the default import option "Loop Mode: Detect From WAV".
  */
 import type { PSGSoundData, TrackerCell, TrackerSongData } from '../../types';
+import { sfxDurationScale } from './audioSketch';
 import { AYRegisterSynthesizer } from '../../components/utils/ayRegisterSynthesizer';
 import { parsePT3File } from '../../components/utils/pt3Parser';
 
@@ -270,10 +271,11 @@ export function renderSfxToWav(sfx: PSGSoundData, sampleRate = WAV_SAMPLE_RATE):
   synth.stopAllNotes();
 
   type Segment = { start: number; end: number; step: PSGSoundData['channels'][number]['steps'][number] };
-  const perChannel: Segment[][] = (sfx.channels || []).slice(0, 3).map(ch => {
+  const scale = sfxDurationScale(sfx); // Play mode: durationMs * 120 / tempoBPM
+  const perChannel: Segment[][] = Array.from(sfx.channels ?? []).slice(0, 3).map(ch => {
     let t = 0;
     return (ch.steps || []).map(step => {
-      const seg = { start: t, end: t + Math.max(0, Number(step.durationMs) || 0), step };
+      const seg = { start: t, end: t + Math.max(0, (Number(step.durationMs) || 0) * scale), step };
       t = seg.end;
       return seg;
     });

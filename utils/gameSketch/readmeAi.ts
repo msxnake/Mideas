@@ -75,17 +75,18 @@ ${screens}
 | \`audio/instruments/*.json\` | Instrument and ornament definitions with readable descriptions. |
 | \`audio/sfx/*.json\` | Sound effects (PSG step programs). |
 | \`audio/AUDIO_SPEC.md\` | How the MSX sound chips and the tracker work, with formulas. |
-| \`code/*.asm\` | Optional legacy Z80 scripts (reference only). |
-
+${s.code.length ? '| \`code/*.asm\` | Optional legacy Z80 scripts (reference only). |\n' : ''}
 ## 3. Key rules to respect
 
 ${bullet([
     'Logical resolution is **256x192** px; the screen is a grid of **32x24 cells of 8x8 px**. Every coordinate, size and speed in the sketch is in these logical (x1) pixels.',
-    'Time unit is the **frame = 1/60 s**. Speeds are pixels per frame. Physics formulas are in game_sketch.json > entities.components[].formulas (e.g. gravity, jump).',
-    'Entity position in screens: `pixel = cell * 8`, top-left corner of the sprite. Hitboxes are relative to that corner.',
-    'Collision against the level uses the **collisionMap** of each screen (`#` solid, `!` deadly, `B` breakable...).',
-    'Collision between entities uses bitmasks: A reacts to B when `(A.collidesWith & B.collisionLayer) != 0`.',
-    'Behaviour rules are **conditions checked every frame**, never events. In each state the transitions are evaluated in order and the first true one fires.',
+    'Time unit is the **frame = 1/60 s** (60 fixed updates per second). Speeds are pixels per frame; animations and WAIT use milliseconds. Physics are the Z80 8.8 fixed-point formulas in game_sketch.json > entities.components[].formulas (gravity 0.25 px/frame^2 up to 4 px/frame, jump -4 px/frame).',
+    '**`engineRules` in game_sketch.json is mandatory reading**: state machine evaluation, tile collision probes, one-way platforms, entity collision classes, screen exits, HUD binding, menus layout, sprite mirroring.',
+    'Some component properties are stored but NOT used by the game: they are listed per component as `ignoredByPlayMode` (e.g. Jump.jumpPower, Gravity.strength, AIBehavior.patrolRangeX). Do not implement them.',
+    'Entities spawn at `spawnPixel` of each instance (cell * 8, or Patrol waypoint1). Hitboxes are relative to the sprite top-left corner.',
+    'Collision against the level uses the **collisionMap** of each screen (blocking chars `#`, `=` one-way, `B`, `X`, `D`; see its legend).',
+    'Collision between entities is **mutual**: A and B collide only when `(A.collidesWith & B.collisionLayer) != 0` AND `(B.collidesWith & A.collisionLayer) != 0`.',
+    'Behaviour rules are **conditions checked every frame**, never events. Transitions of the current state (and of "Any State") are evaluated in order and the first true one fires.',
     'Screens are **flip-screen** (no scrolling): leaving through a border loads the connected screen (see worlds in game_sketch.json).',
     scaleLine,
     ...s.graphics.styleRules,
