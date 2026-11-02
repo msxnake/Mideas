@@ -80,10 +80,10 @@ assert.deepEqual(pngSize(byPath.get(hero.images.sheet.x3) as Uint8Array), { w: 1
 const smMd = byPath.get('rules/state_machines.md') as string;
 assert.match(smMd, /collides with an enemy/);
 assert.match(smMd, /stateDiagram-v2/);
-assert.equal(conditionToPseudo({ type: 'KEY_PRESSED', params: { key: 'KeyN' } } as any), 'input.is_pressed("N")');
+assert.equal(conditionToPseudo({ type: 'KEY_PRESSED', params: { key: 'KeyN' } } as any), 'input.is_pressed("action2")', 'N maps to the logical action2 input');
 assert.equal(
   conditionToNatural({ type: 'AND', conditions: [{ type: 'KEY_PRESSED', params: { key: 'ArrowLeft' } }, { type: 'CAN_MOVE_DIRECTION', params: { direction: 'left' } }] } as any, { name: () => null }),
-  '(the player is pressing LEFT) AND (the entity can move left (no solid tile blocks it))'
+  '(the player is pressing LEFT) AND (the entity can move left (no solid tile blocks it) [ROM only: never true in Play mode])'
 );
 
 // Semantics must match the live Play mode (GameFlowPreviewModal), not dead code
@@ -117,6 +117,23 @@ assert.equal(
   } as any, r0);
   assert.match(anySm.transitions[0].natural, /^In ANY state/);
   assert.match(anySm.mermaid, /AnyState --> Dead/);
+}
+
+// Gauntlet R2: Patrol without template/instance waypoints spawns at its cell (definition defaults don't count)
+{
+  const proj = structuredClone(project);
+  const scr = proj.assets.find((a: any) => a.type === 'screenmap');
+  const patrolTpl = proj.entityTemplates.find((t: any) => t.name === 'entity_platform');
+  scr.data.layers.entities.push({ id: 'gauntlet_patrol', entityTemplateId: patrolTpl.id, name: 'P', position: { x: 5, y: 7 }, componentOverrides: {} });
+  const rr = buildGameSketch({ assets: proj.assets, currentProjectName: 'g', currentScreenMode: proj.currentScreenMode, componentDefinitions: proj.componentDefinitions, entityTemplates: proj.entityTemplates, options: { scale: 1, audioWav: false } });
+  const ref = rr.sketch.screens.find((x: any) => x.assetId === scr.id);
+  const scrJson = JSON.parse(rr.files.find(f => f.path === ref.file)!.content as string);
+  const placed = scrJson.entities.find((e: any) => e.id === 'gauntlet_patrol');
+  assert.deepEqual([placed.spawnPixel.x, placed.spawnPixel.y, placed.spawnPixel.source], [40, 56, 'cell * 8']);
+  const { keyLabel } = await import('../utils/gameSketch/rulesToText');
+  assert.match(keyLabel('action2'), /BUTTON 2/);
+  assert.match(conditionToNatural({ type: 'CAN_MOVE_DIRECTION', params: { direction: 'up' } } as any, { name: () => null }), /ROM only/);
+  assert.equal(conditionToPseudo({ type: 'VARIABLE_COMPARE', params: { variable: 'x', operator: '>', value: 100 } } as any), 'self.x > 100');
 }
 
 // Audio

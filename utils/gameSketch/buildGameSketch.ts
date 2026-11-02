@@ -179,14 +179,15 @@ function propsSummary(p: TileLogicalProperties | undefined) {
 /** One char per cell. Blocking chars (isSolid in Play mode): # B X D =  (see COLLISION_LEGEND). */
 function collisionChar(p: TileLogicalProperties | undefined, present: boolean): string {
   if (!present || !p) return '.';
-  if (p.interactionType === ('ladder' as any)) return 'H';
   if (p.isSolid) {
-    if (p.causesDamage) return 'X';
+    // Play mode: one-way (familyId 2) wins over everything; solidity wins over ladder.
     if (p.familyId === 2) return '=';
+    if (p.causesDamage) return 'X';
     if (p.isBreakable) return 'B';
     if (p.isInteractiveSwitch || p.isInteractable) return 'D';
     return '#';
   }
+  if (p.interactionType === ('ladder' as any)) return 'H';
   if (p.causesDamage) return '!';
   if (p.isBreakable) return 'b';
   if (p.isInteractiveSwitch || p.isInteractable) return 'I';
@@ -197,7 +198,7 @@ function collisionChar(p: TileLogicalProperties | undefined, present: boolean): 
 const COLLISION_LEGEND = {
   '.': 'empty, passable',
   '#': 'solid (blocks)',
-  '=': 'one-way platform: solid only when landing from above',
+  '=': 'one-way platform: solid only when landing from above (may also be deadly, see tileLegend)',
   B: 'solid and breakable (blocks)',
   X: 'solid and deadly (blocks; deadly when the hitbox centre is on it)',
   D: 'solid and interactive, e.g. door/switch (blocks)',
@@ -647,7 +648,10 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
       if (!tpl) warnings.push(`Screen "${a.name}": entity "${e.name}" uses missing template ${e.entityTemplateId}.`);
       const resolved = resolveComponents(tpl, e.componentOverrides || {});
       // Play spawns placed entities at cell*8, or at Patrol waypoint1 when set; Position x/y is ignored.
-      const patrol = Object.entries(resolved).find(([k]) => normId(k) === 'patrol')?.[1] as any;
+      // Play only reads template defaultValues + instance overrides (never the component definition
+      // defaults), so waypoints that only exist as definition defaults do not count.
+      const patrolTplComp = tpl?.components.find(c => normId(defsById.get(c.definitionId)?.name || c.definitionId).includes('patrol'));
+      const patrol = patrolTplComp ? { ...(patrolTplComp.defaultValues || {}), ...((e.componentOverrides || {})[patrolTplComp.definitionId] || {}) } as any : null;
       const spawn = patrol && patrol.waypoint1_x !== undefined && patrol.waypoint1_y !== undefined
         ? { x: Number(patrol.waypoint1_x), y: Number(patrol.waypoint1_y), source: 'Patrol.waypoint1' }
         : { x: e.position.x * CELL, y: e.position.y * CELL, source: 'cell * 8' };
@@ -763,7 +767,7 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
     switch (n.type) {
       case 'Start': return 'Entry point of the game.';
       case 'SubMenu': return `Menu "${x.title}" with options: ${(x.options || []).map((o: any) => `"${o.text}"`).join(', ')}. Each option follows its own output connection.`;
-      case 'Controls': return `Controls/redefine screen "${x.title}" (button 1 = ${x.keyboardButton1 ?? 'SPACE'}, button 2 = ${x.keyboardButton2 ?? 'N'}).`;
+      case 'Controls': return `Controls/redefine screen "${x.title}" (MSX keyboard: button 1 = ${x.keyboardButton1 ?? 'SPC'}, button 2 = ${x.keyboardButton2 ?? 'N'}; in Mideas Play mode button 2 / action2 is key M by default, see engineRules.inputs).`;
       case 'WorldLink': return `GAMEPLAY: play the world "${names.get(x.worldAssetId) ?? x.worldAssetId}" starting at its start screen until a rule exits the world (EXIT_CURRENT_WORLD) or jumps to another node (CHANGE_GAME_FLOW_NODE). Running out of lives does not end it by itself.`;
       case 'End': return `${x.endType === 'Victory' ? 'VICTORY' : 'GAME OVER'} ending: "${x.message}".`;
       case 'Text': return `Text screen "${x.title}": "${x.message}". Waits for fire/space.`;
