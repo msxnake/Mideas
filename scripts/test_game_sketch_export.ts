@@ -134,7 +134,7 @@ assert.ok(!sfxWav.smpl, 'sfx is one-shot');
     instruments: [{ id: 1, name: 'square' }], ornaments: [], currentPatternIndexInOrder: 0,
   } as any);
   assert.equal(r.durationMs, 3840);
-  assert.equal(r.loopStartSample, 16 * 120 * 44.1);
+  assert.equal(r.loopStartSample, Math.ceil((16 * 120 * 44.1) / 1024) * 1024, 'loop starts on the block boundary where its first row is applied');
   const data = wavChunks(r.wav).data;
   const N = 22050;
   const goertzel = (f: number) => {

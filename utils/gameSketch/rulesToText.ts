@@ -265,12 +265,16 @@ function mermaidLabel(s: string, max = 60) {
 export function buildStateMachineSketch(sm: StateMachine, r: NameResolver): SketchStateMachine {
   const stateName = new Map<string, string>();
   const stateMid = new Map<string, string>();
-  sm.states.forEach((s, i) => {
+  const usedMids = new Set<string>();
+  (sm.states ?? []).forEach((s, i) => {
     stateName.set(s.id, s.name || s.id);
-    stateMid.set(s.id, mermaidId(s.name || s.id, i));
+    let id = mermaidId(s.name || s.id, i);
+    while (usedMids.has(id)) id = `${id}_${i}`; // "Run!" and "Run?" must stay distinct
+    usedMids.add(id);
+    stateMid.set(s.id, id);
   });
 
-  const states = sm.states.map(s => ({
+  const states = (sm.states ?? []).map(s => ({
     id: s.id,
     name: s.name,
     onEnter: (s.onEnter || []).map(a => actionToNatural(a, r)),
@@ -278,7 +282,7 @@ export function buildStateMachineSketch(sm: StateMachine, r: NameResolver): Sket
     ...(s.properties && Object.keys(s.properties).length ? { properties: s.properties } : {}),
   }));
 
-  const transitions = sm.transitions.map(t => {
+  const transitions = (sm.transitions ?? []).map(t => {
     const from = stateName.get(t.fromStateId) ?? t.fromStateId;
     const to = stateName.get(t.toStateId) ?? t.toStateId;
     const condNat = conditionToNatural(t.conditions, r);
@@ -310,11 +314,11 @@ export function buildStateMachineSketch(sm: StateMachine, r: NameResolver): Sket
 
   const lines = ['stateDiagram-v2'];
   if (sm.initialStateId && stateMid.has(sm.initialStateId)) lines.push(`    [*] --> ${stateMid.get(sm.initialStateId)}`);
-  sm.states.forEach(s => {
+  (sm.states ?? []).forEach(s => {
     const mid = stateMid.get(s.id)!;
     if (mid !== s.name) lines.push(`    state "${mermaidLabel(s.name || s.id)}" as ${mid}`);
   });
-  sm.transitions.forEach(t => {
+  (sm.transitions ?? []).forEach(t => {
     const a = stateMid.get(t.fromStateId);
     const b = stateMid.get(t.toStateId);
     if (!a || !b) return;

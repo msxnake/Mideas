@@ -199,9 +199,10 @@ export function renderSongToWav(song: TrackerSongData, sampleRate = WAV_SAMPLE_R
   const rows: Array<Record<string, TrackerCell | undefined>> = [];
   let loopStartRow: number | null = null;
   order.forEach((patternIndex, oi) => {
+    // The loop starts at order[restartPosition] even if that pattern is missing (next valid row).
+    if (oi === restart && loopStartRow === null) loopStartRow = rows.length;
     const pattern = song.patterns?.[patternIndex];
     if (!pattern) return;
-    if (oi === restart && loopStartRow === null) loopStartRow = rows.length;
     for (let r = 0; r < pattern.numRows; r++) rows.push((pattern.rows?.[r] || {}) as any);
   });
 
@@ -237,7 +238,11 @@ export function renderSongToWav(song: TrackerSongData, sampleRate = WAV_SAMPLE_R
   }
 
   normalizePeak(samples);
-  const loopStartSample = loopStartRow !== null ? Math.round(((loopStartRow * rowMs) / 1000) * sampleRate) : null;
+  // Row events are applied at the first block boundary at or after their time, so the
+  // loop must start on that boundary too (otherwise it begins with the previous row's tail).
+  const loopStartSample = loopStartRow !== null
+    ? Math.min(totalSamples, Math.ceil((((loopStartRow * rowMs) / 1000) * sampleRate) / PLAY_MODE_BLOCK_SAMPLES) * PLAY_MODE_BLOCK_SAMPLES)
+    : null;
   const loop = loopStartSample !== null && samples.length > loopStartSample ? { start: loopStartSample, end: samples.length } : null;
   return {
     wav: encodeWav16(samples, sampleRate, loop),

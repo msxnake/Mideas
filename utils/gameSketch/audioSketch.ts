@@ -18,7 +18,8 @@ export function ayToneFrequencyHz(period: number): number | null {
 }
 
 export function ayNoiseFrequencyHz(period: number): number {
-  const p = period <= 0 ? 1 : period & 0x1f;
+  // Same clamp as the WAV renderer (register R6 is 5 bits; 0 behaves like 1).
+  const p = Math.max(1, Math.min(31, Math.trunc(Number(period) || 0)));
   return round2(AY_CLOCK_HZ / (32 * p));
 }
 

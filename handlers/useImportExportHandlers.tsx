@@ -258,9 +258,11 @@ export const useImportExportHandlers = ({
       '2 smooth'
     );
     if (answer === null) return;
-    const [scaleText, methodText] = answer.trim().toLowerCase().split(/\s+/);
-    const scale = Math.max(1, Math.min(8, parseInt(scaleText || '1', 10) || 1));
-    const scaleMethod = methodText === 'nearest' ? 'nearest' : 'smooth';
+    // Accept the two tokens in any order ("3 smooth", "nearest 2", "x2").
+    const tokens = answer.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const scaleToken = tokens.find(t => /^x?\d+$/.test(t));
+    const scale = Math.max(1, Math.min(8, parseInt((scaleToken ?? '1').replace('x', ''), 10) || 1));
+    const scaleMethod = tokens.includes('nearest') ? 'nearest' : 'smooth';
 
     try {
       setStatusBarMessage('Building Sketch IA: rendering PT3 music...');

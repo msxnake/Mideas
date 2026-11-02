@@ -230,7 +230,8 @@ function componentKey(def: ComponentDefinition | undefined, definitionId: string
 // main
 // ---------------------------------------------------------------------------
 
-export function buildGameSketch(input: GameSketchInput): GameSketchResult {
+export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
+  let input = rawInput;
   const scale = Math.max(1, Math.min(8, Math.floor(num(input.options?.scale, 1))));
   const scaleMethod: ScaleMethod = input.options?.scaleMethod === 'nearest' ? 'nearest' : 'smooth';
   const scales = scale > 1 ? [1, scale] : [1];
@@ -242,15 +243,33 @@ export function buildGameSketch(input: GameSketchInput): GameSketchResult {
   const exportedAt = (input.now ?? new Date()).toISOString();
 
   const assets = input.assets || [];
-  const byType = <T,>(t: ProjectAsset['type']) => assets.filter(a => a.type === t && a.data) as Array<ProjectAsset & { data: T }>;
+  const byType = <T extends object>(t: ProjectAsset['type']) => assets.filter(a => a.type === t && a.data) as unknown as Array<Omit<ProjectAsset, 'data'> & { data: T }>;
 
-  const tiles = byType<Tile>('tile');
-  const sprites = byType<Sprite>('sprite');
-  const screenAssets = byType<ScreenMap>('screenmap');
-  const worldAssets = byType<WorldMapGraph>('worldmap');
-  const flowAssets = byType<GameFlowGraph>('gameflow');
-  const smAssets = byType<StateMachine>('statemachine');
-  const songAssets = byType<TrackerSongData>('track');
+  // Normalise legacy/partial data once, so a single old asset can never abort the export.
+  const pixelsToCss = (pixels: unknown): string[][] =>
+    Array.isArray(pixels)
+      ? pixels.map(row => (Array.isArray(row) ? row.map(v => (typeof v === 'number' ? (v === 0 ? 'rgba(0,0,0,0)' : paletteHex(v, 1)) : (v as string))) : []))
+      : [];
+  const tiles = byType<Tile>('tile').filter(a => {
+    const ok = Array.isArray(a.data.data) && num(a.data.width) > 0 && num(a.data.height) > 0;
+    if (!ok) warnings.push(`Tile "${a.name}" uses an old format without pixel data/size; it was skipped.`);
+    return ok;
+  }).map(a => ({ ...a, data: { ...a.data, data: pixelsToCss(a.data.data) as any } }));
+  const sprites = byType<Sprite>('sprite').map(a => ({
+    ...a,
+    data: { ...a.data, frames: (Array.isArray(a.data.frames) ? a.data.frames : []).map(f => ({ ...f, data: pixelsToCss(f?.data) as any })) },
+  }));
+  const screenAssets = byType<ScreenMap>('screenmap').map(a => ({
+    ...a,
+    data: { ...a.data, layers: { background: [], collision: [], effects: [], entities: [], ...(a.data.layers || {}) } as ScreenMap['layers'] },
+  }));
+  const worldAssets = byType<WorldMapGraph>('worldmap').map(a => ({ ...a, data: { ...a.data, nodes: a.data.nodes ?? [], connections: a.data.connections ?? [] } }));
+  const flowAssets = byType<GameFlowGraph>('gameflow').map(a => ({ ...a, data: { ...a.data, nodes: a.data.nodes ?? [], connections: a.data.connections ?? [] } }));
+  const smAssets = byType<StateMachine>('statemachine').map(a => ({ ...a, data: { ...a.data, states: a.data.states ?? [], transitions: a.data.transitions ?? [] } }));
+  const songAssets = byType<TrackerSongData>('track').map(a => ({
+    ...a,
+    data: { ...a.data, patterns: a.data.patterns ?? [], order: a.data.order ?? [], instruments: a.data.instruments ?? [], ornaments: (a.data.ornaments ?? []).map(o => ({ ...o, data: o.data ?? [] })) },
+  }));
   const sfxAssets = byType<PSGSoundData>('sound');
   const globalsAssets = byType<GlobalVariablesAsset>('globalvariables');
   const codeAssets = assets.filter(a => (a.type === 'code' || a.type === 'behavior') && a.data);
@@ -259,6 +278,11 @@ export function buildGameSketch(input: GameSketchInput): GameSketchResult {
   tiles.forEach(a => { tileById.set(a.data.id || a.id, a.data); tileById.set(a.id, a.data); });
   const spriteById = new Map<string, Sprite>();
   sprites.forEach(a => { spriteById.set(a.data.id || a.id, a.data); spriteById.set(a.id, a.data); });
+  input = {
+    ...input,
+    componentDefinitions: (input.componentDefinitions || []).map(d => ({ ...d, properties: d.properties ?? [] })),
+    entityTemplates: (input.entityTemplates || []).map(t => ({ ...t, components: t.components ?? [] })),
+  };
   const defsById = new Map(input.componentDefinitions.map(d => [d.id, d]));
   const tplById = new Map(input.entityTemplates.map(t => [t.id, t]));
 
@@ -314,6 +338,7 @@ export function buildGameSketch(input: GameSketchInput): GameSketchResult {
 
   // --- tiles ----------------------------------------------------------------
   const tileSlug = makeUniqueSlugger();
+  tileSlug('tileset_atlas'); // reserved for graphics/xN/tiles/tileset_atlas.png
   const atlasCells: Array<{ index: number; tileId: string; tileName: string; subTile: [number, number]; atlasX: number; atlasY: number; properties: Record<string, any> }> = [];
   const atlasIndexByKey = new Map<string, number>();
   const ATLAS_COLS = 16;
@@ -330,6 +355,7 @@ export function buildGameSketch(input: GameSketchInput): GameSketchResult {
       const props = propsSummary(charProps(t, cx, cy));
       const index = atlasCells.length + 1; // 0 = empty cell
       atlasIndexByKey.set(key, index);
+      if (a.id !== id) atlasIndexByKey.set(`${a.id}|${cx}|${cy}`, index); // screens may reference the asset id
       atlasCells.push({ index, tileId: id, tileName: a.name, subTile: [cx, cy], atlasX: ((index - 1) % ATLAS_COLS) * CELL, atlasY: Math.floor((index - 1) / ATLAS_COLS) * CELL, properties: props });
       if (t.charLogicalProperties?.[`${cx},${cy}`]) perChar[`${cx},${cy}`] = props;
     }
@@ -536,6 +562,7 @@ export function buildGameSketch(input: GameSketchInput): GameSketchResult {
     const img = createImage(cols * CELL, rows * CELL);
     fillImage(img, parseCssColor(bgHex));
     const legend = new Map<number, any>();
+    const missingTiles = new Map<string, { x: number; y: number; count: number }>();
     const layerGrid = (layer: ScreenTile[][] | undefined) => {
       const grid: number[][] = [];
       for (let y = 0; y < rows; y++) {
@@ -547,7 +574,8 @@ export function buildGameSketch(input: GameSketchInput): GameSketchResult {
           const sy = cell.subTileY ?? 0;
           const idx = atlasIndexByKey.get(`${cell.tileId}|${sx}|${sy}`);
           if (idx === undefined) {
-            warnings.push(`Screen "${a.name}" references missing tile ${cell.tileId} at (${x},${y}).`);
+            if (!missingTiles.has(cell.tileId)) missingTiles.set(cell.tileId, { x, y, count: 0 });
+            missingTiles.get(cell.tileId)!.count++;
             r.push(0);
             continue;
           }
@@ -564,6 +592,7 @@ export function buildGameSketch(input: GameSketchInput): GameSketchResult {
     const background = layerGrid(s.layers?.background);
     const collisionLayer = layerGrid(s.layers?.collision);
     const effectsLayer = layerGrid(s.layers?.effects);
+    missingTiles.forEach((m, tileId) => warnings.push(`Screen "${a.name}" references missing tile ${tileId} in ${m.count} cell(s) (first at ${m.x},${m.y}); exported as empty.`));
     for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
       const cell = s.layers?.background?.[y]?.[x];
       const t = cell?.tileId ? tileById.get(cell.tileId) : undefined;
@@ -665,8 +694,11 @@ export function buildGameSketch(input: GameSketchInput): GameSketchResult {
       return n ? names.get(n.screenAssetId) ?? n.name : nodeId;
     };
     const lines = ['flowchart LR'];
-    w.data.nodes.forEach(n => lines.push(`    ${slugify(n.id)}["${(names.get(n.screenAssetId) ?? n.name).replace(/"/g, "'")}"]`));
-    w.data.connections.forEach(c => lines.push(`    ${slugify(c.fromNodeId)} -- ${c.fromDirection} --> ${slugify(c.toNodeId)}`));
+    const mid = new Map(w.data.nodes.map((n, i) => [n.id, `s${i}`] as const));
+    w.data.nodes.forEach(n => lines.push(`    ${mid.get(n.id)}["${String(names.get(n.screenAssetId) ?? n.name).replace(/"/g, "'")}"]`));
+    w.data.connections.forEach(c => {
+      if (mid.has(c.fromNodeId) && mid.has(c.toNodeId)) lines.push(`    ${mid.get(c.fromNodeId)} -- ${c.fromDirection} --> ${mid.get(c.toNodeId)}`);
+    });
     return {
       id: w.id,
       name: w.name,
@@ -713,8 +745,12 @@ export function buildGameSketch(input: GameSketchInput): GameSketchResult {
   const flowsSketch = flowAssets.map(f => {
     const g = f.data;
     const lines = ['flowchart TD'];
-    g.nodes.forEach(n => lines.push(`    ${slugify(n.id)}["${String(names.get(n.id) ?? n.type).replace(/"/g, "'").slice(0, 50)}"]`));
-    g.connections.forEach(c => lines.push(`    ${slugify(c.from.nodeId)} -->${c.from.sourceId ? `|${String(c.from.sourceId).replace(/[|"]/g, '')}|` : ''} ${slugify(c.to.nodeId)}`));
+    const mid = new Map(g.nodes.map((n, i) => [n.id, `n${i}`] as const));
+    g.nodes.forEach(n => lines.push(`    ${mid.get(n.id)}["${String(names.get(n.id) ?? n.type).replace(/"/g, "'").slice(0, 50)}"]`));
+    g.connections.forEach(c => {
+      if (!mid.has(c.from?.nodeId) || !mid.has(c.to?.nodeId)) return;
+      lines.push(`    ${mid.get(c.from.nodeId)} -->${c.from.sourceId ? `|${String(c.from.sourceId).replace(/[|"]/g, '')}|` : ''} ${mid.get(c.to.nodeId)}`);
+    });
     // Order nodes as the player meets them: breadth-first from the start node,
     // then any node not reachable from it (kept, but flagged).
     const order: string[] = [];
