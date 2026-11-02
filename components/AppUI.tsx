@@ -34,7 +34,6 @@ import { TILE_BANKS_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTIT
 import { StatusBar } from './layout/StatusBar';
 import { Msx2MemoryBudgetIndicator } from './layout/Msx2MemoryBudgetIndicator';
 import { Toolbar } from './layout/Toolbar';
-// OBSOLETO: import { CompressDataModal } from './modals/CompressDataModal';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { Panel } from './common/Panel';
 import { Button } from './common/Button';
