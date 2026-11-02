@@ -74,9 +74,14 @@ Todas las coordenadas del JSON están siempre en píxeles lógicos x1 (256x192).
   AY-3-8910/YM2149 que el editor y el modo Play (`AYRegisterSynthesizer` en
   modo offline: `setOfflineClock`, `playNoteOffline`, `stepFrameOffline`,
   `renderOffline`). Código: `utils/gameSketch/audioRender.ts`.
-- Canciones: se recorren las filas como en el modo Play (A/B/C por fila,
-  `speed` ticks de 2500/bpm ms, efecto SPEED respetado) desde `order[0]` hasta
-  el final, una vez. El tramo de bucle (`order[restartPosition]` → final) va en
+- Canciones: se reproduce **exactamente la temporización del modo Play**
+  (GameFlowPreviewModal): una fila cada 2500*speed/bpm ms con
+  nota/instrumento/ornamento/volumen (sin efectos, como Play), reloj de frames
+  del sintetizador cada 2500/bpm ms, y los cambios de registros se aplican entre
+  bloques de 1024 muestras como el ScriptProcessor del navegador. Un render
+  "tick exacto" hacía zumbar (~76 Hz) las canciones cuyos canales usan formas
+  de envolvente hardware distintas (R13 reiniciado cada tick; bug visto con
+  Oda1). Se renderiza desde `order[0]` hasta el final, una vez. El tramo de bucle (`order[restartPosition]` → final) va en
   un chunk RIFF `smpl`; Godot 4 lo detecta solo (Loop Mode: "Detect From WAV").
 - Canciones `external-pt3`: se decodifican con `parsePT3File`. Si el PT3 se
   importó sin cabecera, no se puede (igual que en el editor) y se avisa.

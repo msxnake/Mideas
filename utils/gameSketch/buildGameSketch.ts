@@ -905,7 +905,7 @@ export function buildGameSketch(input: GameSketchInput): GameSketchResult {
       wav: audioWav ? {
         format: `PCM 16-bit mono ${WAV_SAMPLE_RATE} Hz`,
         renderedWith: 'Mideas AY-3-8910 (YM2149) emulation, same as the editor and Play mode',
-        songs: 'Rendered once from order[0] to the end. The loop region (order[restartPosition] to the end) is stored in a RIFF "smpl" chunk: Godot 4 loops it automatically (import option Loop Mode = "Detect From WAV", the default).',
+        songs: 'Rendered with the Mideas Play mode timing, once from order[0] to the end. The loop region (order[restartPosition] to the end) is stored in a RIFF "smpl" chunk: Godot 4 loops it automatically (import option Loop Mode = "Detect From WAV", the default).',
         soundEffects: 'One-shot, no loop.',
       } : null,
       music: musicIndex,

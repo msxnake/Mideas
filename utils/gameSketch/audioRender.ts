@@ -9,7 +9,6 @@
  */
 import type { PSGSoundData, TrackerCell, TrackerSongData } from '../../types';
 import { AYRegisterSynthesizer } from '../../components/utils/ayRegisterSynthesizer';
-import { resolveNativeTrackerRowSpeed } from '../../components/utils/trackerEffects';
 import { parsePT3File } from '../../components/utils/pt3Parser';
 
 export const WAV_SAMPLE_RATE = 44100;
@@ -139,10 +138,22 @@ export function resolvePlayableSong(song: TrackerSongData): { song: TrackerSongD
 }
 
 /**
- * Renders a tracker song once from order[0] to the end. Row stepping matches
- * the Mideas Play mode: every row sends its A/B/C cells to the synthesizer,
- * then `speed` engine ticks of 2500/bpm ms each are rendered (SPEED effects
- * change the speed like in the tracker).
+ * Size of the audio blocks the browser asks the live synthesizer for
+ * (ScriptProcessorNode(1024) in AYRegisterSynthesizer). Register changes made
+ * by the row/frame timers only become audible at the next block boundary.
+ */
+const PLAY_MODE_BLOCK_SAMPLES = 1024;
+
+/**
+ * Renders a tracker song once from order[0] to the end, reproducing the Mideas
+ * Play mode (GameFlowPreviewModal) as heard in the browser:
+ * - one row every 2500*speed/bpm ms (song speed; Play mode ignores effects),
+ * - the synthesizer frame clock every 2500/bpm ms, independent of the rows,
+ * - only note/instrument/ornament/volume are sent (exactly like Play mode),
+ * - timer events are applied between 1024-sample audio blocks, like the live
+ *   ScriptProcessor. Rendering tick-exact instead makes songs whose channels
+ *   use different hardware-envelope shapes buzz (R13 retriggered every tick),
+ *   which is not what Play mode or the ROM sound like.
  */
 export function renderSongToWav(song: TrackerSongData, sampleRate = WAV_SAMPLE_RATE): WavRenderResult {
   const notes: string[] = [];
@@ -155,58 +166,56 @@ export function renderSongToWav(song: TrackerSongData, sampleRate = WAV_SAMPLE_R
   const synth = new AYRegisterSynthesizer(1);
   synth.setSongData(song);
   synth.setOfflineClock(true);
-  synth.setRowPlaybackActive(true);
   synth.stopAllNotes();
 
   const bpm = Number(song.bpm) > 0 ? Number(song.bpm) : 125;
-  const samplesPerTick = (sampleRate * 2.5) / bpm; // tick = 2500/bpm ms
-  const maxSamples = MAX_RENDER_SECONDS * sampleRate;
-  const sink = new SampleSink();
-  let renderedExact = 0; // fractional sample clock to avoid drift
-  let speed = Math.max(1, Math.min(31, Number(song.speed) || 6));
-  let loopStartSample: number | null = null;
+  const speed = Math.max(1, Number(song.speed) || 6);
+  const tickMs = Math.max(5, 2500 / bpm); // AYRegisterSynthesizer.getTrackerTickMs
+  const rowMs = Math.max(20, (2500 * speed) / bpm); // GameFlowPreviewModal row interval
   const order = song.order?.length ? song.order : [];
   const restart = Math.max(0, Math.min(order.length - 1, song.restartPosition ?? 0));
-  const emptyCell: TrackerCell = { note: null, instrument: null, ornament: null, volume: null };
 
-  outer:
-  for (let oi = 0; oi < order.length; oi++) {
-    if (oi === restart) loopStartSample = sink.length;
-    const pattern = song.patterns?.[order[oi]];
-    if (!pattern) continue;
-    for (let row = 0; row < pattern.numRows; row++) {
-      const rowData = pattern.rows?.[row] || {};
-      const cells = PSG_CHANNELS.map(ch => (rowData as any)[ch] as TrackerCell | undefined ?? emptyCell);
-      speed = resolveNativeTrackerRowSpeed(cells, speed);
-      cells.forEach((cell, ch) => {
-        synth.playNoteOffline(
-          ch as 0 | 1 | 2,
-          cell.note ?? null,
-          cell.instrument ?? null,
-          cell.ornament ?? null,
-          cell.volume ?? null,
-          cell.effectCommand ?? null,
-          cell.effectParams ?? null,
-        );
-      });
-      for (let t = 0; t < speed; t++) {
-        renderedExact += samplesPerTick;
-        const n = Math.round(renderedExact) - sink.length;
-        if (n > 0) {
-          const chunk = new Float32Array(n);
-          synth.renderOffline(chunk, sampleRate);
-          sink.push(chunk);
-        }
-        synth.stepFrameOffline();
-        if (sink.length >= maxSamples) {
-          notes.push(`Rendering stopped at the ${MAX_RENDER_SECONDS}s safety limit.`);
-          break outer;
-        }
-      }
-    }
+  const rows: Array<Record<string, TrackerCell | undefined>> = [];
+  let loopStartRow: number | null = null;
+  order.forEach((patternIndex, oi) => {
+    const pattern = song.patterns?.[patternIndex];
+    if (!pattern) return;
+    if (oi === restart && loopStartRow === null) loopStartRow = rows.length;
+    for (let r = 0; r < pattern.numRows; r++) rows.push((pattern.rows?.[r] || {}) as any);
+  });
+
+  let totalSamples = Math.round(((rows.length * rowMs) / 1000) * sampleRate);
+  if (totalSamples > MAX_RENDER_SECONDS * sampleRate) {
+    totalSamples = MAX_RENDER_SECONDS * sampleRate;
+    notes.push(`Rendering stopped at the ${MAX_RENDER_SECONDS}s safety limit.`);
   }
 
-  const samples = sink.toArray();
+  const samples = new Float32Array(totalSamples);
+  let nextRow = 0;
+  let nextFrameMs = tickMs; // setInterval fires first after one interval
+  for (let blockStart = 0; blockStart < totalSamples; blockStart += PLAY_MODE_BLOCK_SAMPLES) {
+    const nowMs = (blockStart / sampleRate) * 1000;
+    // Apply every timer event that fired before this block, in time order.
+    for (;;) {
+      const rowMsAt = nextRow < rows.length ? nextRow * rowMs : Infinity;
+      if (nextFrameMs <= nowMs && nextFrameMs <= rowMsAt) {
+        synth.stepFrameOffline();
+        nextFrameMs += tickMs;
+      } else if (rowMsAt <= nowMs) {
+        const rowData = rows[nextRow++];
+        PSG_CHANNELS.forEach((ch, chIndex) => {
+          const cell = rowData[ch];
+          if (!cell) return;
+          synth.playNoteOffline(chIndex as 0 | 1 | 2, cell.note ?? null, cell.instrument ?? null, cell.ornament ?? null, cell.volume ?? null);
+        });
+      } else {
+        break;
+      }
+    }
+    synth.renderOffline(samples.subarray(blockStart, Math.min(totalSamples, blockStart + PLAY_MODE_BLOCK_SAMPLES)), sampleRate);
+  }
+
+  const loopStartSample = loopStartRow !== null ? Math.round(((loopStartRow * rowMs) / 1000) * sampleRate) : null;
   const loop = loopStartSample !== null && samples.length > loopStartSample ? { start: loopStartSample, end: samples.length } : null;
   return {
     wav: encodeWav16(samples, sampleRate, loop),
