@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { validateIntroMusic, validateIntroSlide } from '../../utils/msx2IntroUtils';
 import { presentationFxNodeIssues } from '../../utils/msx2TransitionEditorUtils';
 import { Msx2PresentationFxSection } from './Msx2PresentationFxSection';
+import { Msx2PresentationOrbitSection } from './Msx2PresentationOrbitSection';
+import { orbitTetrahedronNodeErrors } from '../../utils/msx2OrbitTetrahedronEditorUtils';
 import { firstFreeSubMenuOption, repairSubMenuConnections } from '../../utils/msx2GameFlowSubMenuLinks';
 import { clampMsx2CodeLength, codeEntryIssues, firstFreeCodeEntryPort, normalizeMsx2Code } from '../../utils/msx2GameFlowCodeEntry';
 import type {
@@ -27,6 +29,7 @@ import type {
   Msx2GameFlowTextNode,
   Msx2GameFlowTransitionNode,
   Msx2GameFlowWorldLinkNode,
+  Msx2OrbitTetrahedronConfig,
   Msx2Screen5PresentationConfig,
   ProjectAsset,
 } from '../../types';
@@ -845,6 +848,10 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
             // Entry effect: only the bitmap-room runtime plays it, so only here do its errors block the flow.
             issues.push(...presentationFxNodeIssues(node, nodes, connections, allAssets, true).errors.map(message => `Entry effect: ${message}`));
           }
+          if (node.orbitTetrahedron?.enabled) {
+            // Orbiting tetrahedron: same rule, the export stops with these messages.
+            issues.push(...orbitTetrahedronNodeErrors(node, allAssets).map(message => `Orbiting tetrahedron: ${message}`));
+          }
         } else if (node.type === 'Screen4Screen') {
           if (!node.screenAssetId || !screen4Assets.some(asset => asset.id === node.screenAssetId)) {
             issues.push('Screen4Screen node must select a valid SCREEN 4 room.');
@@ -1376,6 +1383,15 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
       if (node.id !== selectedPresentationNode.id || node.type !== 'Screen5Presentation') return node;
       const { fxAssetId: _previous, ...rest } = node;
       return fxAssetId ? { ...rest, fxAssetId } : rest;
+    }));
+  };
+
+  const updateSelectedPresentationOrbit = (orbitTetrahedron: Msx2OrbitTetrahedronConfig | undefined) => {
+    if (!selectedPresentationNode) return;
+    updateNodes(nodes.map(node => {
+      if (node.id !== selectedPresentationNode.id || node.type !== 'Screen5Presentation') return node;
+      const { orbitTetrahedron: _previous, ...rest } = node;
+      return orbitTetrahedron ? { ...rest, orbitTetrahedron } : rest;
     }));
   };
 
@@ -2273,6 +2289,12 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                 allAssets={allAssets}
                 bitmapBackend={isScreen5BitmapRuntimeFlow}
                 onChange={updateSelectedPresentationFx}
+              />
+              <Msx2PresentationOrbitSection
+                node={selectedPresentationNode}
+                allAssets={allAssets}
+                bitmapBackend={isScreen5BitmapRuntimeFlow}
+                onChange={updateSelectedPresentationOrbit}
               />
               <h3 className="text-sm font-semibold">GameFlow runtime override</h3>
               <label className="flex items-center gap-2 text-xs">

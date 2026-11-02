@@ -218,7 +218,13 @@ export function readFxSourceImage(assetOrConfig: unknown): FxSourceImage {
   const src = rows as number[][];
   const pixels = Array.from({ length: FX_SCREEN_H }, (_u, y) =>
     Array.from({ length: FX_SCREEN_W }, (_v, x) => (Number(src[y]?.[x]) || 0) & 15));
-  const slots: Screen5PaletteSlot[] = Array.isArray(cfg.palette) ? cfg.palette : [];
+  // The nested `data` of an asset that was not imported from a PNG holds only the pixels: the palette is then the one of the
+  // asset itself (without this fallback the picture reads with an all-black palette).
+  const slots: Screen5PaletteSlot[] = Array.isArray(cfg.palette)
+    ? cfg.palette
+    : Array.isArray((asset as Record<string, any>).palette)
+      ? (asset as Record<string, any>).palette
+      : [];
   const palette: FxRgb[] = Array.from({ length: 16 }, (_u, i) =>
     resolveScreen5PaletteSlot(slots.find(s => s?.slotIndex === i) || slots[i]));
   return { width: 256, height: 212, pixels, palette };

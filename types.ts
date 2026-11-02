@@ -4271,6 +4271,39 @@ export interface Msx2GameFlowStartNode extends Msx2GameFlowNode_Base {
   type: 'Start';
 }
 
+/**
+ * Tetrahedron of four hardware-sprite dots that spins and orbits the picture of a Screen5Presentation node (SCREEN 5
+ * bitmap-room backend, boot only). Everything that moves is precomputed into ROM tables at export time; see
+ * utils/msxGenerator/generators/msx2/msx2BitmapIntroTetrahedron.ts. Only `enabled` and `spriteAssetIds` are required.
+ */
+export interface Msx2OrbitTetrahedronConfig {
+  enabled: boolean;
+  /** `msx2sprite` assets of the dots, one per size: 16x16, drawn with palette slots 1 (A), 2 (B) and 3 (A|B). */
+  spriteAssetIds: string[];
+  /** Frames of one orbit (default 240, 8..255). */
+  cycleFrames?: number;
+  /** Vblanks per frame (default 1 = 60 fps). */
+  frameDelay?: number;
+  /** Pixels between two vertices at the middle Z plane, where the picture is (default 32). */
+  edge?: number;
+  /** Diameter in pixels of a dot at the middle Z plane (default 12). */
+  dotDiameter?: number;
+  /** Radius of the orbit in pixels (default: half the picture plus 24, shrunk until the orbit fits the screen). */
+  orbitRadius?: number;
+  /** Tilt of the orbit plane toward the viewer, radians (default 0.35). */
+  orbitTilt?: number;
+  /** Whole turns about the X axis per orbit (default 2). */
+  spinX?: number;
+  /** Whole turns about the Z axis per orbit (default 1). */
+  spinZ?: number;
+  /** What hides the dots that are behind the picture: its filled silhouette (default) or only its non-background pixels. */
+  maskMode?: 'silhouette' | 'pixels';
+  /** Palette entries [rim A, highlight B, body C] with A | B = C. Default: chosen from the palette of the picture. */
+  paletteSlots?: [number, number, number];
+  /** Replaces the detected picture mask with a rectangle. */
+  pictureRect?: { x: number; y: number; width: number; height: number };
+}
+
 export interface Msx2GameFlowScreen5PresentationNode extends Msx2GameFlowNode_Base {
   type: 'Screen5Presentation';
   presentationAssetId?: string;
@@ -4280,6 +4313,12 @@ export interface Msx2GameFlowScreen5PresentationNode extends Msx2GameFlowNode_Ba
    * presentation backend ignore it (with a warning) and export the static image.
    */
   fxAssetId?: string;
+  /**
+   * Orbiting tetrahedron of sprite dots shown after the picture instead of the usual wait (SCREEN 5 bitmap-room
+   * backend, boot only). Undefined or `enabled: false` = the usual wait. The walker and the strict presentation
+   * backend ignore it and export the static image.
+   */
+  orbitTetrahedron?: Msx2OrbitTetrahedronConfig;
   waitForKey?: boolean;
   waitFrames?: number;
 }

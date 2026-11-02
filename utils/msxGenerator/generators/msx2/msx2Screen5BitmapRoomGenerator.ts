@@ -15,6 +15,7 @@ import { buildBitmapIntro, collectFlowIntroAssets, INTRO_RESIDENT_MARKER, type B
 import { BITMAP_FX_NEEDS_MEGAROM_MESSAGE, buildBitmapTransitionFx, compileBitmapFxForPresentation, type BitmapFxBlock } from './msx2BitmapTransitionFxGenerator';
 import { emitScreen5TfxCall, generateScreen5TfxRuntime, Screen5TfxDataPool } from './screen5TransitionEngine';
 import { buildBitmapTfxBank } from './msx2BitmapTfxBankGenerator';
+import { buildBitmapIntroTetrahedron, type BitmapIntroTetrahedron } from './msx2BitmapIntroTetrahedron';
 import {
   resolveScreen5TransitionSpec,
   screen5TransitionUsesEngine,
@@ -660,6 +661,8 @@ interface BitmapIntroScene {
   bitmapBytes: number[];
   waitForKey: boolean;
   waitFrames: number;
+  /** Tetrahedron of hardware-sprite dots that spins and orbits the picture, shown instead of the usual wait (see msx2BitmapIntroTetrahedron.ts). */
+  tetra?: BitmapIntroTetrahedron;
   transition?: BitmapIntroTransition;
   fx?: BitmapIntroSceneFx;
 }
@@ -756,6 +759,14 @@ function resolveBitmapIntroScenes(analysis: ProjectAnalysis): BitmapIntroChain {
       scene.bitmapBytes = compiled.bitmapBytes;
       scene.paletteBytes = compiled.paletteBytes;
       scene.fx = { blockIndex, name: compiled.name };
+    }
+    if (node.orbitTetrahedron?.enabled) {
+      // Built from the picture and palette that are on screen when the animation runs (after the entry effect).
+      scene.tetra = buildBitmapIntroTetrahedron(scene.name, node.orbitTetrahedron, analysis, {
+        paletteBytes: scene.paletteBytes,
+        bitmapBytes: scene.bitmapBytes,
+      });
+      console.log(`Intro tetrahedron "${scene.name}": ${scene.tetra.summary}`);
     }
     let next = nextExport(current);
     if (next?.type === 'Transition') {
@@ -1528,7 +1539,9 @@ function buildBitmapIntroAsm(
 
   const sceneAsm = blobs.map(({ scene, index }) => {
     const safeName = scene.name.replace(/[^\x20-\x7E]/g, ' ');
-    const waitAsm = scene.waitForKey
+    const waitAsm = scene.tetra
+      ? `    call bitmap_intro_tetra_rotation_${index}\n`
+      : scene.waitForKey
       ? '    call bitmap_intro_wait_space\n'
       : scene.waitFrames > 0
         ? `    ld b, ${scene.waitFrames}\n    call bitmap_intro_wait_frames\n`
@@ -1606,6 +1619,147 @@ ${showAsm}${waitAsm}${transitionAsm}`;
   const uploadRoutines = blobs.map(({ index, rleChunks }) => `bitmap_intro_upload_scene${index}:
 ${buildRleUploadAsm(rleChunks, banked)}
 `).join('\n');
+
+  const tetraRoutines = blobs.map(({ scene, index }) => {
+    const tetra = scene.tetra;
+    if (!tetra) return '';
+    if (!banked) throw new Error(`MSX2 bitmap-room intro scene "${scene.name}": the orbiting tetrahedron keeps its frame tables in Konami MegaROM data banks; export as Konami MegaROM.`);
+    const p = `bitmap_intro_tetra_${index}`;
+    const blocks = tetra.frameBlocks.map((_block, block) => `${p}_frames_${block}`);
+    // Patterns and colours are uploaded once; the frame records are streamed one per step. The data lives in banks:
+    // bitmap_copy_banked_to_vram maps one around its copy, and the loop below maps the frame bank only around the
+    // two copy_to_vram_ext calls of a step (the only helper called while P2 is remapped, as in bitmap_copy_banked_to_vram).
+    const copyAsm = (label: string, vram: string) =>
+      `    ld a, ${label}_DATA_BANK\n    ld hl, ${label}\n    ld de, ${vram}\n    ld bc, ${label}_end - ${label}\n    call bitmap_copy_banked_to_vram\n`;
+    const blockTableAsm = [
+      `${p}_blocks:`,
+      ...blocks.map(label => `    DB ${label}_DATA_BANK\n    DW ${label}, ${label}_end`),
+      `${p}_blocks_end:`,
+    ].join('\n');
+    const termVram = `#${(0xF600 + tetra.planeCount * 4).toString(16).toUpperCase()}`;
+    const dynamicVram = `#${(0xF800 + tetra.dynamicPatternBase * 32).toString(16).toUpperCase()}`;
+    const header = [
+      '; ------------------------------------------------------------',
+      `; FUNCTION: bitmap_intro_tetra_rotation_${index}`,
+      '; PURPOSE: Animate a tetrahedron of four hardware ball sprites (the project sprite assets) that spins and orbits the',
+      ';   presentation bitmap. Every position and every clipped sprite pattern is a precomputed table; this only copies it.',
+      '; INPUT: None. OUTPUT: Returns once SPACE is pressed and released. DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.',
+      `; NOTES: ${tetra.frameCount} frames, one every ${tetra.delay} vblank(s), looping. A frame record is [n] [${tetra.planeCount * 4}-byte SAT image] [n x 32-byte`,
+      ';   patterns]: the patterns are the dots cut by the picture silhouette and go to the per-frame pattern slots.',
+      ';   The sprite tables live in the top of VRAM page 1 (#F400/#F600/#F800), above the 16 KB BIOS LDIRVM can address,',
+      ';   so copy_to_vram_ext is used (it sets R#14 from the address and puts it back to 0).',
+      '; SIDE EFFECTS: Uploads MSX2 sprite patterns/colours/attributes to VRAM, shows sprites at 16x16 (R#1 SI) and hides them',
+      ';   again on exit. The palette is not touched: the dots use entries of the picture palette.',
+      '; ------------------------------------------------------------',
+    ].join('\n');
+    return `${header}
+bitmap_intro_tetra_rotation_${index}:
+    call ${p}_wait_release          ; a SPACE held from skipping the effect must not end the animation at once
+${copyAsm(`${p}_patterns`, '#F800')}${copyAsm(`${p}_colors`, '#F400')}    ld hl, ${p}_sat_term            ; SAT terminator after plane ${tetra.planeCount - 1}: the planes after it stay hidden
+    ld de, ${termVram}
+    ld bc, 1
+    call copy_to_vram_ext
+    ; Display is already on here. BIOS ENASCR would rewrite R#1 from RG1SAV (#60, set by CHGMOD), which
+    ; drops SI and turns the 16x16 sprites into 8x8 ones.
+    ld a, #01
+    ld e, #62
+    call vdp_write_register
+    ld a, #08
+    ld e, #08
+    call vdp_write_register         ; R#8: sprites enabled
+${p}_restart:
+    ld hl, ${p}_blocks
+${p}_block:
+    push hl                         ; stack: block entry (bank, first record, end)
+    inc hl
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ex de, hl                       ; HL = first record of the block
+${p}_frame:
+    ld b, ${tetra.delay}
+    call bitmap_intro_wait_frames   ; upload right after a vblank (HL preserved)
+    ex (sp), hl
+    ld a, (hl)                      ; bank of this block, from the resident entry
+    ex (sp), hl
+    call bitmap_room_select_data_bank_a   ; P2 = frame data; only copy_to_vram_ext is called until it is restored
+    ld c, (hl)                      ; n clipped patterns in this record
+    inc hl
+    push bc
+    push hl
+    ld de, #F600
+    ld bc, ${tetra.planeCount * 4}
+    call copy_to_vram_ext           ; SAT image
+    pop hl
+    ld de, ${tetra.planeCount * 4}
+    add hl, de                      ; first clipped pattern = next record when n = 0
+    pop bc
+    ld a, c
+    or a
+    jp z, ${p}_no_patterns
+    ld b, 0
+    sla c
+    rl b
+    sla c
+    rl b
+    sla c
+    rl b
+    sla c
+    rl b
+    sla c
+    rl b                            ; BC = n x 32
+    push bc
+    push hl
+    ld de, ${dynamicVram}
+    call copy_to_vram_ext           ; clipped patterns into the per-frame slots
+    pop hl
+    pop bc
+    add hl, bc                      ; next record
+${p}_no_patterns:
+    call bitmap_room_restore_resident_banks
+    call bitmap_intro_read_row8
+    bit 0, a
+    jp nz, ${p}_exit
+    ex (sp), hl                     ; HL = block entry, stack = next record
+    inc hl
+    inc hl
+    inc hl
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                      ; DE = end of this block's records
+    dec hl
+    dec hl
+    dec hl
+    dec hl
+    ex (sp), hl                     ; HL = next record, stack = block entry
+    push hl
+    or a
+    sbc hl, de
+    pop hl                          ; pop keeps the flags: carry = still inside the block
+    jp c, ${p}_frame
+    pop hl                          ; block entry
+    ld de, 5
+    add hl, de                      ; next block
+    ld de, ${p}_blocks_end
+    push hl
+    or a
+    sbc hl, de
+    pop hl
+    jp c, ${p}_block
+    jp ${p}_restart
+${p}_exit:
+    pop hl                          ; drop the block entry
+    ld a, #08
+    ld e, #0A
+    call vdp_write_register         ; R#8: sprites disabled again
+${p}_wait_release:
+    call bitmap_intro_read_row8
+    bit 0, a
+    jp nz, ${p}_wait_release        ; the held key must not leak into gameplay as an instant jump
+    ret
+${formatBytes(`${p}_sat_term`, [0xD8], 'Tetrahedron SAT terminator')}${blockTableAsm}
+`;
+  }).filter(Boolean).join('\n');
 
   const routinesAsm = `
 ; ------------------------------------------------------------
@@ -1885,7 +2039,7 @@ bitmap_intro_fade_black:
     call bitmap_intro_load_palette
     jp bitmap_intro_cls
 ` : ''}
-${uploadRoutines}`;
+${uploadRoutines}${tetraRoutines ? `\n${tetraRoutines}` : ''}`;
 
   const paletteData = blobs.map(({ scene, index }) =>
     formatBytes(`bitmap_intro_scene${index}_palette`, scene.paletteBytes, `GameFlow intro scene ${index} palette: byte1=(R<<4)|B, byte2=G`)
@@ -3534,6 +3688,24 @@ interface PackedDataBank {
   bank: number;
   used: number;
   blocks: BankedDataBlock[];
+}
+
+/** MegaROM data-bank blocks of the tetrahedron scenes (cold data: uploaded once, and one frame record per animation step). */
+function buildBitmapIntroTetrahedronDataBlocks(blobs: BitmapIntroSceneBlob[]): BankedDataBlock[] {
+  return blobs.flatMap(({ scene, index }) => {
+    const tetra = scene.tetra;
+    if (!tetra) return [];
+    const p = `bitmap_intro_tetra_${index}`;
+    return [
+      { label: `${p}_patterns`, bytes: tetra.patternBytes, description: `GameFlow intro scene #${index} tetrahedron: MSX2 sprite patterns (empty pattern + the layers of every dot size)` },
+      { label: `${p}_colors`, bytes: tetra.colorBytes, description: `GameFlow intro scene #${index} tetrahedron: MSX2 sprite colour table (${tetra.planeCount} planes x 16 lines)` },
+      ...tetra.frameBlocks.map((bytes, block) => ({
+        label: `${p}_frames_${block}`,
+        bytes,
+        description: `GameFlow intro scene #${index} tetrahedron: frame records, block ${block + 1} of ${tetra.frameBlocks.length} (SAT image + clipped patterns per frame)`,
+      })),
+    ];
+  });
 }
 
 function buildBankedRleDataBlocks(chunks: RleChunk[], description: string): BankedDataBlock[] {
@@ -17417,6 +17589,7 @@ ${airAnimBodyAsm}`;
       ...linkedHudTileData.flatMap(entry => buildBankedRleDataBlocks(entry.rleChunks, `Linked HUD dynamic widget #${entry.index} (${entry.kind}) tile/glyph data, packed 4bpp RLE`)),
       ...roomDataBlocks,
       ...introSceneBlobs.flatMap(blob => buildBankedRleDataBlocks(blob.rleChunks, `GameFlow intro scene #${blob.index} SCREEN 5 bitmap, packed 4bpp RLE`)),
+      ...buildBitmapIntroTetrahedronDataBlocks(introSceneBlobs),
       ...(dialogueData ? buildBankedRleDataBlocks(dialogueRleChunks, 'NPC dialogue glyph strips + portrait frames, packed 4bpp RLE') : []),
       ...bossWindowBlobData.flatMap(blob => buildBankedRleDataBlocks(blob.rleChunks, `Boss body cells #${blob.index}, transient window, packed 4bpp RLE`)),
       // Cold sprite art: uploaded to VRAM once at boot (and, with a borrowed

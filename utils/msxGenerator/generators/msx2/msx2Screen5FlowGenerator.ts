@@ -431,6 +431,9 @@ export function generateMsx2Screen5FlowUnitedFiles(
       if (String((node as Msx2GameFlowScreen5PresentationNode).fxAssetId || '').trim()) {
         console.warn(`⚠️ Transition FX: the presentation node "${node.id}" has an entry effect, which this GameFlow backend does not play; the static picture is exported. Effects need the SCREEN 5 bitmap-room backend.`);
       }
+      if ((node as Msx2GameFlowScreen5PresentationNode).orbitTetrahedron?.enabled) {
+        console.warn(`⚠️ Orbiting tetrahedron: the presentation node "${node.id}" has one, which this GameFlow backend does not play; the static picture is exported. It needs the SCREEN 5 bitmap-room backend.`);
+      }
     }
   }
   const firstPresentation = presentationEntries.values().next().value as PresentationEntry | undefined;

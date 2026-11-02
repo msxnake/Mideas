@@ -22,7 +22,8 @@
 // Run: node scripts/check_msx2_enemy_color_cache.mjs
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
@@ -30,19 +31,54 @@ import { build } from 'esbuild';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const enemyModule = 'utils/msxGenerator/generators/msx2/msx2BitmapEnemyGenerator.ts';
 const reference = 'cb308f04ad9ead3595f068be01ee28251e34afd1';
+const output = mkdtempSync(join(tmpdir(), 'mideas-enemy-colour-cache-'));
 const fixtures = [
   'test/msx2-behavior/fixture_scripted_enemy.json',
-  'test/msx2-bats/test501_bats.json',
+  'derived-fly-bounce8',
   'test/msx2-slime/fixture_slime_mix.json',
 ];
+// Keep the bat/cache coverage reproducible from a clean checkout. The old
+// test501 project was ignored and only existed in the author's local tree.
+function readFixture(fixture) {
+  if (fixture !== 'derived-fly-bounce8') return JSON.parse(readFileSync(join(root, fixture), 'utf8'));
+  const project = JSON.parse(readFileSync(join(root, fixtures[0]), 'utf8'));
+  project.name = 'Derived flying enemy and scripted enemy';
+  const source = project.assets.find(asset => asset.type === 'msx2sprite');
+  const sprite = structuredClone(source);
+  sprite.id = sprite.data.id = 'cache_flying_sprite';
+  sprite.data.size = { width: 16, height: 16 };
+  const palette = sprite.data.palette;
+  const colour = slot => palette.find(entry => entry.slotIndex === slot).hex;
+  sprite.data.frames = [0, 1].map(frame => ({
+    id: `cache_flying_${frame}`,
+    data: Array.from({ length: 16 }, (_, y) => Array.from({ length: 16 }, (_, x) =>
+      y >= 3 && y < 12 && x >= 2 + frame && x < 14 - frame
+        ? colour(y === 6 && (x === 5 || x === 10) ? 5 : 2) : sprite.data.backgroundColor)),
+  }));
+  project.assets.push(sprite);
+  for (const room of project.assets.filter(asset => asset.type === 'msx2bitmaproom')) {
+    room.data.entities = room.data.entities.filter(entity => entity.kind !== 'enemy'
+      || entity.components?.msx2_movement?.mode === 'scripted');
+    room.data.entities.push(...[0].map(index => ({
+      id: `cache_flying_${index}`, kind: 'enemy', position: { x: 3 + index * 5, y: 3 },
+      components: {
+        msx2_hardware_sprite: { msx2SpriteAssetId: sprite.id, paletteSlot: 5 },
+        msx2_movement: { mode: 'flyBounce8', direction: 1, speed: 2, turnPx: 100,
+          boundsUnit: 'px', minX: 0, maxX: 240, minY: 0, maxY: 176 },
+        msx2_animation: { frameStart: 0, frameCount: 2, frameDelay: 6, frameList: [0, 1] },
+      },
+      params: { movement: 'flyBounce8', darkEyesColor: 5 },
+    })));
+  }
+  return project;
+}
 const CONFIGS = {
   resident: {},
   banked: { generateUnified: true, romMode: 'megarom', targetFormat: 'konami' },
 };
 
 async function loadGenerator(label, pinnedModuleSource) {
-  const outfile = join(root, 'work', 'enemy-color-cache-check', `${label}.mjs`);
-  mkdirSync(dirname(outfile), { recursive: true });
+  const outfile = join(output, `${label}.mjs`);
   // Isolate this historical contract from later pattern remapping and body
   // physics. Their regression cartridges exercise those additions separately.
   const plugins = [{
@@ -227,7 +263,7 @@ function assertEquates(text, baselineText, maxSlots, tag) {
 
 for (const fixture of fixtures) {
   for (const [cfgName, config] of Object.entries(CONFIGS)) {
-    const raw = JSON.parse(readFileSync(join(root, fixture), 'utf8'));
+    const raw = readFixture(fixture);
     const fullConfig = { ...config, screenMode: raw.screenMode || raw.currentScreenMode || 'SCREEN 4 (Graphics II)', targetGraphicsBackend: raw.targetGraphicsBackend || undefined };
     const generate = (implementation) => {
       const log = console.log, warn = console.warn, err = console.error;
@@ -239,6 +275,11 @@ for (const fixture of fixtures) {
     const expected = (() => { try { return generate(before); } catch (e) { if (/cannot fit a simple 32KB ROM/.test(String(e))) { console.log(`SKIP [${fixture}/${cfgName}]: fixture requires MegaROM (${String(e).slice(0, 60)}...)`); return null; } throw e; } })();
     if (expected === null) continue;
     const actual = generate(after);
+    if (fixture === 'derived-fly-bounce8') {
+      const unified = actual['unitedFiles.asm'] || actual['unifiedFiles.asm'];
+      assert.match(unified, /^bitmap_enemy_rand_seed EQU/m, 'derived fixture enables FlyBounce8');
+      assert.equal(maxSlotsOf(unified), 4, 'two flying layers plus two scripted layers exercise all cache slots');
+    }
     assert.deepEqual(Object.keys(actual).sort(), Object.keys(expected).sort(), `[${fixture}/${cfgName}] same generated file set`);
 
     const tagName = `[${fixture}/${cfgName}]`;
@@ -263,7 +304,7 @@ for (const fixture of fixtures) {
 
 // --- negative mutations on the emitted ASM: the verdict helper must fail ---
 {
-  const raw = JSON.parse(readFileSync(join(root, fixtures[0]), 'utf8'));
+  const raw = readFixture(fixtures[0]);
   const fullConfig = { generateUnified: true, romMode: 'megarom', targetFormat: 'konami', screenMode: raw.screenMode || 'SCREEN 4 (Graphics II)' };
   const log = console.log, warn = console.warn, err = console.error;
   let files;

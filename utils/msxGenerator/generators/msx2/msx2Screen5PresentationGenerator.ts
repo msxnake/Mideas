@@ -250,6 +250,9 @@ function resolvePresentationChain(analysis: ProjectAnalysis, minimumScenes = 2):
     if (String(current.fxAssetId || '').trim()) {
       console.warn(`⚠️ Transition FX: the presentation node "${current.id}" has an entry effect, which the strict SCREEN 5 presentation backend does not play; the static picture is exported. Effects need the SCREEN 5 bitmap-room backend.`);
     }
+    if (current.orbitTetrahedron?.enabled) {
+      console.warn(`⚠️ Orbiting tetrahedron: the presentation node "${current.id}" has one, which the strict SCREEN 5 presentation backend does not play; the static picture is exported. It needs the SCREEN 5 bitmap-room backend.`);
+    }
     const requestedPresentationAssetId = current.presentationAssetId;
     const presentation = requestedPresentationAssetId
       ? presentations.find(item => (item as any).id === requestedPresentationAssetId)
@@ -392,6 +395,9 @@ function resolvePresentationFlow(analysis: ProjectAnalysis): ResolvedPresentatio
   }
   if (node && String(node.fxAssetId || '').trim()) {
     console.warn(`⚠️ Transition FX: the presentation node "${node.id}" has an entry effect, which the strict SCREEN 5 presentation backend does not play; the static picture is exported. Effects need the SCREEN 5 bitmap-room backend.`);
+  }
+  if (node && node.orbitTetrahedron?.enabled) {
+    console.warn(`⚠️ Orbiting tetrahedron: the presentation node "${node.id}" has one, which the strict SCREEN 5 presentation backend does not play; the static picture is exported. It needs the SCREEN 5 bitmap-room backend.`);
   }
 
   if (requestedPresentationAssetId && !presentation) {
