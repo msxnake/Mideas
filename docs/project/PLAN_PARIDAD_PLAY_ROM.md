@@ -49,21 +49,34 @@ el modo Play del navegador y el ROM generado, contra la regla de `CLAUDE.md`:
 | Sondas de suelo/pared | 2 puntos a 1/3 y 2/3 del lado (GFP:6929-6962, 7605) | sondas adaptativas con *inset* (CG:12020-12034, 12178-12327) |
 | Precedencia de hitbox para tiles | valores del componente Collision ganan a `sprite.hitbox` (GFP:6906-6919) | por verificar |
 
-### D. Componentes (matriz preliminar)
+### D. Componentes (confirmado por `scripts/check_play_rom_parity.mjs`)
 
-Búsqueda por id en GFP y en los generadores MSX1. **Ojo:** el ROM identifica
-algunos componentes por nombre (p. ej. `comp_gravity` sale 0 en el ROM pero la
-gravedad está en CG), así que la columna ROM debe confirmarse en la Fase 0.
+Fuente ROM: `STANDARD_COMPONENT_IDS` de `utils/msxGenerator/utils/componentAnalyzer.ts`
+más los ids que comprueba `entitiesGenerator.ts`. Fuente Play: ids `comp_*` en GFP.
 
 | Grupo | Componentes |
 |---|---|
+| Declarados en el editor, sin implementar en ninguno (→ **ocultar**) | Spawner, Inventory, Aiming, Rotate, Pac-Man Movement v1/v2, Pac-Man Rotation V2, Bounce, boss_crush_movement, boss_neck_chain |
+| Solo ROM (→ portar a Play) | Behavior, Dash, Mirror, Physics (el ROM lo trata como Movement), Position, WallCollision, WallJump |
+| Solo Play | Child Link |
+
+---|---|
 | Declarados, sin implementar en ninguno de los dos | Spawner, Inventory, Aiming, Rotate, Pac-Man Movement (v1/v2), Pac-Man Rotation V2, Physics, Position (`comp_pos`), Bounce, boss_crush_movement, boss_neck_chain |
 | Solo ROM (Play no los simula) | WallCollision, Dash, WallJump, Mirror |
 | Solo Play (por confirmar en ROM) | Deadly Tiles, Gravity (confirmar: probablemente sí en ROM por nombre), Child Link |
 
 ---
 
-## 2. Decisiones necesarias antes de implementar
+## 2. Decisiones (tomadas)
+
+| # | Decisión |
+|---|---|
+| 1 | **El ROM es la fuente de verdad**: cuando difieran, Play se ajusta al ROM. |
+| 2 | Los componentes que no implementa ninguno de los dos se **ocultan** del editor. |
+| 3 | Botón 2 = **N o CTRL** según el nodo Controls (como el ROM). |
+| 4 | Verificación diferencial con OpenMSX: pendiente de decidir antes de la Fase 3. |
+
+### Planteamiento original de las decisiones
 
 1. **Fuente de verdad.** Recomendado: **el ROM**. Es el producto final, y Play
    ya copia la física Z80 en punto fijo 8.8. Regla: cuando difieran, Play se
@@ -79,14 +92,15 @@ gravedad está en CG), así que la columna ROM debe confirmarse en la Fase 0.
 
 ## 3. Fases (con la recomendación de la sección 2)
 
-### Fase 0: red de seguridad (antes de tocar comportamiento)
+### Fase 0: red de seguridad (antes de tocar comportamiento) — HECHA
 - Script `scripts/check_play_rom_parity.mjs`: extrae los `case` de condiciones y
   acciones de GFP y los compara con `CONDITION_IDS` / `ACTION_IDS` del ROM y con
   los tipos de `statemachine.types.ts`. Falla si aparece una diferencia nueva
   no listada en una *allowlist* (que se irá vaciando fase a fase).
 - Confirmar la matriz D leyendo cómo el ROM detecta cada componente (id o nombre).
 - Añadir `npm run test:play-rom-parity`.
-- **Hecho cuando:** el script reproduce exactamente las tablas A y D.
+- **Hecho cuando:** el script reproduce exactamente las tablas A y D. ✔
+  (`npm run test:play-rom-parity`; la lista `KNOWN` debe ir vaciándose.)
 
 ### Fase 1: máquinas de estados (bajo riesgo, alto impacto)
 - Implementar en GFP, copiando la semántica del ASM del ROM:
@@ -115,9 +129,10 @@ gravedad está en CG), así que la columna ROM debe confirmarse en la Fase 0.
   frame en Play y en ROM.
 
 ### Fase 4: componentes
-- Según la decisión 2: implementar (Spawner y Physics son los más útiles) o
-  ocultar/marcar en `ComponentDefinitionEditor` y en `data/defaults.ts`.
-- Los "solo ROM" (WallCollision, Dash, WallJump, Mirror): portarlos a Play.
+- Ocultar del editor los componentes que no implementa nadie (tabla D), sin
+  romper proyectos que ya los usen (se conservan en el JSON, con aviso).
+- Portar a Play los "solo ROM" (Behavior, Dash, Mirror, Physics/Movement,
+  WallCollision, WallJump) y decidir Child Link (llevarlo al ROM o al revés).
 
 ### Fase 5: cierre
 - Vaciar la allowlist; `ENGINE_RULES.playVsRom` del Sketch IA queda vacío o
