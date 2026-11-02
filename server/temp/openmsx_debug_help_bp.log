@@ -1,3 +1,0 @@
-ERR=Unknown command: debug set_bp
-ERR=Unknown command: debug set_watchpoint
-ERR=Unknown command: debug set_condition
