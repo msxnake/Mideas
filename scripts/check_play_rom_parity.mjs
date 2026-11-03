@@ -35,8 +35,7 @@ const KNOWN = {
   conditionsPlayOnly: [],
   actionsPlayOnly: [],
   // Components read by the ROM but not simulated by Play mode (phase 4: port to Play)
-  // NOTE (not detectable by id): Play reads comp_wall_collision only for the move-test hitbox;
-  // WallCollision tile stopping itself is still ROM-only (tracked in the plan, phase 4).
+  // Tile stopping (Collision / WallCollision stopOnCollision) is shared via romTileCollidesWith.
   componentsRomOnly: ['comp_dash', 'comp_mirror', 'comp_physics', 'comp_pos', 'comp_wall_jump'],
   // Components simulated by Play mode but unknown to the ROM
   componentsPlayOnly: ['comp_child_link'],

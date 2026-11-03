@@ -155,6 +155,7 @@ export const ENGINE_RULES = {
   ],
   tileCollision: [
     'Solidity comes ONLY from the tile logical property isSolid (see collisionMap legend: # B X D = are blocking).',
+    'Who stops on tiles: every entity with the Collision component, unless it has WallCollision with stopOnCollision = false (multi-screen Patrol objects excepted). Same in Play and ROM (the ROM adds the platform bit #08 to collidesWith automatically).',
     'familyId 2 tiles ("=" in collisionMap) are one-way platforms: solid only when the entity comes from above (its hitbox bottom was within 2 px above the tile top) and is falling or idle.',
     'Ground/wall probes use 2 points of the leading side at inset = min(2, floor((size-1)/2)) px from each edge (same as the ROM WallCollision), and snap the entity flush to the tile edge.',
     'Ladder tiles (interactionType "ladder", H in collisionMap) cancel gravity while overlapping them.',
@@ -170,7 +171,7 @@ export const ENGINE_RULES = {
     'After a screen change, exits are blocked for 300 ms. A side without connection is only a wall if the player has the "limit_on" component; otherwise the player can leave the screen.',
     'A checkpoint (respawn point) is saved every time the player enters a screen.',
   ],
-  playVsRom: 'Remaining Mideas Play mode vs MSX ROM differences (being closed, see docs/project/PLAN_PARIDAD_PLAY_ROM.md): Spawner, Inventory, Aiming, Rotate, Pac-Man movement are declared but implemented by neither; Dash, Mirror, Physics/Movement, Position, WallCollision, WallJump are used only by the ROM.',
+  playVsRom: 'Remaining Mideas Play mode vs MSX ROM differences (being closed, see docs/project/PLAN_PARIDAD_PLAY_ROM.md): Spawner, Inventory, Aiming, Rotate, Pac-Man movement are declared but implemented by neither; Dash, Mirror, Physics/Movement, Position and WallJump are used only by the ROM.',
   inputs: 'Logical inputs: up/down/left/right = cursors/joystick; fire = button 1 (SPACE); action2 = button 2 = the key chosen in the Game Flow Controls node (N by default, or CTRL), same in Play and ROM (an MSX2 player asset can override it); X = shoot (Shoot.fireKey); Z = carry.',
   tileInteractions: 'Only for entities with Cursors, PlayerInput, comp_input or Tile Collector. Each frame the tile under the point (x+8, y+8) of the entity is checked and all types write last_interaction_type/value/target. Effects: collect_gem (also tiles flagged isInteractable/isInteractiveSwitch) removes the tile and increments gem_count (plus Tile Collector targetVariable/incrementAmount/flagVariable); collect_item adds interactionValue (or 1) to the variable interactionTarget; add_energy adds 1 to Health and Lives; lever_toggle toggles the interactionTarget variable between 0 and 1 (once); button_press sets last_interaction_pending = true for one frame; jumper sets vy = -max(8, value) (x1.5 while SPACE is held); wallJumper sets vx = +/-value (max 15). Rules can read these with VARIABLE_COMPARE.',
   nucleo: 'Entities of a template named "nucleo" are NOT spawned: they are invisible spawn anchors. SPAWN_ENTITY with randomNucleo uses a random anchor; templates whose name contains "coin" spawned without x/y also use one automatically.',

@@ -42,7 +42,7 @@ import { renderScreenToCanvas, createSpriteDataURL, getScreenBehaviorLayer, getS
 import { checkMsx2HazardAtWorldPixel } from '../../utils/msx2Screen4TileBehavior';
 import { parseMsx2PlayerImport } from '../../utils/msx2PlayerImport';
 import { getStateMachineBrowserInputAliases, normalizeStateMachineInput } from '../../utils/stateMachineInputs';
-import { ROM_COLLISION_EVENT_ENEMY, ROM_COLLISION_EVENT_ENTITY, ROM_COLLISION_EVENT_ITEM, ROM_MOVE_DIRECTION_IDS, romAdaptiveProbes, romBehaviorStep, romCanMoveDirection, romCollisionFlagsFromLayer, romDirectionFromVelocity, romResolveBehaviorType } from '../../utils/romMoveTest';
+import { ROM_COLLISION_EVENT_ENEMY, ROM_COLLISION_EVENT_ENTITY, ROM_COLLISION_EVENT_ITEM, ROM_MOVE_DIRECTION_IDS, romAdaptiveProbes, romBehaviorStep, romCanMoveDirection, romCollisionFlagsFromLayer, romDirectionFromVelocity, romResolveBehaviorType, romTileCollidesWith } from '../../utils/romMoveTest';
 import {
     applyMsx2JumpImpulseToEntity,
     getMsx2DashConfigFromPlayerEntity,
@@ -2141,6 +2141,20 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     }, []);
 
     // Evaluate whether a condition is satisfied based on the entity state
+    // ROM parity: tile-collision rule shared with entitiesGenerator (romTileCollidesWith).
+    const romWallCollisionInfo = (entity: AnimatedEntity) => {
+        const wallComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision');
+        const wallOverrides = entity.instance.componentOverrides?.['comp_wall_collision'];
+        const hasWall = !!(wallComp || wallOverrides);
+        const stopRaw = { ...(componentDefinitions.find(d => d.id === 'comp_wall_collision')?.properties || []).reduce((a: any, p) => { a[p.name] = p.defaultValue; return a; }, {}), ...(wallComp?.defaultValues || {}), ...(wallOverrides || {}) }.stopOnCollision;
+        const stop = !(stopRaw === false || String(stopRaw).toLowerCase() === 'false' || String(stopRaw) === '0');
+        return { hasWall, stop };
+    };
+    const romEntityStopsOnTiles = (entity: AnimatedEntity, collidesWith: number): boolean => {
+        const { hasWall, stop } = romWallCollisionInfo(entity);
+        return (romTileCollidesWith(collidesWith, hasWall, stop) & 0x08) !== 0;
+    };
+
     // ROM parity: SM_TestMoveDirection + check_collision_box, shared pure logic in utils/romMoveTest.ts.
     // Hitbox from Collision (+ WallCollision) values as the ROM entity init does (16x16 / offset 0 when absent);
     // only full blockers stop (familyId 2 one-way platforms do not), like the ROM behaviour map test.
@@ -7103,7 +7117,12 @@ useEffect(() => {
         };
 
         const collisionLayer = Number(getValueNoSpriteFallback('collisionLayer', 1)) || 1;
-        const collidesWith = Number(getValueNoSpriteFallback('collidesWith', 255)) || 255;
+        const collidesWithRaw = Number(getValueNoSpriteFallback('collidesWith', 255)) || 255;
+        // ROM parity: entitiesGenerator adds the tile bit (#08) with romTileCollidesWith.
+        const romWallInfo = romWallCollisionInfo(entity);
+        const patrolForTiles = { ...(entity.template.components.find(c => c.definitionId === 'comp_patrol')?.defaultValues || {}), ...(entity.instance.componentOverrides?.['comp_patrol'] || {}) };
+        const isMultiScreenPatrol = patrolForTiles.multiScreen === true || patrolForTiles.multiScreen === 'true';
+        const collidesWith = romTileCollidesWith(collidesWithRaw, romWallInfo.hasWall, romWallInfo.stop, isMultiScreenPatrol);
         const isStatic = getValueNoSpriteFallback('isStatic', false) === true || getValueNoSpriteFallback('isStatic', false) === 'true';
         const isTrigger = getValueNoSpriteFallback('isTrigger', false) === true || getValueNoSpriteFallback('isTrigger', false) === 'true';
 
@@ -7654,10 +7673,13 @@ useEffect(() => {
                 return;
             }
             // --- 0. Compute isOnGround based on current position ---
-            const hasCollisionComp = entityA.template.components.some(c => c.definitionId === 'comp_collision');
+            // ROM parity: WallCollision implies the Collision mask; tiles block unless WallCollision.stopOnCollision is false
+            // and collidesWith lacks #08 (romTileCollidesWith).
+            const hasCollisionComp = entityA.template.components.some(c => c.definitionId === 'comp_collision' || c.definitionId === 'comp_wall_collision');
+            const romStopsOnTiles = hasCollisionComp && romEntityStopsOnTiles(entityA, Number(entityCollisionProps(entityA).collidesWith ?? 255));
             const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
             // Boxes should also interact with tile collisions even without comp_collision
-            if ((hasCollisionComp || isBoxEntity) && collisionCompDef && screenMapToRender && !isCarriedBox) {
+            if ((romStopsOnTiles || isBoxEntity) && collisionCompDef && screenMapToRender && !isCarriedBox) {
                 const props = entityCollisionProps(entityA);
                 if (props) {
                     const hitbox = getHitboxForPosition(entityA, entityA.x, entityA.y + 1, props); // Check 1px below
@@ -8696,7 +8718,7 @@ useEffect(() => {
                 // Multi-screen entities don't use tilemap collision - their position is controlled by global coordinates
                 if (!skipPhysics && !isMultiScreenEntity) {
                     // Apply tilemap collision or standard position update for single-screen entities
-                    if ((hasCollisionComp || isBoxEntity) && collisionCompDef && screenMapToRender) {
+                    if ((romStopsOnTiles || isBoxEntity) && collisionCompDef && screenMapToRender) {
                         handleTilemapCollision(entityA, screenMapToRender, tileset, collisionCompDef);
                     } else {
                         entityA.x += entityA.vx;

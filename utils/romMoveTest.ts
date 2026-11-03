@@ -165,3 +165,18 @@ export function romBehaviorStep(cfg: RomBehaviorConfig, st: RomBehaviorState): {
       return { vx: undefined, facing };
   }
 }
+
+/**
+ * Tile-collision rule shared by the ROM generator (entitiesGenerator collidesWith init) and
+ * Play mode. Decision (docs/project/PLAN_PARIDAD_PLAY_ROM.md, phase 4): an entity with the
+ * Collision component collides with map tiles unless it has WallCollision with
+ * stopOnCollision = false (multi-screen Patrol objects excepted). The ROM WallCollision filter tests COLLISION_LAYER_PLATFORM (#08)
+ * in collidesWith, so the bit is added here. To revert to "collidesWith decides", return
+ * `stopsOnTiles = false` for entities without WallCollision.
+ */
+export function romTileCollidesWith(collidesWith: number, hasWallCollision: boolean, wallStopOnCollision: boolean, isMultiScreenPatrol = false): number {
+  // Multi-screen Patrol objects travel through the world layout and never use tile collision in
+  // Play mode, so they do not get the automatic tile bit either.
+  const stopsOnTiles = isMultiScreenPatrol ? false : hasWallCollision ? wallStopOnCollision : true;
+  return stopsOnTiles ? (collidesWith | 0x08) & 0xff : collidesWith & 0xff;
+}

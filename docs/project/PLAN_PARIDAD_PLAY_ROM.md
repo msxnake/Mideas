@@ -210,12 +210,14 @@ precedencia de valores, justo antes de la máquina de estados como el ROM
 Nota: todos los enemigos de `Examples/` usan `aiState: idle` (tipo 0), así que ni el ROM ni
 Play los mueven; no cambia nada en los ejemplos.
 
-**Decisión pendiente — colisión con tiles:** el ROM solo hace WallCollision para entidades
-con Collision **y** `collidesWith & #08` **y** que se muevan (Input/Movement/Gravity); además la
-gravedad solo para con `entity_on_ground` de WallCollision. Play choca con tiles con solo
-tener Collision. Con la regla del ROM, "Basic Enemy" de `mini_game75` (`collidesWith = 1`,
-como el ejemplo de enemigo de `CLAUDE.md`) atraviesa el suelo. Opciones: Play copia al ROM,
-o el ROM pasa a ignorar el bit #08 para tiles.
+**Hecho — colisión con tiles (decisión: cambiar el ROM):** toda entidad con Collision choca
+con los tiles salvo que tenga WallCollision con `stopOnCollision = false` (y salvo objetos
+Patrol `multiScreen`, que en Play nunca usan tiles). Una sola función compartida,
+`romTileCollidesWith` (`utils/romMoveTest.ts`), añade el bit #08 a `collidesWith` en el
+generador del ROM (`entitiesGenerator.ts`) y Play la usa igual (GFP). En `mini_game75`,
+10 entidades pasan de `collidesWith #01` a `#09`. **Reversible:** para volver a "decide
+`collidesWith`", basta con que `romTileCollidesWith` devuelva `stopsOnTiles = false` para
+entidades sin WallCollision (un único commit).
 
 **Pendiente:** Dash, Mirror, WallJump (no los usa ningún ejemplo), gating de Physics/Movement
 para integrar velocidad, y Child Link (solo Play).

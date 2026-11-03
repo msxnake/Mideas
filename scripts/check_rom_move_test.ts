@@ -14,7 +14,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import vm from 'node:vm';
-import { romAdaptiveProbes, romBehaviorStep, romCanMoveDirection, romCollisionFlagsFromLayer } from '../utils/romMoveTest';
+import { romAdaptiveProbes, romBehaviorStep, romCanMoveDirection, romCollisionFlagsFromLayer, romTileCollidesWith } from '../utils/romMoveTest';
 
 const root = new URL('..', import.meta.url).pathname;
 const read = (p: string) => readFileSync(join(root, p), 'utf8');
@@ -260,4 +260,10 @@ for (let k = 0; k < 3000; k++) {
   behaviorCases++;
 }
 assert.ok(blocked > cases / 10 && blocked < cases * 0.9, `test map should block a fair share of moves (${blocked}/${cases})`);
+// Tile rule (phase 4 decision): Collision stops on tiles unless WallCollision stopOnCollision=false.
+assert.equal(romTileCollidesWith(0x01, false, true), 0x09);
+assert.equal(romTileCollidesWith(0x01, true, true), 0x09);
+assert.equal(romTileCollidesWith(0x01, true, false), 0x01);
+assert.equal(romTileCollidesWith(0x01, false, true, true), 0x01);
+assert.equal(romTileCollidesWith(0xff, false, true), 0xff);
 console.log(`OK ROM == Play: move test ${cases} random cases (${blocked} blocked) + coll_flags_from_layer 256 layers + ${probeCases} WallCollision probe boxes + ${behaviorCases} Behavior steps, Z80 assembled by glass.jar`);

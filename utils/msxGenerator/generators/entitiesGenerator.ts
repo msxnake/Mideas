@@ -7,6 +7,7 @@
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { analyzeComponentUsage, generateEntityComponentMask } from '../utils/componentAnalyzer';
 import { buildMSXDirectionalSpriteCatalog } from '../../../components/utils/spriteUtils';
+import { romTileCollidesWith } from '../../romMoveTest';
 
 /**
  * Generate game entities file (entities.asm)
@@ -949,10 +950,14 @@ update_entities:
         const offsetXSigned = offsetXByte >= 128 ? offsetXByte - 256 : offsetXByte;
         const offsetYSigned = offsetYByte >= 128 ? offsetYByte - 256 : offsetYByte;
         const collisionLayer = parseByte(collisionValues.collisionLayer, 1);
-        let collidesWith = parseByte(collisionValues.collidesWith, 255);
-        if (wallCollisionStopsOnTiles) {
-          collidesWith |= 0x08; // Platform/tile behavior layer used by WallCollision.
-        }
+        // Tile collision rule shared with Play mode (utils/romMoveTest.ts romTileCollidesWith):
+        // Collision always stops on tiles unless WallCollision says stopOnCollision = false.
+        // WallCollision tests COLLISION_LAYER_PLATFORM (#08) in collidesWith, so the bit is set here.
+        const patrolTileComp = template?.components?.find((c: any) => c.definitionId === 'comp_patrol');
+        const patrolTileValues = { ...(patrolTileComp?.defaultValues || {}), ...(entity.componentOverrides?.['comp_patrol'] || {}) };
+        const isMultiScreenPatrol = !!(patrolTileComp || entity.componentOverrides?.['comp_patrol'])
+          && (patrolTileValues.multiScreen === true || patrolTileValues.multiScreen === 'true');
+        const collidesWith = romTileCollidesWith(parseByte(collisionValues.collidesWith, 255), hasWallCollision, wallCollisionStopsOnTiles, isMultiScreenPatrol);
 
         collisionInitAsm = `
     ; Initialize Collision component (hitbox + layer masks)
