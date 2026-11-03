@@ -154,6 +154,22 @@ export function analyzeComponentUsage(analysis: ProjectAnalysis): ComponentUsage
     }
   });
 
+  // Tile-collision rule shared with Play mode (utils/romMoveTest.ts romTileCollidesWith): an
+  // entity with Collision stops on map tiles even without the WallCollision component. The ROM
+  // does that stopping in update_wallcollision_component (it only processes entities with
+  // Collision, collidesWith & #08 and Movement/Input/Gravity), so that system must be generated
+  // whenever such an entity exists, not only when some template declares WallCollision.
+  if (!usedComponents.has('WallCollision')) {
+    const tileStopper = activeEntities.find((entity: any) => entityStopsOnTilesWithoutWallCollision(entity, analysis));
+    if (tileStopper) {
+      console.log(`    - WallCollision system: required by tile collision of "${tileStopper.name || tileStopper.id}" (Collision without WallCollision)`);
+      usedComponents.add('WallCollision');
+      const entityKey = tileStopper.id || tileStopper.name || 'entity';
+      if (!componentToEntitiesMap.has('WallCollision')) componentToEntitiesMap.set('WallCollision', new Set());
+      componentToEntitiesMap.get('WallCollision')!.add(entityKey);
+    }
+  }
+
   console.log('📊 Component usage summary:');
   console.log(`  - Total used components: ${usedComponents.size}`);
   usedComponents.forEach(comp => {
@@ -167,6 +183,27 @@ export function analyzeComponentUsage(analysis: ProjectAnalysis): ComponentUsage
     activeEntities,
     componentToEntitiesMap
   };
+}
+
+/**
+ * True when the entity has Collision but no WallCollision component and still has to stop on
+ * map tiles (tile rule, romTileCollidesWith): it moves (Movement/Input/Gravity mask bits, as the
+ * ROM WallCollision filter) and it is not a multi-screen Patrol object.
+ */
+export function entityStopsOnTilesWithoutWallCollision(entity: any, analysis: ProjectAnalysis): boolean {
+  const template = analysis.templates?.find((t: any) => t.id === entity?.entityTemplateId);
+  const ids = new Set<string>([
+    ...((template?.components || []) as any[]).map((c: any) => String(c.definitionId || c.componentDefinitionId || '')),
+    ...Object.keys(entity?.componentOverrides || {}),
+  ]);
+  if (!ids.has('comp_collision') || ids.has('comp_wall_collision')) return false;
+  if (ids.has('comp_patrol')) {
+    const patrolTpl = ((template?.components || []) as any[]).find((c: any) => c.definitionId === 'comp_patrol');
+    const patrol = { ...(patrolTpl?.defaultValues || {}), ...(entity?.componentOverrides?.['comp_patrol'] || {}) };
+    if (patrol.multiScreen === true || patrol.multiScreen === 'true') return false;
+  }
+  const mask = generateEntityComponentMask(entity, template, analysis);
+  return (mask & (0x0004 | 0x0010 | 0x0200)) !== 0; // Movement | Input | Gravity
 }
 
 /**
