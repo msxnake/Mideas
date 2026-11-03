@@ -7,7 +7,7 @@
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { analyzeComponentUsage, generateEntityComponentMask } from '../utils/componentAnalyzer';
 import { buildMSXDirectionalSpriteCatalog } from '../../../components/utils/spriteUtils';
-import { romTileCollidesWith } from '../../romMoveTest';
+import { romDashConfig, romTileCollidesWith } from '../../romMoveTest';
 
 /**
  * Generate game entities file (entities.asm)
@@ -362,9 +362,7 @@ export function generateEntitiesFile(analysis: ProjectAnalysis): string {
     durationFrames: number;
     grabSprite: number;
   }> = [];
-  const dashConfigs: Array<{
-    enabled: number;
-  }> = [];
+  const dashConfigs: Array<ReturnType<typeof romDashConfig>> = [];
   const airControlConfigs: Array<{
     mode: number;
   }> = [];
@@ -1311,25 +1309,12 @@ ${initialOnEnterAsm}`;
       }
       wallGrabConfigs.push(wallGrabConfig);
 
-      let dashConfig = {
-        enabled: 0,
-      };
+      let dashConfig = romDashConfig(false, {}, {}, {});
       const dashTemplateComp = template?.components?.find((c: any) => c.definitionId === 'comp_dash');
       const dashOverrides = entity.componentOverrides?.['comp_dash'];
       if (dashTemplateComp || dashOverrides) {
-        const dashDefinitionDefaults = getComponentDefinitionDefaults('comp_dash');
-        const dashDefaults = {
-          ...dashDefinitionDefaults,
-          ...(dashTemplateComp?.defaultValues || {}),
-        };
-        const dashValues = { ...dashDefaults, ...(dashOverrides || {}) };
-        const dashEnabled = parseBool(dashValues.isEnabled, true);
-
-        if (dashEnabled) {
-          dashConfig = {
-            enabled: 1,
-          };
-        }
+        // Shared with Play mode (utils/romMoveTest.ts romDashConfig).
+        dashConfig = romDashConfig(true, getComponentDefinitionDefaults('comp_dash'), dashTemplateComp?.defaultValues || {}, dashOverrides || {});
       }
       dashConfigs.push(dashConfig);
 
@@ -1552,7 +1537,22 @@ init_${entityName.toLowerCase()}:
     ; Runtime Dash flag is read from always-mapped RAM by the player fastpath.
     ld hl, entity_dash_cfg_enabled
     add hl, de
-    ld (hl), ${dashConfig.enabled}
+    ld (hl), ${dashConfig.enabled ? 1 : 0}
+    ld hl, entity_dash_cfg_speed
+    add hl, de
+    ld (hl), ${dashConfig.speed}
+    ld hl, entity_dash_cfg_duration
+    add hl, de
+    ld (hl), ${dashConfig.duration}
+    ld hl, entity_dash_cfg_cooldown
+    add hl, de
+    ld (hl), ${dashConfig.cooldown}
+    ld hl, entity_dash_cfg_max_air
+    add hl, de
+    ld (hl), ${dashConfig.maxAir}
+    ld hl, entity_dash_cfg_flags
+    add hl, de
+    ld (hl), #${dashConfig.flags.toString(16).toUpperCase().padStart(2, '0')}
 
     ; Runtime WallGrab config is read from always-mapped RAM by the component system.
     ld hl, entity_wallgrab_cfg_enabled
@@ -1821,6 +1821,9 @@ init_player_fast_runtime:
     ld (player_dash_timer), a
     ld (player_dash_cooldown), a
     ld (player_dash_dir), a
+    ld (player_dash_vx), a
+    ld (player_dash_vy), a
+    ld (player_dash_air_used), a
     ld (player_x), a
     ld (player_x+1), a
     ld (player_y), a

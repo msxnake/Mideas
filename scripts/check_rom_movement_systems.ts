@@ -11,7 +11,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import vm from 'node:vm';
-import { romDashFrontTile, romDashStep, romMirrorStep, romWallJumpStep, type RomWallJumpConfig } from '../utils/romMoveTest';
+import { romDashFrontTile, romDashStep, romMirrorStep, romWallJumpStep, type RomDashConfig, type RomWallJumpConfig } from '../utils/romMoveTest';
 
 const root = new URL('..', import.meta.url).pathname;
 const read = (p: string) => readFileSync(join(root, p), 'utf8');
@@ -35,6 +35,8 @@ const A = {
   onGround: 0xc1c0, onLadder: 0xc1e0, wallFlags: 0xc200, wjLock: 0xc220, wjLockedVx: 0xc240,
   wjEnabled: 0xc260, wjPush: 0xc280, wjSlide: 0xc2a0, wjLockFrames: 0xc2c0, wjAway: 0xc2e0,
   platformId: 0xc300, inputDisabled: 0xc320, dashEnabled: 0xc340,
+  dashSpeed: 0xc360, dashDuration: 0xc380, dashCooldownCfg: 0xc3a0, dashMaxAir: 0xc3c0, dashFlags: 0xc3e0,
+  wallGrabActive: 0xc480, dashVx: 0xc4a0, dashVy: 0xc4a1, dashAirUsed: 0xc4a2,
   gravityVel: 0xc400, wjImpulse: 0xc440, behaviorMap: 0xc500, layout: 0xc800,
 };
 const h = (n: number) => `#${n.toString(16).toUpperCase()}`;
@@ -73,6 +75,15 @@ entity_walljump_cfg_require_away EQU ${h(A.wjAway)}
 entity_platform_id EQU ${h(A.platformId)}
 entity_input_disabled EQU ${h(A.inputDisabled)}
 entity_dash_cfg_enabled EQU ${h(A.dashEnabled)}
+entity_dash_cfg_speed EQU ${h(A.dashSpeed)}
+entity_dash_cfg_duration EQU ${h(A.dashDuration)}
+entity_dash_cfg_cooldown EQU ${h(A.dashCooldownCfg)}
+entity_dash_cfg_max_air EQU ${h(A.dashMaxAir)}
+entity_dash_cfg_flags EQU ${h(A.dashFlags)}
+entity_wallgrab_active EQU ${h(A.wallGrabActive)}
+player_dash_vx EQU ${h(A.dashVx)}
+player_dash_vy EQU ${h(A.dashVy)}
+player_dash_air_used EQU ${h(A.dashAirUsed)}
 entity_gravity_vel EQU ${h(A.gravityVel)}
 entity_walljump_cfg_vertical_impulse EQU ${h(A.wjImpulse)}
 runtime_behavior_map EQU ${h(A.behaviorMap)}
@@ -221,6 +232,8 @@ for (let k = 0; k < 6000; k++) {
 let dashFrames = 0;
 let dashActive = 0;
 let tilesBroken = 0;
+let diagonalDashes = 0;
+let blockedByCooldownOrAir = 0;
 for (let run = 0; run < 300; run++) {
   const e = rnd(32);
   const map = new Uint8Array(32 * 24);
@@ -228,28 +241,36 @@ for (let run = 0; run < 300; run++) {
   memory.set(map, A.behaviorMap);
   memory.fill(0x55, A.layout, A.layout + 768);
   const playMap = Uint8Array.from(map);
-  let st = { timer: 0, cooldown: 0, dir: 0 };
+  let st = { timer: 0, cooldown: 0, dir: 0, vx: 0, vy: 0, airUsed: 0 };
   memory[A.dashTimer] = 0; memory[A.dashCooldown] = 0; memory[A.dashDir] = 0; memory[A.bossCooldown] = 0;
-  const enabled = rnd(6) !== 0;
-  memory[A.dashEnabled + e] = enabled ? 1 : 0;
+  memory[A.dashVx] = 0; memory[A.dashVy] = 0; memory[A.dashAirUsed] = 0;
+  const cfg: RomDashConfig = rnd(6) === 0
+    ? { enabled: false, speed: 0, duration: 0, cooldown: 0, maxAir: 0, flags: 0 }
+    : { enabled: true, speed: 1 + rnd(12), duration: 1 + rnd(14), cooldown: rnd(4) === 0 ? 0 : rnd(20), maxAir: rnd(4), flags: rnd(8) };
+  const enabled = cfg.enabled;
+  memory[A.dashEnabled + e] = enabled ? 1 : 0; memory[A.dashSpeed + e] = cfg.speed; memory[A.dashDuration + e] = cfg.duration;
+  memory[A.dashCooldownCfg + e] = cfg.cooldown; memory[A.dashMaxAir + e] = cfg.maxAir; memory[A.dashFlags + e] = cfg.flags;
   let prev = 0;
   for (let f = 0; f < 40; f++) {
     const curr = rnd(3) === 0 ? 2 : 0;
     const stick = rnd(9);
-    const facing = rnd(3);
+    const facing = rnd(5);
     const inputDisabled = rnd(15) === 0;
+    const onGround = rnd(3) === 0;
+    const wallGrab = rnd(6) === 0;
     const x = rnd(256);
     const y = rnd(200);
     memory[A.result] = e; memory[A.inBtnCurr] = curr; memory[A.inBtnPrev] = prev; memory[A.inState] = stick;
     memory[A.facing + e] = facing; memory[A.inputDisabled + e] = inputDisabled ? 1 : 0;
+    memory[A.onGround + e] = onGround ? 1 : 0; memory[A.wallGrabActive + e] = wallGrab ? 1 : 0;
     memory[A.xPos + e] = x; memory[A.yPos + e] = y; memory[A.velX + e] = 0x33; memory[A.velY + e] = 0x44;
     memory[A.vramCount] = 0;
     cpu.runRoutine(0x4020, 0xbff0);
-    const play = romDashStep(st, enabled, inputDisabled, (curr & 2) !== 0 && (prev & 2) === 0, stick, facing);
+    const play = romDashStep(st, cfg, inputDisabled, (curr & 2) !== 0 && (prev & 2) === 0, stick, facing, onGround, wallGrab);
     st = play.state;
-    const ctxInfo = JSON.stringify({ run, f, enabled, inputDisabled, curr, prev, stick, facing, x, y });
+    const ctxInfo = JSON.stringify({ run, f, cfg, inputDisabled, onGround, wallGrab, curr, prev, stick, facing, x, y });
     assert.equal(memory[A.result], play.active ? 1 : 0, `dash active ${ctxInfo}`);
-    assert.deepEqual([memory[A.dashTimer], memory[A.dashCooldown]], [st.timer, st.cooldown], `dash timers ${ctxInfo}`);
+    assert.deepEqual([memory[A.dashTimer], memory[A.dashCooldown], memory[A.dashAirUsed]], [st.timer, st.cooldown, st.airUsed], `dash timers ${ctxInfo}`);
     if (play.active) {
       assert.equal(memory[A.dashDir], st.dir, `dash dir ${ctxInfo}`);
       assert.deepEqual([memory[A.velX + e], memory[A.velY + e]], [play.vx & 0xff, play.vy & 0xff], `dash velocity ${ctxInfo}`);
@@ -265,7 +286,9 @@ for (let run = 0; run < 300; run++) {
         assert.equal(memory[A.layout + cell[1] * 32 + cell[0]], 0, `dash layout cleared ${ctxInfo}`);
       }
       dashActive++;
+      if (play.vx !== 0 && play.vy !== 0) diagonalDashes++;
     } else {
+      if (enabled && !inputDisabled && (curr & 2) && !(prev & 2)) blockedByCooldownOrAir++;
       assert.deepEqual([memory[A.velX + e], memory[A.velY + e]], [0x33, 0x44], `dash idle must not touch velocity ${ctxInfo}`);
     }
     assert.deepEqual(Array.from(memory.slice(A.behaviorMap, A.behaviorMap + 768)), Array.from(playMap), `dash behavior map ${ctxInfo}`);
@@ -275,5 +298,5 @@ for (let run = 0; run < 300; run++) {
 }
 
 assert.ok(wallJumps > 100, `the random walljump cases should include real jumps (${wallJumps})`);
-assert.ok(dashActive > 500 && tilesBroken > 20, `the dash runs should dash and break tiles (${dashActive}, ${tilesBroken})`);
-console.log(`OK ROM == Play: Mirror ${mirrorCases} cases + WallJump ${wallJumpCases} cases (${wallJumps} jumps) + Dash ${dashFrames} frames (${dashActive} dashing, ${tilesBroken} tiles broken), Z80 assembled by glass.jar`);
+assert.ok(dashActive > 300 && diagonalDashes > 20 && blockedByCooldownOrAir > 20 && tilesBroken > 20, `the dash runs should dash and break tiles (${dashActive}, ${tilesBroken})`);
+console.log(`OK ROM == Play: Mirror ${mirrorCases} cases + WallJump ${wallJumpCases} cases (${wallJumps} jumps) + Dash ${dashFrames} frames (${dashActive} dashing, ${diagonalDashes} diagonal, ${blockedByCooldownOrAir} presses blocked by cooldown/air limit, ${tilesBroken} tiles broken), Z80 assembled by glass.jar`);

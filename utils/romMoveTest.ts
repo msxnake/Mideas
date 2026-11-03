@@ -331,45 +331,101 @@ export function romWallJumpStep(
   return out(true);
 }
 
-export interface RomDashState { timer: number; cooldown: number; dir: number }
+export interface RomDashState { timer: number; cooldown: number; dir: number; vx: number; vy: number; airUsed: number }
+
+export interface RomDashConfig {
+  enabled: boolean;
+  /** px/frame, 1..127. */
+  speed: number;
+  /** Frames of a dash, >= 1. */
+  duration: number;
+  /** Frames after a dash ends before another one may start. */
+  cooldown: number;
+  /** Dashes allowed while airborne before a refill (ground dashes are unlimited). */
+  maxAir: number;
+  /** bit0 refill on ground, bit1 refill on wall grab, bit2 eight directions. */
+  flags: number;
+}
+
+/** entitiesGenerator Dash config (entity_dash_cfg_*), shared by the ROM generator and Play mode. */
+export function romDashConfig(
+  hasDash: boolean,
+  definitionDefaults: Record<string, any>,
+  templateDefaults: Record<string, any>,
+  overrides: Record<string, any>,
+): RomDashConfig {
+  const values = { ...definitionDefaults, ...templateDefaults, ...overrides };
+  const byte = (v: any, d: number) => { const n = typeof v === 'number' ? v : parseInt(String(v ?? ''), 10); return Number.isNaN(n) ? d : Math.max(0, Math.min(255, n | 0)); };
+  if (!hasDash || !romParseBool(values.isEnabled, true)) {
+    return { enabled: false, speed: 0, duration: 0, cooldown: 0, maxAir: 0, flags: 0 };
+  }
+  return {
+    enabled: true,
+    speed: Math.max(1, Math.min(127, byte(values.dashSpeed, 6))),
+    duration: Math.max(1, byte(values.dashDurationFrames, 10)),
+    cooldown: byte(values.dashCooldownFrames, 12),
+    maxAir: byte(values.maxAirDashes, 1),
+    flags: (romParseBool(values.refillOnGround, true) ? 1 : 0)
+      | (romParseBool(values.refillOnWallGrab, true) ? 2 : 0)
+      | (romParseBool(values.allowEightDirections, true) ? 4 : 0),
+  };
+}
+
+/** GTSTCK 1..8 -> [X sign, Y sign] (player_dash_dir8_table). */
+const ROM_DASH_DIR8: ReadonlyArray<[number, number]> = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]];
 
 /**
- * ROM player_fast_dash_process_c (player only). Note: the ROM uses fixed values (speed 8,
- * 8 frames, cooldown 18 that never blocks a new dash) and only reads Dash.isEnabled.
- * Returns the velocity override while the dash is active.
+ * ROM player_fast_dash_process_c (player only). Ground dashes are unlimited; airborne dashes
+ * use maxAir (refilled on ground / wall grab per flags). The cooldown counts frames after a dash
+ * ends and blocks a new one. Returns the velocity override while the dash is active.
  */
 export function romDashStep(
   input: RomDashState,
-  enabled: boolean,
+  cfg: RomDashConfig,
   inputDisabled: boolean,
   grabEdge: boolean,
   stick: number,
   facing: number,
+  onGround: boolean,
+  wallGrabActive: boolean,
 ): { state: RomDashState; active: boolean; vx: number; vy: number } {
   const st = { ...input };
   const idle = () => ({ state: st, active: false, vx: 0, vy: 0 });
   if (inputDisabled) { st.timer = 0; return idle(); }
-  if (!enabled) { st.timer = 0; st.cooldown = 0; return idle(); }
+  if (!cfg.enabled) { st.timer = 0; st.cooldown = 0; return idle(); }
+  if ((cfg.flags & 1) && onGround) st.airUsed = 0;
+  if ((cfg.flags & 2) && wallGrabActive) st.airUsed = 0;
   if (st.timer === 0) {
-    if (st.cooldown !== 0) st.cooldown = (st.cooldown - 1) & 0xff;
+    if (st.cooldown !== 0) { st.cooldown = (st.cooldown - 1) & 0xff; return idle(); }
     if (!grabEdge) return idle();
-    st.dir = romDashDirection(stick, facing);
-    st.timer = 8;
-    st.cooldown = 18;
+    if (!onGround) {
+      if (st.airUsed >= (cfg.maxAir & 0xff)) return idle();
+      st.airUsed = (st.airUsed + 1) & 0xff;
+    }
+    const [sx, sy] = romDashSigns(stick, facing, (cfg.flags & 4) !== 0);
+    st.dir = sx !== 0 ? (sx < 0 ? 1 : 2) : (sy < 0 ? 3 : 4);
+    const speed = cfg.speed & 0xff;
+    st.vx = sx * speed;
+    st.vy = sy * speed;
+    st.timer = cfg.duration & 0xff;
+    st.cooldown = cfg.cooldown & 0xff;
   }
   st.timer = (st.timer - 1) & 0xff;
-  const [vx, vy] = st.dir === 1 ? [-8, 0] : st.dir === 3 ? [0, -8] : st.dir === 4 ? [0, 8] : [8, 0];
-  return { state: st, active: true, vx, vy };
+  return { state: st, active: true, vx: st.vx, vy: st.vy };
 }
 
-/** ROM player_fast_dash_resolve_dir_c: 1 left, 2 right, 3 up, 4 down. */
-export function romDashDirection(stick: number, facing: number): number {
-  if (stick === 2 || stick === 3 || stick === 4) return 2;
-  if (stick === 6 || stick === 7 || stick === 8) return 1;
-  if (stick === 1) return 3;
-  if (stick === 5) return 4;
-  if (facing === 1 || facing === 2 || facing === 3 || facing === 4) return facing;
-  return 2;
+/** ROM player_fast_dash_resolve_dir_c: [X sign, Y sign] of the dash. */
+export function romDashSigns(stick: number, facing: number, eightDirections: boolean): [number, number] {
+  if (stick >= 1 && stick <= 8) {
+    if (eightDirections) return ROM_DASH_DIR8[stick - 1];
+    if (stick === 1) return [0, -1];
+    if (stick === 5) return [0, 1];
+    return stick < 5 ? [1, 0] : [-1, 0];
+  }
+  if (facing === 1) return [-1, 0];
+  if (facing === 3) return [0, -1];
+  if (facing === 4) return [0, 1];
+  return [1, 0];
 }
 
 /** ROM player_dash_break_front_tile_c probe: the cell [col, row] in front of the dash, or null. */

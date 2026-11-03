@@ -232,11 +232,18 @@ entidades sin WallCollision (un único commit).
 - Verificado contra el Z80 (`npm run test:rom-movement-systems`): 2000 casos de Mirror,
   6000 de WallJump y 12000 frames de Dash (incluida la rotura de tiles Breakable).
 
-**Hallazgo (el ROM manda):** el Dash del ROM solo lee `isEnabled`; usa siempre velocidad 8,
-8 frames y un cooldown de 18 que nunca bloquea un nuevo dash. `dashSpeed`,
-`dashDurationFrames`, `dashCooldownFrames`, `maxAirDashes`, `refillOn*` y
-`allowEightDirections` no tienen efecto en ninguno de los dos. El golpe del Dash al punto
-débil del boss (`player_dash_hit_boss_weakpoint`) no está portado a Play.
+**Hecho — el Dash usa su configuración (ROM y Play):** antes el ROM solo leía `isEnabled`
+(siempre 8 px/frame, 8 frames, cooldown que no bloqueaba). Ahora `romDashConfig` (compartida
+por `entitiesGenerator.ts` y Play) rellena `entity_dash_cfg_speed/duration/cooldown/max_air/flags`:
+- `dashSpeed` (1..127 px/frame) en cada eje; en diagonal vx = vy = ±dashSpeed.
+- `dashDurationFrames` (mín. 1) frames de dash.
+- `dashCooldownFrames`: frames tras acabar un dash durante los que no se puede iniciar otro.
+- `maxAirDashes`: dashes en el aire; en el suelo son ilimitados (0 = sin dash aéreo).
+- `refillOnGround` / `refillOnWallGrab`: recargan los dashes aéreos al tocar suelo / al agarrarse.
+- `allowEightDirections`: true = 8 direcciones; false = 4 (la diagonal usa su lado horizontal).
+- El tile Breakable que se rompe es el del lado horizontal en diagonal.
+Los valores por defecto (6, 10, 12, 1) cambian el Dash de proyectos que antes iban con 8/8.
+El golpe del Dash al punto débil del boss (`player_dash_hit_boss_weakpoint`) no está portado a Play.
 La animación one-shot del wall jump en Play termina al completar un ciclo de frames
 (aproximación del `ANIM_FLAG_COMPLETED` del ROM).
 

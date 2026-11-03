@@ -118,9 +118,12 @@ export const COMPONENT_SEMANTICS: Record<string, { meaning: string; formulas?: s
     ],
   },
   dash: {
-    meaning: 'Player only (Play = ROM player_fast_dash_process_c). A new press of button 2 (Controls-node key, N by default) starts a dash in the stick direction (or facing) that overrides velocity and skips Jump, Gravity, WallGrab and WallJump while active; each dashing frame breaks the Breakable tile just in front.',
-    formulas: ['dash = 8 frames at 8 px/frame in one of 4 directions (diagonals use their horizontal side)', 'a new dash can start as soon as the previous one ends'],
-    ignoredProperties: ['dashSpeed', 'dashDurationFrames', 'dashCooldownFrames', 'maxAirDashes', 'refillOnGround', 'refillOnWallGrab', 'allowEightDirections'],
+    meaning: 'Player only (Play = ROM player_fast_dash_process_c). A new press of button 2 (Controls-node key, N by default) starts a dash in the stick direction (or facing) that overrides velocity and skips Jump, Gravity, WallGrab and WallJump while active; each dashing frame breaks the Breakable tile just in front (horizontal side for diagonals).',
+    formulas: [
+      'dash lasts dashDurationFrames frames at dashSpeed px/frame per axis (diagonal: vx = vy = +/-dashSpeed); allowEightDirections = false keeps 4 directions (diagonals use their horizontal side)',
+      'after a dash ends, a new one is blocked for dashCooldownFrames frames',
+      'ground dashes are unlimited; airborne dashes are limited to maxAirDashes, refilled on ground (refillOnGround) and while wall grabbing (refillOnWallGrab)',
+    ],
   },
   mirror: {
     meaning: 'Negates the horizontal velocity every frame (Play = ROM update_mirror_component), after the other velocity systems and before the position update; invertFacing also flips the facing. For the player the negated value is what is left for the next frame (its input usually rewrites it).',

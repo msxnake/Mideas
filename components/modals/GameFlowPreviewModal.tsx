@@ -42,7 +42,7 @@ import { renderScreenToCanvas, createSpriteDataURL, getScreenBehaviorLayer, getS
 import { checkMsx2HazardAtWorldPixel } from '../../utils/msx2Screen4TileBehavior';
 import { parseMsx2PlayerImport } from '../../utils/msx2PlayerImport';
 import { getStateMachineBrowserInputAliases, normalizeStateMachineInput } from '../../utils/stateMachineInputs';
-import { ROM_COLLISION_EVENT_ENEMY, ROM_COLLISION_EVENT_ENTITY, ROM_COLLISION_EVENT_ITEM, ROM_MOVE_DIRECTION_IDS, romAdaptiveProbes, romBehaviorStep, romCanMoveDirection, romCollisionFlagsFromLayer, romDirectionFromVelocity, romResolveBehaviorType, romTileCollidesWith, romDashFrontTile, romDashStep, romMirrorFlags, romMirrorStep, romParseBool, romStickFromKeys, romWallJumpConfig, romWallJumpStep } from '../../utils/romMoveTest';
+import { ROM_COLLISION_EVENT_ENEMY, ROM_COLLISION_EVENT_ENTITY, ROM_COLLISION_EVENT_ITEM, ROM_MOVE_DIRECTION_IDS, romAdaptiveProbes, romBehaviorStep, romCanMoveDirection, romCollisionFlagsFromLayer, romDirectionFromVelocity, romResolveBehaviorType, romTileCollidesWith, romDashConfig, romDashFrontTile, romDashStep, romMirrorFlags, romMirrorStep, romStickFromKeys, romWallJumpConfig, romWallJumpStep } from '../../utils/romMoveTest';
 import {
     applyMsx2JumpImpulseToEntity,
     getMsx2DashConfigFromPlayerEntity,
@@ -2250,12 +2250,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const romDashProcess = (entity: AnimatedEntity, inputDisabled: boolean): { active: boolean; vx: number; vy: number } => {
         const comp = entity.template.components.find(c => c.definitionId === 'comp_dash');
         const overrides = entity.instance.componentOverrides?.['comp_dash'];
-        const values = { ...romComponentDefaults('comp_dash'), ...(comp?.defaultValues || {}), ...(overrides || {}) };
-        const enabled = !!(comp || overrides) && romParseBool(values.isEnabled, true);
+        const cfg = romDashConfig(!!(comp || overrides), romComponentDefaults('comp_dash'), comp?.defaultValues || {}, overrides || {});
         const e = entity as any;
         const input = romInputRef.current;
-        const step = romDashStep(e.romDash ?? { timer: 0, cooldown: 0, dir: 0 }, enabled, inputDisabled,
-            (input.curr & 2) !== 0 && (input.prev & 2) === 0, input.stick, romFacingOf(entity));
+        const step = romDashStep(e.romDash ?? { timer: 0, cooldown: 0, dir: 0, vx: 0, vy: 0, airUsed: 0 }, cfg, inputDisabled,
+            (input.curr & 2) !== 0 && (input.prev & 2) === 0, input.stick, romFacingOf(entity),
+            !!entity.isOnGround, !!entity.isWallGrabbing);
         e.romDash = step.state;
         if (!step.active) return step;
         const cell = romDashFrontTile(entity.x, entity.y, step.state.dir);
@@ -7993,7 +7993,7 @@ useEffect(() => {
                 const canProcessInput = (!entityA.currentState || !statesWithoutInput.includes(entityA.currentState))
                     && !(entityA as any).inputDisabled; // ROM parity: DISABLE_INPUT (entity_input_disabled)
                 entityA.isOnLadder = detectLadderStateForEntity(entityA, screenMapToRender ?? null);
-                // ROM parity: player Dash (fixed speed 8 for 8 frames, button 2 edge, breaks Breakable tiles in front).
+                // ROM parity: player Dash (Dash config, button 2 edge, breaks Breakable tiles in front).
                 (entityA as any).romDashFrame = romDashProcess(entityA, !canProcessInput);
 
                 // Process input (cursors, jump, actions) - Only if state allows it

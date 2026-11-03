@@ -3506,6 +3506,9 @@ ensure_player_fast_runtime_bound:
     ld (player_dash_timer), a
     ld (player_dash_cooldown), a
     ld (player_dash_dir), a
+    ld (player_dash_vx), a
+    ld (player_dash_vy), a
+    ld (player_dash_air_used), a
     ld (player_x), a
     ld (player_x+1), a
     ld (player_y), a
@@ -3670,6 +3673,11 @@ update_entity_ladder_state_c:
 ; output: A = 1 while dash is active this frame, entity_vel_x/y overridden
 ; clobbers: AF, BC, DE, HL
 ; preserved: None
+; Dash config per entity (Play mode mirror: utils/romMoveTest.ts romDashStep):
+;   entity_dash_cfg_speed/duration/cooldown/max_air/flags
+;   flags bit0 = refill air dashes on ground, bit1 = refill on wall grab, bit2 = 8 directions
+; Ground dashes are unlimited; airborne dashes use maxAirDashes. The cooldown counts
+; frames after a dash ends and blocks a new dash until it reaches 0.
 player_fast_dash_process_c:
     ld e, c
     ld d, 0
@@ -3698,6 +3706,28 @@ player_fast_dash_process_c:
     dec a
     ld (boss_hit_cooldown), a
 .pfd_hit_cooldown_done:
+    ld hl, entity_dash_cfg_flags
+    add hl, de
+    ld b, (hl)                    ; B = dash flags
+    bit 0, b
+    jp z, .pfd_refill_wall
+    ld hl, entity_on_ground
+    add hl, de
+    bit 0, (hl)
+    jp z, .pfd_refill_wall
+    xor a
+    ld (player_dash_air_used), a
+.pfd_refill_wall:
+    bit 1, b
+    jp z, .pfd_refill_done
+    ld hl, entity_wallgrab_active
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .pfd_refill_done
+    xor a
+    ld (player_dash_air_used), a
+.pfd_refill_done:
     ld a, (player_dash_timer)
     or a
     jp nz, .pfd_active
@@ -3706,6 +3736,8 @@ player_fast_dash_process_c:
     jp z, .pfd_check_start
     dec a
     ld (player_dash_cooldown), a
+    xor a
+    ret
 .pfd_check_start:
     ld a, (input_btn_curr)
     and INPUT_BTN_GRAB
@@ -3713,50 +3745,36 @@ player_fast_dash_process_c:
     ld a, (input_btn_prev)
     and INPUT_BTN_GRAB
     jp nz, .pfd_inactive
+    ld hl, entity_on_ground
+    add hl, de
+    bit 0, (hl)
+    jp nz, .pfd_start             ; on the ground: unlimited
+    ld hl, entity_dash_cfg_max_air
+    add hl, de
+    ld a, (player_dash_air_used)
+    cp (hl)
+    jp nc, .pfd_inactive          ; no air dashes left
+    inc a
+    ld (player_dash_air_used), a
+.pfd_start:
     call player_fast_dash_resolve_dir_c
-    ld (player_dash_dir), a
-    ld a, 8
+    ld e, c
+    ld d, 0
+    ld hl, entity_dash_cfg_duration
+    add hl, de
+    ld a, (hl)
     ld (player_dash_timer), a
-    ld a, 18
+    ld hl, entity_dash_cfg_cooldown
+    add hl, de
+    ld a, (hl)
     ld (player_dash_cooldown), a
 .pfd_active:
     ld a, (player_dash_timer)
     dec a
     ld (player_dash_timer), a
-    ld a, (player_dash_dir)
-    cp 1
-    jp z, .pfd_left
-    cp 3
-    jp z, .pfd_up
-    cp 4
-    jp z, .pfd_down
-.pfd_right:
-    ld b, 8
-    xor a
-    call player_fast_dash_store_velocity_c
-    call player_dash_break_front_tile_c
-    call player_dash_hit_boss_weakpoint
-    ld a, 1
-    ret
-.pfd_left:
-    ld b, #F8
-    xor a
-    call player_fast_dash_store_velocity_c
-    call player_dash_break_front_tile_c
-    call player_dash_hit_boss_weakpoint
-    ld a, 1
-    ret
-.pfd_up:
-    ld b, 0
-    ld a, #F8
-    call player_fast_dash_store_velocity_c
-    call player_dash_break_front_tile_c
-    call player_dash_hit_boss_weakpoint
-    ld a, 1
-    ret
-.pfd_down:
-    ld b, 0
-    ld a, 8
+    ld a, (player_dash_vx)
+    ld b, a
+    ld a, (player_dash_vy)
     call player_fast_dash_store_velocity_c
     call player_dash_break_front_tile_c
     call player_dash_hit_boss_weakpoint
@@ -3767,53 +3785,114 @@ player_fast_dash_process_c:
     ret
 
 ; Register Contract:
-; input: C = player entity index, input_state/entity_facing_dir
-; output: A = dash direction (1=left,2=right,3=up,4=down)
+; input: C = player entity index, B = dash flags, input_state/entity_facing_dir
+; output: player_dash_vx/vy = signed dash velocity, player_dash_dir = probe side
+;         (1=left,2=right,3=up,4=down; diagonals use their horizontal side)
 ; clobbers: AF, DE, HL
-; preserved: C
+; preserved: BC
 player_fast_dash_resolve_dir_c:
     ld a, (input_state)
-    cp STICK_RIGHT
-    jp z, .pfdr_right
-    cp STICK_UPRIGHT
-    jp z, .pfdr_right
-    cp STICK_DOWNRIGHT
-    jp z, .pfdr_right
-    cp STICK_LEFT
-    jp z, .pfdr_left
-    cp STICK_UPLEFT
-    jp z, .pfdr_left
-    cp STICK_DOWNLEFT
-    jp z, .pfdr_left
+    or a
+    jp z, .pfdr_facing
+    cp 9
+    jp nc, .pfdr_facing
+    bit 2, b
+    jp nz, .pfdr_eight
     cp STICK_UP
     jp z, .pfdr_up
     cp STICK_DOWN
     jp z, .pfdr_down
+    jp c, .pfdr_right             ; up-right, right, down-right
+    jp .pfdr_left                 ; down-left, left, up-left
+.pfdr_eight:
+    ld e, a
+    ld d, 0
+    ld hl, player_dash_dir8_table - 2
+    add hl, de
+    add hl, de
+    ld d, (hl)                    ; D = X sign
+    inc hl
+    ld e, (hl)                    ; E = Y sign
+    jp .pfdr_apply
+.pfdr_facing:
     ld e, c
     ld d, 0
     ld hl, entity_facing_dir
     add hl, de
     ld a, (hl)
     cp 1
-    ret z
-    cp 2
-    ret z
+    jp z, .pfdr_left
     cp 3
-    ret z
+    jp z, .pfdr_up
     cp 4
-    ret z
+    jp z, .pfdr_down
 .pfdr_right:
-    ld a, 2
-    ret
+    ld d, 1
+    ld e, 0
+    jp .pfdr_apply
 .pfdr_left:
-    ld a, 1
-    ret
+    ld d, #FF
+    ld e, 0
+    jp .pfdr_apply
 .pfdr_up:
-    ld a, 3
-    ret
+    ld d, 0
+    ld e, #FF
+    jp .pfdr_apply
 .pfdr_down:
+    ld d, 0
+    ld e, 1
+.pfdr_apply:
+    ld a, d
+    or a
+    jp z, .pfdr_vertical_side
+    bit 7, a
+    ld a, 2
+    jp z, .pfdr_store_side
+    ld a, 1
+    jp .pfdr_store_side
+.pfdr_vertical_side:
+    ld a, e
+    bit 7, a
     ld a, 4
+    jp z, .pfdr_store_side
+    ld a, 3
+.pfdr_store_side:
+    ld (player_dash_dir), a
+    push de
+    ld e, c
+    ld d, 0
+    ld hl, entity_dash_cfg_speed
+    add hl, de
+    ld l, (hl)                    ; L = dash speed
+    pop de
+    ld a, d
+    call player_dash_scale_sign_a
+    ld (player_dash_vx), a
+    ld a, e
+    call player_dash_scale_sign_a
+    ld (player_dash_vy), a
     ret
+
+; input: A = sign (#FF, 0, 1), L = speed ; output: A = signed velocity ; preserves BC, DE, HL
+player_dash_scale_sign_a:
+    or a
+    ret z
+    bit 7, a
+    ld a, l
+    ret z
+    neg
+    ret
+
+; GTSTCK 1..8 -> X sign, Y sign
+player_dash_dir8_table:
+    DB 0, #FF
+    DB 1, #FF
+    DB 1, 0
+    DB 1, 1
+    DB 0, 1
+    DB #FF, 1
+    DB #FF, 0
+    DB #FF, #FF
 
 ; Register Contract:
 ; input: B = signed X velocity, A = signed Y velocity, C = entity index

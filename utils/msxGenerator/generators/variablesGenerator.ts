@@ -1155,6 +1155,16 @@ MAX_ENTITIES        EQU 32
 
   code += `entity_dash_cfg_enabled EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime Dash enabled flag per entity (32 bytes)\n`;
   currentAddress += 32;
+  code += `entity_dash_cfg_speed EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dash speed px/frame per entity (32 bytes)\n`;
+  currentAddress += 32;
+  code += `entity_dash_cfg_duration EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dash duration frames per entity (32 bytes)\n`;
+  currentAddress += 32;
+  code += `entity_dash_cfg_cooldown EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dash cooldown frames per entity (32 bytes)\n`;
+  currentAddress += 32;
+  code += `entity_dash_cfg_max_air EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dash max air dashes per entity (32 bytes)\n`;
+  currentAddress += 32;
+  code += `entity_dash_cfg_flags EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dash flags: bit0 refill on ground, bit1 refill on wall grab, bit2 eight directions (32 bytes)\n`;
+  currentAddress += 32;
 
   code += `entity_x_pos        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity X positions (32 bytes)\n`;
   currentAddress += 32;
@@ -1423,6 +1433,15 @@ MAX_ENTITIES        EQU 32
     currentAddress++;
 
     code += `player_dash_dir     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player dash direction (1=left,2=right,3=up,4=down)\n`;
+    currentAddress++;
+
+    code += `player_dash_vx      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player dash X velocity (signed 8-bit)\n`;
+    currentAddress++;
+
+    code += `player_dash_vy      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player dash Y velocity (signed 8-bit)\n`;
+    currentAddress++;
+
+    code += `player_dash_air_used EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Air dashes used since the last refill\n`;
     currentAddress++;
 
     code += `player_dash_tile_x  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dash front probe tile X scratch\n`;
