@@ -74,7 +74,10 @@ function getScreenEngineValue(screen: ScreenMap): number {
   const configuredEngine = String((screen as any).screenEngine || '').trim();
   if (configuredEngine === 'fakePlayer') return SCREEN_ENGINE_FAKE_PLAYER;
   if (configuredEngine === 'player') return SCREEN_ENGINE_PLAYER;
-  return (screen as any).screenKind === 'playable' ? SCREEN_ENGINE_PLAYER : SCREEN_ENGINE_FAKE_PLAYER;
+  // Same default as the Screen Editor, Play mode and the AI sketch: a screen without
+  // screenKind (older projects) is a playable screen driven by the real Player.
+  const screenKind = (screen as any).screenKind ?? 'playable';
+  return screenKind === 'playable' ? SCREEN_ENGINE_PLAYER : SCREEN_ENGINE_FAKE_PLAYER;
 }
 
 function resolveTileBankDefinitions(screen: ScreenMap, analysis: ProjectAnalysis): TileBank['banks'] | undefined {
