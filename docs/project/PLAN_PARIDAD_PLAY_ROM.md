@@ -219,8 +219,28 @@ generador del ROM (`entitiesGenerator.ts`) y Play la usa igual (GFP). En `mini_g
 `collidesWith`", basta con que `romTileCollidesWith` devuelva `stopsOnTiles = false` para
 entidades sin WallCollision (un único commit).
 
-**Pendiente:** Dash, Mirror, WallJump (no los usa ningún ejemplo), gating de Physics/Movement
-para integrar velocidad, y Child Link (solo Play).
+**Hecho — Dash, Mirror y WallJump:** Play copia las rutinas del ROM (`romDashStep`,
+`romDashFrontTile`, `romMirrorStep`, `romWallJumpStep`/`romWallJumpConfig` en
+`utils/romMoveTest.ts`), en el mismo orden que el ROM:
+- **Jugador (fast path):** entrada → Dash → WallJump (prioridad: si hay impulso de wall jump
+  no se ejecuta Jump) → Jump → Gravity → WallGrab → WallJump (2ª llamada) → Position.
+  Un Dash activo se salta Jump, Gravity, WallGrab y WallJump. Mirror del jugador se aplica tras
+  moverse, así que su efecto llega al frame siguiente (Play lo aplica al inicio de ese frame).
+- **Resto de entidades:** Gravity → WallGrab → WallJump → Mirror → Position.
+- Botones con flanco como `input_btn_curr/prev` (botón 1 = SPACE, botón 2 = tecla del nodo
+  Controls) y dirección GTSTCK, leídos una vez por frame.
+- Verificado contra el Z80 (`npm run test:rom-movement-systems`): 2000 casos de Mirror,
+  6000 de WallJump y 12000 frames de Dash (incluida la rotura de tiles Breakable).
+
+**Hallazgo (el ROM manda):** el Dash del ROM solo lee `isEnabled`; usa siempre velocidad 8,
+8 frames y un cooldown de 18 que nunca bloquea un nuevo dash. `dashSpeed`,
+`dashDurationFrames`, `dashCooldownFrames`, `maxAirDashes`, `refillOn*` y
+`allowEightDirections` no tienen efecto en ninguno de los dos. El golpe del Dash al punto
+débil del boss (`player_dash_hit_boss_weakpoint`) no está portado a Play.
+La animación one-shot del wall jump en Play termina al completar un ciclo de frames
+(aproximación del `ANIM_FLAG_COMPLETED` del ROM).
+
+**Pendiente:** gating de Physics/Movement para integrar velocidad, y Child Link (solo Play).
 
 Plan original de la fase:
 - Ocultar del editor los componentes que no implementa nadie (tabla D), sin

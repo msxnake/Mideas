@@ -107,7 +107,24 @@ export const COMPONENT_SEMANTICS: Record<string, { meaning: string; formulas?: s
       'Layer bits used by HAS_COLLISION: 2 = enemy, 16 = item. Usual others: 1 player, 4 player bullets, 8 platforms/walls, 32/64/128 custom',
     ],
   },
-  wallcollision: { meaning: 'Not simulated by Mideas Play mode (there, tile collision uses the Collision component hitbox); the MSX1 ROM does use it for tile collision.' },
+  wallcollision: { meaning: 'Tile collision flags (#01 up, #02 down, #04 left, #08 right) and probe hitbox. With stopOnCollision = false the entity does NOT stop on tiles (same in Play and ROM, see engineRules.tileCollision).' },
+  walljump: {
+    meaning: 'Wall slide + wall jump (Play = ROM walljump_process_entity_c). Airborne, not on a ladder, touching a wall (flags of the previous frame): fall speed is capped to slideFallSpeed; on a new SPACE press it jumps away from the wall. For the player it runs before Jump (and wins over it) and again after Gravity/WallGrab; other entities run it once, after Gravity.',
+    formulas: [
+      'on wall jump: vx = +horizontalPush away from a left wall / -horizontalPush away from a right wall; x moves 1 px away; gravityVel = -verticalImpulse (8.8) => vy = its high byte',
+      'touching both walls: the pressed direction decides (none = jump right); requirePressAwayFromWall = must press the direction away from the wall',
+      'while still rising (gravityVel < 0) vx stays forced to the jump vx; it ends when the jump peaks, on landing or on a ladder',
+      'animationSpriteAssetId plays once, then the base sprite comes back facing away from the wall',
+    ],
+  },
+  dash: {
+    meaning: 'Player only (Play = ROM player_fast_dash_process_c). A new press of button 2 (Controls-node key, N by default) starts a dash in the stick direction (or facing) that overrides velocity and skips Jump, Gravity, WallGrab and WallJump while active; each dashing frame breaks the Breakable tile just in front.',
+    formulas: ['dash = 8 frames at 8 px/frame in one of 4 directions (diagonals use their horizontal side)', 'a new dash can start as soon as the previous one ends'],
+    ignoredProperties: ['dashSpeed', 'dashDurationFrames', 'dashCooldownFrames', 'maxAirDashes', 'refillOnGround', 'refillOnWallGrab', 'allowEightDirections'],
+  },
+  mirror: {
+    meaning: 'Negates the horizontal velocity every frame (Play = ROM update_mirror_component), after the other velocity systems and before the position update; invertFacing also flips the facing. For the player the negated value is what is left for the next frame (its input usually rewrites it).',
+  },
   playerinput: { meaning: 'Entity is controlled by the player (cursors/joystick + fire).' },
   cursors: { meaning: 'Moves the entity with the cursor keys/joystick at `speed` px per frame, per allowed direction. Vertical movement only without Gravity or while on a ladder.', ignoredProperties: ['isEnabled'] },
   aibehavior: {
@@ -171,7 +188,7 @@ export const ENGINE_RULES = {
     'After a screen change, exits are blocked for 300 ms. A side without connection is only a wall if the player has the "limit_on" component; otherwise the player can leave the screen.',
     'A checkpoint (respawn point) is saved every time the player enters a screen.',
   ],
-  playVsRom: 'Remaining Mideas Play mode vs MSX ROM differences (being closed, see docs/project/PLAN_PARIDAD_PLAY_ROM.md): Spawner, Inventory, Aiming, Rotate, Pac-Man movement are declared but implemented by neither; Dash, Mirror, Physics/Movement, Position and WallJump are used only by the ROM.',
+  playVsRom: 'Remaining Mideas Play mode vs MSX ROM differences (being closed, see docs/project/PLAN_PARIDAD_PLAY_ROM.md): Spawner, Inventory, Aiming, Rotate, Pac-Man movement are declared but implemented by neither; Physics/Movement and Position are used only by the ROM (velocity-integration gating); Child Link only by Play.',
   inputs: 'Logical inputs: up/down/left/right = cursors/joystick; fire = button 1 (SPACE); action2 = button 2 = the key chosen in the Game Flow Controls node (N by default, or CTRL), same in Play and ROM (an MSX2 player asset can override it); X = shoot (Shoot.fireKey); Z = carry.',
   tileInteractions: 'Only for entities with Cursors, PlayerInput, comp_input or Tile Collector. Each frame the tile under the point (x+8, y+8) of the entity is checked and all types write last_interaction_type/value/target. Effects: collect_gem (also tiles flagged isInteractable/isInteractiveSwitch) removes the tile and increments gem_count (plus Tile Collector targetVariable/incrementAmount/flagVariable); collect_item adds interactionValue (or 1) to the variable interactionTarget; add_energy adds 1 to Health and Lives; lever_toggle toggles the interactionTarget variable between 0 and 1 (once); button_press sets last_interaction_pending = true for one frame; jumper sets vy = -max(8, value) (x1.5 while SPACE is held); wallJumper sets vx = +/-value (max 15). Rules can read these with VARIABLE_COMPARE.',
   nucleo: 'Entities of a template named "nucleo" are NOT spawned: they are invisible spawn anchors. SPAWN_ENTITY with randomNucleo uses a random anchor; templates whose name contains "coin" spawned without x/y also use one automatically.',

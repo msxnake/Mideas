@@ -42,7 +42,7 @@ import { renderScreenToCanvas, createSpriteDataURL, getScreenBehaviorLayer, getS
 import { checkMsx2HazardAtWorldPixel } from '../../utils/msx2Screen4TileBehavior';
 import { parseMsx2PlayerImport } from '../../utils/msx2PlayerImport';
 import { getStateMachineBrowserInputAliases, normalizeStateMachineInput } from '../../utils/stateMachineInputs';
-import { ROM_COLLISION_EVENT_ENEMY, ROM_COLLISION_EVENT_ENTITY, ROM_COLLISION_EVENT_ITEM, ROM_MOVE_DIRECTION_IDS, romAdaptiveProbes, romBehaviorStep, romCanMoveDirection, romCollisionFlagsFromLayer, romDirectionFromVelocity, romResolveBehaviorType, romTileCollidesWith } from '../../utils/romMoveTest';
+import { ROM_COLLISION_EVENT_ENEMY, ROM_COLLISION_EVENT_ENTITY, ROM_COLLISION_EVENT_ITEM, ROM_MOVE_DIRECTION_IDS, romAdaptiveProbes, romBehaviorStep, romCanMoveDirection, romCollisionFlagsFromLayer, romDirectionFromVelocity, romResolveBehaviorType, romTileCollidesWith, romDashFrontTile, romDashStep, romMirrorFlags, romMirrorStep, romParseBool, romStickFromKeys, romWallJumpConfig, romWallJumpStep } from '../../utils/romMoveTest';
 import {
     applyMsx2JumpImpulseToEntity,
     getMsx2DashConfigFromPlayerEntity,
@@ -2153,6 +2153,118 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const romEntityStopsOnTiles = (entity: AnimatedEntity, collidesWith: number): boolean => {
         const { hasWall, stop } = romWallCollisionInfo(entity);
         return (romTileCollidesWith(collidesWith, hasWall, stop) & 0x08) !== 0;
+    };
+
+    // ROM parity (phase 4): Mirror, WallJump and Dash copied from the ROM (utils/romMoveTest.ts,
+    // verified against the Z80 routines by scripts/check_rom_movement_systems.ts).
+    // ROM input_btn_curr/prev (bit0 button 1 = SPACE, bit1 button 2 = Controls-node key) and GTSTCK.
+    const romInputRef = useRef({ curr: 0, prev: 0, stick: 0 });
+    const romComponentDefaults = (id: string): Record<string, any> =>
+        (componentDefinitions.find(d => d.id === id)?.properties || []).reduce((a: any, p) => { a[p.name] = p.defaultValue; return a; }, {});
+    /** ROM entity_facing_dir (1 left, 2 right) from the Play facing state. */
+    const romFacingOf = (entity: AnimatedEntity): number => {
+        const spriteFacing = entity.sprite?.facingDirection;
+        if (spriteFacing === 'right') return entity.isFacingMirrored ? 1 : 2;
+        if (spriteFacing === 'left') return entity.isFacingMirrored ? 2 : 1;
+        return Number((entity as any).romFacingDir ?? 0);
+    };
+    const romApplyFacing = (entity: AnimatedEntity, facing: number) => {
+        (entity as any).romFacingDir = facing;
+        if (facing !== 1 && facing !== 2) return;
+        entity.desiredFacingDirection = facing === 1 ? 'left' : 'right';
+        const spriteFacing = entity.sprite?.facingDirection;
+        entity.isFacingMirrored = (spriteFacing === 'right' && facing === 1) || (spriteFacing === 'left' && facing === 2);
+    };
+    const romSignedByte = (v: number) => { const b = Math.trunc(v) & 0xff; return b >= 0x80 ? b - 0x100 : b; };
+    /** update_mirror_component for one entity. */
+    const romMirrorProcess = (entity: AnimatedEntity) => {
+        const comp = entity.template.components.find(c => c.definitionId === 'comp_mirror');
+        const overrides = entity.instance.componentOverrides?.['comp_mirror'];
+        const flags = romMirrorFlags(!!(comp || overrides), { ...romComponentDefaults('comp_mirror'), ...(comp?.defaultValues || {}), ...(overrides || {}) });
+        if (!(flags & 0x01) || romSignedByte(entity.vx) === 0) return;
+        const step = romMirrorStep(flags, entity.vx, romFacingOf(entity));
+        entity.vx = Number.isInteger(entity.vx) ? step.velX : -entity.vx;
+        if (flags & 0x02) romApplyFacing(entity, step.facing);
+    };
+    /** walljump_restore_animation_if_done_c: restore the base sprite once the one-shot animation ends. */
+    const romWallJumpRestoreAnimation = (entity: AnimatedEntity) => {
+        const anim = (entity as any).romWallJumpAnim;
+        if (!anim) return;
+        const frames = entity.frameImages?.length ?? 0;
+        const frame = entity.currentFrame ?? 0;
+        const done = frames <= 1 ? anim.seen >= 1 : (anim.lastFrame >= frames - 1 && frame < anim.lastFrame);
+        anim.seen += 1;
+        anim.lastFrame = Math.max(anim.lastFrame, frame);
+        if (!done) return;
+        (entity as any).romWallJumpAnim = undefined;
+        const facing = romFacingOf(entity);
+        const backup = anim.backup;
+        entity.sprite = backup.sprite;
+        entity.frameImages = backup.frameImages;
+        entity.mirroredFrameImages = backup.mirroredFrameImages;
+        entity.currentFrame = 0;
+        entity.spriteAssetId = backup.spriteAssetId;
+        entity.lastFrameUpdateTime = performance.now();
+        romApplyFacing(entity, facing);
+    };
+    /** walljump_process_entity_c for one entity (player: called twice per frame, like the ROM fast path). */
+    const romWallJumpProcess = (entity: AnimatedEntity) => {
+        const comp = entity.template.components.find(c => c.definitionId === 'comp_wall_jump');
+        if (!comp) return;
+        const overrides = entity.instance.componentOverrides?.['comp_wall_jump'] || {};
+        const cfg = romWallJumpConfig(romComponentDefaults('comp_wall_jump'), comp.defaultValues || {}, overrides);
+        if (!cfg.enabled) return;
+        romWallJumpRestoreAnimation(entity);
+        const e = entity as any;
+        const wj = e.romWallJump ?? (e.romWallJump = { lock: 0, lockedVx: 0 });
+        const facingBefore = romFacingOf(entity);
+        const input = romInputRef.current;
+        const { state, jumped } = romWallJumpStep(cfg, {
+            x: entity.x, velX: entity.vx, velY: entity.vy, gravityVel: entity.gravityVel ?? 0,
+            onGround: !!entity.isOnGround, onLadder: !!entity.isOnLadder, wallFlags: Number(e.romWallDirStable ?? 0),
+            lock: wj.lock, lockedVx: wj.lockedVx, facing: facingBefore,
+        }, (input.curr & 1) !== 0 && (input.prev & 1) === 0, input.stick);
+        wj.lock = state.lock;
+        wj.lockedVx = state.lockedVx;
+        if (state.velX !== romSignedByte(entity.vx)) entity.vx = state.velX;
+        if (state.velY !== romSignedByte(entity.vy)) entity.vy = state.velY;
+        entity.gravityVel = state.gravityVel;
+        if (!jumped) return;
+        entity.x += state.velX < 0 ? -1 : state.velX > 0 ? 1 : 0;
+        entity.isOnGround = false;
+        entity.platformUnderneath = null;
+        romApplyFacing(entity, state.facing);
+        // walljump_start_jump_animation_c: one-shot animation, base sprite restored when it ends.
+        const values = { ...romComponentDefaults('comp_wall_jump'), ...(comp.defaultValues || {}), ...overrides };
+        const animId = values.animationSpriteAssetId ?? values.wallJumpAnimationSprite ?? values.animationSprite;
+        const animAsset = animId ? allAssets.find(a => a.type === 'sprite' && (a.id === animId || a.name === animId)) : undefined;
+        if (animAsset) {
+            const backup = e.romWallJumpAnim?.backup ?? { sprite: entity.sprite, frameImages: entity.frameImages, mirroredFrameImages: entity.mirroredFrameImages, spriteAssetId: entity.spriteAssetId };
+            applySpriteToEntity(entity, animAsset.data as Sprite, animAsset.id);
+            entity.currentFrame = 0;
+            romApplyFacing(entity, state.facing);
+            e.romWallJumpAnim = { backup, lastFrame: 0, seen: 0 };
+        }
+    };
+    /** player_fast_dash_process_c + player_dash_break_front_tile_c (player only). */
+    const romDashProcess = (entity: AnimatedEntity, inputDisabled: boolean): { active: boolean; vx: number; vy: number } => {
+        const comp = entity.template.components.find(c => c.definitionId === 'comp_dash');
+        const overrides = entity.instance.componentOverrides?.['comp_dash'];
+        const values = { ...romComponentDefaults('comp_dash'), ...(comp?.defaultValues || {}), ...(overrides || {}) };
+        const enabled = !!(comp || overrides) && romParseBool(values.isEnabled, true);
+        const e = entity as any;
+        const input = romInputRef.current;
+        const step = romDashStep(e.romDash ?? { timer: 0, cooldown: 0, dir: 0 }, enabled, inputDisabled,
+            (input.curr & 2) !== 0 && (input.prev & 2) === 0, input.stick, romFacingOf(entity));
+        e.romDash = step.state;
+        if (!step.active) return step;
+        const cell = romDashFrontTile(entity.x, entity.y, step.state.dir);
+        if (cell) {
+            const tileId = runtimeCollisionLayerRef.current[cell[1]]?.[cell[0]]?.tileId;
+            const tileData = tileId ? (allAssets.find(a => a.id === tileId && a.type === 'tile')?.data as Tile | undefined) : undefined;
+            if (tileData?.logicalProperties?.isBreakable) modifyTileInLayer(cell[0], cell[1], null);
+        }
+        return step;
     };
 
     // ROM parity: SM_TestMoveDirection + check_collision_box, shared pure logic in utils/romMoveTest.ts.
@@ -7311,6 +7423,15 @@ useEffect(() => {
             e.romCollFlags = 0;
             e.romWallDir = 0;
         }
+        // ROM parity: input_btn_curr/prev + GTSTCK, read once per frame (WallJump/Dash edges).
+        {
+            const keys = pressedKeys.current;
+            romInputRef.current = {
+                prev: romInputRef.current.curr,
+                curr: (keys.has(' ') ? 1 : 0) | (isMsx1Button2Pressed() ? 2 : 0),
+                stick: romStickFromKeys(keys.has('ArrowUp'), keys.has('ArrowDown'), keys.has('ArrowLeft'), keys.has('ArrowRight')),
+            };
+        }
         processedCollectibleScoreRef.current.clear();
         // --- Calcular deltaTime (opcional) ---
         // const deltaTime = currentTime - lastTime;
@@ -7853,7 +7974,11 @@ useEffect(() => {
             processEventTransitions(entityA);
 
             // --- 1. Actualizar Velocidad ---
+            (entityA as any).romDashFrame = undefined;
             if (entityA === heroRef.current) {
+                // ROM parity: update_mirror_component negates the player's X velocity after the
+                // fast path has moved it, so the effect reaches the next frame (applied here).
+                romMirrorProcess(entityA);
                 // Apply state machine velocity properties if present
                 if (entityA.stateMachine && entityA.currentState) {
                     const stateDef = entityA.stateMachine.states.find(s => s.name === entityA.currentState);
@@ -7868,6 +7993,8 @@ useEffect(() => {
                 const canProcessInput = (!entityA.currentState || !statesWithoutInput.includes(entityA.currentState))
                     && !(entityA as any).inputDisabled; // ROM parity: DISABLE_INPUT (entity_input_disabled)
                 entityA.isOnLadder = detectLadderStateForEntity(entityA, screenMapToRender ?? null);
+                // ROM parity: player Dash (fixed speed 8 for 8 frames, button 2 edge, breaks Breakable tiles in front).
+                (entityA as any).romDashFrame = romDashProcess(entityA, !canProcessInput);
 
                 // Process input (cursors, jump, actions) - Only if state allows it
                 if (canProcessInput) {
@@ -8024,9 +8151,21 @@ useEffect(() => {
                         }
                     }
 
+                    // ROM parity (player fast path): an active Dash overrides velocity and skips Jump,
+                    // Gravity, WallGrab and WallJump; WallJump runs before Jump and wins over it.
+                    const romDashFrame = (entityA as any).romDashFrame;
+                    let romWallJumpPriority = false;
+                    if (romDashFrame?.active) {
+                        entityA.vx = romDashFrame.vx;
+                        entityA.vy = romDashFrame.vy;
+                    } else if (!(heroRef.current?.carriedBox === entityA)) {
+                        romWallJumpProcess(entityA);
+                        romWallJumpPriority = ((entityA as any).romWallJump?.lockedVx ?? 0) !== 0;
+                    }
+
                     // Jump (only for gravity entities)
                     const jumpComp = entityA.template.components.find(c => c.definitionId === 'comp_jump');
-                    if (jumpComp) {
+                    if (jumpComp && !romDashFrame?.active && !romWallJumpPriority) {
                         const jumpProps = { ...jumpComp.defaultValues, ...(entityA.instance.componentOverrides?.['comp_jump'] || {}) };
                         const requireKeyRelease = jumpProps.requireKeyRelease !== 'false' && jumpProps.requireKeyRelease !== false;
                         const spacePressed = pressedKeys.current.has(' ');
@@ -8386,11 +8525,14 @@ useEffect(() => {
 
             if (canProcessPhysics) {
                 const skipPhysics = heroRef.current?.carriedBox === entityA; // Skip physics for carried box
+                const romDashing = entityA === heroRef.current && !!(entityA as any).romDashFrame?.active;
                 // --- Gravity ---
                 const gravityComp = entityA.template.components.find(c => c.definitionId === 'comp_gravity');
                 const gravityOverride = entityA.instance.componentOverrides?.['comp_gravity'];
                 const gravityEnabled = !!gravityComp || !!gravityOverride; // allow instance-level activation
-                if (!skipPhysics && gravityEnabled && entityA.isOnLadder) {
+                if (romDashing) {
+                    // ROM parity: the Dash skips gravity (entity_gravity_vel kept as is).
+                } else if (!skipPhysics && gravityEnabled && entityA.isOnLadder) {
                     entityA.gravityVel = 0;
                 } else if (!skipPhysics && gravityEnabled && !entityA.isOnGround) {
                     // Z80-faithful 8.8 fixed-point gravity (matching update_gravity_component)
@@ -8461,7 +8603,9 @@ useEffect(() => {
 
                 // --- Wall Grab ---
                 const wallGrabComp = entityA.template.components.find(c => c.definitionId === 'comp_wall_grab');
-                if (!skipPhysics && wallGrabComp) {
+                if (romDashing) {
+                    // ROM parity: the Dash skips WallGrab (its state is kept).
+                } else if (!skipPhysics && wallGrabComp) {
                     const wallGrabProps = {
                         ...wallGrabComp.defaultValues,
                         ...(entityA.instance.componentOverrides?.['comp_wall_grab'] || {})
@@ -8690,6 +8834,11 @@ useEffect(() => {
                         }
                     }
                 }
+
+                // ROM parity: WallJump / wall slide (update_walljump_component; second fast-path call for
+                // the player) and then Mirror, after Gravity/WallGrab and before Position.
+                if (!skipPhysics && !romDashing) romWallJumpProcess(entityA);
+                if (!skipPhysics && entityA !== heroRef.current) romMirrorProcess(entityA);
 
                 // --- Friction (for boxes on ground) ---
                 const isBoxEntity = entityA.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entityA.template.name);

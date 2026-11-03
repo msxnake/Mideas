@@ -180,3 +180,225 @@ export function romTileCollidesWith(collidesWith: number, hasWallCollision: bool
   const stopsOnTiles = isMultiScreenPatrol ? false : hasWallCollision ? wallStopOnCollision : true;
   return stopsOnTiles ? (collidesWith | 0x08) & 0xff : collidesWith & 0xff;
 }
+
+// ---------------------------------------------------------------------------
+// Mirror, WallJump and Dash (phase 4 port). Verified against the assembled Z80 routines in
+// scripts/check_rom_movement_systems.ts.
+// ---------------------------------------------------------------------------
+
+const toByte = (v: number) => Math.trunc(v) & 0xff;
+const toSigned = (b: number) => ((b & 0xff) >= 0x80 ? (b & 0xff) - 0x100 : b & 0xff);
+
+/** ROM GTSTCK direction (0 none, 1 up, 2 up-right, 3 right ... 8 up-left) from pressed directions. */
+export function romStickFromKeys(up: boolean, down: boolean, left: boolean, right: boolean): number {
+  const dx = (right ? 1 : 0) - (left ? 1 : 0);
+  const dy = (down ? 1 : 0) - (up ? 1 : 0);
+  const table: Record<string, number> = { '0,-1': 1, '1,-1': 2, '1,0': 3, '1,1': 4, '0,1': 5, '-1,1': 6, '-1,0': 7, '-1,-1': 8 };
+  return table[`${dx},${dy}`] ?? 0;
+}
+
+/** entitiesGenerator parseBool. */
+export function romParseBool(v: unknown, d: boolean): boolean {
+  if (typeof v === 'boolean') return v;
+  if (typeof v === 'number') return v !== 0;
+  if (typeof v === 'string') {
+    const n = v.trim().toLowerCase();
+    if (n === 'true') return true;
+    if (n === 'false') return false;
+    const i = parseInt(n, 10);
+    if (!Number.isNaN(i)) return i !== 0;
+  }
+  return d;
+}
+
+/** entity_mirror_flags from the Mirror component values (bit0 enabled, bit1 invert facing). */
+export function romMirrorFlags(hasMirror: boolean, values: Record<string, unknown>): number {
+  if (!hasMirror) return 0;
+  return romParseBool(values.enabled, true) ? (1 | (romParseBool(values.invertFacing, true) ? 2 : 0)) : 0;
+}
+
+/** ROM update_mirror_component for one entity: negates X velocity, optionally flips facing. */
+export function romMirrorStep(flags: number, velX: number, facing: number): { velX: number; facing: number } {
+  const vx = toByte(velX);
+  if (!(flags & 0x01) || vx === 0) return { velX: toSigned(vx), facing };
+  const neg = (-vx) & 0xff;
+  return { velX: toSigned(neg), facing: (flags & 0x02) ? ((neg & 0x80) ? 1 : 2) : facing };
+}
+
+export interface RomWallJumpConfig {
+  enabled: boolean;
+  horizontalPush: number;
+  /** 8.8 word stored in entity_walljump_cfg_vertical_impulse (already negated = upwards). */
+  verticalImpulseWord: number;
+  slideFallSpeed: number;
+  lockFrames: number;
+  requireAway: boolean;
+}
+
+/** entitiesGenerator WallJump config resolution (same precedence and clamping as the ROM). */
+export function romWallJumpConfig(
+  definitionDefaults: Record<string, any>,
+  templateDefaults: Record<string, any>,
+  overrides: Record<string, any>,
+): RomWallJumpConfig {
+  const parseInt10 = (v: any) => (typeof v === 'number' ? v : parseInt(String(v ?? ''), 10));
+  const byte = (v: any, d: number) => { const n = parseInt10(v); return Number.isNaN(n) ? d : Math.max(0, Math.min(255, n | 0)); };
+  const word = (v: any, d: number) => { const n = parseInt10(v); return Number.isNaN(n) ? Math.max(0, Math.min(65535, d | 0)) : Math.max(0, Math.min(65535, n | 0)); };
+  const bool = romParseBool;
+  const values = { ...definitionDefaults, ...templateDefaults, ...overrides };
+  if (!bool(values.isEnabled, true)) {
+    return { enabled: false, horizontalPush: 0, verticalImpulseWord: 0, slideFallSpeed: 0, lockFrames: 0, requireAway: false };
+  }
+  const magnitude = Math.max(1, word(overrides.verticalImpulse ?? templateDefaults.verticalImpulse ?? 1280, 1280));
+  return {
+    enabled: true,
+    horizontalPush: Math.max(1, byte(overrides.horizontalPush ?? templateDefaults.horizontalPush ?? 7, 7)),
+    verticalImpulseWord: (0x10000 - magnitude) & 0xffff,
+    slideFallSpeed: byte(values.slideFallSpeed, 2),
+    lockFrames: byte(overrides.lockFrames ?? templateDefaults.lockFrames ?? 16, 16),
+    requireAway: bool(values.requirePressAwayFromWall, false),
+  };
+}
+
+export interface RomWallJumpState {
+  x: number;
+  velX: number;
+  velY: number;
+  /** 8.8 gravity velocity as unsigned 16-bit (entity_gravity_vel). */
+  gravityVel: number;
+  onGround: boolean;
+  onLadder: boolean;
+  /** Previous WallCollision pass flags (#02 down, #04 left, #08 right). */
+  wallFlags: number;
+  lock: number;
+  lockedVx: number;
+  facing: number;
+}
+
+/**
+ * ROM walljump_process_entity_c (without the one-shot animation restore, handled by the caller).
+ * `fireEdge` = button 1 pressed this frame and not the previous one; `stick` = GTSTCK direction.
+ */
+export function romWallJumpStep(
+  cfg: RomWallJumpConfig,
+  input: RomWallJumpState,
+  fireEdge: boolean,
+  stick: number,
+): { state: RomWallJumpState; jumped: boolean } {
+  const st: RomWallJumpState = { ...input, x: toByte(input.x), velX: toByte(input.velX), velY: toByte(input.velY), lockedVx: toByte(input.lockedVx), lock: input.lock & 0xff, gravityVel: input.gravityVel & 0xffff };
+  const out = (jumped: boolean) => ({ state: { ...st, velX: toSigned(st.velX), velY: toSigned(st.velY), lockedVx: toSigned(st.lockedVx) }, jumped });
+  if (!cfg.enabled) return out(false);
+  const clear = () => { st.lock = 0; st.lockedVx = 0; };
+  if (st.onGround || st.onLadder || (st.wallFlags & 0x02)) { clear(); return out(false); }
+  if (st.lockedVx !== 0) {
+    if (st.gravityVel & 0x8000) {
+      st.velX = st.lockedVx;
+      if (st.lock !== 0) st.lock = (st.lock - 1) & 0xff;
+    } else {
+      clear();
+    }
+  }
+  const wall = st.wallFlags & 0x0c;
+  if (!wall) return out(false);
+  const slide = cfg.slideFallSpeed & 0xff;
+  if (slide && !(st.velY & 0x80) && st.velY > slide) {
+    st.velY = slide;
+    st.gravityVel = (slide << 8) & 0xffff;
+  }
+  if (!fireEdge) return out(false);
+  const isLeft = stick >= 6 && stick <= 8;
+  const isRight = stick >= 2 && stick <= 4;
+  let fromLeft: boolean;
+  if (cfg.requireAway) {
+    if ((wall & 0x04) && isRight) fromLeft = true;
+    else if ((wall & 0x08) && isLeft) fromLeft = false;
+    else return out(false);
+  } else if (wall & 0x04) {
+    fromLeft = !(wall & 0x08) ? true : isRight ? true : isLeft ? false : true;
+  } else {
+    fromLeft = false;
+  }
+  const push = cfg.horizontalPush & 0xff;
+  const d = fromLeft ? push : (-push) & 0xff;
+  st.velX = d;
+  st.lockedVx = d;
+  st.facing = (d & 0x80) ? 1 : 2;
+  if (d !== 0) st.x = (d & 0x80) ? (st.x - 1) & 0xff : (st.x + 1) & 0xff;
+  st.lock = cfg.lockFrames & 0xff;
+  st.gravityVel = cfg.verticalImpulseWord & 0xffff;
+  st.velY = (st.gravityVel >> 8) & 0xff;
+  st.onGround = false;
+  return out(true);
+}
+
+export interface RomDashState { timer: number; cooldown: number; dir: number }
+
+/**
+ * ROM player_fast_dash_process_c (player only). Note: the ROM uses fixed values (speed 8,
+ * 8 frames, cooldown 18 that never blocks a new dash) and only reads Dash.isEnabled.
+ * Returns the velocity override while the dash is active.
+ */
+export function romDashStep(
+  input: RomDashState,
+  enabled: boolean,
+  inputDisabled: boolean,
+  grabEdge: boolean,
+  stick: number,
+  facing: number,
+): { state: RomDashState; active: boolean; vx: number; vy: number } {
+  const st = { ...input };
+  const idle = () => ({ state: st, active: false, vx: 0, vy: 0 });
+  if (inputDisabled) { st.timer = 0; return idle(); }
+  if (!enabled) { st.timer = 0; st.cooldown = 0; return idle(); }
+  if (st.timer === 0) {
+    if (st.cooldown !== 0) st.cooldown = (st.cooldown - 1) & 0xff;
+    if (!grabEdge) return idle();
+    st.dir = romDashDirection(stick, facing);
+    st.timer = 8;
+    st.cooldown = 18;
+  }
+  st.timer = (st.timer - 1) & 0xff;
+  const [vx, vy] = st.dir === 1 ? [-8, 0] : st.dir === 3 ? [0, -8] : st.dir === 4 ? [0, 8] : [8, 0];
+  return { state: st, active: true, vx, vy };
+}
+
+/** ROM player_fast_dash_resolve_dir_c: 1 left, 2 right, 3 up, 4 down. */
+export function romDashDirection(stick: number, facing: number): number {
+  if (stick === 2 || stick === 3 || stick === 4) return 2;
+  if (stick === 6 || stick === 7 || stick === 8) return 1;
+  if (stick === 1) return 3;
+  if (stick === 5) return 4;
+  if (facing === 1 || facing === 2 || facing === 3 || facing === 4) return facing;
+  return 2;
+}
+
+/** ROM player_dash_break_front_tile_c probe: the cell [col, row] in front of the dash, or null. */
+export function romDashFrontTile(x: number, y: number, dir: number): [number, number] | null {
+  let bx = toByte(x);
+  let cy = toByte(y);
+  if (dir === 1) {
+    if (bx === 0) return null;
+    bx -= 1;
+    if (cy >= 184) return null;
+    cy += 8;
+  } else if (dir === 3) {
+    if (cy === 0) return null;
+    cy -= 1;
+    if (bx >= 248) return null;
+    bx += 8;
+  } else if (dir === 4) {
+    if (cy >= 176) return null;
+    cy += 16;
+    if (bx >= 248) return null;
+    bx += 8;
+  } else {
+    if (bx >= 240) return null;
+    bx += 16;
+    if (cy >= 184) return null;
+    cy += 8;
+  }
+  const col = bx >> 3;
+  const row = cy >> 3;
+  if (col >= 32 || row >= 24) return null;
+  return [col, row];
+}
