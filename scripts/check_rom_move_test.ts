@@ -14,7 +14,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import vm from 'node:vm';
-import { romAdaptiveProbes, romCanMoveDirection, romCollisionFlagsFromLayer } from '../utils/romMoveTest';
+import { romAdaptiveProbes, romBehaviorStep, romCanMoveDirection, romCollisionFlagsFromLayer } from '../utils/romMoveTest';
 
 const root = new URL('..', import.meta.url).pathname;
 const read = (p: string) => readFileSync(join(root, p), 'utf8');
@@ -35,6 +35,11 @@ const collisionBox = compGen.slice(ccbStart, ccbEnd);
 // WallCollision probe builder (first definition) + its signed-offset helper
 const hitboxCache = slice(compGen, 'wall_build_hitbox_cache:', 'wall_add_signed_offset_clamped:');
 const signedOffset = slice(compGen, 'wall_add_signed_offset_clamped:', '; wall_sub_signed_offset_clamped');
+// Behavior runner (update_behavior_component .. behavior_next_entity's ret)
+const behaviorStart = compGen.indexOf('update_behavior_component:\n    ld a, (active_entity_count)');
+assert.ok(behaviorStart > 0, 'update_behavior_component not found');
+const behaviorEnd = compGen.indexOf('`', behaviorStart);
+const behaviorBlock = compGen.slice(behaviorStart, behaviorEnd);
 const flagsFromLayer = slice(compGen, 'coll_flags_from_layer:', '.cffl_done:') + '.cffl_done:\n    ld a, c\n    ret\n';
 assert.ok(compGen.includes('.cffl_done:\n    ld a, c\n    ret'), 'coll_flags_from_layer epilogue changed: update this test');
 
@@ -56,6 +61,24 @@ COLLISION_EVENT_ENTITY EQU #01
 COLLISION_EVENT_ENEMY EQU #02
 COLLISION_EVENT_ITEM EQU #04
 t_layer EQU #C103
+active_entity_count EQU #C120
+active_entity_list EQU #C121
+hero_entity_id EQU #C130
+entity_comp_masks EQU #C300
+entity_behavior_cfg_type EQU #C320
+entity_behavior_cfg_speed EQU #C340
+entity_behavior_cfg_stop EQU #C360
+entity_behavior_cfg_range EQU #C380
+entity_behavior_cfg_dir EQU #C3A0
+entity_facing_dir EQU #C3C0
+entity_vel_x EQU #C3E0
+entity_wall_collision_flags EQU #C400
+COMP_MASK_BEHAVIOR EQU #20
+BEHAVIOR_TYPE_NONE EQU 0
+BEHAVIOR_TYPE_FOLLOW_PLAYER_X EQU 1
+BEHAVIOR_TYPE_FLEE_PLAYER_X EQU 2
+BEHAVIOR_TYPE_FACE_PLAYER_X EQU 3
+BEHAVIOR_TYPE_WALK_X_WALL_TURN EQU 4
 wall_temp_x EQU #C110
 wall_temp_y EQU #C111
 wall_hit_w EQU #C112
@@ -88,6 +111,10 @@ probes_entry:
     ld e, a
     ld d, 0
     call wall_build_hitbox_cache
+    ret
+    DS #4030 - $          ; fourth entry point at #4030
+behavior_entry:
+    call update_behavior_component
     ret
 
 ; Test stand-in for the ROM reader: behaviour byte of (B=row, C=col), out of 32x24 = passable.
@@ -125,6 +152,7 @@ ${collisionBox}
 ${flagsFromLayer}
 ${hitboxCache}
 ${signedOffset}
+${behaviorBlock}
 `;
 
 const dir = mkdtempSync(join(tmpdir(), 'rom-move-'));
@@ -204,5 +232,32 @@ for (let w = 1; w <= 40; w++) {
     probeCases++;
   }
 }
+// update_behavior_component vs romBehaviorStep
+let behaviorCases = 0;
+for (let k = 0; k < 3000; k++) {
+  const e = rnd(32);
+  let hero: number | null = rnd(6) === 0 ? null : rnd(32);
+  if (hero === e) hero = null;
+  const cfg = { type: rnd(6), speed: rnd(17), stopDistance: rnd(20), range: rnd(4) === 0 ? 0 : rnd(120), direction: 1 + rnd(2) };
+  const x = rnd(256);
+  const heroX = rnd(4) === 0 ? x : rnd(256);
+  const facing = rnd(3);
+  const wallFlags = [0, 0x04, 0x08, 0x0c, 0x03][rnd(5)];
+  memory[0xc120] = 1; memory[0xc121] = e;
+  memory[0xc130] = hero === null ? 0xff : hero;
+  memory[0xc300 + e] = 0x20;
+  memory[0xc320 + e] = cfg.type; memory[0xc340 + e] = cfg.speed; memory[0xc360 + e] = cfg.stopDistance;
+  memory[0xc380 + e] = cfg.range; memory[0xc3a0 + e] = cfg.direction;
+  memory[0xc3c0 + e] = facing; memory[0xc3e0 + e] = 0x55; memory[0xc400 + e] = wallFlags;
+  memory[RAM.x + e] = x;
+  if (hero !== null) memory[RAM.x + hero] = heroX;
+  cpu.runRoutine(0x4030, 0xbff0);
+  const play = romBehaviorStep(cfg, { x, heroX: hero === null ? null : heroX, facing, wallFlags });
+  const z80Vx = memory[0xc3e0 + e];
+  const expectedVx = play.vx === undefined ? 0x55 : play.vx & 0xff;
+  assert.equal(z80Vx, expectedVx, `behavior vx mismatch ${JSON.stringify({ cfg, x, hero, heroX, facing, wallFlags })}`);
+  assert.equal(memory[0xc3c0 + e], play.facing, `behavior facing mismatch ${JSON.stringify({ cfg, x, hero, heroX, facing, wallFlags })}`);
+  behaviorCases++;
+}
 assert.ok(blocked > cases / 10 && blocked < cases * 0.9, `test map should block a fair share of moves (${blocked}/${cases})`);
-console.log(`OK ROM == Play: move test ${cases} random cases (${blocked} blocked) + coll_flags_from_layer 256 layers + ${probeCases} WallCollision probe boxes, Z80 assembled by glass.jar`);
+console.log(`OK ROM == Play: move test ${cases} random cases (${blocked} blocked) + coll_flags_from_layer 256 layers + ${probeCases} WallCollision probe boxes + ${behaviorCases} Behavior steps, Z80 assembled by glass.jar`);

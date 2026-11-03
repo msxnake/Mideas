@@ -88,3 +88,80 @@ export function romAdaptiveProbes(start: number, size: number): [number, number]
   const inset = Math.min(2, span >> 1);
   return [start + inset, start + span - inset];
 }
+
+/** ROM Behavior types (entity_behavior_cfg_type). */
+export const ROM_BEHAVIOR = { NONE: 0, FOLLOW_PLAYER_X: 1, FLEE_PLAYER_X: 2, FACE_PLAYER_X: 3, WALK_X_WALL_TURN: 4 } as const;
+
+/** entitiesGenerator resolveBehaviorType: behaviorType / aiState names -> ROM type id. */
+export function romResolveBehaviorType(value: unknown): number {
+  const n = String(value ?? 'none').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (['follow_player_x', 'followx', 'follow_x', 'chase', 'chase_x', 'chase_player_x', 'move_to_player_x'].includes(n)) return 1;
+  if (['flee_player_x', 'fleex', 'flee_x', 'avoid_player_x', 'run_from_player_x'].includes(n)) return 2;
+  if (['face_player_x', 'facex', 'face_x', 'look_at_player_x', 'look_player_x'].includes(n)) return 3;
+  if (['walk_x_wall_turn', 'walk_wall_turn_x', 'walk_x', 'walker_x', 'wall_bounce_x', 'wall_turn_x', 'turn_on_wall_x'].includes(n)) return 4;
+  return 0;
+}
+
+export interface RomBehaviorConfig {
+  type: number;
+  /** 1..16, 0 treated as 1. */
+  speed: number;
+  /** Stop when |dx| <= stopDistance. */
+  stopDistance: number;
+  /** 0 = unlimited; otherwise only act when |dx| <= range. */
+  range: number;
+  /** Initial walking direction for WALK_X_WALL_TURN: 1 left, 2 right. */
+  direction: number;
+}
+
+export interface RomBehaviorState {
+  /** Entity X (byte). */
+  x: number;
+  /** Player X (byte) or null when there is no player / this entity is the player. */
+  heroX: number | null;
+  /** entity_facing_dir: 0 unknown, 1 left, 2 right. */
+  facing: number;
+  /** Previous frame wall flags (bit2 = LEFT, bit3 = RIGHT). */
+  wallFlags: number;
+}
+
+/**
+ * One frame of ROM update_behavior_component for one entity. Returns the new X velocity
+ * (undefined = untouched) and facing (unchanged when the ROM does not write it).
+ */
+export function romBehaviorStep(cfg: RomBehaviorConfig, st: RomBehaviorState): { vx: number | undefined; facing: number } {
+  const speed = (cfg.speed & 0xff) || 1;
+  let facing = st.facing;
+  // behavior_load_target_delta_x: D = direction to player (0 none, 1 left, 2 right), A = |dx|
+  const delta = (): [number, number] => {
+    if (st.heroX === null) return [0, 0];
+    const self = st.x & 0xff;
+    const hero = st.heroX & 0xff;
+    if (hero === self) return [0, 0];
+    return hero > self ? [2, hero - self] : [1, self - hero];
+  };
+  // behavior_distance_allows: blocked when dist <= stop, or range != 0 and range < dist
+  const allows = (dist: number) => !(dist <= (cfg.stopDistance & 0xff)) && !((cfg.range & 0xff) !== 0 && (cfg.range & 0xff) < dist);
+  switch (cfg.type) {
+    case 1:
+    case 2: {
+      const [dir, dist] = delta();
+      if (dir === 0 || !allows(dist)) return { vx: 0, facing };
+      const goRight = cfg.type === 1 ? dir === 2 : dir === 1;
+      return { vx: goRight ? speed : -speed, facing: goRight ? 2 : 1 };
+    }
+    case 3: {
+      const [dir] = delta();
+      return { vx: undefined, facing: dir === 0 ? facing : dir };
+    }
+    case 4: {
+      // behavior_get_facing_or_default_d + behavior_turn_on_wall_d
+      let d = facing === 1 ? 1 : facing === 2 ? 2 : ((cfg.direction & 0xff) === 1 ? 1 : 2);
+      if (st.wallFlags & 0x04) { if (d === 1) d = 2; }
+      else if (st.wallFlags & 0x08) { if (d === 2) d = 1; }
+      return { vx: d === 1 ? -speed : speed, facing: d };
+    }
+    default:
+      return { vx: undefined, facing };
+  }
+}

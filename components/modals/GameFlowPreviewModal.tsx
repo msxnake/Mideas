@@ -42,7 +42,7 @@ import { renderScreenToCanvas, createSpriteDataURL, getScreenBehaviorLayer, getS
 import { checkMsx2HazardAtWorldPixel } from '../../utils/msx2Screen4TileBehavior';
 import { parseMsx2PlayerImport } from '../../utils/msx2PlayerImport';
 import { getStateMachineBrowserInputAliases, normalizeStateMachineInput } from '../../utils/stateMachineInputs';
-import { ROM_COLLISION_EVENT_ENEMY, ROM_COLLISION_EVENT_ENTITY, ROM_COLLISION_EVENT_ITEM, ROM_MOVE_DIRECTION_IDS, romAdaptiveProbes, romCanMoveDirection, romCollisionFlagsFromLayer, romDirectionFromVelocity } from '../../utils/romMoveTest';
+import { ROM_COLLISION_EVENT_ENEMY, ROM_COLLISION_EVENT_ENTITY, ROM_COLLISION_EVENT_ITEM, ROM_MOVE_DIRECTION_IDS, romAdaptiveProbes, romBehaviorStep, romCanMoveDirection, romCollisionFlagsFromLayer, romDirectionFromVelocity, romResolveBehaviorType } from '../../utils/romMoveTest';
 import {
     applyMsx2JumpImpulseToEntity,
     getMsx2DashConfigFromPlayerEntity,
@@ -7777,6 +7777,51 @@ useEffect(() => {
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+            }
+
+            // --- 0.55. ROM parity: Behavior/AI (update_behavior_component runs before the state machine) ---
+            {
+                const behaviorComp = entityA.template.components.find(c => c.definitionId === 'comp_behavior');
+                const aiComp = entityA.template.components.find(c => c.definitionId === 'comp_ai_behavior');
+                const behaviorOverrides = entityA.instance.componentOverrides?.['comp_behavior'];
+                const aiOverrides = entityA.instance.componentOverrides?.['comp_ai_behavior'];
+                if (behaviorComp || aiComp || behaviorOverrides || aiOverrides) {
+                    // Same value precedence as entitiesGenerator (definition defaults, AI, Behavior, overrides).
+                    const definitionDefaults = (id: string) => Object.fromEntries(
+                        (componentDefinitions.find(d => d.id === id)?.properties || []).map(p => [p.name, p.defaultValue])
+                    );
+                    const v: Record<string, any> = {
+                        ...definitionDefaults('comp_ai_behavior'), ...(aiComp?.defaultValues || {}),
+                        ...definitionDefaults('comp_behavior'), ...(behaviorComp?.defaultValues || {}),
+                        ...(aiOverrides || {}), ...(behaviorOverrides || {}),
+                    };
+                    const enabledRaw = v.isEnabled ?? v.enabled;
+                    const enabled = !(enabledRaw === false || String(enabledRaw).toLowerCase() === 'false' || String(enabledRaw) === '0');
+                    const type = enabled ? romResolveBehaviorType(v.behaviorType ?? v.aiState ?? 'none') : 0;
+                    if (type !== 0) {
+                        const byte = (val: any, d: number) => { const n = parseInt(String(val ?? ''), 10); return Number.isNaN(n) ? d : Math.max(0, Math.min(255, n)); };
+                        const dirRaw = String(v.initialDirection ?? v.direction ?? 'right').trim().toLowerCase();
+                        const hero = heroRef.current;
+                        const step = romBehaviorStep({
+                            type,
+                            speed: Math.max(1, Math.min(16, byte(v.speed, 1))),
+                            stopDistance: byte(v.stopDistance, 4),
+                            range: byte(v.range ?? v.aggroRadius, 64),
+                            direction: ['left', 'l', '-1', 'west', 'w'].includes(dirRaw) ? 1 : 2,
+                        }, {
+                            x: Math.floor(entityA.x) & 0xff,
+                            heroX: hero && hero !== entityA ? Math.floor(hero.x) & 0xff : null,
+                            facing: Number((entityA as any).romFacingDir ?? 0),
+                            wallFlags: Number((entityA as any).romWallDirStable ?? 0),
+                        });
+                        if (step.vx !== undefined) entityA.vx = step.vx;
+                        if (step.facing !== (entityA as any).romFacingDir) {
+                            (entityA as any).romFacingDir = step.facing;
+                            const spriteFacing = entityA.sprite?.facingDirection;
+                            entityA.isFacingMirrored = (spriteFacing === 'right' && step.facing === 1) || (spriteFacing === 'left' && step.facing === 2);
                         }
                     }
                 }

@@ -111,8 +111,9 @@ export const COMPONENT_SEMANTICS: Record<string, { meaning: string; formulas?: s
   playerinput: { meaning: 'Entity is controlled by the player (cursors/joystick + fire).' },
   cursors: { meaning: 'Moves the entity with the cursor keys/joystick at `speed` px per frame, per allowed direction. Vertical movement only without Gravity or while on a ladder.', ignoredProperties: ['isEnabled'] },
   aibehavior: {
-    meaning: 'NO movement in Play mode (for HAS_COLLISION "enemy" the collision layer must have bit 2). Do not invent patrol/chase behaviour (patrolRangeX/aggroRadius are not used by Play).',
-    ignoredProperties: ['aiState', 'stateTimer', 'targetEntityTemplateId', 'patrolRangeX', 'aggroRadius'],
+    meaning: 'Built-in X movement (Play = ROM update_behavior_component), chosen by behaviorType or aiState: chase/follow_player_x (move towards the player at `speed` px/frame), flee_player_x (away from the player), face_player_x (only turn to face the player), walk_x_wall_turn (walk and turn around at walls). Stops when |dx| <= stopDistance or, if range (aggroRadius) != 0, when |dx| > range. Any other value (e.g. idle, patrol) = no movement. For HAS_COLLISION "enemy" the collision layer must have bit 2.',
+    formulas: ['speed clamped to 1..16 px/frame', 'runs before the state machine every frame'],
+    ignoredProperties: ['stateTimer', 'targetEntityTemplateId', 'patrolRangeX'],
   },
   damage: { meaning: 'damageAmount/knockback are descriptive (rules decide the effect). For HAS_COLLISION "enemy" the collision layer must have bit 2.' },
   collectible: { meaning: 'Item picked up on contact (for HAS_COLLISION "item" its collision layer must have bit 16). It has NO effect by itself: score/ammo/keys come from state machine rules. Once collected it does not reappear when the screen is re-entered.' },
@@ -139,7 +140,7 @@ export const COMPONENT_SEMANTICS: Record<string, { meaning: string; formulas?: s
   pacmanmovement: { meaning: 'DECLARED BUT NOT IMPLEMENTED: neither Mideas Play mode nor the MSX1 ROM generator use it (intent only; implement it only if you want that feature). Intended: grid-locked maze movement at `speed`, buffering the desired direction and turning when aligned to the grid.' },
   pacmanmovementv2: { meaning: 'DECLARED BUT NOT IMPLEMENTED: neither Mideas Play mode nor the MSX1 ROM generator use it (intent only; implement it only if you want that feature). Intended: grid-locked maze movement with pixel-exact turning.' },
   pacmanrotationv2: { meaning: 'DECLARED BUT NOT IMPLEMENTED: neither Mideas Play mode nor the MSX1 ROM generator use it (intent only; implement it only if you want that feature). Intended: auto-rotate the sprite to the movement direction.' },
-  behavior: { meaning: 'Legacy reference to a Z80 behaviour script. Placeholder ids (placeholder_behavior_*) mean "no script": ignore them.' },
+  behavior: { meaning: 'Same built-in movement as AIBehavior (behaviorType / speed / stopDistance / range / initialDirection; its values override AIBehavior). scriptAssetId is a legacy Z80 script reference; placeholder_behavior_* means no script.' },
 };
 
 /** Engine rules of the Play mode that are not attached to a single component. */
@@ -169,7 +170,7 @@ export const ENGINE_RULES = {
     'After a screen change, exits are blocked for 300 ms. A side without connection is only a wall if the player has the "limit_on" component; otherwise the player can leave the screen.',
     'A checkpoint (respawn point) is saved every time the player enters a screen.',
   ],
-  playVsRom: 'Remaining Mideas Play mode vs MSX ROM differences (being closed, see docs/project/PLAN_PARIDAD_PLAY_ROM.md): Spawner, Inventory, Aiming, Rotate, Pac-Man movement are declared but implemented by neither; Behavior, Dash, Mirror, Physics/Movement, Position, WallCollision, WallJump are used only by the ROM.',
+  playVsRom: 'Remaining Mideas Play mode vs MSX ROM differences (being closed, see docs/project/PLAN_PARIDAD_PLAY_ROM.md): Spawner, Inventory, Aiming, Rotate, Pac-Man movement are declared but implemented by neither; Dash, Mirror, Physics/Movement, Position, WallCollision, WallJump are used only by the ROM.',
   inputs: 'Logical inputs: up/down/left/right = cursors/joystick; fire = button 1 (SPACE); action2 = button 2 = the key chosen in the Game Flow Controls node (N by default, or CTRL), same in Play and ROM (an MSX2 player asset can override it); X = shoot (Shoot.fireKey); Z = carry.',
   tileInteractions: 'Only for entities with Cursors, PlayerInput, comp_input or Tile Collector. Each frame the tile under the point (x+8, y+8) of the entity is checked and all types write last_interaction_type/value/target. Effects: collect_gem (also tiles flagged isInteractable/isInteractiveSwitch) removes the tile and increments gem_count (plus Tile Collector targetVariable/incrementAmount/flagVariable); collect_item adds interactionValue (or 1) to the variable interactionTarget; add_energy adds 1 to Health and Lives; lever_toggle toggles the interactionTarget variable between 0 and 1 (once); button_press sets last_interaction_pending = true for one frame; jumper sets vy = -max(8, value) (x1.5 while SPACE is held); wallJumper sets vx = +/-value (max 15). Rules can read these with VARIABLE_COMPARE.',
   nucleo: 'Entities of a template named "nucleo" are NOT spawned: they are invisible spawn anchors. SPAWN_ENTITY with randomNucleo uses a random anchor; templates whose name contains "coin" spawned without x/y also use one automatically.',

@@ -203,8 +203,22 @@ borra nada. Los bosses no se ven afectados: su cuello/aplastamiento se configura
 el asset de boss (`phase.neckChain`), no con estos componentes. El contrato comprueba
 que la lista de ocultos coincide con "implementado en ninguno".
 
-**Pendiente:** portar a Play los "solo ROM" (Behavior, Dash, Mirror, Physics/Movement,
-Position, WallCollision, WallJump) y decidir Child Link.
+**Hecho — Behavior/AIBehavior (IA de movimiento):** Play ejecuta los mismos tipos que el ROM
+(`chase`/`follow_player_x`, `flee_player_x`, `face_player_x`, `walk_x_wall_turn`) con la misma
+precedencia de valores, justo antes de la máquina de estados como el ROM
+(`romBehaviorStep`). Verificado contra `update_behavior_component` Z80 en 3000 pasos.
+Nota: todos los enemigos de `Examples/` usan `aiState: idle` (tipo 0), así que ni el ROM ni
+Play los mueven; no cambia nada en los ejemplos.
+
+**Decisión pendiente — colisión con tiles:** el ROM solo hace WallCollision para entidades
+con Collision **y** `collidesWith & #08` **y** que se muevan (Input/Movement/Gravity); además la
+gravedad solo para con `entity_on_ground` de WallCollision. Play choca con tiles con solo
+tener Collision. Con la regla del ROM, "Basic Enemy" de `mini_game75` (`collidesWith = 1`,
+como el ejemplo de enemigo de `CLAUDE.md`) atraviesa el suelo. Opciones: Play copia al ROM,
+o el ROM pasa a ignorar el bit #08 para tiles.
+
+**Pendiente:** Dash, Mirror, WallJump (no los usa ningún ejemplo), gating de Physics/Movement
+para integrar velocidad, y Child Link (solo Play).
 
 Plan original de la fase:
 - Ocultar del editor los componentes que no implementa nadie (tabla D), sin
