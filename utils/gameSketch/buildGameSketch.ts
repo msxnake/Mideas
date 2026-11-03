@@ -474,8 +474,17 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
 
   // --- fonts ----------------------------------------------------------------
   const fontsSketch: any[] = [];
-  const renderFont = (font: MSXFont | undefined, colorsAttr: MSXFontColorAttributes | undefined, slug: string, label: string) => {
-    if (!font) return;
+  // MSX1 ROM text font (fontGenerator selectProjectFontAsset): the font of the first dialogue
+  // box that names one, else the FIRST font asset, else the project font. HUD, menus, text
+  // screens and dialogues all use it; glyphs it does not define come from the built-in MSX font.
+  const fontAssetsInOrder = byType<any>('font');
+  const dialogueFontIds = byType<any>('dialogue').map(d => String(d.data?.box?.fontAssetId || '')).filter(Boolean);
+  const romTextFontAsset = dialogueFontIds.map(id => fontAssetsInOrder.find(f => f.id === id || f.data?.id === id)).find(Boolean)
+    ?? fontAssetsInOrder[0];
+  const ROM_TEXT_FONT_USE = 'MSX1 ROM text font: HUD, menus, text screens and dialogues (glyphs it does not define fall back to the built-in MSX font)';
+  let romTextFontImages: Record<string, string> | null = null;
+  const renderFont = (font: MSXFont | undefined, colorsAttr: MSXFontColorAttributes | undefined, slug: string, label: string, usedFor?: string): Record<string, string> | null => {
+    if (!font) return null;
     const atlas = createImage(16 * CELL, 16 * CELL);
     let defined = 0;
     for (let code = 0; code < 256; code++) {
@@ -491,17 +500,27 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
         for (let bit = 0; bit < 8; bit++) if (bits & (0x80 >> bit)) setPixel(atlas, ox + bit, oy + row, fg[3] ? fg : [255, 255, 255, 255]);
       }
     }
-    if (!defined) return;
+    if (!defined) return null;
+    const images = addScaledPng(`fonts/${slug}.png`, atlas);
     fontsSketch.push({
       name: label,
-      images: addScaledPng(`fonts/${slug}.png`, atlas),
+      images,
       layout: '16x16 grid of 8x8 glyphs, glyph for character code c at (c % 16, floor(c / 16)). Codes follow ASCII for 32..127.',
       definedGlyphs: defined,
+      ...(usedFor ? { usedFor } : {}),
     });
+    return images;
   };
-  renderFont(input.msxFont, input.msxFontColorAttributes, 'project_font', 'Project font (used by menus, text screens and HUD)');
+  const projectFontImages = renderFont(input.msxFont, input.msxFontColorAttributes, 'project_font',
+    romTextFontAsset ? 'Project font (not used for text by the MSX1 ROM: a font asset takes over)' : 'Project font',
+    romTextFontAsset ? undefined : ROM_TEXT_FONT_USE);
   const fontSlug = makeUniqueSlugger();
-  byType<any>('font').forEach(f => renderFont(f.data?.fontData, f.data?.fontColorAttributes, `font_${fontSlug(f.name)}`, `Font asset "${f.name}" (id ${f.id})`));
+  fontAssetsInOrder.forEach(f => {
+    const isTextFont = f === romTextFontAsset;
+    const images = renderFont(f.data?.fontData, f.data?.fontColorAttributes, `font_${fontSlug(f.name)}`, `Font asset "${f.name}" (id ${f.id})`, isTextFont ? ROM_TEXT_FONT_USE : undefined);
+    if (isTextFont) romTextFontImages = images;
+  });
+  if (!romTextFontAsset) romTextFontImages = projectFontImages;
 
   // --- entities -------------------------------------------------------------
   const resolveComponents = (tpl: EntityTemplate | undefined, overrides: Record<string, Record<string, any>> = {}) => {
@@ -676,6 +695,7 @@ export function buildGameSketch(rawInput: GameSketchInput): GameSketchResult {
     const hud = s.hudConfiguration?.elements?.length ? {
       elements: s.hudConfiguration.elements.map(el => ({ type: el.type, name: el.name, text: el.text ?? null, pixel: el.position, visible: el.visible, details: el.details ?? {} })),
       hasImportedFrame: !!s.hudConfiguration.importedFrame,
+      font: romTextFontImages ? { name: romTextFontAsset ? romTextFontAsset.name : 'Project font', images: romTextFontImages } : null,
     } : null;
 
     const activeArea = { x: s.activeAreaX ?? 0, y: s.activeAreaY ?? 0, width: s.activeAreaWidth ?? cols, height: s.activeAreaHeight ?? rows, unit: 'cells' };

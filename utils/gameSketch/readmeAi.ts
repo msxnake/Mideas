@@ -65,7 +65,7 @@ ${screens}
 | \`graphics/tileset_atlas.json\` + \`graphics/xN/tiles/tileset_atlas.png\` | Every 8x8 tile cell with its gameplay properties (solid, deadly, breakable...). Ready for a TileSet. |
 | \`graphics/xN/tiles/*.png\` | Each tile asset (some tiles are 16x16 = 2x2 cells). |
 | \`graphics/xN/sprites/<name>/\` | Sprite frames (\`frame_00.png\`...) and a horizontal sheet (\`sheet.png\`). |
-| \`graphics/xN/fonts/\` | Bitmap fonts (16x16 grid of 8x8 glyphs, ASCII order). |
+| \`graphics/xN/fonts/\` | Bitmap fonts (16x16 grid of 8x8 glyphs, ASCII order). The one whose \`usedFor\` names the HUD (also \`screens/*.json\` \`hud.font\`) is the font for HUD, menus and texts. |
 | \`graphics/palette.json\` | The 16-entry MSX1 palette. |
 | \`rules/state_machines.md\` | **Gameplay rules**: every state machine in plain English + pseudocode + Mermaid diagram. |
 | \`rules/game_flow.md\` | Menus/screens sequence and world map connections (Mermaid). |
