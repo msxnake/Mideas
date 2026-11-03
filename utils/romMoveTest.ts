@@ -78,6 +78,14 @@ export function romCollisionFlagsFromLayer(layer: number): number {
 }
 
 /**
+ * ROM coll_flags_for_entity_e: flags of the OTHER entity of an overlap, from its layer plus
+ * COLLISION_EVENT_ITEM when it has the Collectible component (Collectible entities are items).
+ */
+export function romCollisionFlagsFor(layer: number, isCollectible: boolean): number {
+  return romCollisionFlagsFromLayer(layer) | (isCollectible ? ROM_COLLISION_EVENT_ITEM : 0);
+}
+
+/**
  * ROM wall_build_hitbox_cache adaptive probes: for a hitbox side starting at `start` with
  * `size` pixels (inclusive span size-1), returns the two probe coordinates
  * [start + inset, start + size - 1 - inset] with inset = min(2, floor((size - 1) / 2)).

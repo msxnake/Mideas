@@ -6,6 +6,11 @@
 import { StateMachine, StateMachineState, Action, Condition, ActionTypes, ConditionTypes } from '../../../statemachine.types';
 import { buildMSXDirectionalSpriteCatalog } from '../../../components/utils/spriteUtils';
 import { usesMapperBanking } from './romModeUtils';
+import { generateEntityComponentMask } from '../utils/componentAnalyzer';
+import { romTileCollidesWith } from '../../romMoveTest';
+
+// Templates of the project being generated (SPAWN_ENTITY needs them while encoding actions).
+let SM_GEN_TEMPLATES: any[] = [];
 
 type MideasAsmBlockOptions = {
     id: string;
@@ -362,7 +367,19 @@ function buildVariableIdMap(globalVariables?: any[]): Record<string, number> {
         });
     }
 
-    return map;
+    // Play mode parity: variable names are case-insensitive there ("score" in a rule is the
+    // "Score" global). Without this an unknown spelling silently fell back to ID 0 (entity X).
+    Object.keys(map).forEach((key) => {
+        const lower = key.trim().toLowerCase();
+        if (!(lower in map)) map[lower] = map[key];
+    });
+    return new Proxy(map, {
+        get(target, key) {
+            if (typeof key !== 'string') return (target as any)[key];
+            if (key in target) return target[key];
+            return target[key.trim().toLowerCase()];
+        },
+    });
 }
 
 function buildTileIdToBaseCharMap(tiles?: any[]): Record<string, number> {
@@ -445,12 +462,23 @@ interface TemplateProfileTables {
     animSpeedByToken: number[];
     healthCurByToken: number[];
     healthMaxByToken: number[];
+    /** SPAWN_ENTITY: component mask, collision values and Collectible flag per template. */
+    spawnMaskLo: number[];
+    spawnMaskHi: number[];
+    spawnLayer: number[];
+    spawnCollides: number[];
+    spawnHitW: number[];
+    spawnHitH: number[];
+    spawnOffX: number[];
+    spawnOffY: number[];
+    spawnCollectible: number[];
 }
 
 function buildTemplateProfileTables(
     templates?: any[],
     spriteNameToIndex?: Record<string, number>,
-    templateTokenMap?: Record<string, number>
+    templateTokenMap?: Record<string, number>,
+    sprites?: any[]
 ): TemplateProfileTables {
     const tokenMap = templateTokenMap || buildTemplateTokenMap(templates);
     let maxToken = 0;
@@ -462,6 +490,15 @@ function buildTemplateProfileTables(
     const animSpeedByToken = new Array(maxToken + 1).fill(6);
     const healthCurByToken = new Array(maxToken + 1).fill(1);
     const healthMaxByToken = new Array(maxToken + 1).fill(1);
+    const spawnMaskLo = new Array(maxToken + 1).fill(0x03);
+    const spawnMaskHi = new Array(maxToken + 1).fill(0);
+    const spawnLayer = new Array(maxToken + 1).fill(1);
+    const spawnCollides = new Array(maxToken + 1).fill(0);
+    const spawnHitW = new Array(maxToken + 1).fill(16);
+    const spawnHitH = new Array(maxToken + 1).fill(16);
+    const spawnOffX = new Array(maxToken + 1).fill(0);
+    const spawnOffY = new Array(maxToken + 1).fill(0);
+    const spawnCollectible = new Array(maxToken + 1).fill(0);
 
     const clampByte = (value: any, fallback: number): number => {
         const num = Number(value);
@@ -498,6 +535,29 @@ function buildTemplateProfileTables(
         const max = clampByte(healthDefaults.max ?? cur, cur);
         healthCurByToken[token] = cur;
         healthMaxByToken[token] = max >= cur ? max : cur;
+
+        // SPAWN_ENTITY: same values entitiesGenerator writes for a placed instance without overrides.
+        const mask = generateEntityComponentMask({ componentOverrides: {} }, tpl, { sprites: sprites || [] } as any);
+        spawnMaskLo[token] = mask & 0xFF;
+        spawnMaskHi[token] = (mask >> 8) & 0xFF;
+        const collisionComp = components.find((c: any) => c?.definitionId === 'comp_collision');
+        const wallComp = components.find((c: any) => c?.definitionId === 'comp_wall_collision');
+        const values = { ...(collisionComp?.defaultValues || {}), ...(wallComp?.defaultValues || {}) };
+        const int = (v: any) => (typeof v === 'number' ? v : parseInt(String(v ?? ''), 10));
+        const byteOr = (v: any, d: number) => { const n = int(v); return Number.isNaN(n) ? d : Math.max(0, Math.min(255, n | 0)); };
+        const signedByteOr = (v: any) => { const n = int(v); return Number.isNaN(n) ? 0 : Math.max(-128, Math.min(127, n | 0)) & 0xFF; };
+        if (collisionComp || wallComp) {
+            const patrolComp = components.find((c: any) => c?.definitionId === 'comp_patrol');
+            const multiScreen = !!patrolComp && (patrolComp.defaultValues?.multiScreen === true || patrolComp.defaultValues?.multiScreen === 'true');
+            const stop = !(wallComp?.defaultValues?.stopOnCollision === false || String(wallComp?.defaultValues?.stopOnCollision).toLowerCase() === 'false');
+            spawnLayer[token] = byteOr(values.collisionLayer, 1);
+            spawnCollides[token] = romTileCollidesWith(byteOr(values.collidesWith, 255), !!wallComp, !!wallComp && stop, multiScreen);
+            spawnHitW[token] = byteOr(values.hitboxWidth, 16);
+            spawnHitH[token] = byteOr(values.hitboxHeight, 16);
+            spawnOffX[token] = signedByteOr(values.offsetX);
+            spawnOffY[token] = signedByteOr(values.offsetY);
+        }
+        spawnCollectible[token] = components.some((c: any) => c?.definitionId === 'comp_collectible') ? 1 : 0;
     });
 
     return {
@@ -506,6 +566,15 @@ function buildTemplateProfileTables(
         animSpeedByToken,
         healthCurByToken,
         healthMaxByToken,
+        spawnMaskLo,
+        spawnMaskHi,
+        spawnLayer,
+        spawnCollides,
+        spawnHitW,
+        spawnHitH,
+        spawnOffX,
+        spawnOffY,
+        spawnCollectible,
     };
 }
 
@@ -2450,106 +2519,170 @@ Action_DestroyEntity:
     ret
 
 Action_SpawnEntity:
-; Params: TemplateID(1 byte), X(1 byte), Y(1 byte)
-; Spawns a new entity at specified position
-    ld d, (hl)          ; D = Template ID
+; Params: TemplateToken(1), X(1), Y(1), NucleoToken(1; 0 = spawn at X/Y)
+; Spawns an entity of the template in a free slot (inactive, mask 0), with the template
+; component mask, collision values and Collectible flag (SM_TemplateSpawn* tables), in the
+; screen of the spawning entity (B). Play mode parity: with NucleoToken it spawns at a
+; random active entity of the "nucleo" template.
+    ld d, (hl)          ; D = template token
     inc hl
-    ld e, (hl)          ; E = X position
+    ld e, (hl)          ; E = X
     inc hl
-    ld c, (hl)          ; C = Y position
+    ld a, (hl)          ; A = Y
     inc hl
-
-    push hl             ; Save Params Ptr
-    push bc             ; Save Y position and entity index
-    push de             ; Save Template ID and X position
-
-    ; Find free entity slot (mask == 0)
-    ld hl, entity_comp_masks
-    ld b, 32            ; Check up to 32 entities
-    ld c, 0             ; Entity index
-
-.find_slot:
-    ld a, (hl)          ; Check low byte
-    or a
-    jr z, .check_high   ; Low byte is 0, check high byte
-
-.next_slot:
-    inc hl              ; Next entity
-    inc c               ; Increment index
-    djnz .find_slot     ; Loop for all entities
-
-    ; No free slot found
-    pop de
-    pop bc
-    pop hl
-    ret
-
-.check_high:
-    push hl
-    ld hl, entity_comp_masks_hi
+    ld c, (hl)          ; C = nucleo token
+    inc hl
+    push hl             ; [params ptr]
+    push bc             ; [B = spawning entity]
+    ld h, b             ; H = spawning entity
+    ld b, a             ; B = Y
     ld a, c
-    add a, l
-    ld l, a
-    ld a, 0
-    adc a, h
-    ld h, a
-    ld a, (hl)          ; Check high byte
-    pop hl
     or a
-    jr nz, .next_slot   ; High byte not zero, keep searching
-
-.found_slot:
-    ; C = Free entity index
-    ; Stack: X/TemplateID, Y/B, Params Ptr
-    pop de              ; DE = Template ID (D) / X (E)
-    pop hl              ; HL = Y (H) / saved B (L)
-    ld a, h             ; A = Y position
-
-    ; Set entity position
+    jp z, .spawn_pos_ready
     push hl
     push de
     push bc
-
-    ld h, 0
-    ld l, c             ; HL = Entity index
-    ld bc, entity_x_pos
-    add hl, bc
-    ld (hl), e          ; Set X
-
-    ld h, 0
-    ld l, c             ; HL = Entity index (C preserved)
-    ld de, entity_y_pos
-    add hl, de
-    ld (hl), a          ; Set Y
-
-    ; Activate entity with basic mask (Position + Sprite)
-    ld h, 0
-    ld l, c             ; HL = Entity index
-    ld de, entity_comp_masks
-    add hl, de
-    ld (hl), #03        ; COMP_MASK_POSITION | COMP_MASK_SPRITE (low byte)
-
-    ld h, 0
-    ld l, c
-    ld de, entity_comp_masks_hi
-    add hl, de
-    ld (hl), 0          ; High byte = 0
-
-    ; Store template token for template-aware runtime queries
-    ld h, 0
-    ld l, c
-    ld de, entity_template_token
-    add hl, de
-    ld (hl), d
-
-    ; Apply template profile defaults (sprite/anim/health)
-    ld a, d                 ; A = template token
-    call SM_ApplyTemplateDefaultsToEntity
-
+    call SM_RandomActiveEntityByTemplate   ; A = token -> carry + A = entity index
     pop bc
     pop de
     pop hl
+    jp nc, .spawn_pos_ready
+    push hl
+    push de
+    ld e, a
+    ld d, 0
+    ld hl, entity_y_pos
+    add hl, de
+    ld b, (hl)          ; B = nucleo Y
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)          ; A = nucleo X
+    pop de
+    pop hl
+    ld e, a             ; E = nucleo X
+.spawn_pos_ready:
+    push hl             ; [H = spawning entity]
+    push bc             ; [B = Y]
+    ld c, 0
+.spawn_find:
+    ld a, c
+    cp 32
+    jp nc, .spawn_none
+    push de
+    ld e, c
+    ld d, 0
+    ld hl, entity_active
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_comp_masks
+    add hl, de
+    or (hl)
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    or (hl)
+    pop de
+    jp z, .spawn_found
+    inc c
+    jp .spawn_find
+.spawn_none:
+    pop bc
+    pop hl
+    pop bc
+    pop hl
+    ret
+.spawn_found:
+    ; C = slot, D = token, E = X ; stack: [Y in B], [spawner in H], [engine BC], [params]
+    pop hl              ; H = Y
+    ld a, h
+    ld hl, entity_y_pos
+    call SM_StoreEntityC
+    ld a, e
+    ld hl, entity_x_pos
+    call SM_StoreEntityC
+    xor a
+    ld hl, entity_vel_x
+    call SM_StoreEntityC
+    ld hl, entity_vel_y
+    call SM_StoreEntityC
+    ld a, d
+    ld hl, entity_template_token
+    call SM_StoreEntityC
+    ld hl, SM_TemplateSpawnMaskLoTable
+    call SM_TokenLookupD
+    ld hl, entity_comp_masks
+    call SM_StoreEntityC
+    ld hl, SM_TemplateSpawnMaskHiTable
+    call SM_TokenLookupD
+    ld hl, entity_comp_masks_hi
+    call SM_StoreEntityC
+    ld hl, SM_TemplateSpawnLayerTable
+    call SM_TokenLookupD
+    ld hl, entity_collision_layer
+    call SM_StoreEntityC
+    ld hl, SM_TemplateSpawnCollidesTable
+    call SM_TokenLookupD
+    ld hl, entity_collides_with
+    call SM_StoreEntityC
+    ld hl, SM_TemplateSpawnHitWTable
+    call SM_TokenLookupD
+    ld hl, entity_collision_hitbox_w
+    call SM_StoreEntityC
+    ld hl, SM_TemplateSpawnHitHTable
+    call SM_TokenLookupD
+    ld hl, entity_collision_hitbox_h
+    call SM_StoreEntityC
+    ld hl, SM_TemplateSpawnOffXTable
+    call SM_TokenLookupD
+    ld hl, entity_collision_offset_x
+    call SM_StoreEntityC
+    ld hl, SM_TemplateSpawnOffYTable
+    call SM_TokenLookupD
+    ld hl, entity_collision_offset_y
+    call SM_StoreEntityC
+    ld hl, SM_TemplateSpawnCollectibleTable
+    call SM_TokenLookupD
+    ld hl, entity_collectible_enabled
+    call SM_StoreEntityC
+    ; Same screen as the spawning entity
+    pop hl              ; H = spawning entity
+    push de
+    ld e, h
+    ld d, 0
+    ld hl, entity_screen_id
+    add hl, de
+    ld a, (hl)
+    pop de
+    ld hl, entity_screen_id
+    call SM_StoreEntityC
+    ld a, 1
+    ld hl, entity_active
+    call SM_StoreEntityC
+    ; Apply template profile defaults (sprite/anim/health)
+    ld a, d
+    call SM_ApplyTemplateDefaultsToEntity
+    ld a, 1
+    ld (active_entity_list_dirty), a
+    pop bc
     pop hl              ; Restore Params Ptr
+    ret
+
+; HL = table, D = template token -> A = table[D] (preserves BC, DE)
+SM_TokenLookupD:
+    push de
+    ld e, d
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    pop de
+    ret
+
+; HL = per-entity array, C = entity index, A = value (preserves AF, BC, DE)
+SM_StoreEntityC:
+    push bc
+    ld b, 0
+    add hl, bc
+    ld (hl), a
+    pop bc
     ret
 
 Action_GetRandomPos:
@@ -3475,10 +3608,8 @@ SM_MusicState:
     db 0                    ; 0=stopped, 1=playing, 2=muted
 SM_MusicTrack:
     db 0
-SM_RandSeed:
-    db #5A
-SM_TemplateFilterToken:
-    db 0
+; SM_RandSeed / SM_TemplateFilterToken are written at runtime, so they live in RAM
+; (variablesGenerator): a "db" here would be cartridge ROM and every write would be lost.
 
 SM_SilencePSG:
     xor a
@@ -6644,7 +6775,8 @@ Action_ExitCurrentWorld:`
     const tileIdToCharCode = buildTileIdToBaseCharMap(tiles);
     const templateTokenMap = buildTemplateTokenMap(templates);
     const soundNameToIndex = buildSoundNameToIndexMap(sounds);
-    const templateProfiles = buildTemplateProfileTables(templates, spriteNameToIndex, templateTokenMap);
+    const templateProfiles = buildTemplateProfileTables(templates, spriteNameToIndex, templateTokenMap, sprites);
+    SM_GEN_TEMPLATES = Array.isArray(templates) ? templates : [];
     const formatDbTable = (label: string, values: number[]): string => {
         const escapedValues = values.map((v) => Math.max(0, Math.min(255, v | 0)));
         return `${label}:\n    DB ${escapedValues.join(', ')}\n`;
@@ -6658,6 +6790,15 @@ Action_ExitCurrentWorld:`
     asm += formatDbTable('SM_TemplateAnimSpeedTable', templateProfiles.animSpeedByToken);
     asm += formatDbTable('SM_TemplateHealthCurrentTable', templateProfiles.healthCurByToken);
     asm += formatDbTable('SM_TemplateHealthMaxTable', templateProfiles.healthMaxByToken);
+    asm += formatDbTable('SM_TemplateSpawnMaskLoTable', templateProfiles.spawnMaskLo);
+    asm += formatDbTable('SM_TemplateSpawnMaskHiTable', templateProfiles.spawnMaskHi);
+    asm += formatDbTable('SM_TemplateSpawnLayerTable', templateProfiles.spawnLayer);
+    asm += formatDbTable('SM_TemplateSpawnCollidesTable', templateProfiles.spawnCollides);
+    asm += formatDbTable('SM_TemplateSpawnHitWTable', templateProfiles.spawnHitW);
+    asm += formatDbTable('SM_TemplateSpawnHitHTable', templateProfiles.spawnHitH);
+    asm += formatDbTable('SM_TemplateSpawnOffXTable', templateProfiles.spawnOffX);
+    asm += formatDbTable('SM_TemplateSpawnOffYTable', templateProfiles.spawnOffY);
+    asm += formatDbTable('SM_TemplateSpawnCollectibleTable', templateProfiles.spawnCollectible);
     asm += '\n';
 
     asm += '; ==================================================================\n';
@@ -6941,7 +7082,12 @@ function generateActionBytes(
             const variableName = action.params.variable || action.params.variableName || action.params.name;
             // Look up variable ID in map
             const varId = variableIdMap?.[variableName] ?? 0;
-            const value = action.params.value ?? action.params.amount ?? 0;
+            const rawValue = action.params.value ?? action.params.amount ?? 0;
+            // Play mode parity (GameFlowPreviewModal coerceGlobalVariableValue): SET_VARIABLE with an
+            // empty value (a ticked boolean in the editor) sets the variable to true (1).
+            const value = action.type === ActionTypes.SET_VARIABLE && typeof rawValue === 'string' && rawValue.trim() === ''
+                ? 1
+                : rawValue;
             const { low, high, word } = serializeWordBytes(value);
             bytes += `    DB ${varId}, ${low}, ${high}        ; ${variableName} (ID ${varId}) = ${word}\n`;
             break;
@@ -6967,7 +7113,15 @@ function generateActionBytes(
                 : parseInt(serializeValue(templateRaw), 10) || 0;
             const xRaw = action.params.x ?? 0;
             const yRaw = action.params.y ?? 0;
-            bytes += `    DB ${templateToken}, ${serializeValue(xRaw)}, ${serializeValue(yRaw)}        ; template=${templateRaw}=>${templateToken}\n`;
+            // Play mode parity (GameFlowPreviewModal SPAWN_ENTITY): randomNucleo (or a "coin" template
+            // without x/y) spawns at a random entity of the "nucleo" template.
+            const truthy = (v: any) => v === true || v === 'true';
+            const spawnTemplate = (SM_GEN_TEMPLATES || []).find((t: any) => t?.id === templateRaw || templateTokenMap?.[t?.id] === templateToken);
+            const wantsNucleo = truthy(action.params.randomNucleo) || truthy(action.params.spawnAtRandomNucleo) || truthy(action.params.useNucleo)
+                || (String(spawnTemplate?.name || '').toLowerCase().includes('coin') && action.params.x === undefined && action.params.y === undefined);
+            const nucleoTemplate = (SM_GEN_TEMPLATES || []).find((t: any) => String(t?.name || '').toLowerCase() === 'nucleo' || String(t?.id || '').toLowerCase() === 'nucleo');
+            const nucleoToken = wantsNucleo && nucleoTemplate ? (templateTokenMap?.[nucleoTemplate.id] ?? 0) : 0;
+            bytes += `    DB ${templateToken}, ${serializeValue(xRaw)}, ${serializeValue(yRaw)}, ${nucleoToken}        ; template=${templateRaw}=>${templateToken}${nucleoToken ? `, at random nucleo (token ${nucleoToken})` : ''}\n`;
             break;
         }
 

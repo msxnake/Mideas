@@ -1714,6 +1714,10 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
   currentAddress++;
   code += `active_entity_list_dirty EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=rebuild active_entity_list required\n`;
   currentAddress++;
+  code += `SM_RandSeed         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; State machine PRNG seed (RAM: written at runtime)\n`;
+  currentAddress++;
+  code += `SM_TemplateFilterToken EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; State machine template filter scratch (RAM)\n`;
+  currentAddress++;
   code += `input_entity_list   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active current-screen entities with Input component (MAX_ENTITIES bytes)\n`;
   currentAddress += 32;
   code += `input_entity_count  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of entries in input_entity_list\n`;

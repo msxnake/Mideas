@@ -241,6 +241,28 @@ export function getUsedGlobalVariables(assets: ProjectAsset[]): MideasGlobalVari
     }
   });
 
+  // 2.5. Variables referenced by state machine conditions/actions (VARIABLE_COMPARE,
+  // SET_VARIABLE, INCREMENT_VARIABLE, ...): without this the MSX1 ROM generator does not know
+  // them and falls back to the entity X variable (ID 0).
+  const stateMachineVariableNames = new Set<string>();
+  const VARIABLE_PARAM_KEYS = ['variable', 'valueVariable', 'variableName', 'targetVariable', 'globalVariable', 'sourceVariable'];
+  const collectStateMachineVariables = (node: any, depth = 0) => {
+    if (!node || typeof node !== 'object' || depth > 40) return;
+    if (Array.isArray(node)) { node.forEach(item => collectStateMachineVariables(item, depth + 1)); return; }
+    const params = node.params;
+    if (params && typeof params === 'object') {
+      VARIABLE_PARAM_KEYS.forEach(key => {
+        const raw = params[key];
+        if (typeof raw === 'string' && raw.trim()) {
+          const name = normalizeGlobalVariableName(raw);
+          if (name) stateMachineVariableNames.add(name);
+        }
+      });
+    }
+    Object.values(node).forEach(value => { if (value && typeof value === 'object') collectStateMachineVariables(value, depth + 1); });
+  };
+  assets.filter(a => a.type === 'statemachine').forEach(sm => collectStateMachineVariables(sm.data));
+
   // 3. Extract code from component definitions
   const componentDefs = assets.filter(a => a.type === 'componentdefinition');
   componentDefs.forEach(comp => {
@@ -322,8 +344,9 @@ export function getUsedGlobalVariables(assets: ProjectAsset[]): MideasGlobalVari
     const isUsedInTileCollector = tileCollectorVariableNames.has(normalizedVariableName);
 
     const isUsedInHud = hudVariableNames.has(normalizedVariableName);
+    const isUsedInStateMachine = stateMachineVariableNames.has(normalizedVariableName);
 
-    if ((isUsedInCode || isUsedInIfThenElse || isUsedInGlobals || isUsedInInitGlobals || isUsedInTileCollector || isUsedInHud) && !usedVariableNames.has(normalizedVariableName)) {
+    if ((isUsedInCode || isUsedInIfThenElse || isUsedInGlobals || isUsedInInitGlobals || isUsedInTileCollector || isUsedInHud || isUsedInStateMachine) && !usedVariableNames.has(normalizedVariableName)) {
       usedVariables.push(variable);
       usedVariableNames.add(normalizedVariableName);
     }

@@ -42,7 +42,7 @@ import { renderScreenToCanvas, createSpriteDataURL, getScreenBehaviorLayer, getS
 import { checkMsx2HazardAtWorldPixel } from '../../utils/msx2Screen4TileBehavior';
 import { parseMsx2PlayerImport } from '../../utils/msx2PlayerImport';
 import { getStateMachineBrowserInputAliases, normalizeStateMachineInput } from '../../utils/stateMachineInputs';
-import { ROM_COLLISION_EVENT_ENEMY, ROM_COLLISION_EVENT_ENTITY, ROM_COLLISION_EVENT_ITEM, ROM_MOVE_DIRECTION_IDS, romAdaptiveProbes, romBehaviorStep, romCanMoveDirection, romCollisionFlagsFromLayer, romDirectionFromVelocity, romResolveBehaviorType, romTileCollidesWith, romDashConfig, romDashFrontTile, romDashStep, romMirrorFlags, romMirrorStep, romStickFromKeys, romWallJumpConfig, romWallJumpStep } from '../../utils/romMoveTest';
+import { ROM_COLLISION_EVENT_ENEMY, ROM_COLLISION_EVENT_ENTITY, ROM_COLLISION_EVENT_ITEM, ROM_MOVE_DIRECTION_IDS, romAdaptiveProbes, romBehaviorStep, romCanMoveDirection, romCollisionFlagsFor, romDirectionFromVelocity, romResolveBehaviorType, romTileCollidesWith, romDashConfig, romDashFrontTile, romDashStep, romMirrorFlags, romMirrorStep, romStickFromKeys, romWallJumpConfig, romWallJumpStep } from '../../utils/romMoveTest';
 import {
     applyMsx2JumpImpulseToEntity,
     getMsx2DashConfigFromPlayerEntity,
@@ -2340,7 +2340,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             case 'HAS_COLLISION': {
                 // ROM parity (stateMachineGenerator Condition_HasCollision): LEVEL-based flags rebuilt on every
                 // collision pass, classified by the OTHER entity's collision layer (COLLISION_LAYER_ENEMY #02 ->
-                // enemy, COLLISION_LAYER_ITEM #10 -> item, any overlap -> entity) plus tile wall contacts.
+                // enemy, COLLISION_LAYER_ITEM #10 or the Collectible component -> item, any overlap -> entity)
+                // plus tile wall contacts.
                 // The ROM has no itemType/template filter (the editor no longer offers it), so neither does Play.
                 // Play reads the last complete pass (romCollFlagsStable), i.e. at most one frame behind the ROM.
                 const collisionType = String(condition.params?.collisionType || 'any').toLowerCase();
@@ -9211,10 +9212,12 @@ useEffect(() => {
 
 
                         if (aCanCollideWithB && bCanCollideWithA) {
-                            // ROM parity (componentsGenerator .record_entity_collision): both entities get the
-                            // flags of the OTHER entity's layer, OR-ed with any other hit of this pass.
-                            (entityA as any).romCollFlags = ((entityA as any).romCollFlags ?? 0) | romCollisionFlagsFromLayer(layerB);
-                            (entityB as any).romCollFlags = ((entityB as any).romCollFlags ?? 0) | romCollisionFlagsFromLayer(layerA);
+                            // ROM parity (componentsGenerator .record_entity_collision / coll_flags_for_entity_e): both
+                            // entities get the flags of the OTHER entity (its layer, plus "item" when it has
+                            // Collectible), OR-ed with any other hit of this pass.
+                            const romIsCollectible = (en: AnimatedEntity) => en.template.components.some(c => c.definitionId === 'comp_collectible') || !!en.instance.componentOverrides?.['comp_collectible'];
+                            (entityA as any).romCollFlags = ((entityA as any).romCollFlags ?? 0) | romCollisionFlagsFor(layerB, romIsCollectible(entityB));
+                            (entityB as any).romCollFlags = ((entityB as any).romCollFlags ?? 0) | romCollisionFlagsFor(layerA, romIsCollectible(entityA));
                             // Check if either entity is a trigger
                             const isATrigger = propsA.isTrigger;
                             const isBTrigger = propsB.isTrigger;

@@ -5508,7 +5508,7 @@ mirror_next_entity:
 /**
  * Generate Collision Component System
  */
-function generateCollisionSystem(analysis: ProjectAnalysis, hasPlatformRiding: boolean): string {
+function generateCollisionSystem(analysis: ProjectAnalysis, hasPlatformRiding: boolean, hasCollectibleItems = false): string {
     // MSX Screen 2 ALWAYS uses 8x8 character cells for the Name Table (32x24 grid)
     // The behavior map maps 1:1 to the Name Table, so pixel-to-tile conversion
     // must ALWAYS divide by 8, regardless of the project's visual tile dimensions.
@@ -5986,15 +5986,12 @@ update_entity_collision_fast:
     add hl, de
     ld (hl), b
 
-    ; Classify target layer into collision event flags
+    ; Classify target (layer + Collectible) into collision event flags
     push de
     ld e, b
     ld d, 0
-    ld hl, entity_collision_layer
-    add hl, de
-    ld a, (hl)                    ; A = target layer bitmask
+    call coll_flags_for_entity_e
     pop de
-    call coll_flags_from_layer
     ld hl, entity_entity_collision_flags
     add hl, de
     or (hl)                       ; OR with existing flags (multiple hits)
@@ -6012,15 +6009,12 @@ update_entity_collision_fast:
     add hl, de
     ld (hl), c
 
-    ; Classify source layer into collision event flags
+    ; Classify source (layer + Collectible) into collision event flags
     push de
     ld e, c
     ld d, 0
-    ld hl, entity_collision_layer
-    add hl, de
-    ld a, (hl)                    ; A = source layer bitmask
+    call coll_flags_for_entity_e
     pop de
-    call coll_flags_from_layer
     ld hl, entity_entity_collision_flags
     add hl, de
     or (hl)                       ; OR with existing flags
@@ -6097,6 +6091,29 @@ coll_flags_from_layer:
 .cffl_done:
     ld a, c
     ret
+
+; ------------------------------------------------------------------
+; coll_flags_for_entity_e
+; Input:  DE = index of the OTHER entity of the overlap
+; Output: A = collision event flags: coll_flags_from_layer(layer), plus
+;         COLLISION_EVENT_ITEM when that entity has the Collectible component
+;         (Play mode mirror: utils/romMoveTest.ts romCollisionFlagsFor)
+; Clobbers: B, C, HL
+; ------------------------------------------------------------------
+coll_flags_for_entity_e:
+    ld hl, entity_collision_layer
+    add hl, de
+    ld a, (hl)                    ; A = other entity layer bitmask
+    call coll_flags_from_layer
+${hasCollectibleItems ? `    ld c, a
+    ld hl, entity_collectible_enabled
+    add hl, de
+    ld a, (hl)
+    or a
+    ld a, c
+    ret z
+    or COLLISION_EVENT_ITEM       ; Collectible entities are items
+` : ''}    ret
 
             check_tile_collision:
     ; Check collision with background tiles
@@ -17168,7 +17185,7 @@ update_movement_component:
 
     // Generate Collision System (if used)
     if (usedComponents.has('Collision')) {
-        code += generateCollisionSystem(analysis, hasPlatformRiding);
+        code += generateCollisionSystem(analysis, hasPlatformRiding, usedComponents.has('Collectible'));
     } else {
         code += `
     ; Collision system filtered out(not used)

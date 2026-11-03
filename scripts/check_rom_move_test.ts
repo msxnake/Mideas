@@ -14,7 +14,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import vm from 'node:vm';
-import { romAdaptiveProbes, romBehaviorStep, romCanMoveDirection, romCollisionFlagsFromLayer, romTileCollidesWith } from '../utils/romMoveTest';
+import { romAdaptiveProbes, romBehaviorStep, romCanMoveDirection, romCollisionFlagsFor, romCollisionFlagsFromLayer, romTileCollidesWith } from '../utils/romMoveTest';
 
 const root = new URL('..', import.meta.url).pathname;
 const read = (p: string) => readFileSync(join(root, p), 'utf8');
@@ -42,6 +42,10 @@ const behaviorEnd = compGen.indexOf('`', behaviorStart);
 const behaviorBlock = compGen.slice(behaviorStart, behaviorEnd);
 const flagsFromLayer = slice(compGen, 'coll_flags_from_layer:', '.cffl_done:') + '.cffl_done:\n    ld a, c\n    ret\n';
 assert.ok(compGen.includes('.cffl_done:\n    ld a, c\n    ret'), 'coll_flags_from_layer epilogue changed: update this test');
+// coll_flags_for_entity_e with its Collectible branch enabled (hasCollectibleItems = true)
+const flagsForEntity = slice(compGen, 'coll_flags_for_entity_e:', 'check_tile_collision:')
+  .replace(/\$\{hasCollectibleItems \? `([\s\S]*?)` : ''\}/, '$1');
+assert.ok(!flagsForEntity.includes('${'), 'coll_flags_for_entity_e template changed: update this test');
 
 const RAM = { w: 0xc000, h: 0xc020, ox: 0xc040, oy: 0xc060, x: 0xc080, y: 0xc0a0, ent: 0xc100, dir: 0xc101, res: 0xc102, map: 0xc200 };
 const asm = `
@@ -61,6 +65,8 @@ COLLISION_EVENT_ENTITY EQU #01
 COLLISION_EVENT_ENEMY EQU #02
 COLLISION_EVENT_ITEM EQU #04
 t_layer EQU #C103
+entity_collision_layer EQU #C500
+entity_collectible_enabled EQU #C520
 active_entity_count EQU #C120
 active_entity_list EQU #C121
 hero_entity_id EQU #C130
@@ -116,6 +122,14 @@ probes_entry:
 behavior_entry:
     call update_behavior_component
     ret
+    DS #4040 - $          ; fifth entry point at #4040
+flags_entity_entry:
+    ld a, (t_entity)
+    ld e, a
+    ld d, 0
+    call coll_flags_for_entity_e
+    ld (t_result), a
+    ret
 
 ; Test stand-in for the ROM reader: behaviour byte of (B=row, C=col), out of 32x24 = passable.
 get_behavior_tile:
@@ -150,6 +164,7 @@ get_behavior_tile:
 ${testMove}
 ${collisionBox}
 ${flagsFromLayer}
+${flagsForEntity}
 ${hitboxCache}
 ${signedOffset}
 ${behaviorBlock}
@@ -216,6 +231,15 @@ for (let layer = 0; layer < 256; layer++) {
   cpu.runRoutine(0x4010, 0xbff0);
   assert.equal(memory[RAM.res], romCollisionFlagsFromLayer(layer), `coll_flags_from_layer mismatch for layer ${layer}`);
 }
+// coll_flags_for_entity_e: layer + Collectible -> flags (Collectible entities are items)
+for (let k = 0; k < 512; k++) {
+  const e = k % 32;
+  const layer = (k * 37) & 0xff;
+  const collectible = (k >> 5) & 1;
+  memory[0xc500 + e] = layer; memory[0xc520 + e] = collectible; memory[RAM.ent] = e; memory[RAM.res] = 0xaa;
+  cpu.runRoutine(0x4040, 0xbff0);
+  assert.equal(memory[RAM.res], romCollisionFlagsFor(layer, collectible === 1), `coll_flags_for_entity_e mismatch layer=${layer} collectible=${collectible}`);
+}
 // wall_build_hitbox_cache adaptive probes vs romAdaptiveProbes (Play floor/wall probes)
 let probeCases = 0;
 for (let w = 1; w <= 40; w++) {
@@ -266,4 +290,4 @@ assert.equal(romTileCollidesWith(0x01, true, true), 0x09);
 assert.equal(romTileCollidesWith(0x01, true, false), 0x01);
 assert.equal(romTileCollidesWith(0x01, false, true, true), 0x01);
 assert.equal(romTileCollidesWith(0xff, false, true), 0xff);
-console.log(`OK ROM == Play: move test ${cases} random cases (${blocked} blocked) + coll_flags_from_layer 256 layers + ${probeCases} WallCollision probe boxes + ${behaviorCases} Behavior steps, Z80 assembled by glass.jar`);
+console.log(`OK ROM == Play: move test ${cases} random cases (${blocked} blocked) + coll_flags_from_layer 256 layers + coll_flags_for_entity_e 512 (layer, Collectible) cases + ${probeCases} WallCollision probe boxes + ${behaviorCases} Behavior steps, Z80 assembled by glass.jar`);
