@@ -35,3 +35,6 @@ test/**/*_generated/
 
 # Copyrighted VGM rips used only for local SCC driver testing (do not commit)
 test/scc/vgm/
+
+# Locally generated exports (Sketch IA zips, ASM/ROM builds)
+exports/
