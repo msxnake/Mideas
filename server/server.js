@@ -4966,7 +4966,8 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     const ramUsageEnd = ramUsageMatch ? Number.parseInt(ramUsageMatch[1], 16) : DEFAULT_RAM_BUFFER_BASE;
     // Keep buffers above project RAM variables to avoid corrupting runtime systems
     // (interrupt hooks/task table, entity arrays, etc.).
-    const RAM_BUFFER_BASE = Math.max(DEFAULT_RAM_BUFFER_BASE, (ramUsageEnd + 0xFF) & 0xFF00);
+    // No 256-byte alignment (matches variablesGenerator): all users take full 16-bit pointers.
+    const RAM_BUFFER_BASE = Math.max(DEFAULT_RAM_BUFFER_BASE, ramUsageEnd);
     let nextAddress = RAM_BUFFER_BASE;
 
     const scratchGroups = [];
@@ -4983,7 +4984,6 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
 
     const allocated = [];
     for (const group of scratchGroups) {
-      nextAddress = (nextAddress + 0xFF) & 0xFF00; // align at 256-byte boundary
       const start = nextAddress;
       const endExclusive = start + group.size;
       if (endExclusive > RAM_BUFFER_LIMIT) {

@@ -49,8 +49,8 @@ function formatZx0ScratchOverflowMessage(args: {
 
   return [
     `ZX0 scratch RAM overflow: need up to ${formatHexWord(args.scratchEnd)}, limit is ${formatHexWord(MSX_SYSTEM_RAM_START)} (over by ${overBy} bytes).`,
-    `RAM variables end at ${formatHexWord(args.currentAddress)} (${projectRamBytes} bytes from ${formatHexWord(RAM_BASE)}); scratch base aligns to ${formatHexWord(args.scratchBase)}.`,
-    `Required shared ZX0 scratch is ${args.scratchSize} bytes; free before MSX system variables after alignment is ${freeBeforeAlignedScratch} bytes.`,
+    `RAM variables end at ${formatHexWord(args.currentAddress)} (${projectRamBytes} bytes from ${formatHexWord(RAM_BASE)}); scratch base is ${formatHexWord(args.scratchBase)}.`,
+    `Required shared ZX0 scratch is ${args.scratchSize} bytes; free before MSX system variables is ${freeBeforeAlignedScratch} bytes.`,
     `ROM mode "${args.romMode}" does not change MSX1 RAM. Mapper/MegaROM builds must fit the same ${formatHexWord(MSX_SYSTEM_RAM_START)} ceiling.`,
     `Project asset counts: ${assetCounts}.`,
     `Large fixed RAM consumers include runtime screen/effects maps (~${screenMapBytes} bytes), entity arrays (~${entityBytesApprox}+ bytes), and tracker buffer (${args.serializedTrackerMusicBufferSize} bytes when banked tracker data is cached).`,
@@ -1973,8 +1973,10 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
     currentAddress = workspace.nextFree;
   }
 
-  const align256 = (value: number) => (value + 0xFF) & 0xFF00;
-  const zx0LargeScratchBase = align256(currentAddress);
+  // No 256-byte alignment: every consumer (ZX0 decoder, LDIR/LDIRVM staging,
+  // page0 copies) uses full 16-bit pointers, and aligning wasted up to 255
+  // bytes of the tight #C000-#F37F window (atenas135 overflowed by 80 bytes).
+  const zx0LargeScratchBase = currentAddress;
   const zx0ScratchEnd = zx0LargeScratchBase + ZX0_SHARED_SCRATCH_SIZE;
 
   if (zx0ScratchEnd > MSX_SYSTEM_RAM_START) {
@@ -2026,7 +2028,7 @@ RAM_USAGE_END       EQU #${currentAddress.toString(16).toUpperCase().padStart(4,
 ; ==================================================================
 ; RAM Layout:
 ;   #C000-#${currentAddress.toString(16).toUpperCase().padStart(4, '0')}: Project variables (${currentAddress - 0xC000} bytes)
-;   #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}-#${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}: Alignment padding/free RAM (${Math.max(0, zx0LargeScratchBase - currentAddress)} bytes)
+;   #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}-#${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}: Padding/free RAM (${Math.max(0, zx0LargeScratchBase - currentAddress)} bytes)
 ;   #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}-#${(zx0ScratchEnd - 1).toString(16).toUpperCase().padStart(4, '0')}: Shared ZX0 scratch (${ZX0_SHARED_SCRATCH_SIZE} bytes, do not use for persistent vars)
 ;   #${zx0ScratchEnd.toString(16).toUpperCase().padStart(4, '0')}-#F37F: Free RAM after scratch (~${MSX_SYSTEM_RAM_START - zx0ScratchEnd} bytes available)
 ;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
