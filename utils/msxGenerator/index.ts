@@ -36,7 +36,7 @@ import { generateSoundFile } from './generators/soundGenerator';
 import { generateScrollFile } from './generators/scrollGenerator';
 import { generateAnimatedTilesFile } from './generators/animatedTilesGenerator';
 import { generateBossesFile } from './generators/bossesGenerator';
-import { generatePage0File } from './generators/page0Generator';
+import { generatePage0File, fontDataUsesPage0Group } from './generators/page0Generator';
 import { getMapperWindowConfig } from './generators/mapperWindowUtils';
 import { generateMsx2Screen4Files } from './generators/msx2/msx2Screen4Generator';
 import { generateMsx2Screen5BitmapRoomFiles } from './generators/msx2/msx2Screen5BitmapRoomGenerator';
@@ -435,9 +435,12 @@ export function generateModularASM(
     screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
   );
   const needsFont = !!(hasMenus || hasGameFlowText || hasText || hasHudElements || hasDialogue);
-  const fontInPage0 = romMode === 'plain48k' && needsFont;
+  // Font goes to page 0 only if the page-0 planner actually selects it (budget may be exhausted
+  // by higher-priority groups). Otherwise font.asm must emit FONT_PATTERN_DATA/FONT_COLOR_DATA inline.
+  const fontRawDataCandidate = romMode === 'plain48k' && needsFont ? getFontRawData(analysis) : undefined;
+  const fontInPage0 = !!fontRawDataCandidate && fontDataUsesPage0Group(analysis, romMode, fontRawDataCandidate);
   const fontInBank4 = romMode === 'megarom' && needsFont;
-  const fontRawData = fontInPage0 ? getFontRawData(analysis) : undefined;
+  const fontRawData = fontRawDataCandidate;
 
   const files: GeneratedASMFiles = {
     'page0.asm': generatePage0File(analysis, romMode, fontRawData),
@@ -594,9 +597,10 @@ export function generateModularASMFromSummary(
     screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
   );
   const needsFont2 = !!(hasMenus2 || hasGameFlowText2 || hasText2 || hasHudElements2 || hasDialogue2);
-  const fontInPage02 = romMode === 'plain48k' && needsFont2;
+  const fontRawDataCandidate2 = romMode === 'plain48k' && needsFont2 ? getFontRawData(analysis) : undefined;
+  const fontInPage02 = !!fontRawDataCandidate2 && fontDataUsesPage0Group(analysis, romMode, fontRawDataCandidate2);
   const fontInBank42 = romMode === 'megarom' && needsFont2;
-  const fontRawData2 = fontInPage02 ? getFontRawData(analysis) : undefined;
+  const fontRawData2 = fontRawDataCandidate2;
 
   // Generate files using same logic as generateModularASM
   const keepRuntimeBackgroundLayout2 = shouldKeepRuntimeBackgroundLayout(analysis);
